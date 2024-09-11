@@ -1,0 +1,8 @@
+flask
+sqlalchemy
+rapidfuzz
+fuzzy
+yt_dlp
+openai
+flask_restx
+
