@@ -29,7 +29,7 @@ class SpeakCareEmrApi:
 
     ### Assessments ###
     # Admission
-    ADMISSION_ASSESSMENTS_TABLE = 'Admission Assessments'
+    ADMISSION_ASSESSMENTS_TABLE = 'Admission'
     ADMISSION_SECTION_1_TABLE = 'Admission: SECTION 1. DEMOGRAPHICS'
     ADMISSION_SECTION_2_TABLE = 'Admission: SECTION 2. VITALS-ALLERGIES'
     ADMISSION_SECTION_3_TABLE = 'Admission: SECTION 3. SKIN CONDITION'
@@ -53,7 +53,7 @@ class SpeakCareEmrApi:
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
                             'multipleRecordLinks', 'rollup', 'singleCollaborator']
 
-    def __init__(self, baseId, logger: logging.Logger):
+    def __init__(self, baseId: str, logger: logging.Logger):
         self.apiKey = os.environ['AIRTABLE_API_KEY']
         self.api = AirtableApi(self.apiKey)
         self.appBaseId = baseId
@@ -63,6 +63,12 @@ class SpeakCareEmrApi:
         self.webBaseUrl = f'{self.WEB_APP_BASE_URL}/{baseId}/'
         self.tables = None
         self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=70)
+        self.initialze()
+
+    def initialze(self):
+        self.load_tables()
+        self.load_patients()
+        self.load_nurses()
 
     def __user_writable_fields(self, tableSchema):
         fields = []
@@ -143,7 +149,7 @@ class SpeakCareEmrApi:
                     return table
         return None
     
-    def get_record_create_schema(self, tableId=None, tableName=None):
+    def get_record_external_schema(self, tableId=None, tableName=None):
         if not tableId and not tableName:
             self.logger.log(logging.ERROR, f'get_table_writable_fields: tableId and tableName are None')
             return None
@@ -167,8 +173,12 @@ class SpeakCareEmrApi:
 
     def create_record(self, tableId, record):
         record = self.api.table(self.appBaseId, tableId).create(record)
-        url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
-        return record, url
+        if record:
+            url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
+            return record, url
+        else:
+            self.logger.log(logging.ERROR, f'Failed to create record {record} in table {tableId}')
+            return None, None
     
     def update_record(self, tableId, recordId, record):
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
@@ -293,3 +303,21 @@ class SpeakCareEmrApi:
     def get_nurse_patients(self, nurse_id):
         return self.nursesTable.get(nurse_id)['fields']['Patients']
     
+
+__singletonInstance = None
+def get_emr_api_instance(config=None):
+    """
+    Provides access to the singleton instance of EMRAPI.
+    Initializes the instance if it hasn't been created yet.
+    :param config: Optional configuration dictionary for initializing the instance.
+    :return: Singleton instance of EMRAPI.
+    """
+    global __singletonInstance
+    if __singletonInstance is None:
+        if config is None:
+            raise ValueError("Configuration is required for the initial creation of the SpeakCareEmrApi instance.")
+        else:
+            baseId = config.get('baseId')
+            logger = config.get('logger')
+            __singletonInstance = SpeakCareEmrApi(baseId=baseId, logger=logger)
+    return __singletonInstance

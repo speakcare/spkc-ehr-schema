@@ -16,9 +16,6 @@ def main(argv):
     APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
     api = SpeakCareEmrApi(baseId=APP_BASE_ID, logger=logger)
-    api.load_tables()
-    api.load_patients()
-    api.load_nurses()
 
 
     ### Patients ### 
@@ -46,12 +43,13 @@ def main(argv):
         "Route": "Tympanic"
     }
 
-    api.load_patients()
-    api.load_nurses()
     patientName = 'Karol Smythe'
     matchedPatientName, patientId = api.lookup_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}')
+    patient = api.get_patient(patientId)
+    logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
+    return
     nurseName = 'Odrey Hapborn'
     matchedNurseName, nurseId = api.lookup_nurse(nurseName)
     logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}')
