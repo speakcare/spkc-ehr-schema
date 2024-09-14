@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, fields, Namespace
 from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType
-from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record
+from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_medical_record
 
 APP_PORT = 3000
 
@@ -17,30 +17,38 @@ medical_records_get_model = ns.model('MedicalRecordsGet', {
     'id': fields.Integer(description='The unique identifier of the record'),
     'emr_record_id': fields.String(readonly=True, description='External EMR record ID'),
     'emr_url': fields.String(readonly=True, description='URL to the EMR record'),
-    'parent_id': fields.Integer(description='ID of the parent record'),
     'type': fields.String(description='Type of record', enum=[record_type.value for record_type in RecordType]),  # Convert Enum to string
+    'table_name': fields.String(description='Table name in the external EMR system'),
     'patient_name': fields.String(description='Name of the patient'),
+    'patient_id': fields.String(readonly=True, description='External EMR patient ID'),
     'nurse_name': fields.String(description='Name of the nurse'),
-    'data': fields.Raw(required=True, description='The structured medical data in JSON format'),
+    'nurse_id': fields.String(readonly=True, description='External EMR nurse ID'),
+    'info': fields.Raw(required=True, description='The structured medical data in JSON format'),
     'meta': fields.Raw(readonly=True, description='Additional meta'),
     'state': fields.String(description='State of the record', enum=[state.value for state in RecordState]),  # Convert Enum to string 
     'errors': fields.Raw(readonly=True, description='Errors encountered during processing'),
     'created_time': fields.DateTime(readonly=True, description='Time when the record was created'),  # Add created_time field
-    'modified_time': fields.DateTime(readonly=True, description='Time when the record was last modified')  # Add modified_time field
+    'modified_time': fields.DateTime(readonly=True, description='Time when the record was last modified'),  # Add modified_time field
+    'transcript_id': fields.Integer(description='ID of the transcript that created this record')
 })
 
 medical_records_post_model = ns.model('MedicalRecordsCreate', {
-    'parent_id': fields.Integer(description='ID of the parent record in case of record sections'),
     'type': fields.String(required=True, description='Type of record', enum=[record_type.value for record_type in RecordType]),  # Convert Enum to string
+    'table_name': fields.String(required=True, description='Table name in the external EMR system'),
     'patient_name': fields.String(required=True, description='Name of the patient'),
+    'patient_id': fields.String(description='External EMR patient ID'),
     'nurse_name': fields.String(required=True, description='Name of the nurse'),
-    'data': fields.Raw(required=True, description='The structured medical data in JSON format'),
+    'nurse_id': fields.String(description='External EMR nurse ID'),
+    'info': fields.Raw(required=True, description='The structured medical data in JSON format'),
+    'transcript_id': fields.Integer(description='ID of the transcript that created this record')
 })
 
 medical_records_patch_model = ns.model('MedicalRecordsUpdate', {
     'patient_name': fields.String(description='Name of the patient'),
+    'patient_id': fields.String(description='External EMR patient ID'),
     'nurse_name': fields.String(description='Name of the nurse'),
-    'data': fields.Raw(description='The structured medical data in JSON format'), 
+    'nurse_id': fields.String(description='External EMR nurse ID'),
+    'info': fields.Raw(description='The structured medical data in JSON format'), 
 })
 
 
@@ -83,16 +91,20 @@ class MedicalRecordsResource(Resource):
         """Add a new medical record"""
         session = MedicalRecordsDBSession()
         data = request.json
-        new_record = MedicalRecords(
-            type= RecordType(data['type']),  # Convert to Enum
-            parent_id=data.get('parent_id', None),
-            patient_name=data['patient_name'],
-            nurse_name=data['nurse_name'],   
-            data=data['data']
-        )
-        session.add(new_record)
-        session.commit()
-        return jsonify({'message': 'Medical record added successfully', 'id': new_record.id}), 201
+        response, status_code, record_id = create_medical_record(session, data)
+        return jsonify(response), status_code
+        # new_record = MedicalRecords(
+        #     type= RecordType(data['type']),  # Convert to Enum
+        #     table_name=data['table_name'],
+        #     patient_name=data['patient_name'],
+        #     nurse_name=data['nurse_name'],   
+        #     data=data['data'],
+        #     transcript_id = data.get('transcript_id', None)
+        # )
+        # session.add(new_record)
+        # session.commit()
+        # return jsonify({'message': 'Medical record added successfully', 'id': new_record.id}), 201
+        
 
     @ns.doc('update_record')
     @ns.expect(medical_records_patch_model)

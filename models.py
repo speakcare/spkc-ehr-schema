@@ -1,16 +1,18 @@
 # database models
 from enum import Enum as PyEnum
-from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, Boolean, Enum, DateTime, func
+from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, Boolean, Enum, DateTime, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship, backref
+
 
 # Define the base class for declarative models
 Base = declarative_base()
 
 class RecordState(PyEnum):
-    NEW = 'new'
-    COMMITED = 'commited'
-    DISCARDED = 'discarded'
+    PENDING = 'PENDING'       # created but not commited yet, pending for user
+    ERRORS = 'ERRORS'         # created with errors or attempt to commit resutlted in errors
+    COMMITTED = 'COMMITTED'   # commited to the EMR
+    DISCARDED = 'DISCARDED'   # discared by user, not commited to the EMR
 
 
 class RecordType(PyEnum):
@@ -29,23 +31,33 @@ class Transcripts(Base):
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
     modified_time = Column(DateTime, onupdate=func.now())  # Auto-set on update
 
+    # Reverse relationship: list of medical records created from this transcript
+    medical_records = relationship('MedicalRecords', back_populates='transcript', cascade="all, delete-orphan")
+
+
 # Define the MedicalRecords model
 class MedicalRecords(Base):
     __tablename__ = 'MedicalRecords'
     id = Column(Integer, primary_key=True)
-    emr_record_id = Column(String)  # External EMR record ID
+    emr_record_id = Column(String)  # Internal unique EMR record ID
     emr_url = Column(String)  # URL to the EMR record
-    parent_id = Column(Integer) # For record sections only - ID of the parent record in the Sqlite database
     type = Column(Enum(RecordType), default=RecordType.MEDICAL_RECORD)  # Use Enum type for record type
     table_name = Column(String)  # Table name in the external EMR system
     patient_name = Column(String)
+    patient_id = Column(String)  # External EMR patient ID
     nurse_name = Column(String)
-    data = Column(JSON)  # Stores structured records in JSON format
+    nurse_id = Column(String)  # External EMR nurse ID
+    info = Column(JSON)  # Stores structured records in JSON format
     meta = Column(JSON)
     errors = Column(JSON)  # Stores any errors encountered during processing
-    state = Column(Enum(RecordState), default=RecordState.NEW)  # Use Enum type for state
+    state = Column(Enum(RecordState), default=RecordState.PENDING)  # Use Enum type for state
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
     modified_time = Column(DateTime, onupdate=func.now())   # Auto-set on update
+
+    # Foreign Key to link to the transcript from which this record was created
+    transcript_id = Column(Integer, ForeignKey('Transcripts.id'))
+    transcript = relationship('Transcripts', back_populates='medical_records')
+
 
 # Create database engines
 transcripts_engine = create_engine('sqlite:///db/transcripts.db')

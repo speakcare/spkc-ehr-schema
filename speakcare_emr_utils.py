@@ -4,7 +4,7 @@ import logging
 from config import SpeakCareEmrApiconfig
 from speakcare_emr_api import get_emr_api_instance
 from models import MedicalRecords, Transcripts, RecordType, RecordState
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 logging.basicConfig()
@@ -39,13 +39,113 @@ def get_patient_info(name):
     return patient_data
 
 
+def create_medical_record(session: Session, data: dict):
+    """
+    Creates a new medical record linked to a given transcript.
+
+    :param session: The SQLAlchemy session to use for the database operations.
+    :param data: A dictionary containing the data for the medical record.
+    :return: A tuple containing the new record object and an HTTP status code.
+    """
+
+
+    # Perform any additional validity checks on the data
+    # Example: Check if the data dictionary contains necessary keys
+    try:
+        # first check for unrecoverable errors
+
+        required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'info']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+        _type = RecordType(data['type'])
+        _table_name = data['table_name']
+        _patient_name = data['patient_name']
+        _patient_id = data.get('patient_id', None)
+        _nurse_name = data['nurse_name']
+        _nurse_id = data.get('nurse_id', None)
+        _info = data['info']
+        _transcript_id = data.get('transcript_id', None)
+        _errors = []
+        _state = RecordState.PENDING
+
+        # Check if the transcript exists
+        if _transcript_id is not None:
+            transcript = session.query(Transcripts).get(_transcript_id)
+            if not transcript:
+                raise ValueError("Transcript not found")
+            
+        # TODO: check for validity of _type and _table_name
+
+        # TODO: check for validity of _info data
+    except ValueError as e:
+        logger.error(f"Error creating medical record: {e}")
+        return {"error": str(e)}, 400, None
+    
+    # lookup and validate patient
+    foundPatient, foundPatientId = emr_api.lookup_patient(_patient_name)
+    if not foundPatientId: # patient not found, this can be corrected by the user
+        _state = RecordState.ERRORS
+        err = f"Patient {_patient_name} not found in the EMR."
+        _errors.append(err)
+        logger.warning(err)
+    elif _patient_id and _patient_id != foundPatientId:  # wrong patient ID, this can be corrected by the user
+        _state = RecordState.ERRORS
+        err = f"Patient ID {_patient_id} does not match the patient ID {foundPatientId} found in the EMR for patient {_patient_name}."
+        _errors.append(err)
+        logger.warning(err)
+    else:
+        _patient_id = foundPatientId
+
+        
+    # lookup and validate nurse
+    foundNurse, foundNurseId = emr_api.lookup_nurse(_nurse_name)
+    if not foundNurseId:
+        _state = RecordState.ERRORS
+        err = f"Nurse {_nurse_name} not found in the EMR."
+        _errors.append(err)
+        logger.warning(err)
+    elif _nurse_id and _nurse_id != foundNurseId:
+        _state = RecordState.ERRORS
+        err = f"Nurse ID {_nurse_id} does not match the nurse ID {foundNurseId} found in the EMR for nurse {_nurse_name}."
+        _errors.append(err)
+        logger.warning(err)
+    else:
+        _nurse_id = foundNurseId
+      
+    # TODO: check data validity by table name and expectd json schema of that table
+    # here I need to get the table schema from the EMR API and compare it with the info data
+    # Create the new medical record
+
+    new_record = MedicalRecords(
+        type= _type,  # Convert to Enum
+        table_name=_table_name,
+        patient_name=_patient_name,
+        patient_id= _patient_id,
+        nurse_name=_nurse_name,
+        nurse_id= _nurse_id,
+        info= _info,
+        transcript_id = _transcript_id,
+        state= _state 
+    )
+    
+    # Add and commit the new record to the database
+    session.add(new_record)
+    session.commit()
+
+    return {"message": "Medical record created successfully", "id": new_record.id}, 201, new_record.id
+
+
+# TODO: add update_medical_record function here and unify validity checks
+
 def commit_record_to_ehr(record: MedicalRecords):
 
     # prepare to commit the record to the EMR
     try:
-        # first verify that the record is a new state
-        if record.state != RecordState.NEW:  # Example check to ensure the record is in a valid state to be commited
-            raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.NEW}' state.")
+        # first verify that the record is a PENDING state
+        if record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
+            raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
         
         # then verify that we have valid patient and nurse names and set them in the record
         foundPatient, patientId = emr_api.lookup_patient(record.patient_name) 
@@ -78,9 +178,9 @@ def commit_record_to_ehr(record: MedicalRecords):
 
         # TODO handle Assessment and Assessment Section records
         
-        # update the record state to 'COMMITED'
+        # update the record state to 'COMMITTED'
         logger.info(f"Commiting record {record.id}")
-        record.state = RecordState.COMMITED
+        record.state = RecordState.COMMITTED
         return {"message": f"Record {record.id} applied successfully."}, 200
     
     except Exception as e:
@@ -96,8 +196,8 @@ def commit_record_to_ehr(record: MedicalRecords):
 def discard_record(record: MedicalRecords):
     # Logic to discard the record
     try:
-        if record.state != RecordState.NEW:  # Example check to ensure the record is in a valid state to be discarded
-                raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.NEW}' state.")
+        if record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be discarded
+                raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
 
         logger.info(f"Discarding record {record.id}")
         record.state = RecordState.DISCARDED
@@ -107,7 +207,7 @@ def discard_record(record: MedicalRecords):
         return {"error": str(e)}, 400           # Return error response and status code
     
 
-def delete_record(session: sessionmaker, record: MedicalRecords):
+def delete_record(session: Session, record: MedicalRecords):
     # Logic to permanently delete the record from the database
     logger.info(f"Deleting record {record.id}")
     session.delete(record)

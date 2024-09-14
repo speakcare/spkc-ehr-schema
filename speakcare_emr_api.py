@@ -245,9 +245,15 @@ class SpeakCareEmrApi:
 # Patients methods
     def load_patients(self):
         self.patientsTable = self.api.table(self.appBaseId, self.PATIENTS_TABLE)
-        self.patientNames = [patient['fields']['FullName'] for patient in self.patientsTable.all()]
-        self.patientIds = [patient['id'] for patient in self.patientsTable.all()]
-        self.logger.info(f'Loaded patients. Patients names: {self.patientNames}')
+        self.patientNames=[]
+        self.patientEmrIds=[]
+        self.patientIds=[]
+        patients = self.patientsTable.all()
+        for patient in patients:
+            self.patientNames.append(patient['fields']['FullName'])
+            self.patientEmrIds.append(patient['id'])
+            self.patientIds.append(patient['fields']['PatientID'])
+        self.logger.debug(f'Loaded patients. Patients names: {self.patientNames}')
 
     def get_patients(self):
         return self.patientsTable.all()
@@ -274,9 +280,15 @@ class SpeakCareEmrApi:
 # Nurses methods 
     def load_nurses(self):
         self.nursesTable = self.api.table(self.appBaseId, self.NURSES_TABLE)
-        self.nurseNames = [nurse['fields']['Name'] for nurse in self.nursesTable.all()]
-        self.nurseIds = [nurse['id'] for nurse in self.nursesTable.all()]
-        self.logger.info(f'Loaded nurses. Nurses names: {self.nurseNames}')
+        self.nurseNames = []
+        self.nurseEmrIds = []
+        self.nurseIds = []
+        nurses = self.nursesTable.all()
+        for nurse in nurses:
+            self.nurseNames.append(nurse['fields']['Name'])
+            self.nurseEmrIds.append(nurse['id'])
+            self.nurseIds.append(nurse['fields']['NurseID'])
+        self.logger.debug(f'Loaded nurses. Nurses names: {self.nurseNames}')
 
     def get_nurses(self):
         return self.nursesTable.all()
