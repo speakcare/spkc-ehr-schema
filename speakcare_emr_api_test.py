@@ -121,25 +121,32 @@ def test_assessment_creation(api: SpeakCareEmrApi, logger: logging.Logger):
 
     return assementRecord
 
-def test_get_single_table_schema(api: SpeakCareEmrApi, logger: logging.Logger, tableName):
-    tableSchema = api.get_table_external_schema(tableName=tableName)
+def test_get_single_table_schema(api: SpeakCareEmrApi, logger: logging.Logger, tableName, writeableOnly: bool = True):
+    if writeableOnly:
+        tableSchema = api.get_table_writable_schema(tableName=tableName)
+    else:
+        tableSchema = api.get_table_schema(tableName=tableName)
+
     logger.info(f'{tableName} Table schema: {json.dumps(tableSchema, indent=4)}')
     sectionNames = api.get_emr_table_section_names(tableName=tableName)
     if sectionNames is not None:
         logger.info(f'{tableName} Table section names: {sectionNames}')
         for sectionName in sectionNames:
-            sectionSchema = api.get_table_external_schema(tableName=sectionName)
+            if writeableOnly: 
+                sectionSchema = api.get_table_writable_schema(tableName=tableName, sectionName=sectionName)
+            else:
+                sectionSchema = api.get_table_schema(tableName=sectionName)
             logger.info(f'{tableName} Table {sectionName} section schema: {json.dumps(sectionSchema, indent=4)}')
     return
 
-def test_get_tables_schemas(api: SpeakCareEmrApi, logger: logging.Logger, tableName: str = None):
+def test_get_tables_schemas(api: SpeakCareEmrApi, logger: logging.Logger, tableName: str = None, writeableOnly: bool = True):
 
     tableNames = api.get_emr_table_names()
     logger.info(f'Table names: {tableNames}')
 
     if tableName and tableName in tableNames:
         logger.info(f'Getting schema for table {tableName}')
-        test_get_single_table_schema(api, logger, tableName)
+        test_get_single_table_schema(api, logger, tableName, writeableOnly)
         return
     elif tableName and tableName not in tableNames:
         logger.error(f'Table {tableName} not found')
@@ -147,10 +154,9 @@ def test_get_tables_schemas(api: SpeakCareEmrApi, logger: logging.Logger, tableN
     else: # get schema for all tables
         logger.info(f'Getting schema for all tables')
         for _tableName in tableNames:
-            test_get_single_table_schema(api, logger, _tableName)
+            test_get_single_table_schema(api, logger, _tableName, writeableOnly)
         
     return
-
 
 
 def main(argv):    
@@ -175,7 +181,12 @@ def main(argv):
     # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.TEMPERATURES_TABLE)
     # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.PROGRESS_NOTES_TABLE)
     # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE)
-    test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.ADMISSION_ASSESSMENTS_TABLE)
+    # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.ADMISSION_ASSESSMENTS_TABLE)
+    # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.EPISODES_TABLE)
+    # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.PROGRESS_NOTES_TABLE)
+    # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.PROGRESS_NOTES_TABLE, writeableOnly=False)
+    test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.WEIGHTS_TABLE)
+    # test_get_single_table_schema(api, testLogger, tableName=SpeakCareEmrApi.PATIENTS_TABLE, writeableOnly=False)
 
 
 if __name__ == "__main__":

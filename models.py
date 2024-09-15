@@ -16,9 +16,8 @@ class RecordState(PyEnum):
 
 
 class RecordType(PyEnum):
-    MEDICAL_RECORD = 'medical_record'
-    ASSESSMENT = 'assessment'
-    ASSESSMENT_SECTION = 'assessment_section'
+    MEDICAL_RECORD = 'MEDICAL_RECORD'
+    ASSESSMENT = 'ASSESSMENT'
 
 # Define the RawTextSession model
 class Transcripts(Base):

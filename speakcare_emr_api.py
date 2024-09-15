@@ -185,26 +185,27 @@ class SpeakCareEmrApi:
                     return table
         return None
     
-    def get_table_external_schema(self, tableId=None, tableName=None):
+    def get_table_writable_schema(self, tableId=None, tableName=None):
         if not tableId and not tableName:
-            self.logger.log(logging.ERROR, f'get_table_external_schema: tableId and tableName are None')
+            self.logger.log(logging.ERROR, f'get_table_writable_schema: tableId and tableName are None')
             return None
 
         if tableName in self.READONLY_TABLES:
-            self.logger.log(logging.INFO, f'get_table_external_schema: Table {tableName} is readonly')
+            self.logger.log(logging.INFO, f'get_table_writable_schema: Table {tableName} is readonly')
             return None
         
         tableSchema = self.get_table_schema(tableId=tableId, tableName=tableName)
 
         if not tableSchema:
-            self.logger.log(logging.ERROR, f'get_table_external_schema: Table {tableName} failed to get schema')
+            self.logger.log(logging.ERROR, f'get_table_writable_schema: Table {tableName} failed to get schema')
             return None
 
         if tableSchema['name'] in self.READONLY_TABLES:
-            self.logger.log(logging.INFO, f'get_table_external_schema: Table {tableSchema["name"]} is readonly')
+            self.logger.log(logging.INFO, f'get_table_writable_schema: Table {tableSchema["name"]} is readonly')
             return None
         
-        return self.__user_writable_fields(tableSchema)
+        tableSchema['fields'] = self.__user_writable_fields(tableSchema)
+        return tableSchema
 
 
     def create_record(self, tableId, record):

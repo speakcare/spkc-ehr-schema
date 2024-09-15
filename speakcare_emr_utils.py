@@ -47,8 +47,8 @@ def get_emr_table_section_names(tableName):
     section_names = emr_api.get_emr_table_section_names(tableName)
     return section_names
 
-def get_table_external_schema(tableName):
-    table_schema = emr_api.get_table_external_schema(tableName)
+def get_table_writable_schema(tableName):
+    table_schema = emr_api.get_table_writable_schema(tableName)
     return table_schema
 
 
@@ -72,7 +72,7 @@ def create_medical_record(session: Session, data: dict):
         if missing_fields:
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
-        _type = RecordType(data['type'])
+        _type = RecordType(data['type']) #automatically checked for validity by PyEnum
         _table_name = data['table_name']
         _patient_name = data['patient_name']
         _patient_id = data.get('patient_id', None)
@@ -87,9 +87,12 @@ def create_medical_record(session: Session, data: dict):
         if _transcript_id is not None:
             transcript = session.query(Transcripts).get(_transcript_id)
             if not transcript:
-                raise ValueError("Transcript not found")
+                raise ValueError(f"Transcript if {_transcript_id} not found")
             
-        # TODO: check for validity of _type and _table_name
+        # TODO: check for validity of _table_name
+        table_names = get_emr_table_names()
+        if _table_name not in table_names:
+            raise ValueError(f"Table name {_table_name} not found in the EMR.")
 
         # TODO: check for validity of _info data
     except ValueError as e:
