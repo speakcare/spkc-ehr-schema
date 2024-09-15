@@ -5,38 +5,26 @@ from speakcare_emr_api import SpeakCareEmrApi
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
-def main(argv):    
-
-    # Initialize logging
-    logging.basicConfig()
-    logger = logging.getLogger("speackcare.emr.api")
-    logger.setLevel(logging.INFO)
-    logger.propagate = True
-
-    APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
-
-    api = SpeakCareEmrApi(baseId=APP_BASE_ID, logger=logger)
-
-
     ### Patients ### 
-    patients = {
-        "Carol Smith": "rec4RsEGnKxO43ntl",
-        "Alice Johnson": "recBmJYY6rB8Ufxjl",
-        "Bob Williams": "recWya4qhPh1KZIor",
-        "Eve Davis": "rechoUGdH6iLCpPDl",
-        "John Doe": "recuGGwjlzPbDNFBW"
-    }
+# patients = {
+#         "Carol Smith": "rec4RsEGnKxO43ntl",
+#         "Alice Johnson": "recBmJYY6rB8Ufxjl",
+#         "Bob Williams": "recWya4qhPh1KZIor",
+#         "Eve Davis": "rechoUGdH6iLCpPDl",
+#         "John Doe": "recuGGwjlzPbDNFBW"
+#     }
 
-    ### Nurses ###
-    nurses = {
-        "Audrey Hepburn":  "recQS1niZVmFu5Jmq",
-        "Jessica Alba":    "recVmeNQcsWUkbB41",
-        "Sara Foster":     "rechjFqtbZ35X8ayu", 
-        "Rebecca Jones":   "reciAkTnOef0vLuCx",
-        "Jannet Collines": "recmdxKo2PKcu64DQ"
-    }
+#     ### Nurses ###
+# nurses = {
+#         "Audrey Hepburn":  "recQS1niZVmFu5Jmq",
+#         "Jessica Alba":    "recVmeNQcsWUkbB41",
+#         "Sara Foster":     "rechjFqtbZ35X8ayu", 
+#         "Rebecca Jones":   "reciAkTnOef0vLuCx",
+#         "Jannet Collines": "recmdxKo2PKcu64DQ"
+#     }
 
 
+def test_tempratue_record_creation(api: SpeakCareEmrApi, logger: logging.Logger):
     temperatureRecord = {
         "Units": "Fahrenheit",
         "Temprature": 103,
@@ -44,31 +32,60 @@ def main(argv):
     }
 
     patientName = 'Karol Smythe'
-    matchedPatientName, patientId = api.lookup_patient(patientName)
-    logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}')
-    patient = api.get_patient(patientId)
+    matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
+    logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
+    patient = api.get_patient(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
-    return
+    
     nurseName = 'Odrey Hapborn'
-    matchedNurseName, nurseId = api.lookup_nurse(nurseName)
-    logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}')
+    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
+    logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
         logger.error('Failed to find patient or nurse')
-        return
+        return None
     
+
+
     record, url = api.create_medical_record(tableName= SpeakCareEmrApi.TEMPERATURES_TABLE, record=temperatureRecord, 
-                              patientId= patientId, createdByNurseId=nurseId)
+                                            patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     logger.info(f'Created temperature record: {record} url is {url}')
     logger.info(f'get_record_url returns {api.get_record_url(record["id"], tableName=SpeakCareEmrApi.TEMPERATURES_TABLE)}')
+    return record
 
-    return
+def test_progress_note_creation(api: SpeakCareEmrApi, logger: logging.Logger):
+       # progressNoteRecord = {
+    #     "Notes": "Patient had temparture above 101, should be tested for Covid-19",
+    #     "Type": "Infection",
+    #     "Status": "Notify doctor"
+    # }
 
+    # record = api.create_medical_record(tableName= SpeakCareEmrApi.PROGRESS_NOTES_TABLE, record=progressNoteRecord,
+    #                                    patientId= patients["Carol Smith"], createdByNurseId=nurses["Audrey Hepburn"])
+    
+    # print(f'Created progress note record: {record}')
+    pass
 
+def test_assessment_creation(api: SpeakCareEmrApi, logger: logging.Logger):
 
-    assementRecord = api.create_assessment(SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE, patientId= patientId, createdByNurseId=nurseId)
-    logger.info(f'Created fall risk assessment: {assementRecord}')
+    patientName = 'Karol Smythe'
+    matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
+    logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
+    patient = api.get_patient(patientEmrId)
+    logger.info(f'Patient: {json.dumps(patient, indent=4)}')
+   
+    
+    nurseName = 'Odrey Hapborn'
+    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
+    logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
+   
+    if not patientId or not nurseId:
+        logger.error('Failed to find patient or nurse')
+        return None
+
+    assementRecord, url = api.create_assessment(SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    logger.info(f'Created fall risk assessment: {assementRecord} url is {url}')
 
     fallRiskSectionRecord = {
         "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "INTERMITTENT CONFUSION (4 points)",
@@ -86,87 +103,80 @@ def main(argv):
     }
     
     nurseName = 'Rebeka Jones'
-    matchedNurseName, nurseId = api.lookup_nurse(nurseName)
-    logger.info(f'Updating Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}')
+    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
+    logger.info(f'Updating Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
     if not patientId or not nurseId:
         logger.error('Failed to find patient or nurse')
-        return
+        return None
     
     assessSection1Record = api.create_assessment_section(SpeakCareEmrApi.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
-                                                         assessmentId= assementRecord['id'], createdByNurseId=nurseId)
+                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     logger.info(f'Created fall risk assessment section: {assessSection1Record}')
         
     nurseName = 'Jessiqa Elba'
-    matchedNurseName, nurseId = api.lookup_nurse(nurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
     logger.info(f'Signing Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}')
-    assementRecord = api.sign_assessment(SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseId=nurseId)
+    assementRecord = api.sign_assessment(SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
     logger.info(f'Signed fall risk assessment: {assementRecord} url is {api.get_record_url(assementRecord["id"], tableName=SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE)}')
 
+    return assementRecord
+
+def test_get_single_table_schema(api: SpeakCareEmrApi, logger: logging.Logger, tableName):
+    tableSchema = api.get_table_external_schema(tableName=tableName)
+    logger.info(f'{tableName} Table schema: {json.dumps(tableSchema, indent=4)}')
+    sectionNames = api.get_emr_table_section_names(tableName=tableName)
+    if sectionNames is not None:
+        logger.info(f'{tableName} Table section names: {sectionNames}')
+        for sectionName in sectionNames:
+            sectionSchema = api.get_table_external_schema(tableName=sectionName)
+            logger.info(f'{tableName} Table {sectionName} section schema: {json.dumps(sectionSchema, indent=4)}')
+    return
+
+def test_get_tables_schemas(api: SpeakCareEmrApi, logger: logging.Logger, tableName: str = None):
+
+    tableNames = api.get_emr_table_names()
+    logger.info(f'Table names: {tableNames}')
+
+    if tableName and tableName in tableNames:
+        logger.info(f'Getting schema for table {tableName}')
+        test_get_single_table_schema(api, logger, tableName)
+        return
+    elif tableName and tableName not in tableNames:
+        logger.error(f'Table {tableName} not found')
+        return
+    else: # get schema for all tables
+        logger.info(f'Getting schema for all tables')
+        for _tableName in tableNames:
+            test_get_single_table_schema(api, logger, _tableName)
+        
+    return
 
 
 
+def main(argv):    
+
+    # Initialize logging
+    logging.basicConfig()
+    logger = logging.getLogger("speackcare.emr.api")
+    logger.setLevel(logging.INFO)
+    logger.propagate = True
+
+    testLogger = logging.getLogger("api_test")
+    testLogger.setLevel(logging.INFO)
+    testLogger.propagate = True
+
+    APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
+
+    api = SpeakCareEmrApi(baseId=APP_BASE_ID, logger=logger)
+
+    # test_tempratue_record_creation(api, testLogger)
+    # test_assessment_creation(api, testLogger)
+
+    # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.TEMPERATURES_TABLE)
+    # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.PROGRESS_NOTES_TABLE)
+    # test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE)
+    test_get_tables_schemas(api, testLogger, SpeakCareEmrApi.ADMISSION_ASSESSMENTS_TABLE)
 
 
-
-    # fallRiskWriteableFields = api.get_record_create_schema(tableName=SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE)
-    # print(f'Fall Risk Screen Record Create Schema: {json.dumps(fallRiskWriteableFields, indent=4)}')
-
-    # bloodPressuresTableSchema = api.get_table_schema(tableName=SpeakCareEmrApi.BLOOD_PRESSURES_TABLE)
-    # bloodPressuresTableId = bloodPressuresTableSchema['id']
-    # print(f'{SpeakCareEmrApi.BLOOD_PRESSURES_TABLE} Table schema: {json.dumps(bloodPressuresTableSchema, indent=4)}')
-    # bloodPressuresTableSchema = api.get_table_schema(tableId=bloodPressuresTableId)
-    # print(f'{SpeakCareEmrApi.BLOOD_PRESSURES_TABLE} Table schema: {json.dumps(bloodPressuresTableSchema, indent=4)}')
-
-    # bloodPressuresTableWritableFields = api.get_table_writable_fields(tableId=bloodPressuresTableId)
-    # print(f'{SpeakCareEmrApi.BLOOD_PRESSURES_TABLE} Table writable fields: {json.dumps(bloodPressuresTableWritableFields, indent=4)}')
-
-    # fallsRiskScreenTableSchema = api.get_table_schema(tableName=SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE)
-    # fallsRiskScreenTableId = fallsRiskScreenTableSchema['id']
-    # print(f'{SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE} Table {fallsRiskScreenTableId} schema: {json.dumps(fallsRiskScreenTableSchema, indent=4)}')
-    # fallsRiskTableWritableFields = api.get_table_writable_fields(tableId=fallsRiskScreenTableId)
-    # print(f'{SpeakCareEmrApi.FALL_RISK_SCREEN_TABLE} Table writable fields: {json.dumps(fallsRiskTableWritableFields, indent=4)}')
-
-    # patientsWritableFields = api.get_record_create_schema(tableName=SpeakCareEmrApi.PATIENTS_TABLE)
-    # print(f'{SpeakCareEmrApi.PATIENTS_TABLE} Record Create Schema: {json.dumps(patientsWritableFields, indent=4)}')
-
-    # blablaWrtiableFields = api.get_record_create_schema(tableName='blabla')
-    # print(f'blabla Record Create Schema: {json.dumps(blablaWrtiableFields, indent=4)}')
-
-    # patientTableId = api.get_table_schema(tableName=SpeakCareEmrApi.PATIENTS_TABLE)['id']
-    # print(f'Patient table id: {patientTableId}')
-    # patientsWritableFields = api.get_record_create_schema(tableId=patientTableId)
-    # print(f'{SpeakCareEmrApi.PATIENTS_TABLE} Record Create Schema: {json.dumps(patientsWritableFields, indent=4)}')
-
-
-    #print(f'Tables type is {type(tables)})')
-    #print(f'Tables (type={type(tables)}): {json.dumps(tables, indent=4)}')
-    # weightRecord = WeightRecord(patientId='recWya4qhPh1KZIor', nurseId='recVmeNQcsWUkbB41',  weight=170)
-    # print(f'Weight record: {weightRecord}')
-    # print(f'Weight record JSON: {weightRecord.to_json()}')
-    # weights = [weightRecord.to_dict()]
-    # print(f'Weights: {weights}')
-    #api.create_records(WeightRecord.WEIGHTS_TABLE_ID, weights)
-    #record = api.create_record(WeightRecord.WEIGHTS_TABLE_ID, weightRecord.to_dict())
-    #print(f'Created weight record: {record}')
-
-    # weightRecords = [WeightRecord(patientId='recuGGwjlzPbDNFBW', nurseId='rechjFqtbZ35X8ayu',  weight=170).to_dict(), 
-    #                  WeightRecord(patientId='recuGGwjlzPbDNFBW', nurseId='rechjFqtbZ35X8ayu',  weight=165).to_dict(),
-    #                  WeightRecord(patientId='recuGGwjlzPbDNFBW', nurseId='rechjFqtbZ35X8ayu',  weight=175).to_dict()]
-    
-    # records = api.create_records_batch(WeightRecord.WEIGHTS_TABLE_ID, weightRecords)
-    # print(f'Created weight records for patientId=recuGGwjlzPbDNFBW recrods: {records}')
-
-
-   # progressNoteRecord = {
-    #     "Notes": "Patient had temparture above 101, should be tested for Covid-19",
-    #     "Type": "Infection",
-    #     "Status": "Notify doctor"
-    # }
-
-    # record = api.create_medical_record(tableName= SpeakCareEmrApi.PROGRESS_NOTES_TABLE, record=progressNoteRecord,
-    #                                    patientId= patients["Carol Smith"], createdByNurseId=nurses["Audrey Hepburn"])
-    
-    # print(f'Created progress note record: {record}')
-    
 if __name__ == "__main__":
     main(sys.argv[1:])

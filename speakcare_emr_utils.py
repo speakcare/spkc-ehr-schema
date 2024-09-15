@@ -20,12 +20,12 @@ def get_patient_info(name):
     # Placeholder function to fetch patient info based on the name
     # This function should interact with your data source (e.g., a database or external API)
     # Example response (replace with actual data fetching logic)
-    foundName, patientId = emr_api.lookup_patient(name)
+    foundName, patientId, patientEmrId = emr_api.lookup_patient(name)
 
-    if not patientId:
+    if not patientEmrId:
         return None
 
-    emr_patient = emr_api.get_patient(patientId)
+    emr_patient = emr_api.get_patient(patientEmrId)
     patient_data = {
         "emr_patient_id": patientId,
         "patient_id": emr_patient['fields']['PatientID'],
@@ -37,6 +37,19 @@ def get_patient_info(name):
         "photo" : emr_patient['fields']['Photo']
     }
     return patient_data
+
+
+def get_emr_table_names():
+    table_names = emr_api.get_emr_table_names()
+    return table_names
+
+def get_emr_table_section_names(tableName):
+    section_names = emr_api.get_emr_table_section_names(tableName)
+    return section_names
+
+def get_table_external_schema(tableName):
+    table_schema = emr_api.get_table_external_schema(tableName)
+    return table_schema
 
 
 def create_medical_record(session: Session, data: dict):
@@ -148,24 +161,21 @@ def commit_record_to_ehr(record: MedicalRecords):
             raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
         
         # then verify that we have valid patient and nurse names and set them in the record
-        foundPatient, patientId = emr_api.lookup_patient(record.patient_name) 
+        foundPatient, patientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
         if not patientId:
             record.errors
             raise ValueError(f"Patient {record.patient_name} not found in the EMR.")
         # update the patient name to the correct one as matched in the database
         record.patient_name = foundPatient
         
-        foundNurse, nurseId = emr_api.lookup_nurse(record.nurse_name)
+        foundNurse, nurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
         if not nurseId:
             raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
         # update the nurse name to the correct one as matched in the database
         record.nurse_name = foundNurse
         
-        record.data['Patient'] = [patientId]
-        record.data['CreatedBy'] = [nurseId]
-
         table_name  = record.table_name
-        record_data = record.data
+        record_data = record.info
         record_type = record.type
         if (record_type == RecordType.MEDICAL_RECORD):
             emr_record, url = emr_api.create_medical_record(tableName=table_name, record=record_data, patientId=patientId, nurseId=nurseId)
