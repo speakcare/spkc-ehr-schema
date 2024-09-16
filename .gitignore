@@ -15,3 +15,6 @@ __pycache__/
 
 # Ignore desktop specific files
 .DS_Store
+
+# Ignore database files
+db/
