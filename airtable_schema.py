@@ -148,7 +148,7 @@ class AirtableSchema:
         if isinstance(value, str) and '\n' not in value:
             return True, ""
         else:
-            error_message = f"Single line text validation error: Value '{value}' is not a valid single line text."
+            error_message = f"Single line text validation error: Value '{value}' is not a valid single line string."
             self.logger.error(error_message)
             return False, error_message
         
@@ -161,7 +161,7 @@ class AirtableSchema:
         if isinstance(value, str):
             return True, ""
         else:
-            error_message = f"Multi line text validation error: Value '{value}' is not a valid multi line text."
+            error_message = f"Multi line text validation error: Value '{value}' is not a valid multi line string."
             self.logger.error(error_message)
             return False, error_message
         

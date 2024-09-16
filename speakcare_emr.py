@@ -276,25 +276,62 @@ class SpeakCareEmr:
     def create_medical_record(self, tableName, record, 
                               patientEmrId, createdByNurseEmrId):
  
+        tableSchema = self.tableWriteableSchemas.get(tableName)
+        if not tableSchema:
+            err_msg = f'create_medical_record: Failed to get writable schema for table {tableName}'
+            self.logger.error(err_msg)
+            return None, None, err_msg
+        
+        isValidRecord, err_msg = tableSchema.validate_record(record)
+        if not isValidRecord:
+            self.logger.error(f'create_medical_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
+            return None, None, err_msg
+        
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
         tableId = self.get_table_id(tableName)
-        return self.create_record(tableId= tableId, record=record)
+        record, url = self.create_record(tableId= tableId, record=record)
+        return record, url, None
 
 
-    def create_assessment(self, assessmentTableName, patientEmrId, createdByNurseEmrId):
-        record = {}
+    def create_assessment(self, assessmentTableName, record, patientEmrId, createdByNurseEmrId):
+        tableSchema = self.tableWriteableSchemas.get(assessmentTableName)
+        if not tableSchema:
+            err_msg = f'create_assessment: Failed to get writable schema for table {assessmentTableName}'
+            self.logger.error(err_msg)
+            return None, None, err_msg
+        
+        isValidRecord, err_msg = tableSchema.validate_record(record)
+        if not isValidRecord:
+            self.logger.error(f'create_assessment: Invalid record {record} for table {assessmentTableName}. Error: {err_msg}')
+            return None, None, err_msg
+                
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
-        record['Status'] = 'In Progress'
-        return self.create_record(assessmentTableName, record)
+        status = record.get('Status')
+        if not status:
+            record['Status'] = 'In Progress'
+        record, url = self.create_record(assessmentTableName, record)
+        return record, url, None
     
     def create_assessment_section(self, sectionTableName, record, 
                                   assessmentId, createdByNurseEmrId):
 
+        tableSchema = self.tableWriteableSchemas.get(sectionTableName)
+        if not tableSchema:
+            err_msg = f'create_assessment_section: Failed to get writable schema for table {sectionTableName}'
+            self.logger.error(err_msg)
+            return None, None, err_msg
+        
+        isValidRecord, err_msg = tableSchema.validate_record(record)
+        if not isValidRecord:
+            self.logger.error(f'create_assessment_section: Invalid record {record} for table {sectionTableName}. Error: {err_msg}')
+            return None, None, err_msg
+
         record['ParentRecord'] = [assessmentId]
         record['CreatedBy'] = [createdByNurseEmrId]
-        return self.create_record(sectionTableName, record)
+        record, url = self.create_record(sectionTableName, record)
+        return record, url, None
     
     def sign_assessment(self, assessmentTableName, assessmentId, signedByNurseEmrId):
         assessment = self.api.table(self.appBaseId, assessmentTableName).get(assessmentId)
@@ -302,10 +339,12 @@ class SpeakCareEmr:
             record = {}
             record['Status'] = 'Completed'
             record['SignedBy'] = [signedByNurseEmrId]
-            return self.update_record(assessmentTableName, assessmentId, record)
+            record = self.update_record(assessmentTableName, assessmentId, record)
+            return record, None
         else:
-            self.logger.error(f'Failed to get assessment record with id {assessmentId}')
-            return None
+            err_msg = f'sign_assessment: Failed to get assessment record with id {assessmentId}'
+            self.logger.error(err_msg)
+            return None, err_msg
 
 
 

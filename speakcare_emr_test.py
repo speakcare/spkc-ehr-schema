@@ -31,8 +31,12 @@ def test_tempratue_record_creation(api: SpeakCareEmr, logger: logging.Logger, pa
     
 
 
-    record, url = api.create_medical_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
+    record, url, err = api.create_medical_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    if not record:
+        logger.error(f'Failed to create temperature record: {temperatureRecord} error: {err}')
+        return None
+    
     logger.info(f'Created temperature record: {record} url is {url}')
     logger.info(f'get_record_url returns {api.get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
     return record
@@ -58,8 +62,13 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         return None
 
     
-    record, url = api.create_medical_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
+    record, url, err = api.create_medical_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    
+    if not record:
+        logger.error(f'Failed to create progress notes record: {progressNoteRecord} error: {err}')
+        return None
+    
     logger.info(f'Created progress notes record: {record} url is {url}')
     logger.info(f'get_record_url returns {api.get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
     return record
@@ -83,15 +92,36 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
     if not patientId or not nurseId:
         logger.error('Failed to find patient or nurse')
         return None
+    
+    # Try firs with wrong status name
+    fallRiskRecord = {
+        "Status": "Old"
+    }
+    # This should fail
+    assementRecord, url, err = api.create_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    if not assementRecord:
+        logger.error(f'Correctly failed to create fall risk assessment {fallRiskRecord} error: {err}')
 
-    assementRecord, url = api.create_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    # now set correct status name
+    fallRiskRecord["Status"] = "New"
+    assementRecord, url, err = api.create_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    if not assementRecord:
+        logger.error(f'Wrongly failed to create fall risk assessment {fallRiskRecord} error: {err}')
+        return None
+    
     logger.info(f'Created fall risk assessment: {assementRecord} url is {url}')
 
+    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(updatingNurseName)
+    logger.info(f'Updating Nurse: {updatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
+    if not patientId or not nurseId:
+        logger.error('Failed to find patient or nurse')
+        return None
+    
     fallRiskSectionRecord = {
         "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "INTERMITTENT CONFUSION (4 points)",
         "HISTORY OF FALLS (Past 3 Months)": "1 - 2 FALLS in past 3 months (2 points)",
         "URINE ELIMINATION STATUS": "REGULARLY INCONTINENT (4 points)",
-        "VISION STATUS": "POOR (with or without glasses) (2 points)",
+        "VISION STATUS": "PUR (with or without glasses) (2 points)",
         "GAIT/BALANCE/AMBULATION": [
           "Balance problem while standing/walking (1 point)",        
           "Change in gait pattern when walking (i.e. shuffling) (1 point)"
@@ -101,22 +131,29 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "PREDISPOSING DISEASES": "1 - 2 PRESENT (2 points)",
         "Total score": 19
     }
+    assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
+    if not assessSection1Record:
+        logger.error(f'Correctly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')
+
+    # fix the error
+    fallRiskSectionRecord['VISION STATUS'] = "POOR (with or without glasses) (2 points)"
+    assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     
- 
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(updatingNurseName)
-    logger.info(f'Updating Nurse: {updatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
-    if not patientId or not nurseId:
-        logger.error('Failed to find patient or nurse')
+    if not assessSection1Record:
+        logger.error(f'Wrongly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')
         return None
     
-    assessSection1Record = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
-                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     logger.info(f'Created fall risk assessment section: {assessSection1Record}')
         
 
     matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(signingNurseName)
     logger.info(f'Signing Nurse: {signingNurseName} matched with {matchedNurseName} with id {nurseId}')
-    assementRecord = api.sign_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
+    assementRecord, err = api.sign_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
+    if not assementRecord:
+        logger.error(f'Failed to sign fall risk assessment: {assementRecord} error: {err}')
+        return None
     logger.info(f'Signed fall risk assessment: {assementRecord} url is {api.get_record_url(assementRecord["id"], tableName=SpeakCareEmr.FALL_RISK_SCREEN_TABLE)}')
 
     return assementRecord
@@ -196,7 +233,7 @@ def main(argv):
     # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.EPISODES_TABLE)
     # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.PROGRESS_NOTES_TABLE)
     # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmrApi.PROGRESS_NOTES_TABLE, writeableOnly=False)
-    test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmr.WEIGHTS_TABLE)
+    # test_get_tables_schemas(api, testLogger, tableName=SpeakCareEmr.WEIGHTS_TABLE)
     # test_get_single_table_schema(api, testLogger, tableName=SpeakCareEmrApi.PATIENTS_TABLE, writeableOnly=False)
 
 
