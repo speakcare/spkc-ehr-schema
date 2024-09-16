@@ -252,7 +252,37 @@ class SpeakCareEmr:
     
     def update_record(self, tableId, recordId, record):
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
-
+    
+    def validate_record(self, tableName, record):
+        tableSchema = self.tableWriteableSchemas.get(tableName)
+        if not tableSchema:
+            err_msg = f'validate_record: Failed to get writable schema for table {tableName}'
+            #self.logger.error(err_msg)
+            return False, err_msg
+        
+        isValidRecord, err_msg = tableSchema.validate_record(record)
+        if not isValidRecord:
+            err_msg = f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
+            #self.logger.error(f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
+            return False, err_msg
+        
+        return True, None
+    
+    def validate_partial_record(self, tableName, record):
+        tableSchema = self.tableWriteableSchemas.get(tableName)
+        if not tableSchema:
+            err_msg = f'validate_record: Failed to get writable schema for table {tableName}'
+            #self.logger.error(err_msg)
+            return False, err_msg
+        
+        isValidRecord, err_msg = tableSchema.validate_partial_record(record)
+        if not isValidRecord:
+            err_msg = f'validate_partial_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
+            #self.logger.error(f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
+            return False, err_msg
+        
+        return True, None    
+        
     def get_table_url(self, tableId=None, tableName=None):
         if tableId:
              _tableId = tableId
@@ -276,15 +306,11 @@ class SpeakCareEmr:
     def create_medical_record(self, tableName, record, 
                               patientEmrId, createdByNurseEmrId):
  
-        tableSchema = self.tableWriteableSchemas.get(tableName)
-        if not tableSchema:
-            err_msg = f'create_medical_record: Failed to get writable schema for table {tableName}'
-            self.logger.error(err_msg)
-            return None, None, err_msg
         
-        isValidRecord, err_msg = tableSchema.validate_record(record)
+        isValidRecord, err_msg = self.validate_record(tableName, record)
         if not isValidRecord:
-            self.logger.error(f'create_medical_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
+            err_msg = f'create_medical_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
+            self.logger.error(err_msg)
             return None, None, err_msg
         
         record['Patient'] = [patientEmrId]
@@ -295,16 +321,12 @@ class SpeakCareEmr:
 
 
     def create_assessment(self, assessmentTableName, record, patientEmrId, createdByNurseEmrId):
-        tableSchema = self.tableWriteableSchemas.get(assessmentTableName)
-        if not tableSchema:
-            err_msg = f'create_assessment: Failed to get writable schema for table {assessmentTableName}'
-            self.logger.error(err_msg)
-            return None, None, err_msg
         
-        isValidRecord, err_msg = tableSchema.validate_record(record)
+        isValidRecord, err_msg = self.validate_record(assessmentTableName, record)
         if not isValidRecord:
-            self.logger.error(f'create_assessment: Invalid record {record} for table {assessmentTableName}. Error: {err_msg}')
-            return None, None, err_msg
+            err_msg = f'create_assessment: Invalid record {record} for table {assessmentTableName}. Error: {err_msg}'
+            self.logger.error(err_msg)
+            return None, None, err_msg        
                 
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
@@ -316,17 +338,12 @@ class SpeakCareEmr:
     
     def create_assessment_section(self, sectionTableName, record, 
                                   assessmentId, createdByNurseEmrId):
-
-        tableSchema = self.tableWriteableSchemas.get(sectionTableName)
-        if not tableSchema:
-            err_msg = f'create_assessment_section: Failed to get writable schema for table {sectionTableName}'
-            self.logger.error(err_msg)
-            return None, None, err_msg
         
-        isValidRecord, err_msg = tableSchema.validate_record(record)
+        isValidRecord, err_msg = self.validate_record(sectionTableName, record)
         if not isValidRecord:
-            self.logger.error(f'create_assessment_section: Invalid record {record} for table {sectionTableName}. Error: {err_msg}')
-            return None, None, err_msg
+            err_msg = f'create_assessment_section: Invalid record {record} for table {sectionTableName}. Error: {err_msg}'
+            self.logger.error(err_msg)
+            return None, None, err_msg         
 
         record['ParentRecord'] = [assessmentId]
         record['CreatedBy'] = [createdByNurseEmrId]

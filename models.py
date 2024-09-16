@@ -46,9 +46,9 @@ class MedicalRecords(Base):
     patient_id = Column(String)  # External EMR application patient ID
     nurse_name = Column(String)
     nurse_id = Column(String)  # External EMR application nurse ID
-    info = Column(JSON)  # Stores structured records in JSON format
+    fields = Column(JSON)  # Stores structured records in JSON format
     meta = Column(JSON)
-    errors = Column(JSON)  # Stores any errors encountered during processing
+    errors = Column(JSON, default=[])  # Stores any errors encountered during processing
     state = Column(Enum(RecordState), default=RecordState.PENDING)  # Use Enum type for state
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
     modified_time = Column(DateTime, onupdate=func.now())   # Auto-set on update

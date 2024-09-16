@@ -20,9 +20,9 @@ if not emr_api:
     raise Exception('Failed to initialize EMR API')
 
 def get_patient_info(name):
-    # Placeholder function to fetch patient info based on the name
-    # This function should interact with your data source (e.g., a database or external API)
-    # Example response (replace with actual data fetching logic)
+    """
+    get_patient_info
+    """
     foundName, patientId, patientEmrId = emr_api.lookup_patient(name)
 
     if not patientEmrId:
@@ -45,6 +45,10 @@ def get_patient_info(name):
 def get_emr_table_names():
     table_names = emr_api.get_emr_table_names()
     return table_names
+
+def get_emr_table_id(tableName):
+    table_id = emr_api.get_table_id(tableName)
+    return table_id
 
 def get_emr_table_section_names(tableName):
     section_names = emr_api.get_emr_table_section_names(tableName)
@@ -75,14 +79,27 @@ def get_table_writable_schema(tableName: str):
     # Return main schema and sections separately
     return main_schema, sections_schema
 
-
-def create_medical_record(session: Session, data: dict):
+def validate_record(table_name: str, data: dict):
     """
-    Creates a new medical record linked to a given transcript.
+    validate_record_data
+    """
+    return emr_api.validate_record(table_name, data)
+ 
+def validate_partial_record(table_name: str, data: dict):
+    """
+    validate_partial_record_data
+    """
+    return emr_api.validate_partial_record(table_name, data)
+
+
+
+def create_emr_record(session: Session, data: dict):
+    """
+    Creates a new EMR record linked to a given transcript.
 
     :param session: The SQLAlchemy session to use for the database operations.
     :param data: A dictionary containing the data for the medical record.
-    :return: A tuple containing the new record object and an HTTP status code.
+    :return: A tuple containing the a success or error message and an HTTP status code and the record id.
     """
 
 
@@ -91,7 +108,7 @@ def create_medical_record(session: Session, data: dict):
     try:
         # first check for unrecoverable errors
 
-        required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'info']
+        required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'fields']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
@@ -102,7 +119,7 @@ def create_medical_record(session: Session, data: dict):
         _patient_id = data.get('patient_id', None)
         _nurse_name = data['nurse_name']
         _nurse_id = data.get('nurse_id', None)
-        _info = data['info']
+        _fields = data['fields']
         _transcript_id = data.get('transcript_id', None)
         _errors = []
         _state = RecordState.PENDING
@@ -114,25 +131,25 @@ def create_medical_record(session: Session, data: dict):
                 raise ValueError(f"Transcript if {_transcript_id} not found")
             
         # TODO: check for validity of _table_name
-        table_names = get_emr_table_names()
-        if _table_name not in table_names:
+        _table_id = get_emr_table_id(_table_name)
+        if not _table_id:
             raise ValueError(f"Table name {_table_name} not found in the EMR.")
 
-        # TODO: check for validity of _info data
+        # fields data integrity check is done inside the create_record function - no need to do it here
     except ValueError as e:
-        logger.error(f"Error creating medical record: {e}")
+        logger.error(f"Error creating EMR record: {e}")
         return {"error": str(e)}, 400, None
     
     # lookup and validate patient
     foundPatient, foundPatientId = emr_api.lookup_patient(_patient_name)
-    if not foundPatientId: # patient not found, this can be corrected by the user
+    if not foundPatientId: # patient not found, this can be corrected later by the user
         _state = RecordState.ERRORS
-        err = f"Patient {_patient_name} not found in the EMR."
+        err = f"Patient '{_patient_name}' not found in the EMR."
         _errors.append(err)
         logger.warning(err)
     elif _patient_id and _patient_id != foundPatientId:  # wrong patient ID, this can be corrected by the user
         _state = RecordState.ERRORS
-        err = f"Patient ID {_patient_id} does not match the patient ID {foundPatientId} found in the EMR for patient {_patient_name}."
+        err = f"Patient ID {_patient_id} does not match the patient ID '{foundPatientId}' found in the EMR for patient '{_patient_name}' -> '{foundPatient}'."
         _errors.append(err)
         logger.warning(err)
     else:
@@ -143,20 +160,22 @@ def create_medical_record(session: Session, data: dict):
     foundNurse, foundNurseId = emr_api.lookup_nurse(_nurse_name)
     if not foundNurseId:
         _state = RecordState.ERRORS
-        err = f"Nurse {_nurse_name} not found in the EMR."
+        err = f"Nurse '{_nurse_name}' not found in the EMR."
         _errors.append(err)
         logger.warning(err)
     elif _nurse_id and _nurse_id != foundNurseId:
         _state = RecordState.ERRORS
-        err = f"Nurse ID {_nurse_id} does not match the nurse ID {foundNurseId} found in the EMR for nurse {_nurse_name}."
+        err = f"Nurse ID '{_nurse_id}' does not match the nurse ID '{foundNurseId}' found in the EMR for nurse '{_nurse_name}' -> '{foundNurse}'."
         _errors.append(err)
         logger.warning(err)
     else:
         _nurse_id = foundNurseId
       
-    # TODO: check data validity by table name and expectd json schema of that table
-    # here I need to get the table schema from the EMR API and compare it with the info data
-    # Create the new medical record
+    # validate the record fields
+    isValid, err = validate_record(_table_name, _fields)
+    if not isValid:
+        _state = RecordState.ERRORS
+        _errors.append(err)
 
     new_record = MedicalRecords(
         type= _type,  # Convert to Enum
@@ -165,9 +184,113 @@ def create_medical_record(session: Session, data: dict):
         patient_id= _patient_id,
         nurse_name=_nurse_name,
         nurse_id= _nurse_id,
-        info= _info,
+        fields= _fields,
         transcript_id = _transcript_id,
-        state= _state 
+        state= _state,
+        errors = _errors
+    )
+    
+    # Add and commit the new record to the database
+    session.add(new_record)
+    session.commit()
+
+    return {"message": "EMR record created successfully", "id": new_record.id}, 201, new_record.id
+
+
+# TODO: add update_medical_record function here and unify validity checks
+def update_emr_record(session: Session, data: dict, record_id: int):
+    """
+    Update EMR record linked to a given transcript.
+
+    :param session: The SQLAlchemy session to use for the database operations.
+    :param data: A dictionary containing the data for the updated record.
+    :param record_id: The id of the record to update.
+    :return: A tuple containing the a success or error message and an HTTP status code.
+    """
+
+    try:
+        # first check for unrecoverable errors
+
+        required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'fields']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+        _type = RecordType(data['type']) #automatically checked for validity by PyEnum
+        _table_name = data['table_name']
+        _patient_name = data['patient_name']
+        _patient_id = data.get('patient_id', None)
+        _nurse_name = data['nurse_name']
+        _nurse_id = data.get('nurse_id', None)
+        _fields = data['fields']
+        _transcript_id = data.get('transcript_id', None)
+        _errors = []
+        _state = RecordState.PENDING
+
+        # Check if the transcript exists
+        if _transcript_id is not None:
+            transcript = session.query(Transcripts).get(_transcript_id)
+            if not transcript:
+                raise ValueError(f"Transcript if {_transcript_id} not found")
+            
+        # TODO: check for validity of _table_name
+        _table_id = get_emr_table_id(_table_name)
+        if not _table_id:
+            raise ValueError(f"Table name {_table_name} not found in the EMR.")
+
+        # fields data integrity check is done inside the create_record function - no need to do it here
+    except ValueError as e:
+        logger.error(f"Error creating medical record: {e}")
+        return {"error": str(e)}, 400, None
+    
+    # lookup and validate patient
+    foundPatient, foundPatientId = emr_api.lookup_patient(_patient_name)
+    if not foundPatientId: # patient not found, this can be corrected later by the user
+        _state = RecordState.ERRORS
+        err = f"Patient '{_patient_name}' not found in the EMR."
+        _errors.append(err)
+        logger.warning(err)
+    elif _patient_id and _patient_id != foundPatientId:  # wrong patient ID, this can be corrected by the user
+        _state = RecordState.ERRORS
+        err = f"Patient ID {_patient_id} does not match the patient ID '{foundPatientId}' found in the EMR for patient '{_patient_name}' -> '{foundPatient}'."
+        _errors.append(err)
+        logger.warning(err)
+    else:
+        _patient_id = foundPatientId
+
+        
+    # lookup and validate nurse
+    foundNurse, foundNurseId = emr_api.lookup_nurse(_nurse_name)
+    if not foundNurseId:
+        _state = RecordState.ERRORS
+        err = f"Nurse '{_nurse_name}' not found in the EMR."
+        _errors.append(err)
+        logger.warning(err)
+    elif _nurse_id and _nurse_id != foundNurseId:
+        _state = RecordState.ERRORS
+        err = f"Nurse ID '{_nurse_id}' does not match the nurse ID '{foundNurseId}' found in the EMR for nurse '{_nurse_name}' -> '{foundNurse}'."
+        _errors.append(err)
+        logger.warning(err)
+    else:
+        _nurse_id = foundNurseId
+      
+    # validate the record fields
+    isValid, err = validate_record(_table_name, _fields)
+    if not isValid:
+        _state = RecordState.ERRORS
+        _errors.append(err)
+
+    new_record = MedicalRecords(
+        type= _type,  # Convert to Enum
+        table_name=_table_name,
+        patient_name=_patient_name,
+        patient_id= _patient_id,
+        nurse_name=_nurse_name,
+        nurse_id= _nurse_id,
+        fields= _fields,
+        transcript_id = _transcript_id,
+        state= _state,
+        errors = _errors
     )
     
     # Add and commit the new record to the database
@@ -175,9 +298,6 @@ def create_medical_record(session: Session, data: dict):
     session.commit()
 
     return {"message": "Medical record created successfully", "id": new_record.id}, 201, new_record.id
-
-
-# TODO: add update_medical_record function here and unify validity checks
 
 def commit_record_to_ehr(record: MedicalRecords):
 
@@ -202,12 +322,12 @@ def commit_record_to_ehr(record: MedicalRecords):
         record.nurse_name = foundNurse
         
         table_name  = record.table_name
-        record_data = record.info
+        record_fields = record.fields
         record_type = record.type
         if (record_type == RecordType.MEDICAL_RECORD):
-            emr_record, url = emr_api.create_medical_record(tableName=table_name, record=record_data, patientId=patientId, nurseId=nurseId)
+            emr_record, url = emr_api.create_medical_record(tableName=table_name, record=record_fields, patientId=patientId, nurseId=nurseId)
             if not emr_record:    
-                raise ValueError(f"Failed to create medical record {record_data} in table {table_name}.")            
+                raise ValueError(f"Failed to create medical record {record_fields} in table {table_name}.")            
             else:
                 # update the record with the EMR record ID and URL
                 record.emr_record_id = emr_record['id']

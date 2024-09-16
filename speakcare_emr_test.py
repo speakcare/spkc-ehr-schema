@@ -9,7 +9,7 @@ APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
 
 
-def test_tempratue_record_creation(api: SpeakCareEmr, logger: logging.Logger, patientName: str = 'Karol Smythe', nurseName: str = 'Odrey Hapborn'):
+def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, patientName: str = 'Karol Smythe', nurseName: str = 'Odrey Hapborn'):
     temperatureRecord = {
         "Units": "Fahrenheit",
         "Temprature": 103,
@@ -222,7 +222,7 @@ def main(argv):
         testLogger.error('Failed to initialize EMR API')
         raise Exception('Failed to initialize EMR API')
 
-    test_tempratue_record_creation(api, testLogger, patientName='Bob Wiliams')
+    test_temperatue_record_creation(api, testLogger, patientName='Bob Wiliams')
     test_falls_risk_creation(api, testLogger, patientName='Jon Do')
     test_progress_note_creation(api, testLogger, patientName='Eve Davise', nurseName='Janet Kollines')
 
