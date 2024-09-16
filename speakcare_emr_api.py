@@ -5,6 +5,10 @@ import logging
 import requests
 import time
 from name_matching import NameMatcher
+from dotenv import load_dotenv
+
+# Load the .env file
+load_dotenv()
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
@@ -81,7 +85,7 @@ class SpeakCareEmrApi:
                             'multipleRecordLinks', 'rollup', 'singleCollaborator']
 
     def __init__(self, baseId: str, logger: logging.Logger):
-        self.apiKey = os.environ['AIRTABLE_API_KEY']
+        self.apiKey = os.getenv('AIRTABLE_API_KEY')
         self.api = AirtableApi(self.apiKey)
         self.appBaseId = baseId
         self.logger = logger

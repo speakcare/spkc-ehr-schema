@@ -1,5 +1,7 @@
 # Ignore the virtual environment directory
 venv/
+# Ignore the .env file
+.env
 
 # Other common Python ignores
 __pycache__/

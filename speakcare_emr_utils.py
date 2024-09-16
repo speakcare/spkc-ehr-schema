@@ -5,12 +5,18 @@ from config import SpeakCareEmrApiconfig
 from speakcare_emr_api import get_emr_api_instance
 from models import MedicalRecords, Transcripts, RecordType, RecordState
 from sqlalchemy.orm import sessionmaker, Session
+import sys
+import json
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
-logging.basicConfig()
-logger = logging.getLogger("speackcare.emr.api")
+
+logger = logging.getLogger("speackcare.emr.utils")
 logger.setLevel(logging.INFO)
-logger.propagate = True
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.propagate = False
 
 
 # Initialize the EMR API singleton early in the app setup
@@ -47,9 +53,30 @@ def get_emr_table_section_names(tableName):
     section_names = emr_api.get_emr_table_section_names(tableName)
     return section_names
 
-def get_table_writable_schema(tableName):
-    table_schema = emr_api.get_table_writable_schema(tableName)
-    return table_schema
+
+def get_table_writable_schema(tableName: str):
+    """
+    get_table_writable_schema 
+    returns the table schema for a given table name in the EMR system.
+    if there are sections in the table, it returns the schema for each section as well in a separate dictionary.
+    IF there are no sections, the sections dictionary will be None.
+    """
+    # Get the main table schema
+    main_schema = emr_api.get_table_writable_schema(tableName=tableName)
+
+    # Retrieve section names
+    sections = get_emr_table_section_names(tableName)
+
+    # If sections exist, build a sections dictionary
+    sections_schema = None
+    if sections:
+        sections_schema = {}
+        for section in sections:
+            section_schema = emr_api.get_table_writable_schema(tableName=section)
+            sections_schema[section] = section_schema
+
+    # Return main schema and sections separately
+    return main_schema, sections_schema
 
 
 def create_medical_record(session: Session, data: dict):
@@ -235,3 +262,19 @@ def check_data_integrity(data):
     if len(data.get('text', '')) < 10:
         errors.append('Text field must be at least 10 characters long.')
     return errors
+
+### Test section
+def main(argv): 
+
+    # Getting all table schema aexample
+    table_names = get_emr_table_names()
+    for table_name in table_names:
+        logger.info(f'Getting schema for table {table_name}')
+        table_schema, secitions_schema = get_table_writable_schema(table_name)
+        logger.info(f'{table_name} Table schema: {json.dumps(table_schema, indent=4)}') 
+        if secitions_schema:
+            for section, schema in secitions_schema.items():
+                logger.info(f'{table_name} Table {section} section schema: {json.dumps(schema, indent=4)}')
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
