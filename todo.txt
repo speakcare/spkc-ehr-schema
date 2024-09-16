@@ -1,8 +1,0 @@
-1. Add validation to record create and update using the schema
-2. work on utils to finish the create record and update record
-3. Add support for records with sections in utils and in create records
-4. Add utils for transciprt handling
-5. Add the converter process from transcript to SpeakCareEmrApi
-6. Add web client app
-7. Add run script to load all the processes and add sqlite db browser to the project
-
