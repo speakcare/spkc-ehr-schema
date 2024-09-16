@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from speakcare_emr_schema import EmrTableSchema, FieldTypes
+from airtable_schema import AirtableSchema, FieldTypes
 
 class TestEmrTableSchema(unittest.TestCase):
 
@@ -23,17 +23,17 @@ class TestEmrTableSchema(unittest.TestCase):
         }
 
     def test_init_valid_schema(self):
-        schema = EmrTableSchema("temperatureRecord", self.valid_schema)
+        schema = AirtableSchema("temperatureRecord", self.valid_schema)
         self.assertEqual(schema.table_name, "temperatureRecord")
         self.assertEqual(schema.table_schema, self.valid_schema)
 
     def test_init_invalid_schema(self):
         with self.assertRaises(ValueError) as context:
-            EmrTableSchema("temperatureRecord", self.invalid_schema)
+            AirtableSchema("temperatureRecord", self.invalid_schema)
         self.assertTrue("Table name 'temperatureRecord' does not match the name in the schema 'invalidRecord'" in str(context.exception))
 
     def test_validate_record_valid(self):
-        schema = EmrTableSchema("temperatureRecord", self.valid_schema)
+        schema = AirtableSchema("temperatureRecord", self.valid_schema)
         record = {
             "Units": "Fahrenheit",
             "Temperature": 103,
@@ -44,7 +44,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_record_invalid_field(self):
-        schema = EmrTableSchema("temperatureRecord", self.valid_schema)
+        schema = AirtableSchema("temperatureRecord", self.valid_schema)
         record = {
             "Units": "Fahrenheit",
             "Temperature": "high",
@@ -55,7 +55,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNotNone(error_message)
 
     def test_validate_record_missing_unrequired_field(self):
-        schema = EmrTableSchema("temperatureRecord", self.valid_schema)
+        schema = AirtableSchema("temperatureRecord", self.valid_schema)
         record = {
             "Temperature": 103,
             "Units": "Fahrenheit",
@@ -65,7 +65,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_record_missing_required_field(self):
-        schema = EmrTableSchema("temperatureRecord", {
+        schema = AirtableSchema("temperatureRecord", {
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleLineText', "description": "required"},
@@ -83,7 +83,7 @@ class TestEmrTableSchema(unittest.TestCase):
 
     def test_validate_partial_record_missing_required_field(self):
         # In partial udpate we allow missing required fields
-        schema = EmrTableSchema("temperatureRecord", {
+        schema = AirtableSchema("temperatureRecord", {
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleLineText', "description": "required"},
@@ -101,7 +101,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_single_select_wrong_value(self):
-        schema = EmrTableSchema("temperatureRecord", {
+        schema = AirtableSchema("temperatureRecord", {
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
@@ -119,7 +119,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNotNone(error_message)   
 
     def test_validate_multi_select_correct_values(self):
-        schema = EmrTableSchema("temperatureRecord", {
+        schema = AirtableSchema("temperatureRecord", {
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
@@ -137,7 +137,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)        
     
     def test_validate_multi_select_incorrect_values(self):
-        schema = EmrTableSchema("temperatureRecord", {
+        schema = AirtableSchema("temperatureRecord", {
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
@@ -155,7 +155,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNotNone(error_message)        
 
     def test_validate_date_correct_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "DateField", "type": "date"}
@@ -167,7 +167,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_date_incorrect_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "DateField", "type": "date"}
@@ -180,7 +180,7 @@ class TestEmrTableSchema(unittest.TestCase):
 
 
     def test_validate_date_time_correct_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "DateTimeField1", "type": "dateTime"},
@@ -196,7 +196,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_date_time_incorrect_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "DateTimeField", "type": "dateTime"}
@@ -210,7 +210,7 @@ class TestEmrTableSchema(unittest.TestCase):
 
 
     def test_validate_percent_correct_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "PercentField", "type": "percent"}
@@ -222,7 +222,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_percent_incorrect_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "PercentField", "type": "percent"}
@@ -234,7 +234,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNotNone(error_message)
 
     def test_validate_checkbox_correct_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "CheckboxField1", "type": "checkbox"},
@@ -250,7 +250,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_checkbox_incorrect_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "CheckboxField", "type": "checkbox"}
@@ -263,7 +263,7 @@ class TestEmrTableSchema(unittest.TestCase):
 
 
     def test_validate_currency_correct_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "CurrencyField", "type": "currency"}
@@ -275,7 +275,7 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertIsNone(error_message)
 
     def test_validate_currency_incorrect_value(self):
-        schema = EmrTableSchema("testSchema", {
+        schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
                 {"name": "CurrencyField", "type": "currency"}

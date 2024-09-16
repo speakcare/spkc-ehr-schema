@@ -6,13 +6,16 @@ import requests
 import time
 from name_matching import NameMatcher
 from dotenv import load_dotenv
+from airtable_schema import AirtableSchema
+import copy
+from typing import Dict
 
 # Load the .env file
 load_dotenv()
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
-class SpeakCareEmrApi:
+class SpeakCareEmr:
 
     # Table names
 
@@ -116,27 +119,26 @@ class SpeakCareEmrApi:
     def api_post(self, baseUrl=None, body=None, tableId="", params=None, headers=None):
 
         url = baseUrl + tableId
-        self.logger.log(logging.DEBUG, f'API: Sending POST to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
-        #response = self.session.post(url, data=_body, params=_params, headers=_headers, cert=self.cert)
+        self.logger.debug(f'API: Sending POST to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
         response = requests.post(url, data=body, params=params, headers=headers, cert=self.cert)
         
         time.sleep(0.2)
         if (response.status_code != 200):
-            self.logger.log(logging.ERROR, f'API: POST to tableId \"{tableId}\" with payload {body} returned status code {response.status_code} response: {response.text}')
+            self.logger.error(f'API: POST to tableId \"{tableId}\" with payload {body} returned status code {response.status_code} response: {response.text}')
 
         return response
         
     def api_get(self, baseUrl=None, body=None, tableId="", params=None, headers=None):
 
         url = baseUrl + tableId
-        self.logger.log(logging.DEBUG, f'API: Sending GET to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
+        self.logger.debug(f'API: Sending GET to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
         
         time.sleep(0.2)
         response = requests.get(url, data=body, params=params, headers=headers)
         
         
         if (response.status_code != 200):
-            self.logger.log(logging.ERROR, f'API: GET to endpoint \"{url}\" with payload {body} returned status code {response.status_code} response: {response.text}')
+            self.logger.error(f'API: GET to endpoint \"{url}\" with payload {body} returned status code {response.status_code} response: {response.text}')
 
         return response
 
@@ -153,64 +155,90 @@ class SpeakCareEmrApi:
     
     def load_tables(self):
         if not self.tables:
-            self.tables = self.__retreive_all_tables_schema()
+            tables = self.__retreive_all_tables_schema()
+            #self.tables = self.__retreive_all_tables_schema()
+            self.tables = {}
+            self.tableWriteableSchemas: Dict[str, AirtableSchema] = {}
+            # Traverse the tables and create writable schema
+            for table in tables:
+                # add the table to the tables dictionary
+                tableName = table['name']
+                self.tables[tableName] = table
+                # Check if the table is in not in READONLY_TABLES
+                if tableName not in self.READONLY_TABLES:
+                    # Create writeable schema by copy from table
+                    writeableSchema = copy.deepcopy(table)
+                    # replace the fields with the writable fields
+                    writeableSchema['fields'] = self.__user_writable_fields(table)
+                    # create the EmrTableSchema object
+                    emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema)
+                    # add the EmrTableSchema to the tableWriteableSchemas dictionary
+                    self.logger.debug(f'Created writable schema for table {tableName}')
+                    self.tableWriteableSchemas[tableName] = emrSchema
+        
+        self.logger.debug(f'Loaded tables. Tables')
         return self.tables
     
     def get_emr_table_names(self):
-        return SpeakCareEmrApi.EMR_TABLES
+        return SpeakCareEmr.EMR_TABLES
     
     
     def get_emr_table_section_names(self, tableName=None):
         if not tableName:
             return None
-        return SpeakCareEmrApi.TABLE_SECTIONS.get(tableName)
+        return SpeakCareEmr.TABLE_SECTIONS.get(tableName)
 
     def get_table_id(self, tableName):
-        tables = self.load_tables()
-        for table in tables:
-            if table['name'] == tableName:
-                return table['id']
-        return None
-    
+        table = self.tables.get(tableName)
+        if table:
+            return table['id']
+        else:
+            return None
+            
     def get_table_name(self, tableId):
-        tables = self.load_tables()
-        for table in tables:
+        for table in self.tables:
             if table['id'] == tableId:
                 return table['name']
         return None
 
     def get_table_schema(self, tableId=None, tableName=None):
-        tables = self.load_tables()
-        for table in tables:
-            if tableId:
+        if tableName:
+            return self.tables.get(tableName)
+        elif tableId:
+            for table in self.tables:
                 if table['id'] == tableId:
                     return table
-            elif tableName:
-                if table['name'] == tableName:
-                    return table
-        return None
+        else:
+            return None
+        
     
     def get_table_writable_schema(self, tableId=None, tableName=None):
         if not tableId and not tableName:
-            self.logger.log(logging.ERROR, f'get_table_writable_schema: tableId and tableName are None')
+            self.logger.warning(f'get_table_writable_schema: tableId and tableName are None')
             return None
+        
+        if tableId and not tableName:
+            tableName = self.get_table_name(tableId)
+            if not tableName:
+                self.logger.warning(f'get_table_writable_schema: Table {tableId} not found')
+                return None
 
         if tableName in self.READONLY_TABLES:
-            self.logger.log(logging.INFO, f'get_table_writable_schema: Table {tableName} is readonly')
+            self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
             return None
         
-        tableSchema = self.get_table_schema(tableId=tableId, tableName=tableName)
+        tableSchema = self.tableWriteableSchemas.get(tableName)
 
         if not tableSchema:
-            self.logger.log(logging.ERROR, f'get_table_writable_schema: Table {tableName} failed to get schema')
+            self.logger.error(f'get_table_writable_schema: Table {tableName} failed to get schema')
             return None
 
-        if tableSchema['name'] in self.READONLY_TABLES:
-            self.logger.log(logging.INFO, f'get_table_writable_schema: Table {tableSchema["name"]} is readonly')
-            return None
+        if tableSchema.get_name() != tableName:
+            error_message = f'get_table_writable_schema: Table {tableSchema.get_name()} is different from {tableName}'
+            self.logger.error(error_message)
+            raise ValueError(error_message)
         
-        tableSchema['fields'] = self.__user_writable_fields(tableSchema)
-        return tableSchema
+        return tableSchema.get_schema()
 
 
     def create_record(self, tableId, record):
@@ -219,7 +247,7 @@ class SpeakCareEmrApi:
             url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
             return record, url
         else:
-            self.logger.log(logging.ERROR, f'Failed to create record {record} in table {tableId}')
+            self.logger.error(f'Failed to create record {record} in table {tableId}')
             return None, None
     
     def update_record(self, tableId, recordId, record):
@@ -276,7 +304,7 @@ class SpeakCareEmrApi:
             record['SignedBy'] = [signedByNurseEmrId]
             return self.update_record(assessmentTableName, assessmentId, record)
         else:
-            self.logger.log(logging.ERROR, f'Failed to get assessment record with id {assessmentId}')
+            self.logger.error(f'Failed to get assessment record with id {assessmentId}')
             return None
 
 
@@ -382,5 +410,5 @@ def get_emr_api_instance(config=None):
         else:
             baseId = config.get('baseId')
             logger = config.get('logger')
-            __singletonInstance = SpeakCareEmrApi(baseId=baseId, logger=logger)
+            __singletonInstance = SpeakCareEmr(baseId=baseId, logger=logger)
     return __singletonInstance

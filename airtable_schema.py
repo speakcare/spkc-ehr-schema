@@ -27,7 +27,7 @@ def register_validation_function(field_type):
         return func
     return decorator
 
-class EmrTableSchema:
+class AirtableSchema:
     def __init__(self, table_name, table_schema):
         if table_name != table_schema.get("name"):
             raise ValueError(f"Table name '{table_name}' does not match the name in the schema '{table_schema.get('name')}'")
@@ -35,7 +35,6 @@ class EmrTableSchema:
         self.table_name = table_name
         self.table_schema = table_schema
         self.__field_registry = {}
-        logging.basicConfig()
         self.logger = schema_logger
         self.__initialize_field_registry()
         
@@ -51,7 +50,12 @@ class EmrTableSchema:
                 "options": field_options,
                 "required": is_required
             }    
-
+    def get_schema(self):
+        return self.table_schema
+    
+    def get_name(self):
+        return self.table_name
+    
     def validate_record(self, record, checkRequired: bool=True):
         """
         Takes a record and validates that it adheres to this schema

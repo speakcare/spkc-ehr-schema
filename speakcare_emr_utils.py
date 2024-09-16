@@ -1,8 +1,8 @@
 from datetime import datetime
-from speakcare_emr_api import SpeakCareEmrApi
+from speakcare_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
-from speakcare_emr_api import get_emr_api_instance
+from speakcare_emr import get_emr_api_instance
 from models import MedicalRecords, Transcripts, RecordType, RecordState
 from sqlalchemy.orm import sessionmaker, Session
 import sys

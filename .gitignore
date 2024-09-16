@@ -12,3 +12,6 @@ __pycache__/
 # Ignore IDE specific files
 .idea/
 .vscode/
+
+# Ignore desktop specific files
+.DS_Store
