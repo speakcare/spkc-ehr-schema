@@ -11,7 +11,7 @@ from speakcare_logging import create_logger
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
-logger = create_logger('speackcare.emr.utils', level=logging.INFO)
+logger = create_logger('speackcare.emr.utils')
 
 # Initialize the EMR API singleton early in the app setup
 emr_api = get_emr_api_instance(SpeakCareEmrApiconfig)

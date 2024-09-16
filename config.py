@@ -2,8 +2,9 @@
 import logging
 from speakcare_logging import create_logger
 
+
 # Logger setup
-api_logger = create_logger('speackcare.emr.api', level=logging.INFO)
+api_logger = create_logger('speackcare.emr.api')
 
 # Configuration dictionary for initializing the EMR API
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
