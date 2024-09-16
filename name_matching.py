@@ -2,6 +2,7 @@ from rapidfuzz import process, fuzz
 import fuzzy  # For Double Metaphone
 import sys
 import logging
+from speakcare_logging import create_logger
 
 # NameMatcher class that provides a method to find the best match for a given name
 
@@ -9,12 +10,8 @@ class NameMatcher:
     def __init__(self, primary_threshold=90, secondary_threshold=80):
         self.primary_threshold = primary_threshold
         self.secondary_threshold = secondary_threshold
-        logging.basicConfig()
+        self.logger = create_logger(__name__)
         
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-        self.logger.propagate = True
-
     def get_best_match(self, input_name= None, names_to_match = None):
         # Initial character-based matching
         best_match, score, best_idx = process.extractOne(input_name, names_to_match, scorer=fuzz.WRatio)

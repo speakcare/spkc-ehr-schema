@@ -47,6 +47,7 @@ class SpeakCareEmrApi:
     FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
     FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
 
+    # TODO: Table and sections names need to be loaded dyanically from the API
     EMR_TABLES = [
         WEIGHTS_TABLE, 
         BLOOD_PRESSURES_TABLE, 

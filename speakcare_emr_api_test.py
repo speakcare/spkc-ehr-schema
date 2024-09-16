@@ -1,7 +1,9 @@
 import sys
 import json
 import logging
-from speakcare_emr_api import SpeakCareEmrApi
+from speakcare_emr_api import SpeakCareEmrApi, get_emr_api_instance
+from speakcare_logging import create_logger
+from config import SpeakCareEmrApiconfig
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
@@ -162,18 +164,12 @@ def test_get_tables_schemas(api: SpeakCareEmrApi, logger: logging.Logger, tableN
 def main(argv):    
 
     # Initialize logging
-    logging.basicConfig()
-    logger = logging.getLogger("speackcare.emr.api")
-    logger.setLevel(logging.INFO)
-    logger.propagate = True
+    testLogger = create_logger('api_test', level=logging.INFO)
 
-    testLogger = logging.getLogger("api_test")
-    testLogger.setLevel(logging.INFO)
-    testLogger.propagate = True
-
-    APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
-
-    api = SpeakCareEmrApi(baseId=APP_BASE_ID, logger=logger)
+    api = get_emr_api_instance(SpeakCareEmrApiconfig)
+    if not api:
+        testLogger.error('Failed to initialize EMR API')
+        raise Exception('Failed to initialize EMR API')
 
     # test_tempratue_record_creation(api, testLogger)
     # test_assessment_creation(api, testLogger)

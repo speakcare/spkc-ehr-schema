@@ -7,20 +7,17 @@ from models import MedicalRecords, Transcripts, RecordType, RecordState
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
+from speakcare_logging import create_logger
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
 
-logger = logging.getLogger("speackcare.emr.utils")
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.propagate = False
-
+logger = create_logger('speackcare.emr.utils', level=logging.INFO)
 
 # Initialize the EMR API singleton early in the app setup
 emr_api = get_emr_api_instance(SpeakCareEmrApiconfig)
+if not emr_api:
+    logger.error('Failed to initialize EMR API')
+    raise Exception('Failed to initialize EMR API')
 
 def get_patient_info(name):
     # Placeholder function to fetch patient info based on the name

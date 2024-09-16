@@ -1,17 +1,10 @@
 from enum import Enum as PyEnum
 from datetime import datetime
 import logging
-
-import logging
+from speakcare_logging import create_logger
 
 # Logger setup
-schema_logger = logging.getLogger('emr.schema')
-schema_logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
-handler.setFormatter(formatter)
-schema_logger.addHandler(handler)
-schema_logger.propagate = True
+schema_logger = create_logger('emr.schema')
 
 class FieldTypes(PyEnum):
     NUMBER = 'number'
