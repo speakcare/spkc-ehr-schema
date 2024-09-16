@@ -265,6 +265,7 @@ def main(argv):
 
     # Getting all table schema aexample
     table_names = get_emr_table_names()
+    print(table_names)
     for table_name in table_names:
         logger.info(f'Getting schema for table {table_name}')
         table_schema, secitions_schema = get_table_writable_schema(table_name)
