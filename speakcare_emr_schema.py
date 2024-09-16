@@ -49,7 +49,7 @@ class EmrTableSchema:
     def __initialize_field_registry(self):
         for field in self.table_schema.get("fields", []):
             field_name = field.get("name")
-            field_type = FieldTypes(field.get("type"))
+            field_type = FieldTypes(field.get("type")) #if type is not in FieldTypes, it will raise an error
             field_options = field.get("options", {})
             field_description = field.get("description", "")
             is_required = "required" in field_description.lower()
@@ -59,17 +59,19 @@ class EmrTableSchema:
                 "required": is_required
             }    
 
-    def validate_record(self, record):
+    def validate_record(self, record, checkRequired: bool=True):
         """
         Takes a record and validates that it adheres to this schema
+        For record update validation, set checkRequired to False as we allow partial updates
         """
         try:
-            # Check for required fields
-            for field_name, field_info in self.__field_registry.items():
-                if field_info.get("required") and field_name not in record:
-                    error_message = f"Validation error: Required field '{field_name}' is missing."
-                    self.logger.error(error_message)
-                    return False, error_message
+            # Check for required fields only if checkRequired is True
+            if checkRequired:
+                for field_name, field_info in self.__field_registry.items():
+                    if field_info.get("required") and field_name not in record:
+                        error_message = f"Validation error: Required field '{field_name}' is missing."
+                        self.logger.error(error_message)
+                        return False, error_message
             
             # Validate each field in the record
             for field_name, field_value in record.items():
@@ -91,6 +93,13 @@ class EmrTableSchema:
             error_message = f"Validation error: {e}"
             self.logger.error(error_message)
             return False, error_message
+        
+    def validate_partial_record(self, record):
+        """
+        Validates a partial record update
+        """
+        return self.validate_record(record, checkRequired=False)
+    
 
     def __validate_field(self, field_type: FieldTypes, value, options=None):
         """

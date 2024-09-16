@@ -81,6 +81,25 @@ class TestEmrTableSchema(unittest.TestCase):
         self.assertFalse(is_valid)
         self.assertEqual(error_message, "Validation error: Required field 'Units' is missing.")
 
+    def test_validate_partial_record_missing_required_field(self):
+        # In partial udpate we allow missing required fields
+        schema = EmrTableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleLineText', "description": "required"},
+                {"name": "Temperature", "type": 'number'},
+                {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
+            ]
+        })
+        record = {
+            # Units is missing
+            "Temperature": 103,
+            "Route": "Tympanic"
+        }
+        is_valid, error_message = schema.validate_partial_record(record)
+        self.assertTrue(is_valid)
+        self.assertIsNone(error_message)
+
     def test_validate_single_select_wrong_value(self):
         schema = EmrTableSchema("temperatureRecord", {
             "name": "temperatureRecord",
