@@ -104,15 +104,31 @@ class SpeakCareEmr:
         self.load_tables()
         self.load_patients()
         self.load_nurses()
+    
+    def __clean_externl_field(self, field: dict):
+                # Remove top-level 'id' field if it exists
+        if 'id' in field:
+            del field['id']
+        # Check if 'options' and 'choices' exist
+        if 'options' in field and 'choices' in field['options']:
+            # Iterate over each choice and remove 'id' and 'color'
+            for choice in field['options']['choices']:
+                if 'id' in choice:
+                    del choice['id']
+                if 'color' in choice:
+                    del choice['color']
 
-    def __user_writable_fields(self, tableSchema):
+    def __external_writable_schema(self, tableSchema):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
             if field['name'] not in self.INTERNAL_FIELDS and\
                field['type'] not in self.READONLY_FIELD_TYPES and\
                field['id'] != primaryFieldId:
-                     fields.append(field)
+                     # TODO: cleanup the make it simple for external use
+                     _field = copy.deepcopy(field)
+                     self.__clean_externl_field(_field)                     
+                     fields.append(_field)
         return fields
     
 
@@ -169,7 +185,7 @@ class SpeakCareEmr:
                     # Create writeable schema by copy from table
                     writeableSchema = copy.deepcopy(table)
                     # replace the fields with the writable fields
-                    writeableSchema['fields'] = self.__user_writable_fields(table)
+                    writeableSchema['fields'] = self.__external_writable_schema(table)
                     # create the EmrTableSchema object
                     emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema)
                     # add the EmrTableSchema to the tableWriteableSchemas dictionary
@@ -212,7 +228,7 @@ class SpeakCareEmr:
             return None
         
     
-    def get_table_writable_schema(self, tableId=None, tableName=None):
+    def get_record_writable_schema(self, tableId=None, tableName=None):
         if not tableId and not tableName:
             self.logger.warning(f'get_table_writable_schema: tableId and tableName are None')
             return None

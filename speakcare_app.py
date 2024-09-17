@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, fields, Namespace
 from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType
-from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record
+#from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
+from speakcare_emr_utils import EmrUtils
 
 APP_PORT = 3000
 
@@ -73,77 +74,57 @@ class MedicalRecordsResource(Resource):
     @ns.marshal_with(medical_records_get_model)  # Use the updated model for response
     def get(self, id=None):
         """List all medical records or get a specific record by ID"""
-        session = MedicalRecordsDBSession()
         if id is None:
             # List all medical records
-            records = session.query(MedicalRecords).all()
-            return records # Automatically marshaled with the model
+            #records,  = session.query(MedicalRecords).all()
+            records, status = EmrUtils.get_all_records()
+            return records, status # Automatically marshaled with the model
         else:
             # Get a specific medical record by ID
-            record = session.query(MedicalRecords).get(id)
+            record, err = EmrUtils.get_record(id)
             if not record:
-                return jsonify({'error': f'Record {id} not found'}), 404
+                return jsonify({'error': f'Record {id} not found. {err}'}), 404
             return record
 
     @ns.doc('create_record') 
     @ns.expect(medical_records_post_model)
     def post(self):
         """Add a new medical record"""
-        session = MedicalRecordsDBSession()
+        #session = MedicalRecordsDBSession()
         data = request.json
-        response, status_code, record_id = create_emr_record(session, data)
-        return jsonify(response), status_code
-        # new_record = MedicalRecords(
-        #     type= RecordType(data['type']),  # Convert to Enum
-        #     table_name=data['table_name'],
-        #     patient_name=data['patient_name'],
-        #     nurse_name=data['nurse_name'],   
-        #     data=data['data'],
-        #     transcript_id = data.get('transcript_id', None)
-        # )
-        # session.add(new_record)
-        # session.commit()
-        # return jsonify({'message': 'Medical record added successfully', 'id': new_record.id}), 201
+        response, record_id = EmrUtils.create_record(data)
+        if record_id:
+            return jsonify(response), 201
+        else:
+            return jsonify(response), 400
         
 
     @ns.doc('update_record')
     @ns.expect(medical_records_patch_model)
     def patch(self, id):
         """Update the state of a medical record by ID"""
-        session = MedicalRecordsDBSession()
-        record = session.query(MedicalRecords).get(id)
-        if not record:
-            return jsonify({'error': f'Record id {id} not found'}), 404
+        #session = MedicalRecordsDBSession()
         data = request.json
-        # Update fields only if they are present in the request
-        if 'patient_name' in data:
-            record.patient_name = data['patient_name']
-        if 'nurse_name' in data:
-            record.nurse_name = data['nurse_name']
-        if 'data' in data:
-            record.data = data['data']
-
-        session.commit()
-        return jsonify({'message': 'Medical record updated successfully', 'id': id})
+        response, record_id = EmrUtils.update_record(data, id)
+        if record_id:
+            return jsonify(response), 200
+        else:
+            return jsonify(response), 400
     
     @ns.doc('delete_record')
     def delete(self, id):
         """Permanently delete a record by ID"""
-        session = MedicalRecordsDBSession()
-        record = session.query(MedicalRecords).get(id)
-        if not record:
-            return jsonify({'error': 'Record not found'}), 404
-        
-        # Call the delete logic
-        response, status_code = delete_record(session, record)
-        session.commit()
-        return jsonify(response), status_code
+        response, deleted = EmrUtils.delete_record(id)
+        if deleted:
+            return jsonify(response), 204
+        else:
+            return jsonify(response), 400
 
 
 # Define separate endpoints for custom actions
 @ns.route('/records/<int:id>/commit')
 class CommitRecordResource(Resource):
-    @ns.doc('apply_record')
+    @ns.doc('commit_record')
     def post(self, id):
         """Commit a record by ID"""
         session = MedicalRecordsDBSession()
@@ -245,7 +226,7 @@ class PatientResource(Resource):
             return jsonify({'error': 'Name query parameter is required'}), 400
         
         """Get patient information by name"""
-        patient_info = get_patient_info(name)
+        patient_info = EmrUtils.get_patient_info(name)
         if not patient_info:
             return jsonify({'error': f'Patient {name} not found'}), 404
         return patient_info  # Response will be formatted according to patient_info_model

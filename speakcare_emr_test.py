@@ -160,7 +160,7 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
 
 def test_get_single_table_schema(api: SpeakCareEmr, logger: logging.Logger, tableName, writeableOnly: bool = True):
     if writeableOnly:
-        tableSchema = api.get_table_writable_schema(tableName=tableName)
+        tableSchema = api.get_record_writable_schema(tableName=tableName)
     else:
         tableSchema = api.get_table_schema(tableName=tableName)
 
@@ -170,7 +170,7 @@ def test_get_single_table_schema(api: SpeakCareEmr, logger: logging.Logger, tabl
         logger.info(f'{tableName} Table section names: {sectionNames}')
         for sectionName in sectionNames:
             if writeableOnly: 
-                sectionSchema = api.get_table_writable_schema(tableName=tableName, sectionName=sectionName)
+                sectionSchema = api.get_record_writable_schema(tableName=tableName, sectionName=sectionName)
             else:
                 sectionSchema = api.get_table_schema(tableName=sectionName)
             logger.info(f'{tableName} Table {sectionName} section schema: {json.dumps(sectionSchema, indent=4)}')

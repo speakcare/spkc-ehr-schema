@@ -3,7 +3,8 @@ from enum import Enum as PyEnum
 from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, Boolean, Enum, DateTime, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, backref
-
+from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.types import JSON
 
 # Define the base class for declarative models
 Base = declarative_base()
@@ -26,7 +27,7 @@ class Transcripts(Base):
     text = Column(Text)
     meta = Column(JSON)  # Stores additional session information
     processed = Column(Boolean, default=False)
-    errors = Column(JSON)  # Stores any errors encountered during processing
+    errors = Column(JSON, default=[])  # Stores any errors encountered during processing
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
     modified_time = Column(DateTime, onupdate=func.now())  # Auto-set on update
 
@@ -46,7 +47,7 @@ class MedicalRecords(Base):
     patient_id = Column(String)  # External EMR application patient ID
     nurse_name = Column(String)
     nurse_id = Column(String)  # External EMR application nurse ID
-    fields = Column(JSON)  # Stores structured records in JSON format
+    fields = Column(MutableDict.as_mutable(JSON))  # Stores structured records in JSON format
     meta = Column(JSON)
     errors = Column(JSON, default=[])  # Stores any errors encountered during processing
     state = Column(Enum(RecordState), default=RecordState.PENDING)  # Use Enum type for state

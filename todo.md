@@ -2,6 +2,7 @@
 
 ### speakcare emr
 - [x] Add validation to record create and update using the schema
+- [ ] Create the db folder if not exist
 ### emr utils
 - [ ] work on utils to finish the create record and update record
 - [ ] Add support for records with sections in utils and in create records

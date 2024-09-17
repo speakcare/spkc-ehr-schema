@@ -7,4 +7,5 @@ openai
 flask_restx
 pyairtable
 python-dotenv
+datasette
 
