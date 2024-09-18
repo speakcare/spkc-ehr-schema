@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
 from airtable_schema import AirtableSchema, FieldTypes
+import json
 
 class TestEmrTableSchema(unittest.TestCase):
 
@@ -9,7 +10,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleLineText'},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}},
                 {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
             ]
         }
@@ -23,14 +24,21 @@ class TestEmrTableSchema(unittest.TestCase):
         }
 
     def test_init_valid_schema(self):
+        self.maxDiff = None
         schema = AirtableSchema("temperatureRecord", self.valid_schema)
+        atschema = schema.get_schema()
+        #print("atschema: ", json.dumps(atschema, indent=4))
         self.assertEqual(schema.table_name, "temperatureRecord")
-        self.assertEqual(schema.table_schema, self.valid_schema)
 
     def test_init_invalid_schema(self):
+        # test wrong name
         with self.assertRaises(ValueError) as context:
-            AirtableSchema("temperatureRecord", self.invalid_schema)
+             AirtableSchema("temperatureRecord", self.invalid_schema)
         self.assertTrue("Table name 'temperatureRecord' does not match the name in the schema 'invalidRecord'" in str(context.exception))
+        # test number field without options
+        with self.assertRaises(ValueError) as context:
+             AirtableSchema("invalidRecord", self.invalid_schema)
+        self.assertTrue("Error creating schema for table 'invalidRecord' for field name 'Temperature'" in str(context.exception))
 
     def test_validate_record_valid(self):
         schema = AirtableSchema("temperatureRecord", self.valid_schema)
@@ -69,7 +77,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleLineText', "description": "required"},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}},
                 {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
             ]
         })
@@ -87,7 +95,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleLineText', "description": "required"},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}},
                 {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
             ]
         })
@@ -105,7 +113,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}},
                 {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
             ]
         })
@@ -123,7 +131,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}},
                 {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}}
             ]
         })
@@ -141,7 +149,7 @@ class TestEmrTableSchema(unittest.TestCase):
             "name": "temperatureRecord",
             "fields": [
                 {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
-                {"name": "Temperature", "type": 'number'},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
                 {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}}
             ]
         })
@@ -213,7 +221,7 @@ class TestEmrTableSchema(unittest.TestCase):
         schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
-                {"name": "PercentField", "type": "percent"}
+                {"name": "PercentField", "type": "percent", "options": {"precision": "1"}}
             ]
         })
         record = {"PercentField": 85}
@@ -225,7 +233,7 @@ class TestEmrTableSchema(unittest.TestCase):
         schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
-                {"name": "PercentField", "type": "percent"}
+                {"name": "PercentField", "type": "percent", "options": {"precision": "1"}}
             ]
         })
         record = {"PercentField": 150}
@@ -266,7 +274,7 @@ class TestEmrTableSchema(unittest.TestCase):
         schema = AirtableSchema("testSchema", {
             "name": "testSchema",
             "fields": [
-                {"name": "CurrencyField", "type": "currency"}
+                {"name": "CurrencyField", "type": "currency", "options": {"precision": "1"}}
             ]
         })
         record = {"CurrencyField": 100.50}

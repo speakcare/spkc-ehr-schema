@@ -18,7 +18,7 @@ def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, p
 
     matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient(patientEmrId)
+    patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
@@ -50,7 +50,7 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
     }
     matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient(patientEmrId)
+    patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
@@ -82,7 +82,7 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
 
     matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient(patientEmrId)
+    patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     

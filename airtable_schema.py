@@ -2,6 +2,9 @@ from enum import Enum as PyEnum
 from datetime import datetime
 import logging
 from speakcare_logging import create_logger
+import copy
+import json
+
 
 # Logger setup
 schema_logger = create_logger('emr.schema')
@@ -18,12 +21,20 @@ class FieldTypes(PyEnum):
     CHECKBOX = 'checkbox'
     CURRENCY = 'currency'
 
-_validation_functions_registry = {}
+_field_validation_functions_registry = {}
 
 def register_validation_function(field_type):
-    global _validation_functions_registry
+    global _field_validation_functions_registry
     def decorator(func):
-        _validation_functions_registry[field_type] = func
+        _field_validation_functions_registry[field_type] = func
+        return func
+    return decorator
+
+_field_schema_registry = {}
+def register_field_type_schema(field_type):
+    global _field_schema_registry
+    def decorator(func):
+        _field_schema_registry[field_type] = func
         return func
     return decorator
 
@@ -33,15 +44,39 @@ class AirtableSchema:
             raise ValueError(f"Table name '{table_name}' does not match the name in the schema '{table_schema.get('name')}'")
 
         self.table_name = table_name
-        self.table_schema = table_schema
+        self.table_schema = copy.deepcopy(table_schema)
         self.__field_registry = {}
         self.logger = schema_logger
         self.__initialize_field_registry()
         
+    # def __initialize_field_registry(self):
+    #     for field in self.table_schema.get("fields", []):
+    #         field_name = field.get("name")
+    #         field_type = FieldTypes(field.get("type")) #if type is not in FieldTypes, it will raise an error
+    #         field_options = field.get("options", {})
+    #         field_description = field.get("description", "")
+    #         is_required = "required" in field_description.lower()
+    #         self.__field_registry[field_name] = {
+    #             "type": field_type,
+    #             "options": field_options,
+    #             "required": is_required
+    #         }
+
     def __initialize_field_registry(self):
-        for field in self.table_schema.get("fields", []):
+        fields = self.table_schema.get("fields", [])
+        for i, field in enumerate(fields):
             field_name = field.get("name")
-            field_type = FieldTypes(field.get("type")) #if type is not in FieldTypes, it will raise an error
+            field_type = FieldTypes(field.get("type"))  # if type is not in FieldTypes, it will raise an error
+            #field_schema = field.get("schema", {})
+            field_schema = self.__create_field_schema(field_type, field)
+            if not field_schema:
+                error_message = f"Error creating schema for table '{self.table_name}' for field name '{field_name}' field {field}."
+                self.logger.error(error_message)
+                raise ValueError(error_message)
+            
+            # Replace the field schema with the canonical schema
+            fields[i] = field_schema
+            
             field_options = field.get("options", {})
             field_description = field.get("description", "")
             is_required = "required" in field_description.lower()
@@ -49,7 +84,11 @@ class AirtableSchema:
                 "type": field_type,
                 "options": field_options,
                 "required": is_required
-            }    
+            }
+        
+        # Update the table schema with the modified fields
+        self.table_schema["fields"] = fields
+
     def get_schema(self):
         return self.table_schema
     
@@ -102,9 +141,9 @@ class AirtableSchema:
         """
         Takes a field name and a value and validates that it adheres to the schema
         """
-        global _validation_functions_registry 
+        global _field_validation_functions_registry 
         try:
-            validation_function = _validation_functions_registry.get(field_type)
+            validation_function = _field_validation_functions_registry.get(field_type)
             if validation_function:
                 return validation_function(self, value, options)
             else:
@@ -116,6 +155,30 @@ class AirtableSchema:
             self.logger.error(error_message)
             return False, error_message
 
+    def __create_field_schema(self, field_type: FieldTypes, airtable_schema: dict):
+        global _field_schema_registry
+        field_schema_function = _field_schema_registry.get(field_type)
+        if field_schema_function:
+            try:
+                return field_schema_function(self, airtable_schema)
+            except Exception as e:
+                error_message = f"Field schema function error: {e}"
+                self.logger.error(error_message)
+                return None
+        else:
+            error_message = f"No schema function found for field type '{field_type}'."
+            self.logger.error(error_message)
+            return None
+
+
+    """ 
+    Field type schema functions 
+    For each type provide a function that validates the field and a function that converts 
+    from Airtable schema to the SpeakCare canonical schema
+    """
+
+
+    ### Number field schema
     @register_validation_function(FieldTypes.NUMBER)
     def __validate_number(self, value, options=None):
         """
@@ -139,7 +202,29 @@ class AirtableSchema:
         except Exception as e:
             self.logger.error(f"Number validation error: {e}")
             return False, str(e)
+        
+    @register_field_type_schema(FieldTypes.NUMBER)
+    def __number_schema(self, airtable_schema: dict):
+        #    "type": "number",
+        #     "options": {
+        #         "format": "precision: 1"
+        #     },
+        #     "name": "name",
+        #     "description": "required"
 
+        return {
+            "type": FieldTypes.NUMBER.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "format": f"precision: {airtable_schema.get('options').get('precision')}",
+                #"format": f"precision: {airtable_schema.get('options', {}).get('precision', 0)}",
+            },
+            # user dictionary comprehension to add description only if it exists
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+
+
+    ### Single line text field schema
     @register_validation_function(FieldTypes.SINGLE_LINE_TEXT)        
     def __validate_single_line_text(self, value, options=None):
         """
@@ -152,7 +237,20 @@ class AirtableSchema:
             self.logger.error(error_message)
             return False, error_message
         
+    @register_field_type_schema(FieldTypes.SINGLE_LINE_TEXT)
+    def __single_line_text_schema(self, airtable_schema: dict):
+        return {
+            "type": FieldTypes.SINGLE_LINE_TEXT.value,
+            "name": f"{airtable_schema.get('name')}",
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+        # {
+        #     "type": "singleLineText",
+        #     "name": "TreatmentPlan"
+        # },
 
+
+    ### Multi line text field schema
     @register_validation_function(FieldTypes.MULTI_LINE_TEXT)
     def __validate_multi_line_text(self, value, options=None):
         """
@@ -165,6 +263,21 @@ class AirtableSchema:
             self.logger.error(error_message)
             return False, error_message
         
+
+    @register_field_type_schema(FieldTypes.MULTI_LINE_TEXT)
+    def __multi_line_text_schema(self, airtable_schema: dict):
+        # {
+        #     "type": "multilineText",
+        #     "name": "Notes"
+        # },
+        return {
+            "type": FieldTypes.MULTI_LINE_TEXT.value,
+            "name": f"{airtable_schema.get('name')}",
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+
+
+    ### Single select field schema
     @register_validation_function(FieldTypes.SINGLE_SELECT)
     def __validate_single_select(self, value, options=None):
         """
@@ -180,7 +293,36 @@ class AirtableSchema:
         error_message = f"Single select validation error: Value '{value}' is not a valid choice."
         self.logger.error(error_message)
         return False, error_message
+    
+    @register_field_type_schema(FieldTypes.SINGLE_SELECT)
+    def __single_select_schema(self, airtable_schema: dict):
+        # {
+        #     "type": "singleSelect",
+        #     "options": {
+        #         "choices": [
+        #             {
+        #                 "name": "Wheelchair only",
+        #             },
+        #             {
+        #                 "name": "Wheelchair/propels self",
+        #             },
+        #         ]
+        #     },
+        #     "name": "Ambulation device"
+        # },
+        return {
+            "type": FieldTypes.SINGLE_SELECT.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "choices": [
+                    {"name": choice["name"]}
+                    for choice in airtable_schema.get("options", {}).get("choices", [])
+                ]
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
 
+    ### Multi select field schema
     @register_validation_function(FieldTypes.MULTI_SELECT)
     def __validate_multi_select(self, value, options=None):
         """
@@ -197,7 +339,37 @@ class AirtableSchema:
                 self.logger.error(error_message)
                 return False, error_message
         return True, ""
+    
+    @register_field_type_schema(FieldTypes.MULTI_SELECT)
+    def __multi_select_schema(self, airtable_schema: dict):
+        # {
+        #     "type": "multipleSelects",
+        #     "options": {
+        #         "choices": [
+        #             {
+        #                 "name": "Wheelchair only",
+        #             },
+        #             {
+        #                 "name": "Wheelchair/propels self",
+        #             },
+        #         ]
+        #     },
+        #     "name": "Ambulation device"
+        # },
+        return {
+            "type": FieldTypes.MULTI_SELECT.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "choices": [
+                    {"name": choice["name"]}
+                    for choice in airtable_schema.get("options", {}).get("choices", [])
+                ]
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
 
+
+    ### Date field schema
     @register_validation_function(FieldTypes.DATE)
     def __validate_date(self, value, options=None):
         """
@@ -214,8 +386,29 @@ class AirtableSchema:
             error_message = f"Date validation error: Value '{value}' is not a valid ISO date."
             self.logger.error(error_message)
             return False, error_message
-        
- 
+
+    @register_field_type_schema(FieldTypes.DATE)
+    def __date_schema(self, airtable_schema: dict):
+        # {
+        #     "type": "date",
+        #     "options": {
+        #         "standard": "ISO-8601",
+        #         "format":   "YYYY-MM-DDT"
+        #     },
+        #     "name": "Admission Date",
+        #     "description": "required"
+        # },
+        return {
+            "type": FieldTypes.DATE.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "standard": "ISO-8601",
+                "format": "YYYY-MM-DD"
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+
+    ### Date-time field schema
     @register_validation_function(FieldTypes.DATE_TIME)
     def __validate_date_time(self, value, options=None):
         """
@@ -239,7 +432,30 @@ class AirtableSchema:
             self.logger.error(error_message)
             return False, error_message    
         
-
+    @register_field_type_schema(FieldTypes.DATE_TIME)
+    def __date_time_schema(self, airtable_schema: dict):
+        return {
+            "type": FieldTypes.DATE_TIME.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "standard": "ISO-8601",
+                "format": "YYYY-MM-DDTHH:MM:SSZ",
+                "timezone": "UTC"
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+        # {
+        #     "type": "dateTime",
+        #     "options": {
+        #         "standard": "ISO-8601",
+        #         "format":   "YYYY-MM-DDTHH:MM:SSZ",
+        #         "timezone": "UTC"
+        #     },
+        #     "name": "Admission Date",
+        #     "description": "required"
+        # },
+        
+    ### Percent field schema
     @register_validation_function(FieldTypes.PERCENT)
     def __validate_percent(self, value, options=None):
         """
@@ -259,7 +475,29 @@ class AirtableSchema:
             error_message = f"Percent validation error: Value '{value}' is not a valid percent (0-100)."
             self.logger.error(error_message)
             return False, error_message
-    
+        
+    @register_field_type_schema(FieldTypes.PERCENT)
+    def __percent_schema(self, airtable_schema: dict):
+        return {
+            "type": FieldTypes.PERCENT.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "format": f"precision: {airtable_schema.get('options', {}).get('precision', 0)}",
+                "min": 0,
+                "max": 100
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }    
+        #    "type": "percent",
+        #     "options": {
+        #         "format": "precision: 1"
+        #         "min": 0,
+        #         "max": 100
+        #     },
+        #     "name": "name",
+        #     "description": "required"
+
+    ### Checkbox field schema
     @register_validation_function(FieldTypes.CHECKBOX)
     def __validate_checkbox(self, value, options=None):
         """
@@ -271,6 +509,25 @@ class AirtableSchema:
             error_message = f"Checkbox validation error: Value '{value}' is not a valid boolean for checkbox."
             self.logger.error(error_message)
             return False, error_message
+        
+    @register_field_type_schema(FieldTypes.CHECKBOX)
+    def __checkbox_schema(self, airtable_schema: dict):
+        return {
+            "type": FieldTypes.CHECKBOX.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "format": "boolean"
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }
+        # {
+        #     "type": "checkbox",
+        #     "options": {
+        #         "format": "boolean"
+        #     },
+        #     "name": "FollowUpRequired"
+        # },
+
 
     @register_validation_function(FieldTypes.CURRENCY)
     def __validate_currency(self, value, options=None):
@@ -291,3 +548,22 @@ class AirtableSchema:
             error_message = f"Currency validation error: Invalid type for currency field: {type(value)}"
             self.logger.error(error_message)
             return False, error_message
+        
+
+    ### Currency field schema
+    @register_field_type_schema(FieldTypes.CURRENCY)
+    def __currency_schema(self, airtable_schema: dict):
+        return {
+            "type": FieldTypes.CURRENCY.value,
+            "name": f"{airtable_schema.get('name')}",
+            "options": {
+                "format": f"precision: {airtable_schema.get('options', {}).get('precision', 0)}"
+            },
+            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+        }   
+        #    "type": "percent",
+        #     "options": {
+        #         "format": "precision: 1",
+        #     },
+        #     "name": "name",
+        #     "description": "required"

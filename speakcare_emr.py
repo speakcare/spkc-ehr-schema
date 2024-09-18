@@ -105,18 +105,7 @@ class SpeakCareEmr:
         self.load_patients()
         self.load_nurses()
     
-    def __clean_externl_field(self, field: dict):
-                # Remove top-level 'id' field if it exists
-        if 'id' in field:
-            del field['id']
-        # Check if 'options' and 'choices' exist
-        if 'options' in field and 'choices' in field['options']:
-            # Iterate over each choice and remove 'id' and 'color'
-            for choice in field['options']['choices']:
-                if 'id' in choice:
-                    del choice['id']
-                if 'color' in choice:
-                    del choice['color']
+
 
     def __external_writable_schema(self, tableSchema):
         fields = []
@@ -125,9 +114,7 @@ class SpeakCareEmr:
             if field['name'] not in self.INTERNAL_FIELDS and\
                field['type'] not in self.READONLY_FIELD_TYPES and\
                field['id'] != primaryFieldId:
-                     # TODO: cleanup the make it simple for external use
                      _field = copy.deepcopy(field)
-                     self.__clean_externl_field(_field)                     
                      fields.append(_field)
         return fields
     
@@ -397,8 +384,15 @@ class SpeakCareEmr:
     def get_patients(self):
         return self.patientsTable.all()
 
-    def get_patient(self, patient_id):
-        return self.patientsTable.get(patient_id)
+    def get_patient_by_emr_id(self, patient_emr_id):
+        return self.patientsTable.get(patient_emr_id)
+    
+    def get_patient_by_id(self, patient_id):
+        for index, patienId in enumerate(self.patientIds): 
+            if patient_id == patienId:
+                patientEmdId = self.patientEmrIds[index]
+                return self.patientsTable.get(patientEmdId)
+
 
     def __lookup_patient(self, patientName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
@@ -412,7 +406,13 @@ class SpeakCareEmr:
         if not matchedName:
             self.logger.info(f'Patient {patientFullName} not found')
         return matchedName, patientId, patientEmrId
-
+    
+    def lookup_patient_by_id(self, patient_id):
+        for index, patienId in enumerate(self.patientIds): 
+            if patient_id == patienId:
+                return self.patientNames[index], self.patientEmrIds[index]
+        return None, None
+    
     def add_patient(self, patient):
         return self.patientsTable.create(patient)
 
@@ -438,8 +438,14 @@ class SpeakCareEmr:
     def get_nurses(self):
         return self.nursesTable.all()
     
-    def get_nurse(self, nurse_id):
-        return self.nursesTable.get(nurse_id)
+    def get_nurse_by_emr_id(self, nurse_emr_id):
+        return self.nursesTable.get(nurse_emr_id)
+    
+    def get_nurse_by_id(self, nurse_id):
+        for index, nurseId in enumerate(self.nurseIds): 
+            if nurse_id == nurseId:
+                nurseEmdId = self.nurseEmrIds[index]
+                return self.nursesTable.get(nurseEmdId)
     
     def __lookup_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
@@ -453,6 +459,12 @@ class SpeakCareEmr:
         if not matchedName:
             self.logger.info(f'Nurse {nurseName} not found')
         return matchedName, nurseId, nurseEmrId
+    
+    def lookup_nurse_by_id(self, nurse_id):
+        for index, nurseId in enumerate(self.nurseIds): 
+            if nurse_id == nurseId:
+                return self.nurseNames[index], self.nurseEmrIds[index]
+        return None, None
     
     def add_nurse(self, nurse):
         return self.nursesTable.create(nurse)

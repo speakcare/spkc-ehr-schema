@@ -33,7 +33,7 @@ class EmrUtils:
         if not patientEmrId:
             return None
 
-        emr_patient = emr_api.get_patient(patientEmrId)
+        emr_patient = emr_api.get_patient_by_emr_id(patientEmrId)
         patient_data = {
             "emr_patient_id": patientId,
             "patient_id": emr_patient['fields']['PatientID'],
@@ -109,33 +109,66 @@ class EmrUtils:
                                    nurse_id: str = None):
         _errors =[]
         _state = RecordState.PENDING
-        # validate patient
         _patient_name = patient_name
-        foundPatient, foundPatientId, patientEmrId = emr_api.lookup_patient(patient_name)
-        if not foundPatientId:
+        _patient_id = patient_id
+        _nurse_name = nurse_name
+        _nurse_id = nurse_id
+
+         # validate patient
+        foundPatientByName = None
+        foundPatientIdByName = None
+        foundPatientByPatientId = None
+        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.lookup_patient(patient_name)
+
+        if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
             _state = RecordState.ERRORS
-        elif patient_id and patient_id != foundPatientId:
-            _errors.append(f"Patient ID '{patient_id}' does not match the patient ID '{foundPatientId}' found in the EMR for patient '{patient_name}' -> '{foundPatient}'.")
-            _state = RecordState.ERRORS
-        else:
-            _patient_name = foundPatient
-            _patient_id = foundPatientId
-            
+        elif patient_id: # if patient id is provided, it MUST match the patient name
+            foundPatientByPatientId, patientEmrId = emr_api.lookup_patient_by_id(patient_id)
+            if not foundPatientByPatientId: # if not found it is an error
+                _errors.append(f"Patient ID '{patient_id}' not found in the EMR.")
+                _state = RecordState.ERRORS
+            elif patient_id != foundPatientIdByName: # if found, the provided patient id must match the found patient id by name
+                _errors.append(f"Patient ID '{patient_id}' does not match the patient ID '{foundPatientIdByName}' found by name '{patient_name}'.")
+                _state = RecordState.ERRORS
+            elif foundPatientByPatientId != foundPatientByName: # if found patient by id, it must match name found by name
+                _errors.append(f"Patient name '{foundPatientByPatientId}' found by patient ID {patient_id} does not match the name '{foundPatientByName}' found by name '{patient_name}'.")
+                _state = RecordState.ERRORS
+            else: # all good
+                _patient_name = foundPatientByPatientId
+        else: # only patient name is provided
+            _patient_name = foundPatientByName
+            _patient_id = foundPatientIdByName
+
+
         # validate nurse
-        _nurse_name = nurse_name
-        foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(nurse_name)
-        if not foundNurseId:
+        foundNurseByName = None
+        foundNurseIdByName = None
+        foundNurseByNurseId = None
+        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.lookup_nurse(nurse_name)
+
+        if not foundNurseByName: # Nurse name is mandatory and must be found
             _errors.append(f"Nurse '{nurse_name}' not found in the EMR.")
             _state = RecordState.ERRORS
-        elif nurse_id and nurse_id != foundNurseId:
-            _errors.append(f"Nurse ID '{nurse_id}' does not match the nurse ID '{foundNurseId}' found in the EMR for nurse '{nurse_name}' -> '{foundNurse}'.")
-            _state = RecordState.ERRORS
-        else:
-            _nurse_name = foundNurse
-            _nurse_id = foundNurseId
+        elif nurse_id: # if nurse id is provided, it MUST match the nurse name
+            foundNurseByNurseId, nurseEmrId = emr_api.lookup_nurse_by_id(nurse_id)
+            if not foundNurseByNurseId: # if not found it is an error
+                _errors.append(f"Nurse ID '{nurse_id}' not found in the EMR.")
+                _state = RecordState.ERRORS
+            elif nurse_id != foundNurseIdByName: # if found, the provided nurse id must match the found nurse id by name
+                _errors.append(f"Nurse ID '{nurse_id}' does not match the nurse ID '{foundNurseIdByName}' found by name '{nurse_name}'.")
+                _state = RecordState.ERRORS
+            elif foundNurseByNurseId != foundNurseByName: # if found nurse by id, it must match name found by name
+                _errors.append(f"Nurse name '{foundNurseByNurseId}' found by nurse ID {nurse_id} does not match the name '{foundNurseByName}' found by name '{nurse_name}'.")
+                _state = RecordState.ERRORS
+            else: # all good
+                _nurse_name = foundNurseByNurseId
+        else: # only nurse name is provided
+            _nurse_name = foundNurseByName
+            _nurse_id = foundNurseIdByName
 
-        # validate the record fields
+        # validate the record fields - we always valuadte the full record (not using parital validation) 
+        # as we are validating the merge of existing record with the updated fields
         isValid, err = EmrUtils.validate_record(table_name, fields)
         if not isValid:
             _state = RecordState.ERRORS
@@ -279,7 +312,7 @@ class EmrUtils:
             return {"error": str(e)}, None
         
         simple_update_fields = ['patient_name', 'patient_id', 'nurse_name', 'nurse_id'] #, 'fields']
-        # updae the record with the new data
+        # merge the record with the new data
         for key, value in updates.items():
             # special handling for dictionary fields
             if key == 'fields' and isinstance(value, dict):
@@ -453,6 +486,78 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         logger.info(f"Created record {record_id}")
 
+    def test_create_and_update_with_errors(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "Bruce Willis",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Pounds", # use wrong field here
+                 "Weight": 120,
+                 "Scale": "Bath"
+            }
+        }
+        response, record_id = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)        
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(len(record.errors), 2) # patient not found and wrong Units field
+        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
+        self.assertTrue("Units" in record.errors[1] and "Pounds" in record.errors[1], record.errors[1])
+
+        # fix only the patient name
+        record_data = {
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Pounds", # use wrong field here
+            }
+        }
+        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertEqual(record.id, record_id)
+        # check that state is now PENDING
+        self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
+        self.assertTrue("Units" in record.errors[0] and "Pounds" in record.errors[0], record.errors[0])
+
+        # fix the Units field but mess up the Scale field
+        record_data = {
+            "fields": {
+                 "Units": "Lbs", # use wrong field here
+                 "Scale": "Bathroom"
+            }
+        }
+        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertEqual(record.id, record_id)
+        # check that state is now PENDING
+        self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
+        self.assertTrue("Scale" in record.errors[0] and "Bathroom" in record.errors[0], record.errors[0])
+
+        # fix the fields Scale but provide wrong patient ID
+        record_data = {
+            "patient_name": "John Doe",
+            "patient_id": "12345",
+            "fields": {
+                 "Scale": "Bath"
+            }
+        }
+        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertEqual(record.id, record_id)
+        # check that state is now PENDING
+        self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
+        self.assertTrue("Scale" in record.errors[0] and "Bathroom" in record.errors[0], record.errors[0])
+
+
+        
 
     def test_get_all_record_writable_schema(self):
         # Getting all table schema aexample
