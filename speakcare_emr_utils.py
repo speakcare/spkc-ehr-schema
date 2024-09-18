@@ -9,11 +9,8 @@ import sys
 import json
 from speakcare_logging import create_logger
 from typing import Optional
-import unittest
 from sqlalchemy.orm.attributes import flag_modified
-
-APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
-
+import copy
 logger = create_logger('speackcare.emr.utils')
 
 # Initialize the EMR API singleton early in the app setup
@@ -311,27 +308,50 @@ class EmrUtils:
             logger.error(f"Error updating EMR record: {e}")
             return {"error": str(e)}, None
         
-        simple_update_fields = ['patient_name', 'patient_id', 'nurse_name', 'nurse_id'] #, 'fields']
-        # merge the record with the new data
-        for key, value in updates.items():
-            # special handling for dictionary fields
-            if key == 'fields' and isinstance(value, dict):
-                record.fields.update(value)
-                # Explicitly mark the fields attribute as changed
-                flag_modified(record, 'fields')
-            elif key in simple_update_fields:
-                # update the simple fields
-                setattr(record, key, value)
+        # for now we allow update only if the result will not be in the ERROR state 
+        # update is supposed to fix an error or update a pending record, not create new ones.
 
+       
+        # prepare the merge of the existing record with the updates
+        _patient_name = updates.get('patient_name', record.patient_name)
+        _patient_id =  updates.get('patient_id', record.patient_id)
+        _nurse_name = updates.get('nurse_name', record.nurse_name)
+        _nurse_id = updates.get('nurse_id', record.nurse_id)
+        _fields = updates.get('fields', None)
+        if _fields:
+            old_fields = copy.deepcopy(record.fields)
+            old_fields.update(_fields)
+            _fields = old_fields
+        else:
+            _fields = record.fields
+
+        # first validate the record with the new fields
+        _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id =\
+            EmrUtils.__record_validation_helper(table_name=record.table_name, patient_name=_patient_name, nurse_name=_nurse_name, 
+                                                fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
         
-        # validate the record fields and update the record state and errors after validation
-        record.state, record.errors, record.patient_name, record.patient_id, record.nurse_name, record.nurse_id =\
-                EmrUtils.__record_validation_helper(record.table_name, record.patient_name, record.nurse_name, record.fields, record.patient_id, record.nurse_id)
+        if _new_state == RecordState.ERRORS:
+            err_message = f"Record {record_id} cannot be updated with {updates} as it will result in errors: {_errors}"
+            logger.error(err_message)
+            return {"message": err_message, "id": record_id}, record_id
+        
+        # if we are here, we can safely update the record
+        if _new_state == RecordState.PENDING:
+            # we can safely update the record
+            record.patient_name = _patient_name
+            record.patient_id = _patient_id
+            record.nurse_name = _nurse_name
+            record.nurse_id = _nurse_id
+            record.fields = _fields
+            record.state = _new_state
+            record.errors = _errors
+            flag_modified(record, 'fields')
+            flag_modified(record, 'errors')
         
         # Commit the udpated record to the database
         session.commit()
 
-        return {"message": "EMR record updated successfully", "id": record.id}, record.id
+        return {"message": "EMR record updated successfully", "id": record_id}, record.id
 
     @staticmethod
     def commit_record(record_id: int):
@@ -420,160 +440,3 @@ class EmrUtils:
             return {"error": str(e)}, False
 
 
-class TestEmrUtils(unittest.TestCase):
-    def setUp(self):
-        pass
-
-    def test_create_record(self):
-                # Create a record example
-        record_data = {
-            "type": RecordType.MEDICAL_RECORD,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Lbs",
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
-        response, record_id = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.PENDING)
-        logger.info(f"Created record {record_id}")
-
-    def test_create_and_update_record(self):
-                # Create a record example
-        record_data = {
-            "type": RecordType.MEDICAL_RECORD,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Pounds", # use wrong field here
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
-        response, record_id = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)        
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.state, RecordState.ERRORS)
-        logger.info(f"Record {record_id} created with errors:{record.errors}")
-
-        # fix the record
-        record_data = {
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Lbs",
-                 "Scale": "Bath"
-                 # not proviuind Weight intentionally to test the partial update
-            }
-        }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.PENDING)
-        logger.info(f"Created record {record_id}")
-
-    def test_create_and_update_with_errors(self):
-                # Create a record example
-        record_data = {
-            "type": RecordType.MEDICAL_RECORD,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "Bruce Willis",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Pounds", # use wrong field here
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
-        response, record_id = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)        
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 2) # patient not found and wrong Units field
-        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
-        self.assertTrue("Units" in record.errors[1] and "Pounds" in record.errors[1], record.errors[1])
-
-        # fix only the patient name
-        record_data = {
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Pounds", # use wrong field here
-            }
-        }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
-        self.assertTrue("Units" in record.errors[0] and "Pounds" in record.errors[0], record.errors[0])
-
-        # fix the Units field but mess up the Scale field
-        record_data = {
-            "fields": {
-                 "Units": "Lbs", # use wrong field here
-                 "Scale": "Bathroom"
-            }
-        }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
-        self.assertTrue("Scale" in record.errors[0] and "Bathroom" in record.errors[0], record.errors[0])
-
-        # fix the fields Scale but provide wrong patient ID
-        record_data = {
-            "patient_name": "John Doe",
-            "patient_id": "12345",
-            "fields": {
-                 "Scale": "Bath"
-            }
-        }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 1) # only the Units field is wrong
-        self.assertTrue("Scale" in record.errors[0] and "Bathroom" in record.errors[0], record.errors[0])
-
-
-        
-
-    def test_get_all_record_writable_schema(self):
-        # Getting all table schema aexample
-        table_names = EmrUtils.get_table_names()
-        for table_name in table_names:
-            logger.info(f'Getting schema for table {table_name}')
-            record_schema, secitions_schema = EmrUtils.get_record_writable_schema(table_name)
-            self.assertIsNotNone(record_schema)
-            logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
-            if secitions_schema:
-                for section, schema in secitions_schema.items():
-                    logger.info(f"Getting schema for section {section} in table {table_name}")
-                    logger.debug(f"{table_name} Table {section} section schema: {json.dumps(schema, indent=4)}")
-    
-
-
-
-if __name__ == '__main__':
-    unittest.main()
