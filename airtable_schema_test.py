@@ -47,9 +47,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Temperature": 103,
             "Route": "Tympanic"
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_record_invalid_field(self):
         schema = AirtableSchema("temperatureRecord", self.valid_schema)
@@ -58,9 +59,23 @@ class TestEmrTableSchema(unittest.TestCase):
             "Temperature": "high",
             "Route": "Tympanic"
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
+
+    def test_validate_record_non_existent_field(self):
+        schema = AirtableSchema("temperatureRecord", self.valid_schema)
+        record = {
+            "Units": "Fahrenheit",
+            "Temperature": "103",
+            "Route": "Tympanic",
+            "Time": "12:00"
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid) # extra field is ignored
+        self.assertEqual(len(errors), 1) # we still get an error for the extra field
 
     def test_validate_record_missing_unrequired_field(self):
         schema = AirtableSchema("temperatureRecord", self.valid_schema)
@@ -68,9 +83,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Temperature": 103,
             "Units": "Fahrenheit",
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_record_missing_required_field(self):
         schema = AirtableSchema("temperatureRecord", {
@@ -85,9 +101,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Temperature": 103,
             "Route": "Tympanic"
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertEqual(error_message, "Validation error: Required field 'Units' is missing.")
+        self.assertEqual(errors[0], "Validation error: Required field 'Units' is missing.")
 
     def test_validate_partial_record_missing_required_field(self):
         # In partial udpate we allow missing required fields
@@ -104,9 +121,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Temperature": 103,
             "Route": "Tympanic"
         }
-        is_valid, error_message = schema.validate_partial_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_partial_record(record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_single_select_wrong_value(self):
         schema = AirtableSchema("temperatureRecord", {
@@ -122,9 +140,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Units": "Kelvin",
             "Route": "Tympanic"
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)   
+        self.assertEqual(len(errors), 1)   
 
     def test_validate_multi_select_correct_values(self):
         schema = AirtableSchema("temperatureRecord", {
@@ -140,9 +159,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Units": "Celsius",
             "Route": ["Tympanic", "Axilla"]
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)        
+        self.assertEqual(len(errors), 0)        
     
     def test_validate_multi_select_incorrect_values(self):
         schema = AirtableSchema("temperatureRecord", {
@@ -158,9 +178,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "Units": "Celsius",
             "Route": ["Tympanic", "Axilla", "Forehead", "Rectal"]
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)        
+        self.assertEqual(len(errors), 1)         
 
     def test_validate_date_correct_value(self):
         schema = AirtableSchema("testSchema", {
@@ -170,9 +191,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"DateField": "2023-10-01"}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_date_incorrect_value(self):
         schema = AirtableSchema("testSchema", {
@@ -182,9 +204,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"DateField": "01-10-2023"}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
 
 
     def test_validate_date_time_correct_value(self):
@@ -199,9 +222,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "DateTimeField1": "2023-10-01T12:00:00Z",
             "DateTimeField2": "2023-10-01T12:00:00+00:00"
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_date_time_incorrect_value(self):
         schema = AirtableSchema("testSchema", {
@@ -212,9 +236,10 @@ class TestEmrTableSchema(unittest.TestCase):
         })
         dateTimeString = "2023-10-01 25:00:00"
         record = {"DateTimeField": dateTimeString}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
 
 
     def test_validate_percent_correct_value(self):
@@ -225,9 +250,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"PercentField": 85}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_percent_incorrect_value(self):
         schema = AirtableSchema("testSchema", {
@@ -237,9 +263,11 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"PercentField": 150}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
+        
 
     def test_validate_checkbox_correct_value(self):
         schema = AirtableSchema("testSchema", {
@@ -253,9 +281,10 @@ class TestEmrTableSchema(unittest.TestCase):
             "CheckboxField1": True,
             "CheckboxField2": False
         }
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_checkbox_incorrect_value(self):
         schema = AirtableSchema("testSchema", {
@@ -265,9 +294,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"CheckboxField": "yes"}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
 
 
     def test_validate_currency_correct_value(self):
@@ -278,9 +308,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"CurrencyField": 100.50}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertIsNone(error_message)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_currency_incorrect_value(self):
         schema = AirtableSchema("testSchema", {
@@ -290,9 +321,10 @@ class TestEmrTableSchema(unittest.TestCase):
             ]
         })
         record = {"CurrencyField": "one hundred"}
-        is_valid, error_message = schema.validate_record(record)
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertIsNotNone(error_message)
+        self.assertEqual(len(errors), 1)
 
 if __name__ == '__main__':
     unittest.main()

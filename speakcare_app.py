@@ -131,7 +131,7 @@ class CommitRecordResource(Resource):
         record = session.query(MedicalRecords).get(id)
         if not record:
             return jsonify({'error': 'Record not found'}), 404
-        response, status_code = commit_record_to_ehr(record)
+        response, status_code = EmrUtils.commit_record(record)
         session.commit()
         return jsonify(response), status_code
 
@@ -141,13 +141,11 @@ class DiscardRecordResource(Resource):
     @ns.doc('discard_record')
     def post(self, id):
         """Discard a record by ID"""
-        session = MedicalRecordsDBSession()
-        record = session.query(MedicalRecords).get(id)
-        if not record:
-            return jsonify({'error': 'Record not found'}), 404
-        response, status_code = discard_record(record)
-        session.commit()
-        return jsonify(response), status_code
+        response, record_id = EmrUtils.discard_record(record_id)
+        if record_id:
+            return jsonify(response), 204
+        else:
+            return jsonify(response), 400
 
 
 @ns.route('/transcripts')

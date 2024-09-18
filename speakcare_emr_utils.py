@@ -84,18 +84,18 @@ class EmrUtils:
         return main_schema, sections_schema
 
     @staticmethod
-    def validate_record(table_name: str, data: dict):
+    def validate_record(table_name: str, data: dict, errors: list = []):
         """
         validate_record_data
         """
-        return emr_api.validate_record(table_name, data)
+        return emr_api.validate_record(tableName=table_name, record=data, errors=errors)
     
     @staticmethod
-    def validate_partial_record(table_name: str, data: dict):
+    def validate_partial_record(table_name: str, data: dict, errors: list = []):
         """
         validate_partial_record_data
         """
-        return emr_api.validate_partial_record(table_name, data)
+        return emr_api.validate_partial_record(tableName=table_name, record=data, errors=errors)
 
     @staticmethod
     def __record_validation_helper(table_name: str,
@@ -166,12 +166,11 @@ class EmrUtils:
 
         # validate the record fields - we always valuadte the full record (not using parital validation) 
         # as we are validating the merge of existing record with the updated fields
-        isValid, err = EmrUtils.validate_record(table_name, fields)
+        isValid, _valid_fields = EmrUtils.validate_record(table_name, fields, _errors)
         if not isValid:
             _state = RecordState.ERRORS
-            _errors.append(err)
-        
-        return _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id
+            
+        return _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields
 
 
     @staticmethod
@@ -256,8 +255,9 @@ class EmrUtils:
             logger.error(f"Error creating EMR record: {e}")
             return {"error": str(e)}, None
         
-        _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id =\
-            EmrUtils.__record_validation_helper(_table_name, _patient_name, _nurse_name, _fields, _patient_id, _nurse_id)
+        _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
+            EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 
+                                                fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
 
         new_record = MedicalRecords(
             type= _type,  # Convert to Enum
@@ -266,7 +266,7 @@ class EmrUtils:
             patient_id= _patient_id,
             nurse_name=_nurse_name,
             nurse_id= _nurse_id,
-            fields= _fields,
+            fields= _valid_fields,
             transcript_id = _transcript_id,
             state= _state,
             errors = _errors
@@ -326,7 +326,8 @@ class EmrUtils:
             _fields = record.fields
 
         # first validate the record with the new fields
-        _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id =\
+
+        _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
             EmrUtils.__record_validation_helper(table_name=record.table_name, patient_name=_patient_name, nurse_name=_nurse_name, 
                                                 fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
         
@@ -342,7 +343,7 @@ class EmrUtils:
             record.patient_id = _patient_id
             record.nurse_name = _nurse_name
             record.nurse_id = _nurse_id
-            record.fields = _fields
+            record.fields = _valid_fields
             record.state = _new_state
             record.errors = _errors
             flag_modified(record, 'fields')
@@ -362,27 +363,26 @@ class EmrUtils:
             # first verify that the record is a PENDING state
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
-                raise ValueError(f"Record id {record.id} cannot be applied because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
+                raise ValueError(f"Record id {record.id} cannot be commited because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
             
-            # then verify that we have valid patient and nurse names and set them in the record
-            foundPatient, patientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
-            if not patientId:
+            # from here record should be ready for commit with no errors
+            foundPatient, foundPatientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
+            if not foundPatient:
                 record.errors
                 raise ValueError(f"Patient {record.patient_name} not found in the EMR.")
-            # update the patient name to the correct one as matched in the database
-            record.patient_name = foundPatient
             
-            foundNurse, nurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
-            if not nurseId:
+            
+            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
-            record.nurse_name = foundNurse
             
             table_name  = record.table_name
             record_fields = record.fields
+            # TODO - continue from here
             record_type = record.type
             if (record_type == RecordType.MEDICAL_RECORD):
-                emr_record, url = emr_api.create_medical_record(tableName=table_name, record=record_fields, patientId=patientId, nurseId=nurseId)
+                emr_record, url = emr_api.create_medical_record(tableName=record.table_name, record=record_fields, patientEmrId=patientEmrId, nurseEmrId=nurseEmrId)
                 if not emr_record:    
                     raise ValueError(f"Failed to create medical record {record_fields} in table {table_name}.")            
                 else:
@@ -418,10 +418,10 @@ class EmrUtils:
             logger.info(f"Discarding record {record.id}")
             record.state = RecordState.DISCARDED
             session.commit()
-            return {"message": f"Record {record.id} discarded successfully."}, 204
+            return {"message": f"Record {record.id} discarded successfully."}, record_id
         
         except Exception as e:
-            return {"error": str(e)}, 400           # Return error response and status code
+            return {"error": str(e)}, None         
     
     @staticmethod
     def delete_record(record_id: int):

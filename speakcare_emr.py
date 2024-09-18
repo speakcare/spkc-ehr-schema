@@ -256,35 +256,33 @@ class SpeakCareEmr:
     def update_record(self, tableId, recordId, record):
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
     
-    def validate_record(self, tableName, record):
+    def validate_record(self, tableName, record, errors):
         tableSchema = self.tableWriteableSchemas.get(tableName)
+        valid_fields = {}
         if not tableSchema:
-            err_msg = f'validate_record: Failed to get writable schema for table {tableName}'
-            #self.logger.error(err_msg)
-            return False, err_msg
+            errors.append(f'validate_record: Failed to get writable schema for table {tableName}')
+            return False, {}
         
-        isValidRecord, err_msg = tableSchema.validate_record(record)
+        isValidRecord, valid_fields = tableSchema.validate_record(record=record, errors= errors)
         if not isValidRecord:
-            err_msg = f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
-            #self.logger.error(f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
-            return False, err_msg
+            errors.append(f'validate_record: Invalid record {record} for table {tableName}.')
+            return False, valid_fields
         
-        return True, None
+        return True, valid_fields
     
-    def validate_partial_record(self, tableName, record):
+    def validate_partial_record(self, tableName, record, errors):
         tableSchema = self.tableWriteableSchemas.get(tableName)
+        valid_fields = {}
         if not tableSchema:
-            err_msg = f'validate_record: Failed to get writable schema for table {tableName}'
-            #self.logger.error(err_msg)
-            return False, err_msg
+            errors.append(f'validate_partial_record: Failed to get writable schema for table {tableName}')
+            return False, {}
         
-        isValidRecord, err_msg = tableSchema.validate_partial_record(record)
+        isValidRecord, valid_fields = tableSchema.validate_partial_record(record=record, errors=errors)
         if not isValidRecord:
-            err_msg = f'validate_partial_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
-            #self.logger.error(f'validate_record: Invalid record {record} for table {tableName}. Error: {err_msg}')
-            return False, err_msg
+            errors.append(f'validate_partial_record: Invalid record {record} for table {tableName}.')
+            return False, valid_fields
         
-        return True, None    
+        return True, valid_fields    
         
     def get_table_url(self, tableId=None, tableName=None):
         if tableId:
@@ -307,12 +305,13 @@ class SpeakCareEmr:
         
 
     def create_medical_record(self, tableName, record, 
-                              patientEmrId, createdByNurseEmrId):
+                              patientEmrId, createdByNurseEmrId, errors=[]):
  
         
-        isValidRecord, err_msg = self.validate_record(tableName, record)
+        isValidRecord, valid_fields = self.validate_record(tableName= tableName, record= record, errors=errors)
         if not isValidRecord:
-            err_msg = f'create_medical_record: Invalid record {record} for table {tableName}. Error: {err_msg}'
+            err_msg = f'create_medical_record: Invalid record {record} for table {tableName}.'
+            errors.append(err_msg)
             self.logger.error(err_msg)
             return None, None, err_msg
         
@@ -323,11 +322,12 @@ class SpeakCareEmr:
         return record, url, None
 
 
-    def create_assessment(self, assessmentTableName, record, patientEmrId, createdByNurseEmrId):
+    def create_assessment(self, assessmentTableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
         
-        isValidRecord, err_msg = self.validate_record(assessmentTableName, record)
+        isValidRecord, valid_fields = self.validate_record(tableName=assessmentTableName, record=record, errors=errors)
         if not isValidRecord:
-            err_msg = f'create_assessment: Invalid record {record} for table {assessmentTableName}. Error: {err_msg}'
+            err_msg = f'create_assessment: Invalid record {record} for table {assessmentTableName}.'
+            errors.append(err_msg)
             self.logger.error(err_msg)
             return None, None, err_msg        
                 
@@ -340,11 +340,12 @@ class SpeakCareEmr:
         return record, url, None
     
     def create_assessment_section(self, sectionTableName, record, 
-                                  assessmentId, createdByNurseEmrId):
+                                  assessmentId, createdByNurseEmrId, errors=[]):
         
-        isValidRecord, err_msg = self.validate_record(sectionTableName, record)
+        isValidRecord, valid_fields = self.validate_record(tableName=sectionTableName, record=record, errors=errors)
         if not isValidRecord:
-            err_msg = f'create_assessment_section: Invalid record {record} for table {sectionTableName}. Error: {err_msg}'
+            err_msg = f'create_assessment_section: Invalid record {record} for table {sectionTableName}.'
+            errors.append(err_msg)
             self.logger.error(err_msg)
             return None, None, err_msg         
 

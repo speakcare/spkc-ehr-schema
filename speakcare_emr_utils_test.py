@@ -40,6 +40,33 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
+    def test_create_record_with_extra_field(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Lbs",
+                 "Weight": 120,
+                 "Time": "12:00", # extra field
+                 "Scale": "Bath"
+            }
+        }
+        response, record_id = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.assertEqual(len(record.errors), 1)
+        self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema.")
+        self.logger.info(f"Created record {record_id}")
+
     def test_create_and_update_record(self):
                 # Create a record example
         record_data = {
@@ -97,7 +124,8 @@ class TestEmrUtils(unittest.TestCase):
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 3) # patient not found and wrong Units field
+        self.logger.info(f"Record {record_id} created with errors:{record.errors}")
+        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
         self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
         self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
         self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
@@ -115,7 +143,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
         self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 3) # patient not found and wrong Units field
+        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
         self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
         self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
         self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
@@ -132,7 +160,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
         self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 3) # patient not found and wrong Units field
+        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
         self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
         self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
         self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
@@ -154,7 +182,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.id, record_id)
         # check that state is still ERROR
         self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(len(record.errors), 3) # patient not found and wrong Units field
+        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
         self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
         self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
         self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])

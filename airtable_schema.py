@@ -95,11 +95,15 @@ class AirtableSchema:
     def get_name(self):
         return self.table_name
     
-    def validate_record(self, record, checkRequired: bool=True):
+    
+    def validate_record(self, record,  errors, checkRequired: bool=True):
         """
         Takes a record and validates that it adheres to this schema
         For record update validation, set checkRequired to False as we allow partial updates
         """
+        
+        validated_fields = {}
+        all_valid = True
         try:
             # Check for required fields only if checkRequired is True
             if checkRequired:
@@ -107,7 +111,8 @@ class AirtableSchema:
                     if field_info.get("required") and field_name not in record:
                         error_message = f"Validation error: Required field '{field_name}' is missing."
                         self.logger.error(error_message)
-                        return False, error_message
+                        errors.append(error_message)
+                        all_valid = False
             
             # Validate each field in the record
             for field_name, field_value in record.items():
@@ -115,26 +120,33 @@ class AirtableSchema:
                     field_info = self.__field_registry[field_name]
                     field_type = FieldTypes(field_info["type"])
                     field_options = field_info["options"]
-                    is_valid, error_message = self.__validate_field(field_type, field_value, field_options)
-                    if not is_valid:
+                    is_field_valid, error_message = self.__validate_field(field_type, field_value, field_options)
+                    if is_field_valid:
+                        validated_fields[field_name] = field_value
+                    else:
                         error_message = f"Validation error for field '{field_name}': {error_message}"
                         self.logger.error(error_message)
-                        return False, error_message
+                        errors.append(error_message)
+                        all_valid = False
+                        
                 else:
                     error_message = f"Field name '{field_name}' does not exist in the schema."
                     self.logger.error(error_message)
-                    return False, error_message
-            return True, None
+                    errors.append(error_message)
+                    # Here we don't set is_valid to False as we can silently ignore fields that are not in the schema
+            
+            return all_valid, validated_fields
         except Exception as e:
             error_message = f"Validation error: {e}"
             self.logger.error(error_message)
-            return False, error_message
-        
-    def validate_partial_record(self, record):
+            errors.append(error_message)
+            return False, validated_fields
+
+    def validate_partial_record(self, record, errors):
         """
         Validates a partial record update
         """
-        return self.validate_record(record, checkRequired=False)
+        return self.validate_record(record, errors=errors, checkRequired=False)
     
 
     def __validate_field(self, field_type: FieldTypes, value, options=None):
