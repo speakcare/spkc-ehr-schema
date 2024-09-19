@@ -1,7 +1,7 @@
 import speakcare_emr_utils
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
-from models import MedicalRecords, Transcripts, RecordType, RecordState
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 from speakcare_logging import create_logger
 from typing import Optional
 import json
@@ -16,16 +16,16 @@ run_skipped_tests = os.getenv('UT_RUN_SKIPPED_TESTS', 'False').lower() == 'true'
 print(f"run_skipped_tests: {run_skipped_tests}")
 
 
-class TestEmrUtils(unittest.TestCase):
+class TestRecords(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super(TestEmrUtils, self).__init__(*args, **kwargs)
+        super(TestRecords, self).__init__(*args, **kwargs)
         self.logger = create_logger(__name__)
 
     def setUp(self):
         pass
 
-    def test_create_record(self):
+    def test_record_create(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -49,7 +49,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-    def test_create_record_with_extra_field(self):
+    def test_record_create_with_extra_field(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -76,7 +76,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema.")
         self.logger.info(f"Created record {record_id}")
 
-    def test_create_and_update_record(self):
+    def test_record_create_and_update(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -107,14 +107,15 @@ class TestEmrUtils(unittest.TestCase):
                  # not proviuind Weight intentionally to test the partial update
             }
         }
-        record_id, response  = EmrUtils.update_record(record_data, record_id)
+        success, response  = EmrUtils.update_record(record_data, record_id)
+        self.assertTrue(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-    def test_create_and_update_with_errors(self):
+    def test_record_create_and_update_with_errors(self):
         # Create a record with 3 errors
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -147,8 +148,8 @@ class TestEmrUtils(unittest.TestCase):
                  "Units": "Pounds", # use wrong field here
             }
         }
-        failed_record_id, response  = EmrUtils.update_record(record_data, record_id)
-        self.assertIsNone(failed_record_id)
+        success, response  = EmrUtils.update_record(record_data, record_id)
+        self.assertFalse(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
@@ -165,8 +166,8 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bathroom"
             }
         }
-        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
-        self.assertIsNone(failed_record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertFalse(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
@@ -188,8 +189,8 @@ class TestEmrUtils(unittest.TestCase):
             }
         }
 
-        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
-        self.assertIsNone(failed_record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertFalse(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is still ERROR
@@ -210,7 +211,8 @@ class TestEmrUtils(unittest.TestCase):
             }
         }    
 
-        record_id, response = EmrUtils.update_record(record_data, record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertTrue(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -220,7 +222,7 @@ class TestEmrUtils(unittest.TestCase):
         self.logger.info(f"Created record {record_id} successfully")
 
 
-    def test_non_existent_patient_id(self):
+    def test_record_non_existent_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -250,8 +252,8 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "Johny Doggy",
             "patient_id": "P001"
         }
-        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
-        self.assertIsNone(failed_record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertFalse(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.ERRORS)
@@ -265,7 +267,8 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "John Do", # slgihtly different name - should pass ok
             "patient_id": "P001"
         }
-        record_id, response = EmrUtils.update_record(record_data, record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertTrue(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -274,7 +277,7 @@ class TestEmrUtils(unittest.TestCase):
         self.logger.info(f"Updated record {record_id} successfully")
 
 
-    def test_wrong_patient_id(self):
+    def test_record_wrong_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -304,7 +307,8 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "John Doe",
             "patient_id": "P001"
         }
-        record_id, response = EmrUtils.update_record(record_data, record_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertTrue(success)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING)
@@ -312,7 +316,7 @@ class TestEmrUtils(unittest.TestCase):
         self.logger.info(f"Updated record {record_id} successfully")
         
 
-    def test_create_and_commit_record(self):
+    def test_record_create_and_commit_record(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -352,7 +356,7 @@ class TestEmrUtils(unittest.TestCase):
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
 
-    def test_create_and_commit_and_fail_on_second_commit(self):
+    def test_record_create_and_commit_and_fail_on_second_commit(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -389,7 +393,7 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(response['error'], f"Record id {record_id} cannot be commited as it is in '{record.state}' state.")
         self.assertEqual(record.state, RecordState.COMMITTED)
 
-    def test_create_and_commit_and_fail_on_update(self):
+    def test_record_create_and_commit_and_fail_on_update(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -420,12 +424,12 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.state, RecordState.COMMITTED)
 
         # try to update, should fail
-        record_update_id, response = EmrUtils.update_record(record_data, record_id)
-        self.assertIsNone(record_update_id)
+        success, response = EmrUtils.update_record(record_data, record_id)
+        self.assertFalse(success)
         self.assertEqual(response['error'], f"Record is {record_id} is in {record.state} state and cannot be updated.")
         self.assertEqual(record.state, RecordState.COMMITTED)
 
-    def test_create_and_commit_and_fail_on_discard(self):
+    def test_record_create_and_commit_and_fail_on_discard(self):
                 # Create a record example
         record_data = {
             "type": RecordType.MEDICAL_RECORD,
@@ -456,12 +460,92 @@ class TestEmrUtils(unittest.TestCase):
         self.assertEqual(record.state, RecordState.COMMITTED)
 
         # try to update, should fail
-        record_update_id, response = EmrUtils.discard_record(record_id)
-        self.assertIsNone(record_update_id)
+        success, response = EmrUtils.discard_record(record_id)
+        self.assertFalse(success)
         self.assertEqual(response['error'], f"Record id {record_id} cannot be discarded as it already COMMITTED.")
         self.assertEqual(record.state, RecordState.COMMITTED)
 
 
+### Transcript unit tests
+class TestTranscripts(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(TestTranscripts, self).__init__(*args, **kwargs)
+        self.logger = create_logger(__name__)
+
+    def setUp(self):
+        pass
+
+    def test_transcript_create(self):
+        # Create a transcript
+        transcript_text = "This is a test transcript."
+        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        
+        # Assert that the transcript was created successfully
+        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
+        
+        # Get the transcript from the database
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
+        self.assertEqual(transcript.text, transcript_text, "Transcript text does not match.")
+        self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
+
+    def test_transcript_update_state(self):
+        # Create a transcript
+        transcript_text = "This is a test transcript for state update."
+        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        
+        # Assert that the transcript was created successfully
+        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
+        
+        # Update the state of the transcript
+        new_state = TranscriptState.PROCESSED
+        update_success, response = EmrUtils.update_transcript_state(transcript_id, new_state)
+        
+        # Assert that the state was updated successfully
+        self.assertTrue(update_success, "Failed to update transcript state.")
+        
+        # Get the transcript from the database
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        
+        # Assert that the state was updated correctly
+        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
+        self.assertEqual(transcript.state, new_state, "Transcript state does not match the updated state.")
+
+    def test_transcript_delete(self):
+        # Create a transcript
+        transcript_text = "This is a test transcript for deletion."
+        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        
+        # Assert that the transcript was created successfully
+        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
+        
+        # Get the transcript from the database
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        
+        # Assert that the transcript was retrieved successfully
+        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
+        
+        # Delete the transcript
+        delete_success, response = EmrUtils.delete_transcript(transcript_id)
+        
+        # Assert that the transcript was deleted successfully
+        self.assertTrue(delete_success, "Failed to delete transcript.")
+        
+        # Try to get the transcript again, should fail
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        
+        # Assert that the transcript is no longer in the database
+        self.assertIsNone(transcript, "Transcript should not exist after deletion.")
+
+
+### Schema unit tests
+class TestSchema(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(TestSchema, self).__init__(*args, **kwargs)
+        self.logger = create_logger(__name__)
+
+    def setUp(self):
+        pass
 
     @unittest.skipIf(not run_skipped_tests, "Skipping by default")
     def test_get_all_record_writable_schema(self):

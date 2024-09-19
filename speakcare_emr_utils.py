@@ -3,7 +3,7 @@ from speakcare_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
 from speakcare_emr import get_emr_api_instance
-from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptsDBSession, MedicalRecordsDBSession
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, TranscriptsDBSession, MedicalRecordsDBSession
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
@@ -185,11 +185,11 @@ class EmrUtils:
         try:
             record = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.")
+                raise KeyError(f"Record id {record_id} not found in the database.")
             else:
                 return record, None
             
-        except ValueError as e:
+        except KeyError as e:
             logger.error(f"Error getting EMR record id {record_id}: {e}")
             session.rollback()
             return None, {"error": str(e)}
@@ -294,15 +294,11 @@ class EmrUtils:
             MedicalRecordsDBSession.remove()
             
 
-        
-
-
-
     @staticmethod
     def update_record(updates: dict, record_id: int):
         """
-        Returns a tuple: message and the record id if the record is successfully updated, 
-        otherwise returns an error message and None.
+        Returns a tuple: message and True if the record is successfully updated, 
+        otherwise returns an error message and False.
 
         :param session: The SQLAlchemy session to use for the database operations.
         :param data: A dictionary containing the data for the updated record.
@@ -321,7 +317,7 @@ class EmrUtils:
             if not record:
                 err = f"Record id {record_id} not found in the database."
                 logger.error(err)
-                raise ValueError(err)
+                raise KeyError(err)
             
             if record.state in [RecordState.COMMITTED, RecordState.DISCARDED]:
                 err = f"Record is {record_id} is in {record.state} state and cannot be updated."
@@ -371,12 +367,12 @@ class EmrUtils:
             
                 # Commit the udpated record to the database
                 session.commit()
-                return record.id, {"message": "EMR record updated successfully", "id": record_id}
+                return True, {"message": "EMR record updated successfully", "id": record_id}
 
-        except (ValueError, RecordStateError) as e:
+        except (ValueError, KeyError, RecordStateError) as e:
             session.rollback()
             logger.error(f"Error updating EMR record: {e}")
-            return None, {"error": str(e)}
+            return False, {"error": str(e)}
         finally:
             MedicalRecordsDBSession.remove()
         
@@ -392,18 +388,18 @@ class EmrUtils:
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.")
+                raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state == RecordState.COMMITTED:  
                 raise RecordStateError(f"Record id {record.id} cannot be discarded as it already COMMITTED.")
 
             logger.info(f"Discarding record {record.id}")
             record.state = RecordState.DISCARDED
             session.commit()
-            return record_id, {"message": f"Record {record.id} discarded successfully."}
+            return True, {"message": f"Record {record.id} discarded successfully."}
         
         except Exception as e:
             session.rollback()
-            return None, {"error": str(e)}
+            return False, {"error": str(e)}
         finally:
             MedicalRecordsDBSession.remove()
     
@@ -417,7 +413,7 @@ class EmrUtils:
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.") 
+                raise KeyError(f"Record id {record_id} not found in the database.") 
             logger.info(f"Deleting record {record.id}")
             session.delete(record)
             session.commit()
@@ -444,7 +440,7 @@ class EmrUtils:
             # first verify that the record is a PENDING state
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.")
+                raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             
@@ -486,7 +482,7 @@ class EmrUtils:
             logger.error(e)
             session.rollback()
             return None, {"error": str(e)}
-        except Exception as e:
+        except (KeyError, ValueError) as e:
         # Handle the error by adding it to the record's errors field
             errors = record.errors.get('errors', []) if record.errors else []  # Get existing errors, defaulting to an empty list
             if not isinstance(errors, list):        # Ensure it's a list
@@ -512,7 +508,7 @@ class EmrUtils:
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.")
+                raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state != RecordState.COMMITTED:
                 raise ValueError(f"Record id {record.id} is not in '{RecordState.COMMITTED}' state.")
             emr_record = emr_api.get_record(tableId= record.table_name, recordId= record.emr_record_id)
@@ -521,9 +517,135 @@ class EmrUtils:
             
             return  emr_record, {"message": f"EMR record {record.emr_record_id} retreived from table {record.table_name} ."}
         
-        except Exception as e:
+        except (KeyError, ValueError) as e:
             session.rollback()
             logger.error(f"Error getting EMR record id {record_id}: {e}")
             return None, {"error": str(e)}
         finally: 
             MedicalRecordsDBSession.remove()
+
+    ### Transcript DB methods ###
+
+    @staticmethod
+    def create_transcript(transcript: str):
+        """
+        Create a new transcript in the database and return its id.
+        Return the new transcript id, or None if it fails.
+        """
+        session = TranscriptsDBSession()
+        try:
+            new_transcript = Transcripts(text=transcript)
+            if not new_transcript:
+                err = "Failed to create new transcript."
+                logger.error(err)
+                raise ValueError(err)
+            
+            session.add(new_transcript)
+            session.commit()
+            return new_transcript.id, {"message": "Transcript created successfully", "id": new_transcript.id}
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error creating transcript: {e}")
+            return None, {"error": str(e)}
+        finally:
+            TranscriptsDBSession.remove()
+
+    @staticmethod
+    def get_all_transcripts(text_limit: int = 200, state: TranscriptState = None):
+        """
+        Return a dictionary with all transcripts but truncate the text to first text_limit characters.
+        If state is given (not None), query the database only for these transcripts that are in that state.
+        """
+        session = TranscriptsDBSession()
+        try:
+            query = session.query(Transcripts)
+            if state:
+                query = query.filter(Transcripts.state == state)
+            transcripts = query.all()
+            result = []
+            for transcript in transcripts:
+                truncated_text = transcript.text[:text_limit]
+                result.append({
+                    'id': transcript.id,
+                    'text': truncated_text,
+                    'meta': transcript.meta,
+                    'state': transcript.state,
+                    'errors': transcript.errors,
+                    'created_time': transcript.created_time,
+                    'modified_time': transcript.modified_time
+                })
+            return result, {"message": "Transcripts retrieved successfully."}
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error retrieving transcripts: {e}")
+            return None, {"error": str(e)}
+        finally:
+            TranscriptsDBSession.remove()
+    
+    @staticmethod
+    def get_transcript(transcript_id: int):
+        """
+        Get the transcript record by transcript_id and return the transcript record, or None if failed.
+        """
+        session = TranscriptsDBSession()
+        try:
+            transcript = session.get(Transcripts, transcript_id)
+            if not transcript:
+                err = f"Transcript with ID {transcript_id} not found."
+                logger.error(err)
+                raise KeyError(err)
+            
+            return transcript, {"message": f"Transcript id {transcript_id} retrieved successfully."}
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error retrieving transcript: {e}")
+            return None, {"error": str(e)}
+        finally:
+            TranscriptsDBSession.remove()
+
+    @staticmethod
+    def update_transcript_state(transcript_id: int, state: TranscriptState):
+        """
+        Get the transcript record by transcript_id and update the state.
+        Return True for success or False for failure.
+        """
+        session = TranscriptsDBSession()
+        try:
+            transcript = session.get(Transcripts, transcript_id)
+            if transcript:
+                transcript.state = state
+                session.commit()
+                return True, {"message": f"Transcript state updated to {state}."}
+            else:
+                err = f"Transcript with ID {transcript_id} not found."
+                logger.error(err)
+                raise KeyError(err)
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error updating transcript state: {e}")
+            return False, {"error": str(e)}
+        finally:
+            TranscriptsDBSession.remove()
+
+    @staticmethod
+    def delete_transcript(transcript_id: int):
+        """
+        Delete the transcript by transcript_id.
+        """
+        session = TranscriptsDBSession()
+        try:
+            transcript = session.get(Transcripts, transcript_id)
+            if transcript:
+                session.delete(transcript)
+                session.commit()
+                return True, {"message": f"Transcript with ID {transcript_id} deleted successfully."}
+            else:
+                err = f"Transcript with ID {transcript_id} not found."
+                logger.error(err)
+                raise KeyError(err)
+        except Exception as e:
+            logger.error(f"Error deleting transcript: {e}")
+            session.rollback()
+            return False, {"error": str(e)}
+        finally:
+            TranscriptsDBSession.remove()

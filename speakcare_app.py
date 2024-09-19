@@ -108,8 +108,8 @@ class MedicalRecordsResource(Resource):
         """Update the state of a medical record by ID"""
         #session = MedicalRecordsDBSession()
         data = request.json
-        record_id, response = EmrUtils.update_record(data, id)
-        if record_id:
+        success, response = EmrUtils.update_record(data, id)
+        if success:
             return jsonify(response), 200
         else:
             return jsonify(response), 400
@@ -142,8 +142,8 @@ class DiscardRecordResource(Resource):
     @ns.doc('discard_record')
     def post(self, id):
         """Discard a record by ID"""
-        record_id, response = EmrUtils.discard_record(record_id)
-        if record_id:
+        success, response = EmrUtils.discard_record(id)
+        if success:
             return jsonify(response), 204
         else:
             return jsonify(response), 400
@@ -155,34 +155,34 @@ class TranscriptsResource(Resource):
     @ns.marshal_with(transcripts_get_model)  # Use the updated model for response
     def get(self, id=None):
         """List all transcripts or get a specific transcript by ID"""
-        session = TranscriptsDBSession()
         if id is None:
             # List all transcripts
-            transcripts = session.query(Transcripts).all()
+            transcripts, err = EmrUtils.get_all_transcripts()
+            if not transcripts:
+                return jsonify({'error': f'No transcripts found. Error: {err}'}), 404
             return transcripts
         else:
             # Get a specific transcript by ID
-            transcript = session.query(Transcripts).get(id)
+            transcript, err = EmrUtils.get_transcript(id)
             if not transcript:
-                return jsonify({'error': f'Transcript id {id} not found'}), 404
+                return jsonify({'error': f'Transcript id {id} not found. Error: {err}'}), 404
             return transcript
     
     @ns.doc('create_transcript')
     @ns.expect(transcripts_input_model)
     def post(self):
         """Add a new transcript"""
-        session = TranscriptsDBSession()
         data = request.json
-        new_transcript = Transcripts(
-            text = data['transcript']
-        )
-        session.add(new_transcript)
-        session.commit()
+        transcript = data['transcript']
+        new_transcript, response = EmrUtils.create_transcript(text=transcript)
+        if not new_transcript:
+            return jsonify({'error': f'Error creating transcript. {response}'}), 400            
         return jsonify({'message': 'Transcript added successfully', 'id': new_transcript.id}), 201
 
     @ns.doc('update_transcript')
     @ns.expect(transcripts_input_model, validate=True)  # Use PATCH model with optional fields
     def patch(self, id):
+        return jsonify({'error': '"Method not allowed"'}), 405
         """Update a transcript by ID"""
         session = TranscriptsDBSession()
         transcript = session.query(Transcripts).get(id)
@@ -198,7 +198,15 @@ class TranscriptsResource(Resource):
         session.commit()
         return jsonify({'message': 'Transcript updated successfully'})
     
-
+    @ns.doc('delete__transcript')
+    def delete(self, id):
+        """Permanently delete a transcript by ID"""
+        deleted, response = EmrUtils.delete_transcript(id)
+        if deleted:
+            return jsonify(response), 204
+        else:
+            return jsonify(response), 400
+        
 # Define the models for Swagger documentation
 patient_info_model = ns.model('PatientInfo', {
         'emr_patient_id': fields.String(description='Unique patient ID in the EMR'),

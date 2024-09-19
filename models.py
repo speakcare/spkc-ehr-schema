@@ -1,7 +1,7 @@
 # database models
 from enum import Enum as PyEnum
 from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, Boolean, Enum, DateTime, ForeignKey, func
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.types import JSON
@@ -23,9 +23,9 @@ class RecordState(PyEnum):
     DISCARDED = 'DISCARDED'   # discared by user, not commited to the EMR
 
 class TranscriptState(PyEnum):
-    NEW = 'NEW'               # new transcript, not processed yet   
-    DONE = 'DONE'             # Done transcript, ready to be converted to medical record
-    ERRORS = 'ERRORS'         # processed transcript with errors
+    NEW       = 'NEW'               # new transcript, not processed yet   
+    PROCESSED = 'PROCESSED'        # Processed transcript, converted to medical records and should be in the MediaclRecords table
+    ERRORS    = 'ERRORS'         # processed transcript with errors
 
 class RecordType(PyEnum):
     MEDICAL_RECORD = 'MEDICAL_RECORD'
