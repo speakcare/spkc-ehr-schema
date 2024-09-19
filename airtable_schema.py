@@ -39,30 +39,31 @@ def register_field_type_schema(field_type):
     return decorator
 
 class AirtableSchema:
+
+    __table_schema_properties = ["name", "fields"]
+
     def __init__(self, table_name, table_schema):
         if table_name != table_schema.get("name"):
             raise ValueError(f"Table name '{table_name}' does not match the name in the schema '{table_schema.get('name')}'")
 
-        self.table_name = table_name
-        self.table_schema = copy.deepcopy(table_schema)
-        self.__field_registry = {}
         self.logger = schema_logger
-        self.__initialize_field_registry()
+        self.table_name = table_name
+        self.__create_table_schema(table_schema)
+        self.logger.debug(f"Created schema for table '{self.table_name}'.") 
         
-    # def __initialize_field_registry(self):
-    #     for field in self.table_schema.get("fields", []):
-    #         field_name = field.get("name")
-    #         field_type = FieldTypes(field.get("type")) #if type is not in FieldTypes, it will raise an error
-    #         field_options = field.get("options", {})
-    #         field_description = field.get("description", "")
-    #         is_required = "required" in field_description.lower()
-    #         self.__field_registry[field_name] = {
-    #             "type": field_type,
-    #             "options": field_options,
-    #             "required": is_required
-    #         }
+               
+    def __create_table_schema(self, table_schema):
+        """
+        Create a canonical schema from an Airtable schema
+        """
+        # rebuild the schema with only the properties we care about
+        self.table_schema = {key: value for key, value in table_schema.items() if key in self.__table_schema_properties}
+        # initialize the field registry
+        self.__create_field_registry() 
+        
 
-    def __initialize_field_registry(self):
+    def __create_field_registry(self):
+        self.__field_registry = {}
         fields = self.table_schema.get("fields", [])
         for i, field in enumerate(fields):
             field_name = field.get("name")
