@@ -6,6 +6,15 @@ from speakcare_logging import create_logger
 from typing import Optional
 import json
 import unittest
+from dotenv import load_dotenv
+import os
+
+
+run_skipped_tests = False
+load_dotenv()
+run_skipped_tests = os.getenv('UT_RUN_SKIPPED_TESTS', 'False').lower() == 'true'
+print(f"run_skipped_tests: {run_skipped_tests}")
+
 
 class TestEmrUtils(unittest.TestCase):
 
@@ -299,17 +308,17 @@ class TestEmrUtils(unittest.TestCase):
         self.logger.info(f"Updated record {record_id} successfully")
         
 
-    @unittest.skip("Skipping this test by default")
+    @unittest.skipIf(not run_skipped_tests, "Skipping by default")
     def test_get_all_record_writable_schema(self):
         # Getting all table schema aexample
         table_names = EmrUtils.get_table_names()
         for table_name in table_names:
             self.logger.info(f'Getting schema for table {table_name}')
-            record_schema, secitions_schema = EmrUtils.get_record_writable_schema(table_name)
+            record_schema, sections_schema = EmrUtils.get_record_writable_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
-            if secitions_schema:
-                for section, schema in secitions_schema.items():
+            if sections_schema:
+                for section, schema in sections_schema.items():
                     self.logger.info(f"Getting schema for section {section} in table {table_name}")
                     self.logger.debug(f"{table_name} Table {section} section schema: {json.dumps(schema, indent=4)}")
     
