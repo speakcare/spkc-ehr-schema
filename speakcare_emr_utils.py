@@ -197,17 +197,21 @@ class EmrUtils:
             MedicalRecordsDBSession.remove()
         
     @staticmethod
-    def get_all_records():
+    def get_all_records(state: RecordState = None, table_name: str = None):
         """
         Get the emr records.
         """
         session = MedicalRecordsDBSession()
         try:
-            records = session.query(MedicalRecords).all()
-            if not records:
-                raise ValueError(f"No records found in the database.")
-            else:
-                return records, None
+            query = session.query(MedicalRecords)
+            # records = session.query(MedicalRecords).all()
+            if state:
+                query = query.filter_by(state=state)
+            if table_name:
+                query = query.filter_by(table_name=table_name)
+            
+            records = query.all()
+            return records, None
             
         except ValueError as e:
             err = f"Error getting all EMR records: {e}"
@@ -560,7 +564,7 @@ class EmrUtils:
         try:
             query = session.query(Transcripts)
             if state:
-                query = query.filter(Transcripts.state == state)
+                query = query.filter_by(state=state)
             transcripts = query.all()
             result = []
             for transcript in transcripts:
@@ -568,7 +572,6 @@ class EmrUtils:
                 result.append({
                     'id': transcript.id,
                     'text': truncated_text,
-                    'meta': transcript.meta,
                     'state': transcript.state,
                     'errors': transcript.errors,
                     'created_time': transcript.created_time,

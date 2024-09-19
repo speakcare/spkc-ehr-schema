@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, fields, Namespace
-from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType
+from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType, TranscriptState
 #from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
 from speakcare_emr_utils import EmrUtils
 
@@ -25,7 +25,6 @@ medical_records_get_model = ns.model('MedicalRecordsGet', {
     'nurse_name': fields.String(description='Name of the nurse'),
     'nurse_id': fields.String(readonly=True, description='External EMR nurse ID'),
     'fields': fields.Raw(required=True, description='The structured medical data in JSON format'),
-    'meta': fields.Raw(readonly=True, description='Additional meta'),
     'state': fields.String(description='State of the record', enum=[state.value for state in RecordState]),  # Convert Enum to string 
     'errors': fields.List(fields.String, readonly=True, description='Errors encountered during processing'),
     'created_time': fields.DateTime(readonly=True, description='Time when the record was created'),  # Add created_time field
@@ -33,6 +32,7 @@ medical_records_get_model = ns.model('MedicalRecordsGet', {
     'transcript_id': fields.Integer(description='ID of the transcript that created this record')
 })
 
+ 
 medical_records_post_model = ns.model('MedicalRecordsCreate', {
     'type': fields.String(required=True, description='Type of record', enum=[record_type.value for record_type in RecordType]),  # Convert Enum to string
     'table_name': fields.String(required=True, description='Table name in the external EMR system'),
@@ -57,9 +57,9 @@ medical_records_patch_model = ns.model('MedicalRecordsUpdate', {
 transcripts_get_model = ns.model('TranscriptsGet', {
     'id': fields.Integer(readonly=True, escription='The unique identifier of the transcript'),
     'text': fields.String(required=True, description='The raw text from speech-to-text transcription'),
-    'meta': fields.Raw(readonly=True, description='Additional session information'),
-    'processed': fields.Boolean(readonly=True, description='Processing status', default=False),
+    'state': fields.String(description='State of the transcript', enum=[state.value for state in TranscriptState]),  # Convert Enum to string 
     'errors': fields.Raw(readonly=True, description='Errors encountered during processing'),
+    'errors': fields.List(fields.String, readonly=True, description='Errors encountered during processing'),
     'created_time': fields.DateTime(readonly=True, description='Time when the record was created'),  # Add created_time field
     'modified_time': fields.DateTime(readonly=True, description='Time when the record was last modified')  # Add modified_time field
 })
@@ -71,15 +71,28 @@ transcripts_input_model = ns.model('TranscriptsCreateOrUpdate', {
 @ns.route('/records', '/records/<int:id>')
 class MedicalRecordsResource(Resource):
     @ns.doc('get_records')
+    @ns.param('state', 'Get only records with a specific state', enum=[state.value for state in RecordState])
+    @ns.param('table_name', 'Get only records from a specific table', type=str)
     @ns.marshal_with(medical_records_get_model)  # Use the updated model for response
     def get(self, id=None):
         """List all medical records or get a specific record by ID"""
         if id is None:
+            state_param = request.args.get('state', default=None, type=str)
+            table_name_param = request.args.get('table_name', default=None, type=str)
+        
+            # Convert state_param to RecordState if provided
+            state = None
+            if state_param:
+                try:
+                    state = RecordState[state_param.upper()]
+                except KeyError:
+                    return {"error": "Invalid state parameter"}, 400
             # List all medical records
-            #records,  = session.query(MedicalRecords).all()
-            records, error = EmrUtils.get_all_records()
+            records, error = EmrUtils.get_all_records(state=state, table_name=table_name_param)
             if records is None:
                 return jsonify({'error': f'Error fetching all records. {error}'}), 400
+            elif not records:
+                return [], 200
             else:   
                 return records, 200 # Automatically marshaled with the model
         else:
@@ -153,13 +166,29 @@ class DiscardRecordResource(Resource):
 class TranscriptsResource(Resource):
     @ns.doc('get_transcripts')
     @ns.marshal_with(transcripts_get_model)  # Use the updated model for response
+    @ns.param('state', 'Get only transcripts with a specific state', enum=[state.value for state in TranscriptState])
+    @ns.param('text_limit', 'Limit the length of the text field in the response', type=int)
     def get(self, id=None):
         """List all transcripts or get a specific transcript by ID"""
+        # Get query parameters
         if id is None:
+            state_param = request.args.get('state', default=None, type=str)
+            text_limit_param = request.args.get('text_limit', default=200, type=int)
+            
+            # Convert state_param to TranscriptState if provided
+            state = None
+            if state_param:
+                try:
+                    state = TranscriptState[state_param.upper()]
+                except KeyError:
+                    return {"error": "Invalid state parameter"}, 400
             # List all transcripts
-            transcripts, err = EmrUtils.get_all_transcripts()
-            if not transcripts:
-                return jsonify({'error': f'No transcripts found. Error: {err}'}), 404
+            transcripts, err = EmrUtils.get_all_transcripts(text_limit=text_limit_param, state=state)
+            if transcripts is None:
+                return jsonify({'error': f'Error fetching all transcripts. {err}'}), 400
+            elif not transcripts:
+                return [], 200
+                #return jsonify({'error': f'No transcripts found. Error: {err}'}), 404
             return transcripts
         else:
             # Get a specific transcript by ID
