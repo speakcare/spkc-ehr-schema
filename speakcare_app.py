@@ -77,8 +77,11 @@ class MedicalRecordsResource(Resource):
         if id is None:
             # List all medical records
             #records,  = session.query(MedicalRecords).all()
-            records, status = EmrUtils.get_all_records()
-            return records, status # Automatically marshaled with the model
+            records, error = EmrUtils.get_all_records()
+            if records is None:
+                return jsonify({'error': f'Error fetching all records. {error}'}), 400
+            else:   
+                return records, 200 # Automatically marshaled with the model
         else:
             # Get a specific medical record by ID
             record, err = EmrUtils.get_record(id)
@@ -92,7 +95,7 @@ class MedicalRecordsResource(Resource):
         """Add a new medical record"""
         #session = MedicalRecordsDBSession()
         data = request.json
-        response, record_id = EmrUtils.create_record(data)
+        record_id , response = EmrUtils.create_record(data)
         if record_id:
             return jsonify(response), 201
         else:
@@ -105,7 +108,7 @@ class MedicalRecordsResource(Resource):
         """Update the state of a medical record by ID"""
         #session = MedicalRecordsDBSession()
         data = request.json
-        response, record_id = EmrUtils.update_record(data, id)
+        record_id, response = EmrUtils.update_record(data, id)
         if record_id:
             return jsonify(response), 200
         else:
@@ -114,7 +117,7 @@ class MedicalRecordsResource(Resource):
     @ns.doc('delete_record')
     def delete(self, id):
         """Permanently delete a record by ID"""
-        response, deleted = EmrUtils.delete_record(id)
+        deleted, response = EmrUtils.delete_record(id)
         if deleted:
             return jsonify(response), 204
         else:
@@ -126,14 +129,12 @@ class MedicalRecordsResource(Resource):
 class CommitRecordResource(Resource):
     @ns.doc('commit_record')
     def post(self, id):
-        """Commit a record by ID"""
-        session = MedicalRecordsDBSession()
-        record = session.query(MedicalRecords).get(id)
-        if not record:
-            return jsonify({'error': 'Record not found'}), 404
-        response, status_code = EmrUtils.commit_record(record)
-        session.commit()
-        return jsonify(response), status_code
+        """Commit a record to EMR by ID"""
+        emr_record_id, response = EmrUtils.commit_record_to_emr(record_id=id)
+        if emr_record_id:
+            return jsonify(response), 201
+        else:
+            return jsonify(response), 400
 
 
 @ns.route('/records/<int:id>/discard')
@@ -141,7 +142,7 @@ class DiscardRecordResource(Resource):
     @ns.doc('discard_record')
     def post(self, id):
         """Discard a record by ID"""
-        response, record_id = EmrUtils.discard_record(record_id)
+        record_id, response = EmrUtils.discard_record(record_id)
         if record_id:
             return jsonify(response), 204
         else:

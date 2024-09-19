@@ -38,7 +38,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -63,7 +63,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -89,7 +89,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -107,7 +107,7 @@ class TestEmrUtils(unittest.TestCase):
                  # not proviuind Weight intentionally to test the partial update
             }
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record_id, response  = EmrUtils.update_record(record_data, record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -127,7 +127,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -147,7 +147,8 @@ class TestEmrUtils(unittest.TestCase):
                  "Units": "Pounds", # use wrong field here
             }
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        failed_record_id, response  = EmrUtils.update_record(record_data, record_id)
+        self.assertIsNone(failed_record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
@@ -164,7 +165,8 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bathroom"
             }
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
+        self.assertIsNone(failed_record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
          # check that state is still ERROR
@@ -186,7 +188,8 @@ class TestEmrUtils(unittest.TestCase):
             }
         }
 
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
+        self.assertIsNone(failed_record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is still ERROR
@@ -207,7 +210,7 @@ class TestEmrUtils(unittest.TestCase):
             }
         }    
 
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record_id, response = EmrUtils.update_record(record_data, record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -231,7 +234,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -247,7 +250,8 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "Johny Doggy",
             "patient_id": "P001"
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        failed_record_id, response = EmrUtils.update_record(record_data, record_id)
+        self.assertIsNone(failed_record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.ERRORS)
@@ -261,7 +265,7 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "John Do", # slgihtly different name - should pass ok
             "patient_id": "P001"
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record_id, response = EmrUtils.update_record(record_data, record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -284,7 +288,7 @@ class TestEmrUtils(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        response, record_id = EmrUtils.create_record(record_data)
+        record_id, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -300,13 +304,164 @@ class TestEmrUtils(unittest.TestCase):
             "patient_name": "John Doe",
             "patient_id": "P001"
         }
-        response, record_id = EmrUtils.update_record(record_data, record_id)
+        record_id, response = EmrUtils.update_record(record_data, record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING)
         self.assertEqual(len(record.errors), 0)
         self.logger.info(f"Updated record {record_id} successfully")
         
+
+    def test_create_and_commit_record(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Units'], "Kg")
+        self.assertEqual(emr_record['fields']['Weight'], 130)
+        self.assertEqual(emr_record['fields']['Scale'], "Mechanical Lift")  
+        self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
+        self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        self.logger.info(f"Commited record {record_id} to the EMR successfully")
+
+
+    def test_create_and_commit_and_fail_on_second_commit(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+        # try to commit again
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNone(emr_id)
+        self.assertEqual(response['error'], f"Record id {record_id} cannot be commited as it is in '{record.state}' state.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+    def test_create_and_commit_and_fail_on_update(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+        # try to update, should fail
+        record_update_id, response = EmrUtils.update_record(record_data, record_id)
+        self.assertIsNone(record_update_id)
+        self.assertEqual(response['error'], f"Record is {record_id} is in {record.state} state and cannot be updated.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+    def test_create_and_commit_and_fail_on_discard(self):
+                # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+        # try to update, should fail
+        record_update_id, response = EmrUtils.discard_record(record_id)
+        self.assertIsNone(record_update_id)
+        self.assertEqual(response['error'], f"Record id {record_id} cannot be discarded as it already COMMITTED.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+
+
 
     @unittest.skipIf(not run_skipped_tests, "Skipping by default")
     def test_get_all_record_writable_schema(self):

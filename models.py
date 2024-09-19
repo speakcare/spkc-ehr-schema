@@ -2,11 +2,18 @@
 from enum import Enum as PyEnum
 from sqlalchemy import create_engine, Column, Integer, String, Text, JSON, Boolean, Enum, DateTime, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, backref
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.types import JSON
+import os
 
 # Define the base class for declarative models
+
+# Ensure the ./db directory exists
+db_directory = './db'
+if not os.path.exists(db_directory):
+    os.makedirs(db_directory)
+
 Base = declarative_base()
 
 class RecordState(PyEnum):
@@ -15,6 +22,10 @@ class RecordState(PyEnum):
     COMMITTED = 'COMMITTED'   # commited to the EMR
     DISCARDED = 'DISCARDED'   # discared by user, not commited to the EMR
 
+class TranscriptState(PyEnum):
+    NEW = 'NEW'               # new transcript, not processed yet   
+    DONE = 'DONE'             # Done transcript, ready to be converted to medical record
+    ERRORS = 'ERRORS'         # processed transcript with errors
 
 class RecordType(PyEnum):
     MEDICAL_RECORD = 'MEDICAL_RECORD'
@@ -25,8 +36,7 @@ class Transcripts(Base):
     __tablename__ = 'Transcripts'
     id = Column(Integer, primary_key=True)
     text = Column(Text)
-    meta = Column(JSON)  # Stores additional session information
-    processed = Column(Boolean, default=False)
+    state = Column(Enum(TranscriptState), default=TranscriptState.NEW)
     errors = Column(JSON, default=[])  # Stores any errors encountered during processing
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
     modified_time = Column(DateTime, onupdate=func.now())  # Auto-set on update
@@ -68,5 +78,5 @@ Base.metadata.create_all(transcripts_engine)
 Base.metadata.create_all(medical_records_engine)
 
 # Create session makers
-TranscriptsDBSession = sessionmaker(bind=transcripts_engine)
-MedicalRecordsDBSession = sessionmaker(bind=medical_records_engine)
+TranscriptsDBSession = scoped_session(sessionmaker(bind=transcripts_engine))
+MedicalRecordsDBSession =  scoped_session(sessionmaker(bind=medical_records_engine))

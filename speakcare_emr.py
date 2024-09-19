@@ -252,6 +252,9 @@ class SpeakCareEmr:
         else:
             self.logger.error(f'Failed to create record {record} in table {tableId}')
             return None, None
+        
+    def get_record(self, tableId, recordId):
+        return self.api.table(self.appBaseId, tableId).get(recordId)
     
     def update_record(self, tableId, recordId, record):
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)

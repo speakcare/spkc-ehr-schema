@@ -11,7 +11,10 @@ from speakcare_logging import create_logger
 from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 import copy
+import traceback
 logger = create_logger('speackcare.emr.utils')
+
+class RecordStateError(Exception): ...
 
 # Initialize the EMR API singleton early in the app setup
 emr_api = get_emr_api_instance(SpeakCareEmrApiconfig)
@@ -178,8 +181,8 @@ class EmrUtils:
         """
         Get the emr record.
         """
+        session = MedicalRecordsDBSession()
         try:
-            session = MedicalRecordsDBSession()
             record = session.get(MedicalRecords, record_id)
             if not record:
                 raise ValueError(f"Record id {record_id} not found in the database.")
@@ -188,25 +191,31 @@ class EmrUtils:
             
         except ValueError as e:
             logger.error(f"Error getting EMR record id {record_id}: {e}")
+            session.rollback()
             return None, {"error": str(e)}
+        finally:
+            MedicalRecordsDBSession.remove()
         
     @staticmethod
     def get_all_records():
         """
-        Get the emr record.
+        Get the emr records.
         """
-
+        session = MedicalRecordsDBSession()
         try:
-            session = MedicalRecordsDBSession()
             records = session.query(MedicalRecords).all()
             if not records:
                 raise ValueError(f"No records found in the database.")
             else:
-                return records, 200
+                return records, None
             
         except ValueError as e:
-            logger.error(f"Error getting all EMR records: {e}")
-            return {"error": str(e)}, 400, None
+            err = f"Error getting all EMR records: {e}"
+            logger.error(err)
+            session.rollback()
+            return None, {"error": err}
+        finally:
+            MedicalRecordsDBSession.remove()
 
 
 
@@ -214,6 +223,8 @@ class EmrUtils:
     def create_record(data: dict):
         """
         Creates a new EMR record linked to a given transcript.
+        Returns a tuple: message and the new record id if the record is successfully created, 
+        otherwise returns an error message and None.
 
         :param session: The SQLAlchemy session to use for the database operations.
         :param data: A dictionary containing the data for the medical record.
@@ -223,9 +234,10 @@ class EmrUtils:
 
         # Perform any additional validity checks on the data
         # Example: Check if the data dictionary contains necessary keys
+        session = MedicalRecordsDBSession()
         try:
             # first check for unrecoverable errors
-            session = MedicalRecordsDBSession()
+            
             required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'fields']
             missing_fields = [field for field in required_fields if field not in data]
             if missing_fields:
@@ -250,120 +262,191 @@ class EmrUtils:
             if not _table_id:
                 raise ValueError(f"Table name {_table_name} not found in the EMR.")
 
-            # fields data integrity check is done inside the create_record function - no need to do it here
+                # fields data integrity check is done inside the create_record function - no need to do it here
+            _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
+                EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 
+                                                    fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
+
+            new_record = MedicalRecords(
+                type= _type,  # Convert to Enum
+                table_name=_table_name,
+                patient_name=_patient_name,
+                patient_id= _patient_id,
+                nurse_name=_nurse_name,
+                nurse_id= _nurse_id,
+                fields= _valid_fields,
+                transcript_id = _transcript_id,
+                state= _state,
+                errors = _errors
+            )
+            
+            # Add and commit the new record to the database
+            session.add(new_record)
+            session.commit()
+            return new_record.id, {"message": "EMR record created successfully", "id": new_record.id}
+
         except ValueError as e:
             logger.error(f"Error creating EMR record: {e}")
-            return {"error": str(e)}, None
+            session.rollback()
+            return None, {"error": str(e)}
         
-        _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
-            EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 
-                                                fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
+        finally:    
+            MedicalRecordsDBSession.remove()
+            
 
-        new_record = MedicalRecords(
-            type= _type,  # Convert to Enum
-            table_name=_table_name,
-            patient_name=_patient_name,
-            patient_id= _patient_id,
-            nurse_name=_nurse_name,
-            nurse_id= _nurse_id,
-            fields= _valid_fields,
-            transcript_id = _transcript_id,
-            state= _state,
-            errors = _errors
-        )
         
-        # Add and commit the new record to the database
-        session.add(new_record)
-        session.commit()
 
-        return {"message": "EMR record created successfully", "id": new_record.id}, new_record.id
 
 
     @staticmethod
     def update_record(updates: dict, record_id: int):
         """
-        Update EMR record linked to a given transcript.
+        Returns a tuple: message and the record id if the record is successfully updated, 
+        otherwise returns an error message and None.
 
         :param session: The SQLAlchemy session to use for the database operations.
         :param data: A dictionary containing the data for the updated record.
         :param record_id: The id of the record to update.
         :return: A tuple containing the a success or error message and an HTTP status code.
         """
-
+        session = MedicalRecordsDBSession()
         try:
             # first check for unrecoverable errors
             if not updates:
-                raise ValueError("The data dictionary is empt or None")
+                err = "The updates dictionary is empty or None record id {record_id}."
+                logger.error(err)
+                raise ValueError(err)
             
-            session = MedicalRecordsDBSession()
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Failed to get record for record_id {record_id}")
+                err = f"Record id {record_id} not found in the database."
+                logger.error(err)
+                raise ValueError(err)
             
             if record.state in [RecordState.COMMITTED, RecordState.DISCARDED]:
-                raise ValueError(f"Record is {record_id} is in {record.state} state and cannot be changed")    
+                err = f"Record is {record_id} is in {record.state} state and cannot be updated."
+                logger.error(err)
+                raise RecordStateError(err)    
         
             # fields data integrity check is done inside the create_record function - no need to do it here
-        except ValueError as e:
+            # for now we allow update only if the result will not be in the ERROR state 
+            # update is supposed to fix an error or update a pending record, not create new ones.
+   
+            # prepare the merge of the existing record with the updates
+            _patient_name = updates.get('patient_name', record.patient_name)
+            _patient_id =  updates.get('patient_id', record.patient_id)
+            _nurse_name = updates.get('nurse_name', record.nurse_name)
+            _nurse_id = updates.get('nurse_id', record.nurse_id)
+            _fields = updates.get('fields', None)
+            if _fields:
+                old_fields = copy.deepcopy(record.fields)
+                old_fields.update(_fields)
+                _fields = old_fields
+            else:
+                _fields = record.fields
+
+            # first validate the record with the new fields
+
+            _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
+                EmrUtils.__record_validation_helper(table_name=record.table_name, patient_name=_patient_name, nurse_name=_nurse_name, 
+                                                    fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
+            
+            if _new_state == RecordState.ERRORS:
+                err_message = f"Record {record_id} cannot be updated with {updates} as it will result in errors: {_errors}"
+                logger.error(err_message)
+                raise RecordStateError(err_message) 
+            
+            # if we are here, we can safely update the record
+            elif _new_state == RecordState.PENDING:
+                # we can safely update the record
+                record.patient_name = _patient_name
+                record.patient_id = _patient_id
+                record.nurse_name = _nurse_name
+                record.nurse_id = _nurse_id
+                record.fields = _valid_fields
+                record.state = _new_state
+                record.errors = _errors
+                flag_modified(record, 'fields')
+                flag_modified(record, 'errors')
+            
+                # Commit the udpated record to the database
+                session.commit()
+                return record.id, {"message": "EMR record updated successfully", "id": record_id}
+
+        except (ValueError, RecordStateError) as e:
+            session.rollback()
             logger.error(f"Error updating EMR record: {e}")
-            return {"error": str(e)}, None
+            return None, {"error": str(e)}
+        finally:
+            MedicalRecordsDBSession.remove()
         
-        # for now we allow update only if the result will not be in the ERROR state 
-        # update is supposed to fix an error or update a pending record, not create new ones.
-
-       
-        # prepare the merge of the existing record with the updates
-        _patient_name = updates.get('patient_name', record.patient_name)
-        _patient_id =  updates.get('patient_id', record.patient_id)
-        _nurse_name = updates.get('nurse_name', record.nurse_name)
-        _nurse_id = updates.get('nurse_id', record.nurse_id)
-        _fields = updates.get('fields', None)
-        if _fields:
-            old_fields = copy.deepcopy(record.fields)
-            old_fields.update(_fields)
-            _fields = old_fields
-        else:
-            _fields = record.fields
-
-        # first validate the record with the new fields
-
-        _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields =\
-            EmrUtils.__record_validation_helper(table_name=record.table_name, patient_name=_patient_name, nurse_name=_nurse_name, 
-                                                fields=_fields, patient_id=_patient_id, nurse_id=_nurse_id)
-        
-        if _new_state == RecordState.ERRORS:
-            err_message = f"Record {record_id} cannot be updated with {updates} as it will result in errors: {_errors}"
-            logger.error(err_message)
-            return {"message": err_message, "id": record_id}, record_id
-        
-        # if we are here, we can safely update the record
-        if _new_state == RecordState.PENDING:
-            # we can safely update the record
-            record.patient_name = _patient_name
-            record.patient_id = _patient_id
-            record.nurse_name = _nurse_name
-            record.nurse_id = _nurse_id
-            record.fields = _valid_fields
-            record.state = _new_state
-            record.errors = _errors
-            flag_modified(record, 'fields')
-            flag_modified(record, 'errors')
-        
-        # Commit the udpated record to the database
-        session.commit()
-
-        return {"message": "EMR record updated successfully", "id": record_id}, record.id
 
     @staticmethod
-    def commit_record(record_id: int):
+    def discard_record(record_id: int):
+        """
+        Returns a tuple: message and the record id if the record is successfully discarded, 
+        otherwise returns ane error message and None.
+        """
+        # Logic to discard the record
+        session = MedicalRecordsDBSession()
+        try:
+            record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
+            if not record:
+                raise ValueError(f"Record id {record_id} not found in the database.")
+            elif record.state == RecordState.COMMITTED:  
+                raise RecordStateError(f"Record id {record.id} cannot be discarded as it already COMMITTED.")
 
+            logger.info(f"Discarding record {record.id}")
+            record.state = RecordState.DISCARDED
+            session.commit()
+            return record_id, {"message": f"Record {record.id} discarded successfully."}
+        
+        except Exception as e:
+            session.rollback()
+            return None, {"error": str(e)}
+        finally:
+            MedicalRecordsDBSession.remove()
+    
+    @staticmethod
+    def delete_record(record_id: int):
+        """
+        Returns a message and True if the record is successfully deleted, 
+        otherwise returns error message and False.
+        """
+        session = MedicalRecordsDBSession()
+        try:
+            record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
+            if not record:
+                raise ValueError(f"Record id {record_id} not found in the database.") 
+            logger.info(f"Deleting record {record.id}")
+            session.delete(record)
+            session.commit()
+            return True, {"message": f"Record {record.id} deleted successfully."}
+        
+        except Exception as e:
+            session.rollback()
+            return False, {"error": str(e)}
+        finally:
+            MedicalRecordsDBSession.remove()
+
+    ### EMR interaction methods ###
+
+
+    @staticmethod
+    def commit_record_to_emr(record_id: int):
+        """
+        Returns a tuple: message and the record EMR id if the record is successfully committed to the EMR, 
+        otherwise returns ane error message and None.
+        """
+        session = MedicalRecordsDBSession()
         # prepare to commit the record to the EMR
         try:
-            session = MedicalRecordsDBSession()
             # first verify that the record is a PENDING state
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
-            if record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
-                raise ValueError(f"Record id {record.id} cannot be commited because it in '{record.state}' rather than in '{RecordState.PENDING}' state.")
+            if not record:
+                raise ValueError(f"Record id {record_id} not found in the database.")
+            elif record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
+                raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             
             # from here record should be ready for commit with no errors
             foundPatient, foundPatientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
@@ -382,9 +465,9 @@ class EmrUtils:
             # TODO - continue from here
             record_type = record.type
             if (record_type == RecordType.MEDICAL_RECORD):
-                emr_record, url = emr_api.create_medical_record(tableName=record.table_name, record=record_fields, patientEmrId=patientEmrId, nurseEmrId=nurseEmrId)
+                emr_record, url, err = emr_api.create_medical_record(tableName=record.table_name, record=record_fields, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
                 if not emr_record:    
-                    raise ValueError(f"Failed to create medical record {record_fields} in table {table_name}.")            
+                    raise ValueError(f"Failed to create medical record {record_fields} in table {table_name}. Error: {err}")            
                 else:
                     # update the record with the EMR record ID and URL
                     record.emr_record_id = emr_record['id']
@@ -395,8 +478,14 @@ class EmrUtils:
             # update the record state to 'COMMITTED'
             logger.info(f"Commiting record {record.id}")
             record.state = RecordState.COMMITTED
-            return {"message": f"Record {record.id} applied successfully."}, 200
+            session.commit()
+            return record.emr_record_id, {"message": f"Record {record.id} commited successfully to the EMR."}
         
+        except RecordStateError as e:
+            # in case of record state error, we don't want to update the record state
+            logger.error(e)
+            session.rollback()
+            return None, {"error": str(e)}
         except Exception as e:
         # Handle the error by adding it to the record's errors field
             errors = record.errors.get('errors', []) if record.errors else []  # Get existing errors, defaulting to an empty list
@@ -404,39 +493,37 @@ class EmrUtils:
                 errors = []
             errors.append(str(e))                   # Add the new error message
             record.errors = {"errors": errors}      # Update the record's errors field with the modified list
-            return {"error": str(e)}, 400           # Return error response and status code
+            flag_modified(record, 'errors')         # Flag the 'errors' field as modified
+            record.state = RecordState.ERRORS       # Update the record's state to 'ERRORS'
+            session.commit()                        # Commit the changes to the database
+            logger.error(f"Error committing record {record.id} to the EMR: {e}")
+            #traceback.print_exc()
+            return None, {"error": str(e)}          # Return error response and status code
+        finally:
+            MedicalRecordsDBSession.remove()
         
-    @staticmethod
-    def discard_record(record_id: int):
-        # Logic to discard the record
-        try:
-            session = MedicalRecordsDBSession()
-            record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
-            if record.state == RecordState.COMMITTED:  
-                    raise ValueError(f"Record id {record.id} cannot be discarded as it already COMMITTED.")
 
-            logger.info(f"Discarding record {record.id}")
-            record.state = RecordState.DISCARDED
-            session.commit()
-            return {"message": f"Record {record.id} discarded successfully."}, record_id
-        
-        except Exception as e:
-            return {"error": str(e)}, None         
-    
     @staticmethod
-    def delete_record(record_id: int):
-        # Logic to permanently delete the record from the database
+    def get_emr_record(record_id: int):
+        """
+        Returns the EMR record for the given record id.
+        """
+        session = MedicalRecordsDBSession()
         try:
-            session = MedicalRecordsDBSession()
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
-                raise ValueError(f"Record id {record_id} not found in the database.") 
-            logger.info(f"Deleting record {record.id}")
-            session.delete(record)
-            session.commit()
-            return {"message": f"Record {record.id} deleted successfully."}, True
+                raise ValueError(f"Record id {record_id} not found in the database.")
+            elif record.state != RecordState.COMMITTED:
+                raise ValueError(f"Record id {record.id} is not in '{RecordState.COMMITTED}' state.")
+            emr_record = emr_api.get_record(tableId= record.table_name, recordId= record.emr_record_id)
+            if not emr_record:
+                raise ValueError(f"EMR record id {record.emr_record_id} not found in table {record.table_name} the EMR.")
+            
+            return  emr_record, {"message": f"EMR record {record.emr_record_id} retreived from table {record.table_name} ."}
         
         except Exception as e:
-            return {"error": str(e)}, False
-
-
+            session.rollback()
+            logger.error(f"Error getting EMR record id {record_id}: {e}")
+            return None, {"error": str(e)}
+        finally: 
+            MedicalRecordsDBSession.remove()
