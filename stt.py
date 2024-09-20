@@ -1,7 +1,7 @@
 import openai
 import os
 openai.api_key = os.getenv("OPENAI_API_KEY")
-audio_path = '/Users/gilgeva/Downloads/speakcare-demo-main/Taking_Blood_Sample.mp3'
+audio_path = 'Taking_Blood_Sample.mp3'
 
 def transcribe_audio(audio_path):
     with open(audio_path, "rb") as audio_file:
