@@ -15,3 +15,4 @@ if __name__ == "__main__":
 
     transcription = transcribe_audio(audio_path)
     print(transcription)
+    
