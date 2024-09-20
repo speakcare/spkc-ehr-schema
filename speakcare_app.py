@@ -64,7 +64,7 @@ transcripts_get_model = ns.model('TranscriptsGet', {
     'modified_time': fields.DateTime(readonly=True, description='Time when the record was last modified')  # Add modified_time field
 })
 
-transcripts_input_model = ns.model('TranscriptsCreateOrUpdate', {
+transcripts_input_model = ns.model('TranscriptsCreate', {
     'text': fields.String(required=True, description='The raw text from speech-to-text transcription'),
 })
 
