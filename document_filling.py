@@ -84,50 +84,50 @@ if __name__ == "__main__":
         and the weight was recorded as 73.5. The patient was cooperative throughout the process.
         """
 
-        # 4. Complete Information
-        """
-        During the nurse’s visit, the patient was weighed using a sitting scale. 
-        The recorded weight was 180.6 pounds. The patient expressed a preference for pounds over kilograms.
-        """,
+        # # 4. Complete Information
+        # """
+        # During the nurse’s visit, the patient was weighed using a sitting scale. 
+        # The recorded weight was 180.6 pounds. The patient expressed a preference for pounds over kilograms.
+        # """,
 
-        # 5. Missing Scale Type
-        """
-        The patient's weight was measured as 55.4 kilograms during the evening shift. 
-        """,
+        # # 5. Missing Scale Type
+        # """
+        # The patient's weight was measured as 55.4 kilograms during the evening shift. 
+        # """,
 
-        # 6. Missing Scale and Unit
-        """
-        The nurse documented the patient’s weight during a routine check-up. 
-        Unfortunately, the exact scale and unit were not recorded, but the weight was noted as 68.9.
-        """,
+        # # 6. Missing Scale and Unit
+        # """
+        # The nurse documented the patient’s weight during a routine check-up. 
+        # Unfortunately, the exact scale and unit were not recorded, but the weight was noted as 68.9.
+        # """,
 
-        # 7. Complete Information
-        """
-        The nurse weighed the patient using a wheelchair scale, 
-        and the recorded weight was 145.2 pounds. The patient requested to continue using pounds as the preferred unit.
-        """,
+        # # 7. Complete Information
+        # """
+        # The nurse weighed the patient using a wheelchair scale, 
+        # and the recorded weight was 145.2 pounds. The patient requested to continue using pounds as the preferred unit.
+        # """,
 
-        # 8. Missing Weight and Unit
-        """
-        The patient was weighed using a bath scale, but due to a discrepancy with the scale's calibration, 
-        no accurate weight was recorded. The nurse plans to weigh the patient again the next day.
-        """,
+        # # 8. Missing Weight and Unit
+        # """
+        # The patient was weighed using a bath scale, but due to a discrepancy with the scale's calibration, 
+        # no accurate weight was recorded. The nurse plans to weigh the patient again the next day.
+        # """,
 
-        # 9. Complete Information
-        """
-        The nurse used a mechanical lift to weigh the patient, 
-        and the weight was documented as 120.4 kilograms. The patient was unable to stand and requested the weight in kilograms.
-        """,
+        # # 9. Complete Information
+        # """
+        # The nurse used a mechanical lift to weigh the patient, 
+        # and the weight was documented as 120.4 kilograms. The patient was unable to stand and requested the weight in kilograms.
+        # """,
 
-        # 10. Missing Unit
-        """
-        The nurse used a bed scale to measure the patient's weight, 
-        which was recorded as 154.6. However, the unit (kilograms or pounds) was not noted in the record.
-        """
+        # # 10. Missing Unit
+        # """
+        # The nurse used a bed scale to measure the patient's weight, 
+        # which was recorded as 154.6. However, the unit (kilograms or pounds) was not noted in the record.
+        # """
     ]
 
     schema = EmrUtils.get_record_writable_schema(SpeakCareEmr.WEIGHTS_TABLE)
-    audio_path = 'Taking_Blood_Sample.mp3'
+    audio_path = 'Weighing_a_patient.mp3'
     transcription_from_audio = transcribe_audio(audio_path)
     transcriptions.append(transcription_from_audio)
 
@@ -135,5 +135,5 @@ if __name__ == "__main__":
         filled_schema_dict = fill_schema_with_transcription_as_dict(transcription, schema)
         print("-" * 80)
         print(f"Transcription:\n{transcription}")
-        print("Filled Schema (as dictionary):")
+        print("Filled Schema:")
         print(filled_schema_dict)
