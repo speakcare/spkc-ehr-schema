@@ -83,7 +83,7 @@ class SpeakCareEmr:
 
     
     READONLY_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
-    INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor']
+    INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor', 'SpeakCare']
     READONLY_FIELD_TYPES = ['autoNumber', 'barcode', 'button', 'collaborator', 'count', 'createdBy',  'createdTime', 
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
                             'multipleRecordLinks', 'rollup', 'singleCollaborator']
@@ -320,6 +320,7 @@ class SpeakCareEmr:
         
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
+        record['SpeakCare'] = 'Draft'
         tableId = self.get_table_id(tableName)
         record, url = self.create_record(tableId= tableId, record=record)
         return record, url, None
@@ -336,6 +337,7 @@ class SpeakCareEmr:
                 
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
+        record['SpeakCare'] = 'Draft'
         status = record.get('Status')
         if not status:
             record['Status'] = 'In Progress'
