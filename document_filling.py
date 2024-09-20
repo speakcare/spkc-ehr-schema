@@ -1,5 +1,6 @@
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
+from stt import transcribe_audio
 import json
 import openai
 from dotenv import load_dotenv
@@ -126,6 +127,9 @@ if __name__ == "__main__":
     ]
 
     schema = EmrUtils.get_record_writable_schema(SpeakCareEmr.WEIGHTS_TABLE)
+    audio_path = 'Taking_Blood_Sample.mp3'
+    transcription_from_audio = transcribe_audio(audio_path)
+    transcriptions.append(transcription_from_audio)
 
     for transcription in transcriptions:
         filled_schema_dict = fill_schema_with_transcription_as_dict(transcription, schema)
