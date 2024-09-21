@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.types import JSON
 import os
+from os_utils import ensure_directory_exists
 
 # Define the base class for declarative models
 
@@ -69,6 +70,7 @@ class MedicalRecords(Base):
 
 
 # Create database engines
+ensure_directory_exists('db')
 transcripts_engine = create_engine('sqlite:///db/transcripts.db')
 medical_records_engine = create_engine('sqlite:///db/medical_records.db')
 
