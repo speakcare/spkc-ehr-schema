@@ -2,10 +2,13 @@ from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
 from stt import transcribe_audio
 import json
+import os
 import openai
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from dotenv import load_dotenv
 import os
-openai.api_key = os.getenv("OPENAI_API_KEY")
 import re
 
 def fill_schema_with_transcription_as_dict(transcription, schema):
@@ -22,7 +25,7 @@ def fill_schema_with_transcription_as_dict(transcription, schema):
     Returns:
         dict: Dictionary of the filled schema
     """
-    
+
     prompt = f"""
     You are given a transcription of a conversation related to a nurse's treatment of a patient. 
     Based on the transcription, fill in the following fields as dictionary if you are sure of the answers.
@@ -39,7 +42,7 @@ def fill_schema_with_transcription_as_dict(transcription, schema):
     """
 
     response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
             {"role": "user", "content": prompt}
@@ -47,8 +50,8 @@ def fill_schema_with_transcription_as_dict(transcription, schema):
         temperature=0.3,
         max_tokens=1000
     )
-    
-    filled_schema_str = response['choices'][0]['message']['content'].strip()
+
+    filled_schema_str = response.choices[0].message.content.strip()
 
     # print(filled_schema_str)
 
@@ -140,4 +143,3 @@ if __name__ == "__main__":
 
 
 
-        
