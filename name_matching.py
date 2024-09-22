@@ -17,7 +17,7 @@ class NameMatcher:
         best_match, score, best_idx = process.extractOne(input_name, names_to_match, scorer=fuzz.WRatio)
         
         if score >= self.primary_threshold:
-            self.logger.debug(f"Found best match by WRatio'{best_match}' with score {score}")
+            self.logger.debug(f"Found best match by WRatio: '{best_match}' with score {score}")
             return best_match, names_to_match.index(best_match), score
 
         # Fallback to phonetic matching

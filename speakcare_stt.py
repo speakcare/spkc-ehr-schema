@@ -1,14 +1,27 @@
 import openai
+import argparse
+from dotenv import load_dotenv
+from datetime import datetime, timezone
+import os
+from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio
+from speakcare_logging import create_logger
 
+logger = create_logger(__name__)
+load_dotenv()
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
 # Set your OpenAI API key
-openai.api_key = 'your-api-key'
+#openai.api_key = 'your-api-key'
 
-def transcribe_audio(filename="output.wav"):
-    with open(filename, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
-        return transcript["text"]
+def transcribe_audio(input_file="output.wav", output_file="output.txt"):
+    with open(input_file, "rb") as audio_file:
+        transcript = openai.Audio.transcribe(model= "whisper-1", file=audio_file)
 
+    # write the transcript to a text file
+    with open(output_file, "w") as text_file:
+        text_file.write(transcript['text'])
+    
 
 
 def record_and_transcribe():
@@ -21,4 +34,25 @@ def record_and_transcribe():
     print("Transcription:", transcription)
 
 if __name__ == "__main__":
-    record_and_transcribe()
+
+    output_dir = "out/transcriptions"
+    parser = argparse.ArgumentParser(description='Audio input recorder.')
+    parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
+    parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
+
+    args = parser.parse_args()
+
+    input_file = args.input
+    output_file_prefix = args.output
+
+    # Get the current UTC time
+    utc_now = datetime.now(timezone.utc)
+
+    # Format the datetime as a string without microseconds and timezone
+    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
+
+    output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.txt'
+
+    ensure_directory_exists(output_filename) 
+    logger.info(f"Transcribing audio from {input_file} into {output_filename}")
+    transcribe_audio(input_file, output_filename)

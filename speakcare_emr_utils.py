@@ -12,6 +12,7 @@ from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 import copy
 import traceback
+from airtable_schema import FieldTypes
 logger = create_logger('speackcare.emr.utils')
 
 class RecordStateError(Exception): ...
@@ -71,6 +72,15 @@ class EmrUtils:
         """
         # Get the main table schema
         main_schema = emr_api.get_record_writable_schema(tableName=tableName)
+        # Add the patient name field to the main schema - we need it for all main schemas
+        main_schema['fields'].append({
+            "name": "patient_name",
+            "type": FieldTypes.SINGLE_LINE_TEXT.value,
+            "description": "required"
+        })
+
+                # always require patient_name
+
 
         # Retrieve section names
         sections = EmrUtils.get_record_section_names(tableName)
@@ -100,6 +110,13 @@ class EmrUtils:
         """
         return emr_api.validate_partial_record(tableName=table_name, record=data, errors=errors)
 
+    @staticmethod
+    def lookup_patient(name):
+        """
+        lookup_patient
+        """
+        return emr_api.lookup_patient(name)
+    
     @staticmethod
     def __record_validation_helper(table_name: str,
                                    patient_name: str,

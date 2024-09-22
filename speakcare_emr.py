@@ -36,7 +36,7 @@ class SpeakCareEmr:
 
     ### Assessments ###
     # Admission
-    ADMISSION_ASSESSMENTS_TABLE = 'Admission'
+    ADMISSION_TABLE = 'Admission'
     ADMISSION_SECTION_DEMOGRAPHCS_TABLE   = 'Admission: SECTION 1. DEMOGRAPHICS'
     ADMISSION_SECTION_VITALS_TABLE        = 'Admission: SECTION 2. VITALS-ALLERGIES'
     ADMISSION_SECTION_SKIN_TABLE          = 'Admission: SECTION 3. SKIN CONDITION'
@@ -60,12 +60,12 @@ class SpeakCareEmr:
         O2_SATURATIONS_TABLE, 
         EPISODES_TABLE, 
         PROGRESS_NOTES_TABLE,
-        ADMISSION_ASSESSMENTS_TABLE,
+        ADMISSION_TABLE,
         FALL_RISK_SCREEN_TABLE
     ]
 
     TABLE_SECTIONS = { 
-            ADMISSION_ASSESSMENTS_TABLE: [
+            ADMISSION_TABLE: [
                 ADMISSION_SECTION_DEMOGRAPHCS_TABLE, 
                 ADMISSION_SECTION_VITALS_TABLE, 
                 ADMISSION_SECTION_SKIN_TABLE, 
@@ -116,6 +116,7 @@ class SpeakCareEmr:
                field['id'] != primaryFieldId:
                      _field = copy.deepcopy(field)
                      fields.append(_field)
+        
         return fields
     
 

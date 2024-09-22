@@ -356,6 +356,41 @@ class TestRecords(unittest.TestCase):
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
 
+    def test_record_create_and_commit_blood_pressure(self):
+                    # Create a record example
+            record_data = {
+                "type": RecordType.MEDICAL_RECORD,
+                "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
+                "patient_name": "John Doe",
+                "nurse_name": "Sara Foster",
+                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting Left Arm", "Notes": "no answer"}
+            }
+            record_id, response = EmrUtils.create_record(record_data)
+            self.assertIsNotNone(record_id)
+            self.assertEqual(response['message'], "EMR record created successfully")
+
+            record: Optional[MedicalRecords] = {}
+            record, err = EmrUtils.get_record(record_id)
+            self.assertIsNotNone(record)
+            self.assertEqual(record.id, record_id)
+            self.assertEqual(record.state, RecordState.PENDING)
+            self.logger.info(f"Created record {record_id}")
+
+            emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+            record, err = EmrUtils.get_record(record_id)
+            self.assertIsNotNone(emr_id)
+            self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+            self.assertEqual(record.state, RecordState.COMMITTED)
+            emr_record, err = EmrUtils.get_emr_record(record_id)
+            self.assertIsNotNone(emr_record)
+            self.assertEqual(emr_record['id'], emr_id)
+            self.assertEqual(emr_record['fields']['Systolic'], 130)
+            self.assertEqual(emr_record['fields']['Diastolic'], 85)
+            self.assertEqual(emr_record['fields']['Position'], "Sitting Left Arm")  
+            self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
+            self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+            self.logger.info(f"Commited record {record_id} to the EMR successfully")
+
     def test_record_create_and_commit_and_fail_on_second_commit(self):
                 # Create a record example
         record_data = {

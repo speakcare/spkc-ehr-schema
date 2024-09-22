@@ -2,7 +2,10 @@ import pyaudio
 import wave
 import audioop
 import time
+from datetime import datetime, timezone
 import argparse
+import time
+import traceback
 from speakcare_logging import create_logger
 from os_utils import ensure_directory_exists
 
@@ -21,7 +24,7 @@ def print_devices():
         print(device_info)    
     p.terminate()
 
-def record_audio(device_index: int, duration: int =5, output_filename="output.wav"):
+def record_audio1(device_index: int, duration: int =5, output_filename="output.wav"):
     samples_per_chunk = 1024  # Record in chunks of 1024 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
     channels = 1
@@ -37,6 +40,7 @@ def record_audio(device_index: int, duration: int =5, output_filename="output.wa
   
     try:  
         p = pyaudio.PyAudio()
+        logger.info(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
         stream = p.open(format=pyaudio.paInt16,
                         channels=channels,
                         rate=fs,
@@ -79,33 +83,49 @@ def record_audio(device_index: int, duration: int =5, output_filename="output.wa
 
 
 
-def record_audio(device_index: int, duration: int = 5, output_filename="output.wav", silence_threshold=500, silence_duration=2, max_silence=5):
+def record_audio(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=500, silence_duration=2, max_silence=5):
     samples_per_chunk = 1024  # Record in chunks of 1024 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
     channels = 1
     fs = 44100  # Record at 44100 samples per second
 
-    print(f'Recording device index: {device_index} for {duration} seconds into {output_filename}')
-
+    error = ""
+    stream = None
+    audio = None
     try:  
-        p = pyaudio.PyAudio()
-        stream = p.open(format=pyaudio.paInt16,
+        audio = pyaudio.PyAudio()
+        if not audio:
+            error = "Failed to initialize PyAudio"
+            raise Exception(error)
+        
+        # if not audio.is_format_supported(sample_format, input_device=device_index):
+        #     error = f"Sample format {sample_format} not supported by input device {device_index}"
+        #     raise Exception(error)
+        frames = [] 
+        logger.info(f'Recording device index: {device_index} for {duration} seconds into {output_filename}')
+        logger.debug(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
+        stream = audio.open(format=pyaudio.paInt16,
                         channels=channels,
                         rate=fs,
                         input=True,
                         input_device_index=device_index,
                         frames_per_buffer=samples_per_chunk)
-
-        print("Recording from:", p.get_device_info_by_index(device_index)['name'])
+        
+        if not stream:
+            error = "Failed to open audio stream"
+            raise Exception(error)
+        
+        logger.info(f"Recording from: {audio.get_device_info_by_index(device_index)['name']}")
 
         silence_start = None
 
         with wave.open(output_filename, 'wb') as wf:
             wf.setnchannels(channels)
-            wf.setsampwidth(p.get_sample_size(sample_format))
+            wf.setsampwidth(audio.get_sample_size(sample_format))
             wf.setframerate(fs)
 
             while True:
+                logger.debug(f"Calling stream.read({samples_per_chunk})")
                 data = stream.read(samples_per_chunk)
                 rms = audioop.rms(data, 2)  # Calculate the RMS of the chunk (2 bytes per sample)
 
@@ -113,9 +133,13 @@ def record_audio(device_index: int, duration: int = 5, output_filename="output.w
                       (silence_start and (time.time() - silence_start) < silence_duration):
                     if silence_start and rms >= silence_threshold:
                         silence_start = None
-                        print("Sound detected, resuming recording...")
+                        logger.debug("Sound detected, resuming recording...")
 
-                    wf.writeframes(data)  # Write the audio data directly to the file
+                    frames.append(data)
+                    if len(frames) >= 10:
+                        wf.writeframes(b''.join(frames))
+                        logger.debug(f"Writing {len(frames)} frames to {output_filename}")
+                        frames = []
 
                 else:
                     if silence_start is None:
@@ -123,26 +147,33 @@ def record_audio(device_index: int, duration: int = 5, output_filename="output.w
 
                     # If silence exceeds max_silence, stop recording
                     if time.time() - silence_start > max_silence:
-                        print(f"Silence detected for more than {max_silence} seconds, stopping recording.")
+                        logger.info(f"Silence detected for more than {max_silence} seconds, stopping recording.")
                         break
 
-                    time.sleep(0.1)  # Sleep for 0.1 seconds to reduce CPU usage
+                    #time.sleep(0.01)  # Sleep for 0.1 seconds to reduce CPU usage
 
-
+                
                 # Check if the recording duration has been reached
-                if wf.tell() >= fs * duration * channels * p.get_sample_size(sample_format):
+                if wf.tell() >= fs * duration * channels * audio.get_sample_size(sample_format):
                     break
+            if len(frames) > 0:
+                        wf.writeframes(b''.join(frames))
+                        logger.debug(f"Writing {len(frames)} frames to {output_filename}")
+                        frames = []
 
     except Exception as e:
         logger.error(f"Error occurred while recording audio: {e}")
+        traceback.print_exc()
         return
     
     finally:
         # Stop and close the stream
-        stream.stop_stream()
-        stream.close()
-        # Terminate the PortAudio interface
-        p.terminate()
+        if stream:
+            stream.stop_stream()
+            stream.close()
+        if audio:
+            # Terminate the PortAudio interface
+            audio.terminate()
 
     logger.info('Finished recording.')
 
@@ -153,11 +184,11 @@ def record_audio(device_index: int, duration: int = 5, output_filename="output.w
 
 def main():
     # Parse command line arguments
-    output_dir = "recordings"
+    output_dir = "out/recordings"
     parser = argparse.ArgumentParser(description='Audio input recorder.')
     parser.add_argument('-l', '--list', action='store_true', help='Print devices list and exit')
-    parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 5)')
-    parser.add_argument('-o', '--output', type=str, default="output.wav", help='Output filename (default: output.wav)')
+    parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
+    parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-d', '--device', type=int, default=0, help='Device index (default: 0)')
     
     args = parser.parse_args()
@@ -172,14 +203,20 @@ def main():
         print_devices()
         exit(1)
     
-    
+    # Get the current UTC time
+    utc_now = datetime.now(timezone.utc)
+
+    # Format the datetime as a string without microseconds and timezone
+    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
+
     duration = args.seconds
-    output_filename = f'{output_dir}/{args.output}'
+    output_filename = f'{output_dir}/{args.output}.{utc_string}.wav'
+
     ensure_directory_exists(output_filename) 
+    logger.info(f"Recording audio from device index {device_index} for {duration} seconds into {output_filename}")
     record_audio(device_index=device_index,  duration=duration, output_filename=output_filename)
 
 if __name__ == '__main__':
     main()
 
-    silence_start = None
 
