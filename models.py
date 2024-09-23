@@ -59,6 +59,8 @@ class MedicalRecords(Base):
     nurse_name = Column(String)
     nurse_id = Column(String)  # External EMR application nurse ID
     fields = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured records in JSON format
+    # TODO: Add sections list for admissions. Should be able to be null
+    sections = Column(MutableList.as_mutable(JSON), default=[])
     errors = Column(MutableList.as_mutable(JSON), default=[])
     state = Column(Enum(RecordState), default=RecordState.PENDING)  # Use Enum type for state
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation
