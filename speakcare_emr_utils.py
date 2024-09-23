@@ -583,6 +583,38 @@ class EmrUtils:
         
 
     @staticmethod
+    def sign_assessgment(record_id: id):
+        session = MedicalRecordsDBSession()
+        record = None
+        # prepare to commit the record to the EMR
+        try:
+            # first verify that the record is a PENDING state
+            record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
+            if not record:
+                raise KeyError(f"Record id {record_id} not found in the database.")
+            elif record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
+                raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
+            elif record.type != RecordType.ASSESSMENT:
+                raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
+            
+            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            if not foundNurse:
+                raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
+            # update the nurse name to the correct one as matched in the database
+            
+            table_name  = record.table_name
+            assessment_id = record.emr_record_id
+            emr_record, err = SpeakCareEmr.sign_assessment(assessmentTableName=table_name, assessmentId=assessment_id, signedByNurseEmrId=nurseEmrId)
+            if not emr_record:
+                raise ValueError(f"Failed to sign assessment record {record.fields} in table {table_name}. Error: {err}")
+        except Exception as e:
+            err = f"Failed to sign assessment {record_id}. Error {e}"
+            if record:
+                record.errors.append(err)
+            logger.error(err)
+
+
+    @staticmethod
     def get_emr_record(record_id: int):
         """
         Returns the EMR record for the given record id.
