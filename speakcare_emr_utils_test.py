@@ -491,6 +491,76 @@ class TestRecords(unittest.TestCase):
         self.assertTrue("field 'Total score': Value 'ten'" in record.errors[0])
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
     
+    def test_record_create_assessment_commit_and_sign(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P001",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+
+        rescord_sections = [
+            {
+                "table_name": SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE,
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": 10,
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        ]
+        record_data['sections'] = rescord_sections
+        record_id, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(len(record.sections), 1)  
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Status'], "New")
+        self.assertIsNotNone(emr_record['fields']['SECTION_1_FALL_RISK'])
+        sectionEmrId = emr_record['fields']['SECTION_1_FALL_RISK'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(
+                                                tableId=sectionTableId, 
+                                                emr_record_id= sectionEmrId
+                                            )
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['URINE ELIMINATION STATUS'], "REGULARLY CONTINENT (0 points)")  
+        self.assertEqual(section_emr_record['fields']['Total score'], 10)
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        self.logger.info(f"Commited assessment {record_id} to the EMR successfully")
+
+        EmrUtils.sign_assessgment(record_id)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertEqual(emr_record['fields']['Status'], "Completed")
+        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+  
 
     def test_record_create_and_commit_record(self):
                 # Create a record example

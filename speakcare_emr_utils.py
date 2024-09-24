@@ -203,13 +203,13 @@ class EmrUtils:
                     _errors.append(err)
                     _state = RecordState.ERRORS
                 elif section_name and section_fields:
-                    isValid, _valid_fields =\
+                    isValid, section_valid_fields =\
                             EmrUtils.validate_record(section_name, section_fields, _errors)
                     if isValid:
                         _valid_sections.append(
                             {
-                                'table_name': table_name,
-                                'fields': section_fields
+                                'section_name': section_name,
+                                'fields': section_valid_fields
                             }
                         )
                     else:
@@ -532,7 +532,7 @@ class EmrUtils:
                     record.emr_record_id = emr_record['id']
                     record.emr_url = url                
             elif record_type == RecordType.ASSESSMENT:
-                emr_record, url, err = emr_api.create_assessment(tableName=record.table_name, record=record_fields, 
+                emr_record, url, err = emr_api.create_assessment(assessmentTableName=record.table_name, record=record_fields, 
                                                                  patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                  errors=errors)
                 if not emr_record:
@@ -542,10 +542,10 @@ class EmrUtils:
                 record.emr_url = url
                 if record.sections:
                     for section in record.sections:
-                        section_name = section.get('table_name', None)
+                        section_name = section.get('section_name', None)
                         section_fields = section.get('fields', None)
                         if section_name and section_fields:
-                            emr_record, url, err = emr_api.create_assessment_section(tableName=section_name, record=section_fields, 
+                            emr_record, url, err = emr_api.create_assessment_section(sectionTableName=section_name, record=section_fields, 
                                                               assessmentId=record.emr_record_id, createdByNurseEmrId=nurseEmrId, 
                                                               errors=errors)
                             if not emr_record:
@@ -592,7 +592,7 @@ class EmrUtils:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
                 raise KeyError(f"Record id {record_id} not found in the database.")
-            elif record.state != RecordState.PENDING:  # Example check to ensure the record is in a valid state to be committed
+            elif record.state in [RecordState.ERRORS, RecordState.DISCARDED]:  # Example check to ensure the record is in a valid state to be committed
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             elif record.type != RecordType.ASSESSMENT:
                 raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
@@ -604,14 +604,19 @@ class EmrUtils:
             
             table_name  = record.table_name
             assessment_id = record.emr_record_id
-            emr_record, err = SpeakCareEmr.sign_assessment(assessmentTableName=table_name, assessmentId=assessment_id, signedByNurseEmrId=nurseEmrId)
+            emr_record, err = emr_api.sign_assessment(assessmentTableName=table_name, assessmentId=assessment_id, signedByNurseEmrId=nurseEmrId)
             if not emr_record:
                 raise ValueError(f"Failed to sign assessment record {record.fields} in table {table_name}. Error: {err}")
         except Exception as e:
             err = f"Failed to sign assessment {record_id}. Error {e}"
             if record:
                 record.errors.append(err)
+                # register the errors
+                session.commit()
             logger.error(err)
+
+        finally:
+            MedicalRecordsDBSession.remove()
 
 
     @staticmethod
@@ -638,6 +643,18 @@ class EmrUtils:
             return None, {"error": str(e)}
         finally: 
             MedicalRecordsDBSession.remove()
+    
+    @staticmethod
+    def get_emr_record_by_emr_record_id(tableId, emr_record_id: int):
+        """
+        Returns the EMR record for the given record id.
+        """
+        emr_record = emr_api.get_record(tableId= tableId, recordId= emr_record_id)
+        if not emr_record:
+            return None, {"error": f"EMR record id {emr_record_id} not found in table {tableId} the EMR."}
+        else:
+            return emr_record, {"message": f"EMR record {emr_record_id} retreived from table {tableId} ."}
+        
 
     ### Transcript DB methods ###
 

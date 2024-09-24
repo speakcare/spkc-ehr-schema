@@ -106,9 +106,17 @@ def create_emr_record(data: dict, debug=False) -> int:
 
     fields = data[table_name]
     # reomve fields with "no answer" (from gpt) value 
+    # fields = {
+    #     field: value for field, value in fields.items()
+    #     if not (isinstance(value, str) and value.lower() == "no answer")
+    # }
     fields = {
         field: value for field, value in fields.items()
-        if not (isinstance(value, str) and value.lower() == "no answer")
+        if not (
+            (isinstance(value, str) and value.lower() == "no answer") or
+            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value))
+            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "None" for item in value))
+        )
     }
     record['fields'] = fields
     logger.debug(f"Fields: {fields}")
@@ -147,10 +155,18 @@ def create_emr_record(data: dict, debug=False) -> int:
                 table_name = key
                 section_fields = value
                 # reomve fields with "no answer" (from gpt) value
+                # section_fields = {
+                #     field: value for field, value in section_fields.items()
+                #     if not (isinstance(value, str) and value.lower() == "no answer")
+                # }
                 section_fields = {
                     field: value for field, value in section_fields.items()
-                    if not (isinstance(value, str) and value.lower() == "no answer")
-                }
+                    if not (
+                        (isinstance(value, str) and value.lower() == "no answer") or
+                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value))
+                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "None" for item in value))
+                    )
+                    }
                 record['sections'].append(
                     {
                         'table_name': table_name,
