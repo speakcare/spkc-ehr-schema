@@ -82,11 +82,11 @@ class NameMatcher:
 
 # Example usage
 def main(argv):  
-    patient_names = ["John Smith", "Jane Doe", "Johnathan Smyth", "Johnny Appleseed", "Jaine Do", "Jon Smythen"]
-    input_name = "Jonny Smyth"  # Example transcribed name
+    patient_names = ["Carol Smith", "Jane Doe", "Johnathan Smyth", "Johnny Appleseed", "Jaine Do", "Jon Smythen"]
+    input_name = "Mr. Smith"  # Example transcribed name
 
-    matcher = NameMatcher(primary_threshold=90, secondary_threshold=75)
-    best_match_index, score = matcher.get_best_match(input_name, patient_names)
+    matcher = NameMatcher(primary_threshold=90, secondary_threshold=70)
+    best_match, best_match_index, score = matcher.get_best_match(input_name, patient_names)
 
     if best_match_index is not None:
         print(f"Best match for '{input_name}' is: '{patient_names[best_match_index]}' (Index: {best_match_index}) with score: {score}") 

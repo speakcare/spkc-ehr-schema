@@ -46,7 +46,7 @@ def record_and_transcribe():
 if __name__ == "__main__":
 
     output_dir = "out/transcriptions"
-    parser = argparse.ArgumentParser(description='Audio input recorder.')
+    parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
 

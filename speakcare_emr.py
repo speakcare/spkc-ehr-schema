@@ -33,6 +33,7 @@ class SpeakCareEmr:
     O2_SATURATIONS_TABLE = 'O2 Saturations'
     EPISODES_TABLE = 'Episodes'
     PROGRESS_NOTES_TABLE = 'Progress Notes'
+    PULSES_TABLE = 'Pulses'
 
     ### Assessments ###
     # Admission
@@ -57,7 +58,8 @@ class SpeakCareEmr:
         BLOOD_SUGARS_TABLE, 
         HEIGHTS_TABLE, 
         TEMPERATURES_TABLE,
-        O2_SATURATIONS_TABLE, 
+        O2_SATURATIONS_TABLE,
+        PULSES_TABLE,
         EPISODES_TABLE, 
         PROGRESS_NOTES_TABLE,
         ADMISSION_TABLE,
@@ -97,7 +99,7 @@ class SpeakCareEmr:
         self.apiBaseUrl = f'{self.API_BASE_URL}/{baseId}/'
         self.webBaseUrl = f'{self.WEB_APP_BASE_URL}/{baseId}/'
         self.tables = None
-        self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=70)
+        self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=75)
         self.initialze()
 
     def initialze(self):

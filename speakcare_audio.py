@@ -24,6 +24,19 @@ def print_audio_devices():
         print(device_info)    
     p.terminate()
 
+def check_input_device(device_index: int):
+    p = pyaudio.PyAudio()
+    try:
+        info = p.get_device_info_by_index(device_index)
+        inputChannels = int(info['maxInputChannels'])
+        return inputChannels > 0
+    except OSError as e:
+        logger.error(f"Error checking input device {device_index}: {e}")
+        return False
+    finally:
+        p.terminate()
+
+
 def record_audio1(device_index: int, duration: int =5, output_filename="output.wav"):
     samples_per_chunk = 1024  # Record in chunks of 1024 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
@@ -84,10 +97,10 @@ def record_audio1(device_index: int, duration: int =5, output_filename="output.w
 
 
 def record_audio(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=500, silence_duration=2, max_silence=5):
-    samples_per_chunk = 1024  # Record in chunks of 1024 samples
+    samples_per_chunk = 4096  # Record in chunks of 4096 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
     channels = 1
-    fs = 44100  # Record at 44100 samples per second
+    fs = 22050  # Record at 22050 samples per second
 
     error = ""
     stream = None
@@ -103,7 +116,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
         #     raise Exception(error)
         frames = [] 
         logger.info(f'Recording device index: {device_index} for {duration} seconds into {output_filename}')
-        logger.debug(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
+        logger.info(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
         stream = audio.open(format=pyaudio.paInt16,
                         channels=channels,
                         rate=fs,
@@ -125,8 +138,9 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
             wf.setsampwidth(audio.get_sample_size(sample_format))
             wf.setframerate(fs)
 
+            logger.debug(f"Calling stream.read({samples_per_chunk})")
             while True:
-                logger.debug(f"Calling stream.read({samples_per_chunk})")
+                
                 data = stream.read(samples_per_chunk)
                 rms = audioop.rms(data, 2)  # Calculate the RMS of the chunk (2 bytes per sample)
 
@@ -137,7 +151,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
                         logger.debug("Sound detected, resuming recording...")
 
                     frames.append(data)
-                    if len(frames) >= 10:
+                    if len(frames) >= 10000:
                         wf.writeframes(b''.join(frames))
                         logger.debug(f"Writing {len(frames)} frames to {output_filename}")
                         frames = []
@@ -199,7 +213,7 @@ def main():
         print_audio_devices()
         exit(0)
     
-    if (device_index := args.device) == -1:
+    if (device_index := args.audio_device) == -1:
         print("Please provide a valid device index (-a | --audio-device) to record audio.")
         print_audio_devices()
         exit(1)

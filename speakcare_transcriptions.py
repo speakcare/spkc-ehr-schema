@@ -299,7 +299,7 @@ def main():
                         SpeakCareEmr.ADMISSION_TABLE,
                         SpeakCareEmr.TEMPERATURES_TABLE]
     
-    parser = argparse.ArgumentParser(description='Audio input recorder.')
+    parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input transcription file name (default: input)')
     parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
