@@ -12,7 +12,7 @@ from os_utils import ensure_directory_exists
 logger = create_logger(__name__)
 
 # List all available audio devices
-def print_devices():
+def print_audio_devices():
     p = pyaudio.PyAudio()
     for i in range(p.get_device_count()):
         info = p.get_device_info_by_index(i)
@@ -118,6 +118,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
         logger.info(f"Recording from: {audio.get_device_info_by_index(device_index)['name']}")
 
         silence_start = None
+        recording_length = 0
 
         with wave.open(output_filename, 'wb') as wf:
             wf.setnchannels(channels)
@@ -157,14 +158,15 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
                 if wf.tell() >= fs * duration * channels * audio.get_sample_size(sample_format):
                     break
             if len(frames) > 0:
-                        wf.writeframes(b''.join(frames))
-                        logger.debug(f"Writing {len(frames)} frames to {output_filename}")
-                        frames = []
+                wf.writeframes(b''.join(frames))
+                logger.debug(f"Writing {len(frames)} frames to {output_filename}")
+                frames = []
+        recording_length = wf.tell() / (fs * channels * audio.get_sample_size(sample_format))
 
     except Exception as e:
         logger.error(f"Error occurred while recording audio: {e}")
         traceback.print_exc()
-        return
+        return 0
     
     finally:
         # Stop and close the stream
@@ -176,8 +178,8 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
             audio.terminate()
 
     logger.info('Finished recording.')
-
     logger.info(f"Audio saved to {output_filename}")
+    return recording_length
 
 
 
@@ -186,21 +188,20 @@ def main():
     # Parse command line arguments
     output_dir = "out/recordings"
     parser = argparse.ArgumentParser(description='Audio input recorder.')
-    parser.add_argument('-l', '--list', action='store_true', help='Print devices list and exit')
+    parser.add_argument('-l', '--list', action='store_true', help='Print aduio devices list and exit')
     parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
-    parser.add_argument('-d', '--device', type=int, default=0, help='Device index (default: 0)')
+    parser.add_argument('-a', '--audio-device', type=int, default=-1, help='Audio device index (required)')
     
     args = parser.parse_args()
     
     if args.list:
-        print_devices()
+        print_audio_devices()
         exit(0)
     
-    if (device_index := args.device) is None:
-        print (f"Recording audio from device index: {device_index}")
-        print("Please provide a valid device index (-d | --devidce) to record audio.")
-        print_devices()
+    if (device_index := args.device) == -1:
+        print("Please provide a valid device index (-a | --audio-device) to record audio.")
+        print_audio_devices()
         exit(1)
     
     # Get the current UTC time

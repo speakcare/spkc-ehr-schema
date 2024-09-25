@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from os_utils import ensure_directory_exists
 from dotenv import load_dotenv
 import os
+import traceback
 from speakcare_logging import create_logger
 from speakcare_emr_utils import EmrUtils
 import copy
@@ -21,6 +22,48 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 logger = create_logger(__name__)
 logger.setLevel(logging.DEBUG)
 
+multupleSelectionSchemaExample = {
+            "type": "multipleSelects",
+            "name": "MOOD (CHECK ALL THAT APPLY)",
+            "options": {
+                "choices": [
+                    {
+                        "name": "Passive"
+                    },
+                    {
+                        "name": "Depressed"
+                    },
+                    {
+                        "name": "Elated"
+                    },
+                    {
+                        "name": "Quiet"
+                    },
+                    {
+                        "name": "Questioning"
+                    },
+                    {
+                        "name": "Talkative"
+                    },
+                    {
+                        "name": "Secure"
+                    },
+                    {
+                        "name": "Homesick"
+                    },
+                    {
+                        "name": "Wanders Mentally"
+                    },
+                    {
+                        "name": "Hyperactive"
+                    },
+                    {
+                        "name": "Non-verbal"
+                    }
+                ]
+            }
+        }
+multupleSelectionResultExample = {"MOOD (CHECK ALL THAT APPLY)": ["Passive", "Depressed", "Elated"]}
 
 def transcription_to_dict(transcription: str, schema: dict) -> dict:
 
@@ -38,7 +81,7 @@ def transcription_to_dict(transcription: str, schema: dict) -> dict:
         dict: Dictionary of the filled schema
     """
     
-    prompt = f"""
+    prompt = f'''
     You are given a transcription of a conversation related to a nurse's treatment of a patient. 
     Based on the transcription, fill in the following fields as dictionary if you are sure of the answers.
     If you are unsure of any field, please respond with "no answer".
@@ -53,10 +96,16 @@ def transcription_to_dict(transcription: str, schema: dict) -> dict:
     If uncertain, use "no answer" as the value.
     Please return the output as a valid JSON object. 
     Ensure all fields are filled in with the correct data types (number, text, etc.).
-    If you're unsure about a field, use "no answer" as the value. 
-    The response should be a single valid JSON object and nothing else.
+    Fileds of type "singleSelect" should have a value that is one of the options in the "choices" list.
+    Fields of type 'multipleSelects' should have a value that is a JSON list with values that must be from the "choices" list.
+    For example, here is a field of type "multipleSelects". This is the example schema:
+    {json.dumps(multupleSelectionSchemaExample, indent=2)}
+    and the result should be only from the list of choices values, for example this field response can be:
+    {json.dumps(multupleSelectionResultExample, indent=2)}
+    Or, if you're unsure about a field, use "no answer" as the value. 
+    The full response must be a single valid JSON object and nothing else.
 
-    """
+    '''
 
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
@@ -86,7 +135,7 @@ def transcription_to_dict(transcription: str, schema: dict) -> dict:
         logger.error(f"Error parsing JSON: {e}")
         return {}
 
-def create_emr_record(data: dict, debug=False) -> int:
+def create_emr_record(data: dict, dryrun=False) -> int:
     """
     Create an EMR record based on the transcription and schema.
     
@@ -105,17 +154,12 @@ def create_emr_record(data: dict, debug=False) -> int:
     logger.debug(f"Table name: {table_name}")
 
     fields = data[table_name]
-    # reomve fields with "no answer" (from gpt) value 
-    # fields = {
-    #     field: value for field, value in fields.items()
-    #     if not (isinstance(value, str) and value.lower() == "no answer")
-    # }
     fields = {
         field: value for field, value in fields.items()
         if not (
             (isinstance(value, str) and value.lower() == "no answer") or
-            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value))
-            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "None" for item in value))
+            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value)) or
+            (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "none" for item in value))
         )
     }
     record['fields'] = fields
@@ -154,17 +198,12 @@ def create_emr_record(data: dict, debug=False) -> int:
                 logger.debug(f"Section: {key} fields: {value}")
                 table_name = key
                 section_fields = value
-                # reomve fields with "no answer" (from gpt) value
-                # section_fields = {
-                #     field: value for field, value in section_fields.items()
-                #     if not (isinstance(value, str) and value.lower() == "no answer")
-                # }
                 section_fields = {
                     field: value for field, value in section_fields.items()
                     if not (
                         (isinstance(value, str) and value.lower() == "no answer") or
-                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value))
-                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "None" for item in value))
+                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "no answer" for item in value)) or
+                        (isinstance(value, list) and all(isinstance(item, str) and item.lower() == "none" for item in value))
                     )
                     }
                 record['sections'].append(
@@ -183,9 +222,9 @@ def create_emr_record(data: dict, debug=False) -> int:
     if not record_id:
         logger.error(f"Failed to create record {record} in EMR. Error: {error}")
         return None
-    elif debug:
-        logger.info("Debug mode enabled. Skipping EMR record creation.")
-        return 0
+    elif dryrun:
+        logger.info("Dryrun mode enabled. Skipping EMR record creation.")
+        return record_id
     else:
         logger.info(f"Record created successfully with ID: {record_id}")
         emr_record_id, error = EmrUtils.commit_record_to_emr(record_id)
@@ -197,7 +236,7 @@ def create_emr_record(data: dict, debug=False) -> int:
     return record_id
 
 
-def transciption_to_emr(input_file: str, output_file: str, table_name: str, debug=False):
+def transciption_to_emr(input_file: str, output_file: str, table_name: str, dryrun=False):
     """
     Convert a transcription from a file to a JSON file.
     
@@ -239,27 +278,32 @@ def transciption_to_emr(input_file: str, output_file: str, table_name: str, debu
         #     logger.info("Debug mode enabled. Skipping EMR record creation.")
         #     return
 
-        reord_id = create_emr_record(filled_schema_dict, debug=debug)
-        if not reord_id:
+        record_id = create_emr_record(filled_schema_dict, dryrun=dryrun)
+        if not record_id:
             err = f"Failed to create EMR record for table {table_name}. from data {filled_schema_dict}"
             logger.error(err)
             raise ValueError(err)
         
-        
-    
     except Exception as e:
         logger.error(f"Error occurred during transcription to EMR: {e}")
-        return
+        traceback.print_exc()
+        return None
+    logger.info(f"EMR record created successfully with ID: {record_id}")
+    return record_id
 
 def main():
     output_dir = "out/jsons"
 
-    supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE, SpeakCareEmr.WEIGHTS_TABLE, SpeakCareEmr.ADMISSION_TABLE]
+    supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE, 
+                        SpeakCareEmr.WEIGHTS_TABLE, 
+                        SpeakCareEmr.ADMISSION_TABLE,
+                        SpeakCareEmr.TEMPERATURES_TABLE]
+    
     parser = argparse.ArgumentParser(description='Audio input recorder.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input transcription file name (default: input)')
     parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
-    parser.add_argument('-d', '--debug', action='store_true', help=f'If debug write JSON only and do not create EMR record')
+    parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
 
     args = parser.parse_args()
 
@@ -267,10 +311,9 @@ def main():
     
     input_file = args.input
     output_file_prefix = args.output
-    debug = args.debug
-
-    if debug:
-        logger.info("Debug mode enabled. EMR record will not be created.")
+    dryrun = args.dryrun
+    if dryrun:
+        logger.info("Dryrun mode enabled. EMR record will not be created.")
 
     
     if table_name not in supported_tables:
@@ -287,7 +330,7 @@ def main():
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
 
     ensure_directory_exists(output_filename) 
-    transciption_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, debug=debug)
+    transciption_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":

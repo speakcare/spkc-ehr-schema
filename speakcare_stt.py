@@ -15,12 +15,22 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 #openai.api_key = 'your-api-key'
 
 def transcribe_audio(input_file="output.wav", output_file="output.txt"):
-    with open(input_file, "rb") as audio_file:
-        transcript = openai.Audio.transcribe(model= "whisper-1", file=audio_file)
 
-    # write the transcript to a text file
-    with open(output_file, "w") as text_file:
-        text_file.write(transcript['text'])
+    transcript = None
+    try:
+        with open(input_file, "rb") as audio_file:
+            transcript = openai.Audio.transcribe(model= "whisper-1", file=audio_file)
+
+        # write the transcript to a text file
+        with open(output_file, "w") as text_file:
+            text_file.write(transcript['text'])
+    except Exception as e:
+        logger.error(f"Error transcribing audio: {e}")
+        return 0
+
+    transcription_length= len(transcript['text'])
+    logger.info(f"Transcription saved to {output_file} length: {transcription_length} characters")
+    return transcription_length
     
 
 

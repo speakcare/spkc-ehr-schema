@@ -128,7 +128,8 @@ class AirtableSchema:
                         error_message = f"Validation error for field '{field_name}': {error_message}"
                         self.logger.error(error_message)
                         errors.append(error_message)
-                        all_valid = False
+                        if field_info.get("required"): # validation failed for a required field
+                            all_valid = False
                         
                 else:
                     error_message = f"Field name '{field_name}' does not exist in the schema."
