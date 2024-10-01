@@ -10,7 +10,6 @@ logger_level = os.getenv('LOGGER_LEVEL', 'INFO').upper()
 # Convert the string to a logging level
 env_log_level = getattr(logging, logger_level, logging.INFO)
 
-print(f'Logger level set to {logger_level} {env_log_level}')
 
 # Generic logger creation function to be used by all modules
 def create_logger(name: str, level: int = None, propagate: bool = False) -> logging.Logger:

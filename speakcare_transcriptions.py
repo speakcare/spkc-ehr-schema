@@ -10,6 +10,7 @@ import os
 import traceback
 from speakcare_logging import create_logger
 from speakcare_emr_utils import EmrUtils
+from models import RecordState
 import copy
 
 import re
@@ -218,13 +219,16 @@ def create_emr_record(data: dict, dryrun=False) -> int:
     logger.info(f"Record: {json.dumps(record, indent = 4)}")
 
  
-    record_id, error = EmrUtils.create_record(record)    
+    record_id, record_state, error = EmrUtils.create_record(record)    
     if not record_id:
         logger.error(f"Failed to create record {record} in EMR. Error: {error}")
-        return None
+        return None, record_state
+    elif record_state is RecordState.ERRORS:
+        logger.warning(f"Record {record_id} created with errors: {error}.")
+        return record_id,record_state
     elif dryrun:
         logger.info("Dryrun mode enabled. Skipping EMR record creation.")
-        return record_id
+        return record_id, record_state
     else:
         logger.info(f"Record created successfully with ID: {record_id}")
         emr_record_id, error = EmrUtils.commit_record_to_emr(record_id)
@@ -233,10 +237,10 @@ def create_emr_record(data: dict, dryrun=False) -> int:
         else:
             logger.info(f"Record id {record_id} committed successfully to EMR with ID: {emr_record_id}")
 
-    return record_id
+    return record_id, record_state
 
 
-def transciption_to_emr(input_file: str, output_file: str, table_name: str, dryrun=False):
+def transcription_to_emr(input_file: str, output_file: str, table_name: str, dryrun=False):
     """
     Convert a transcription from a file to a JSON file.
     
@@ -278,7 +282,7 @@ def transciption_to_emr(input_file: str, output_file: str, table_name: str, dryr
         #     logger.info("Debug mode enabled. Skipping EMR record creation.")
         #     return
 
-        record_id = create_emr_record(filled_schema_dict, dryrun=dryrun)
+        record_id, record_state = create_emr_record(filled_schema_dict, dryrun=dryrun)
         if not record_id:
             err = f"Failed to create EMR record for table {table_name}. from data {filled_schema_dict}"
             logger.error(err)
@@ -330,7 +334,7 @@ def main():
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
 
     ensure_directory_exists(output_filename) 
-    transciption_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
+    transcription_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":

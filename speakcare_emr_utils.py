@@ -340,12 +340,15 @@ class EmrUtils:
             # Add and commit the new record to the database
             session.add(new_record)
             session.commit()
-            return new_record.id, {"message": "EMR record created successfully", "id": new_record.id}
+            if _state == RecordState.ERRORS:
+                return new_record.id, _state, {"error": f"EMR record created with errors: {json.dumps(_errors)}", "id": new_record.id}
+            else:
+                return new_record.id, _state, {"message": "EMR record created successfully", "id": new_record.id}
 
         except ValueError as e:
             logger.error(f"Error creating EMR record: {e}")
             session.rollback()
-            return None, {"error": str(e)}
+            return None, RecordState.ERRORS, {"error": str(e)}
         
         finally:    
             MedicalRecordsDBSession.remove()

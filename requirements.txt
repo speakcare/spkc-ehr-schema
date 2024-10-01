@@ -10,3 +10,5 @@ python-dotenv
 datasette
 pyaudio
 wave
+gtts
+pydub

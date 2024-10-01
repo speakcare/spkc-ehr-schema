@@ -38,7 +38,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -47,6 +47,7 @@ class TestRecords(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING)
+        self.assertEqual(record.state, state)
         self.logger.info(f"Created record {record_id}")
 
     def test_record_create_with_extra_field(self):
@@ -63,7 +64,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -72,6 +73,7 @@ class TestRecords(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING)
+        self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
         self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema.")
         self.logger.info(f"Created record {record_id}")
@@ -89,12 +91,13 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(record.state, state)
         self.logger.info(f"Record {record_id} created with errors:{record.errors}")
 
         # fix the record
@@ -128,12 +131,13 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(record.state, state)
         self.logger.info(f"Record {record_id} created with errors:{record.errors}")
         self.assertTrue(len(record.errors) >= 3) # at least 3 errors
         self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
@@ -236,12 +240,13 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
         self.assertEqual(record.errors[0], "Patient ID '1234567890' not found in the EMR.")
 
@@ -291,12 +296,13 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Bath"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)        
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.state, RecordState.ERRORS)
+        self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
         self.assertEqual(record.errors[0], "Patient ID 'P002' does not match the patient ID 'P001' found by name 'John Doe'.")
 
@@ -347,7 +353,7 @@ class TestRecords(unittest.TestCase):
             }
         ]
         record_data['sections'] = rescord_sections
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -356,6 +362,7 @@ class TestRecords(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(record.state, record_state)
         self.assertEqual(len(record.sections), 1)  
         self.logger.info(f"Created record {record_id}")
   
@@ -390,9 +397,10 @@ class TestRecords(unittest.TestCase):
             }
         ]
         record_data['sections'] = rescord_sections
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
+        self.assertTrue(f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'" in response['error'], response['error'])
+
 
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -435,9 +443,11 @@ class TestRecords(unittest.TestCase):
             }
         ]
         record_data['sections'] = rescord_sections
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
+        #self.assertEqual(response['error'], "EMR record created successfully", response['error'])
+        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{SpeakCareEmr.WEIGHTS_TABLE}' that has no sections" in response['error'], response['error'])
+
 
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -479,9 +489,9 @@ class TestRecords(unittest.TestCase):
             }
         ]
         record_data['sections'] = rescord_sections
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
+        self.assertTrue("Validation error for field 'Total score': Value 'ten' cannot be converted to a number." in response['error'], response['error'])
 
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
@@ -522,7 +532,7 @@ class TestRecords(unittest.TestCase):
             }
         ]
         record_data['sections'] = rescord_sections
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -575,7 +585,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Mechanical Lift"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -611,7 +621,7 @@ class TestRecords(unittest.TestCase):
                 "nurse_name": "Sara Foster",
                 "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting Left Arm", "Notes": "no answer"}
             }
-            record_id, response = EmrUtils.create_record(record_data)
+            record_id, record_state, response = EmrUtils.create_record(record_data)
             self.assertIsNotNone(record_id)
             self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -650,7 +660,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Mechanical Lift"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -687,7 +697,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Mechanical Lift"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -723,7 +733,7 @@ class TestRecords(unittest.TestCase):
                  "Scale": "Mechanical Lift"
             }
         }
-        record_id, response = EmrUtils.create_record(record_data)
+        record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 

@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import pyaudio
 import wave
 import audioop
@@ -24,6 +27,25 @@ def print_audio_devices():
         print(device_info)    
     p.terminate()
 
+def get_input_audio_devices():
+    p = pyaudio.PyAudio()
+    input_devices = []
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        inputChannels = int(info['maxInputChannels'])
+        if inputChannels > 0:
+            input_devices.append({'name': info['name'], 'index': i})
+    p.terminate()
+    return input_devices
+
+def print_input_devices():
+    input_devices = get_input_audio_devices()
+    logger.debug(f"Input devices:{input_devices}")
+    for device in input_devices:
+        name = device['name']
+        index = device['index']
+        print(f"Device {index}: '{name}'")
+
 def check_input_device(device_index: int):
     p = pyaudio.PyAudio()
     try:
@@ -37,68 +59,11 @@ def check_input_device(device_index: int):
         p.terminate()
 
 
-def record_audio1(device_index: int, duration: int =5, output_filename="output.wav"):
-    samples_per_chunk = 1024  # Record in chunks of 1024 samples
-    sample_format = pyaudio.paInt16  # 16 bits per sample
-    channels = 1
-    fs = 44100  # Record at 44100 samples per second
 
-    # p = pyaudio.PyAudio()  # Create an interface to PortAudio
-    # for i in range(p.get_device_count()):
-    #     info = p.get_device_info_by_index(i)
-    #     print(f"Device {i}: {info['name']}")
-
-    print(f'Recording device index: {device_index} for {duration} seconds into {output_filename}')
-
-  
-    try:  
-        p = pyaudio.PyAudio()
-        logger.info(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
-        stream = p.open(format=pyaudio.paInt16,
-                        channels=channels,
-                        rate=fs,
-                        input=True,
-                        input_device_index=device_index,
-                        frames_per_buffer=samples_per_chunk)
-
-        print("Recording from:", p.get_device_info_by_index(device_index)['name'])
-
-
-        frames = []  # Initialize array to store frames
-
-        # Store data in chunks for the duration specified
-        num_chunks = int(fs / samples_per_chunk * duration)
-        for i in range(0, int(num_chunks)):
-            data = stream.read(samples_per_chunk)
-            frames.append(data)
-
-    except Exception as e:
-        logger.error(f"Error occurred while recording audio: {e}")
-        return
-    
-    finally:
-        # Stop and close the stream
-        stream.stop_stream()
-        stream.close()
-        # Terminate the PortAudio interface
-        p.terminate()
-
-    logger.info('Finished recording.')
-
-    # Save the recorded data as a WAV file
-    with wave.open(output_filename, 'wb') as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(p.get_sample_size(sample_format))
-        wf.setframerate(fs)
-        wf.writeframes(b''.join(frames))
-
-    logger.info(f"Audio saved to {output_filename}")
-
-
-
-def record_audio(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=500, silence_duration=2, max_silence=5):
+def record_audio(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=300, silence_duration=2, max_silence=4):
     samples_per_chunk = 4096  # Record in chunks of 4096 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
+    bytes_per_sample = 2 # 16 bits = 2 bytes
     channels = 1
     fs = 22050  # Record at 22050 samples per second
 
@@ -142,7 +107,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
             while True:
                 
                 data = stream.read(samples_per_chunk)
-                rms = audioop.rms(data, 2)  # Calculate the RMS of the chunk (2 bytes per sample)
+                rms = audioop.rms(data, bytes_per_sample)  # Calculate the RMS of the chunk (2 bytes per sample)
 
                 if rms >= silence_threshold or\
                       (silence_start and (time.time() - silence_start) < silence_duration):
@@ -201,19 +166,32 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
 def main():
     # Parse command line arguments
     output_dir = "out/recordings"
-    parser = argparse.ArgumentParser(description='Audio input recorder.')
-    parser.add_argument('-l', '--list', action='store_true', help='Print aduio devices list and exit')
-    parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
-    parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
-    parser.add_argument('-a', '--audio-device', type=int, default=-1, help='Audio device index (required)')
-    
-    args = parser.parse_args()
-    
+
+    list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
+    list_parser.add_argument('-l', '--list', action='store_true', help='Print devices list and exit')
+    list_parser.add_argument('-i', '--input-devices', action='store_true', help='Print only the input devices and exit')
+    args, remaining_args = list_parser.parse_known_args()
     if args.list:
         print_audio_devices()
         exit(0)
+
+    if args.list:
+        print_audio_devices()
+        exit(0)
+
+    elif args.input_devices:
+        print_input_devices()
+        exit(0)
+
+    full_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', parents=[list_parser])
+    full_parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
+    full_parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
+    full_parser.add_argument('-a', '--audio-device', type=int, required=True, help='Audio device index (required)')
     
-    if (device_index := args.audio_device) == -1:
+    args = full_parser.parse_args()
+    
+    audio_device = args.audio_device
+    if not check_input_device(audio_device):
         print("Please provide a valid device index (-a | --audio-device) to record audio.")
         print_audio_devices()
         exit(1)
@@ -228,8 +206,8 @@ def main():
     output_filename = f'{output_dir}/{args.output}.{utc_string}.wav'
 
     ensure_directory_exists(output_filename) 
-    logger.info(f"Recording audio from device index {device_index} for {duration} seconds into {output_filename}")
-    record_audio(device_index=device_index,  duration=duration, output_filename=output_filename)
+    logger.info(f"Recording audio from device index {audio_device} for {duration} seconds into {output_filename}")
+    record_audio(device_index=audio_device,  duration=duration, output_filename=output_filename)
 
 if __name__ == '__main__':
     main()
