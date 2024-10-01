@@ -1,19 +1,28 @@
 # My To-Do List
 
-### speakcare emr
+### Speakcare emr
 - [x] Add validation to record create and update using the schema
 - [x] Create the db folder if not exist
 - [ ] Allow multi select with partial wrong values
-### emr utils
+- [ ] Fail validation on wrong or missing required fields
+- [ ] Support deletion of EMR records
+- [ ] Supprot deletion of db records and if connected to EMR delete from EMR
+
+### EMR utils
 - [x] work on utils to finish the create record and update record
 - [x] Add support for records with sections in utils and in create records
 - [x] Add utils for transciprt handling
 
-### text processor
+### Text processing
 - [x] Add the converter process from transcript to SpeakCareEmrApi
+- [ ] Handle cases of repeated information in the same transcript
 
-### user app
-- [ ] Add web client app
+### User app
+- [ ] Add browser extension
 
-### system
-- [ ] Add run script to load all the processes and add sqlite db browser to the project
+### System
+- [ ] Add run script to load all the processes
+- [x] Add sqlite db browser to the project
+
+### General
+- [ ] README file

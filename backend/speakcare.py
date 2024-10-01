@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 
 import argparse
-from os_utils import ensure_directory_exists
 from datetime import datetime, timezone
-from speakcare_audio import record_audio, print_audio_devices, check_input_device
+from dotenv import load_dotenv
+import os
+from os_utils import ensure_directory_exists
+from speakcare_audio import record_audio, print_audio_devices, check_input_device, print_input_devices
 from speakcare_logging import create_logger
 from speakcare_stt import transcribe_audio
 from speakcare_transcriptions import transcription_to_emr
 from speakcare_emr import SpeakCareEmr
+from models import init_speakcare_db
+from speakcare_emr_utils import EmrUtils
+
+load_dotenv()
+DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
 logger = create_logger(__name__)
 output_root_dir = "out"
@@ -72,16 +79,17 @@ def speakcare_process_audio(output_file_prefix="output", recording_duration=30, 
 
 
 def main():
+    # for testing from command line
     ensure_directory_exists(recordings_dir)
     ensure_directory_exists(transciptions_dir)
     ensure_directory_exists(jsons_dir)
-
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
-    list_parser.add_argument('-l', '--list', action='store_true', help='Print devices list and exit')
+    list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
     args, remaining_args = list_parser.parse_known_args()
-    if args.list:
-        print_audio_devices()
+    if args.list_devices:
+        print_input_devices()
         exit(0)
 
     full_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', parents=[list_parser])
@@ -92,10 +100,6 @@ def main():
     full_parser.add_argument('-a', '--audio-device', type=int, required=True, help='Audio device index (required)')
 
     args = full_parser.parse_args()
-
-    if args.list:
-        print_audio_devices()
-        exit(0)
 
     output_file_prefix = "output"
     if args.output_prefix:
@@ -121,7 +125,8 @@ def main():
     if dryrun:
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
-    speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)    
+    speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
+    EmrUtils.cleanup_db(delete_db_files=False)
 
 if __name__ == "__main__":
     main()

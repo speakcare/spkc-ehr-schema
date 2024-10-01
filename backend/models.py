@@ -6,16 +6,15 @@ from sqlalchemy.orm import sessionmaker, scoped_session, relationship, backref
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.types import JSON
 import os
+import atexit
 from os_utils import ensure_directory_exists
+from speakcare_logging import create_logger
 
 # Define the base class for declarative models
 
-# Ensure the ./db directory exists
-db_directory = './db'
-if not os.path.exists(db_directory):
-    os.makedirs(db_directory)
 
 Base = declarative_base()
+logger = create_logger(__name__)
 
 class RecordState(PyEnum):
     PENDING = 'PENDING'       # created but not commited yet, pending for user
@@ -71,15 +70,62 @@ class MedicalRecords(Base):
     transcript = relationship('Transcripts', back_populates='medical_records')
 
 
-# Create database engines
-ensure_directory_exists('db')
-transcripts_engine = create_engine('sqlite:///db/transcripts.db')
-medical_records_engine = create_engine('sqlite:///db/medical_records.db')
+class SpeakCareDB:
+    TRANSCRIPTS_DB     = 'transcripts.db'
+    MEDICAL_RECORDS_DB = 'medical_records.db'
 
-# Create tables
-Base.metadata.create_all(transcripts_engine)
-Base.metadata.create_all(medical_records_engine)
+    def __init__(self, db_directory: str):
+        # Create database engines
+        self.db_path = ensure_directory_exists(db_directory)
+        transcripts_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.TRANSCRIPTS_DB}'#transcripts.db'
+        medical_records_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.MEDICAL_RECORDS_DB}'#medical_records.db'
+        logger.debug(f"Creating Transcripts database at {transcripts_sqlite_db}")
+        self.transcripts_engine = create_engine(transcripts_sqlite_db)
+        logger.debug(f"Creating MedicalRecords database at {medical_records_sqlite_db}")
+        self.medical_records_engine = create_engine(medical_records_sqlite_db)
+        # Create tables
+        Base.metadata.create_all(self.transcripts_engine)
+        Base.metadata.create_all(self.medical_records_engine)
+        self.TranscriptsDBSession = scoped_session(sessionmaker(bind=self.transcripts_engine))
+        self.MedicalRecordsDBSession = scoped_session(sessionmaker(bind=self.medical_records_engine))
+        atexit.register(self.__cleanup)
+    
+    def __cleanup(self):
+        # Clean up sessions and dispose of engines
+        self.TranscriptsDBSession.remove()
+        self.MedicalRecordsDBSession.remove()
+        self.transcripts_engine.dispose()
+        self.medical_records_engine.dispose()
+        logger.debug("Cleaned up database sessions and disposed of engines.")
 
-# Create session makers
-TranscriptsDBSession = scoped_session(sessionmaker(bind=transcripts_engine))
-MedicalRecordsDBSession =  scoped_session(sessionmaker(bind=medical_records_engine))
+    def do_cleanup(self, delete_db_files = False):
+        self.__cleanup()
+        atexit.unregister(self.__cleanup)
+        if delete_db_files:
+            logger.debug(f"Deleting database files from {self.db_path}")
+            os.remove(f"{self.db_path}/{SpeakCareDB.TRANSCRIPTS_DB}")
+            os.remove(f"{self.db_path}/{SpeakCareDB.MEDICAL_RECORDS_DB}")
+            logger.debug(f"Deleting database directory {self.db_path}")
+            os.rmdir(self.db_path)
+        else:
+            logger.debug(f"Database files are not deleted from {self.db_path}")
+
+
+__singletonDbInstance = None
+def init_speakcare_db(db_directory = None):
+    """
+    Provides access to the singleton instance of SpeakCareDB.
+    Initializes the instance if it hasn't been created yet.
+    :param config: Optional configuration dictionary for initializing the instance.
+    :return: Singleton instance of SpeakCareDB.
+    """
+    global __singletonDbInstance
+    if __singletonDbInstance is None:
+        if db_directory is None:
+            db_directory = 'db'
+        logger.debug(f"Initializing SpeakCareDB with db_directory: {db_directory}")
+        __singletonDbInstance = SpeakCareDB(db_directory)
+    return __singletonDbInstance
+
+def get_speakcare_db_instance():
+    return init_speakcare_db()

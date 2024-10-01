@@ -3,7 +3,7 @@ from speakcare_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
 from speakcare_emr import get_emr_api_instance
-from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, TranscriptsDBSession, MedicalRecordsDBSession
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakCareDB, init_speakcare_db
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
@@ -23,7 +23,20 @@ if not emr_api:
     logger.error('Failed to initialize EMR API')
     raise Exception('Failed to initialize EMR API')
 
+#db = get_speakcare_db_instance()
+
 class EmrUtils:
+    db : Optional[SpeakCareDB] = None
+    @staticmethod
+    def init_db(db_directory = None):
+        EmrUtils.db = init_speakcare_db(db_directory)
+
+    @staticmethod
+    def cleanup_db(delete_db_files = False):
+        if EmrUtils.db:
+            EmrUtils.db.do_cleanup(delete_db_files)
+            EmrUtils.db = None
+
     @staticmethod
     def get_patient_info(name):
         """
@@ -230,7 +243,7 @@ class EmrUtils:
         """
         Get the emr record.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             record = session.get(MedicalRecords, record_id)
             if not record:
@@ -243,14 +256,14 @@ class EmrUtils:
             session.rollback()
             return None, {"error": str(e)}
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
         
     @staticmethod
     def get_all_records(state: RecordState = None, table_name: str = None):
         """
         Get the emr records.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             query = session.query(MedicalRecords)
             # records = session.query(MedicalRecords).all()
@@ -268,7 +281,7 @@ class EmrUtils:
             session.rollback()
             return None, {"error": err}
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
 
 
@@ -287,7 +300,7 @@ class EmrUtils:
 
         # Perform any additional validity checks on the data
         # Example: Check if the data dictionary contains necessary keys
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             # first check for unrecoverable errors
             
@@ -351,7 +364,7 @@ class EmrUtils:
             return None, RecordState.ERRORS, {"error": str(e)}
         
         finally:    
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
             
 
     @staticmethod
@@ -365,7 +378,7 @@ class EmrUtils:
         :param record_id: The id of the record to update.
         :return: A tuple containing the a success or error message and an HTTP status code.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             # first check for unrecoverable errors
             if not updates:
@@ -437,7 +450,7 @@ class EmrUtils:
             logger.error(f"Error updating EMR record: {e}")
             return False, {"error": str(e)}
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
         
 
     @staticmethod
@@ -447,7 +460,7 @@ class EmrUtils:
         otherwise returns ane error message and None.
         """
         # Logic to discard the record
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -464,7 +477,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
     
     @staticmethod
     def delete_record(record_id: int):
@@ -472,7 +485,7 @@ class EmrUtils:
         Returns a message and True if the record is successfully deleted, 
         otherwise returns error message and False.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -486,7 +499,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
     ### EMR interaction methods ###
 
@@ -497,7 +510,7 @@ class EmrUtils:
         Returns a tuple: message and the record EMR id if the record is successfully committed to the EMR, 
         otherwise returns ane error message and None.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         # prepare to commit the record to the EMR
         try:
             # first verify that the record is a PENDING state
@@ -582,12 +595,12 @@ class EmrUtils:
             #traceback.print_exc()
             return None, {"error": str(e)}          # Return error response and status code
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
         
 
     @staticmethod
     def sign_assessgment(record_id: id):
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         record = None
         # prepare to commit the record to the EMR
         try:
@@ -619,7 +632,7 @@ class EmrUtils:
             logger.error(err)
 
         finally:
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
 
     @staticmethod
@@ -627,7 +640,7 @@ class EmrUtils:
         """
         Returns the EMR record for the given record id.
         """
-        session = MedicalRecordsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -645,7 +658,7 @@ class EmrUtils:
             logger.error(f"Error getting EMR record id {record_id}: {e}")
             return None, {"error": str(e)}
         finally: 
-            MedicalRecordsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
     
     @staticmethod
     def get_emr_record_by_emr_record_id(tableId, emr_record_id: int):
@@ -667,7 +680,7 @@ class EmrUtils:
         Create a new transcript in the database and return its id.
         Return the new transcript id, or None if it fails.
         """
-        session = TranscriptsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             new_transcript = Transcripts(text=transcript)
             if not new_transcript:
@@ -683,7 +696,7 @@ class EmrUtils:
             logger.error(f"Error creating transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            TranscriptsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
     @staticmethod
     def get_all_transcripts(text_limit: int = 200, state: TranscriptState = None):
@@ -691,7 +704,7 @@ class EmrUtils:
         Return a dictionary with all transcripts but truncate the text to first text_limit characters.
         If state is given (not None), query the database only for these transcripts that are in that state.
         """
-        session = TranscriptsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             query = session.query(Transcripts)
             if state:
@@ -714,14 +727,14 @@ class EmrUtils:
             logger.error(f"Error retrieving transcripts: {e}")
             return None, {"error": str(e)}
         finally:
-            TranscriptsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
     
     @staticmethod
     def get_transcript(transcript_id: int):
         """
         Get the transcript record by transcript_id and return the transcript record, or None if failed.
         """
-        session = TranscriptsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if not transcript:
@@ -735,7 +748,7 @@ class EmrUtils:
             logger.error(f"Error retrieving transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            TranscriptsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
     @staticmethod
     def update_transcript_state(transcript_id: int, state: TranscriptState):
@@ -743,7 +756,7 @@ class EmrUtils:
         Get the transcript record by transcript_id and update the state.
         Return True for success or False for failure.
         """
-        session = TranscriptsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -759,14 +772,14 @@ class EmrUtils:
             logger.error(f"Error updating transcript state: {e}")
             return False, {"error": str(e)}
         finally:
-            TranscriptsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()
 
     @staticmethod
     def delete_transcript(transcript_id: int):
         """
         Delete the transcript by transcript_id.
         """
-        session = TranscriptsDBSession()
+        session = EmrUtils.db.MedicalRecordsDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -782,4 +795,4 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            TranscriptsDBSession.remove()
+            EmrUtils.db.MedicalRecordsDBSession.remove()

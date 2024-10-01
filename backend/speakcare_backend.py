@@ -1,14 +1,19 @@
 from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, Namespace
 import json
-from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType, TranscriptState
+from dotenv import load_dotenv
+import os
+from models import RecordState, RecordType, TranscriptState, init_speakcare_db
 #from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_process_audio
 from speakcare_logging import create_logger
 
+load_dotenv()
+DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 logger = create_logger(__name__)
+
 
 APP_PORT = 3000
 
@@ -111,7 +116,6 @@ class MedicalRecordsResource(Resource):
     @ns.expect(medical_records_post_model)
     def post(self):
         """Add a new medical record"""
-        #session = MedicalRecordsDBSession()
         data = request.json
         record_id , record_state, response = EmrUtils.create_record(data)
         if record_id and record_state != RecordState.ERRORS:
@@ -126,7 +130,6 @@ class MedicalRecordsResource(Resource):
     @ns.expect(medical_records_patch_model)
     def patch(self, id):
         """Update the state of a medical record by ID"""
-        #session = MedicalRecordsDBSession()
         data = request.json
         success, response = EmrUtils.update_record(data, id)
         if success:
@@ -220,19 +223,6 @@ class TranscriptsResource(Resource):
     def patch(self, id):
         return jsonify({'error': '"Method not allowed"'}), 405
         """Update a transcript by ID"""
-        session = TranscriptsDBSession()
-        transcript = session.query(Transcripts).get(id)
-        if not transcript:
-            return jsonify({'error': f'Transcript id {id} not found'}), 404
-        
-        data = request.json
-
-        # Update fields only if they are present in the request
-        if 'text' in data:
-            transcript.text = data['text']
-                
-        session.commit()
-        return jsonify({'message': 'Transcript updated successfully'})
     
     @ns.doc('delete_transcript')
     def delete(self, id):
@@ -344,4 +334,12 @@ class ProcessAudioResource(Resource):
 api.add_namespace(ns)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=APP_PORT)
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    try:
+        app.run(debug=True, port=APP_PORT)
+    except KeyboardInterrupt as e:
+        logger.info(f'API server exited by user. ({e})')
+    except Exception as e:
+        logger.error(f'API server exited with error: {e}')
+    finally:
+        EmrUtils.cleanup_db(delete_db_files=False)

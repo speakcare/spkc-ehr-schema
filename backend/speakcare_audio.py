@@ -168,18 +168,10 @@ def main():
     output_dir = "out/recordings"
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
-    list_parser.add_argument('-l', '--list', action='store_true', help='Print devices list and exit')
-    list_parser.add_argument('-i', '--input-devices', action='store_true', help='Print only the input devices and exit')
+    list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
     args, remaining_args = list_parser.parse_known_args()
-    if args.list:
-        print_audio_devices()
-        exit(0)
 
-    if args.list:
-        print_audio_devices()
-        exit(0)
-
-    elif args.input_devices:
+    if args.list_devices:
         print_input_devices()
         exit(0)
 
