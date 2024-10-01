@@ -61,10 +61,32 @@ class TestEmrTableSchema(unittest.TestCase):
         }
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation error for field 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
-    def test_validate_record_non_existent_field(self):
+    def test_validate_record_invalid_required_field(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleLineText'},
+                {"name": "Temperature", "type": 'number', "options": {"precision": "1"}, "description": "required"},
+                {"name": "Route", "type": 'singleSelect', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}]}}
+            ]
+        })
+        record = {
+            "Units": "Fahrenheit",
+            "Temperature": "high",
+            "Route": "Tympanic"
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_valid)
+        self.assertTrue("Validation error for field 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+
+
+    def test_validate_record_extra_field(self):
         schema = AirtableSchema("temperatureRecord", self.valid_schema)
         record = {
             "Units": "Fahrenheit",
@@ -180,7 +202,8 @@ class TestEmrTableSchema(unittest.TestCase):
         }
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation error for field 'Route': Multi select validation error: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)         
 
     def test_validate_date_correct_value(self):
@@ -206,8 +229,24 @@ class TestEmrTableSchema(unittest.TestCase):
         record = {"DateField": "01-10-2023"}
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
+        self.assertTrue("Date validation error: Value '01-10-2023' is not a valid ISO date." in errors[0])
         self.assertEqual(len(errors), 1)
+
+    def test_validate_date_incorrect_required_value(self):
+        schema = AirtableSchema("testSchema", {
+            "name": "testSchema",
+            "fields": [
+                {"name": "DateField", "type": "date", "description": "required"}
+            ]
+        })
+        record = {"DateField": "01-10-2023"}
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_valid)
+        self.assertTrue("Date validation error: Value '01-10-2023' is not a valid ISO date." in errors[0])
+        self.assertEqual(len(errors), 1)
+
 
 
     def test_validate_date_time_correct_value(self):
@@ -238,7 +277,8 @@ class TestEmrTableSchema(unittest.TestCase):
         record = {"DateTimeField": dateTimeString}
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
+        self.assertTrue(f"Date-time validation error: Value '{dateTimeString}' is not a valid ISO date-time." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
 
@@ -265,9 +305,23 @@ class TestEmrTableSchema(unittest.TestCase):
         record = {"PercentField": 150}
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation error for field 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         
+    def test_validate_percent_incorrect_required_value(self):
+        schema = AirtableSchema("testSchema", {
+            "name": "testSchema",
+            "fields": [
+                {"name": "PercentField", "type": "percent", "options": {"precision": "1"}, "description": "required"}
+            ]
+        })
+        record = {"PercentField": 150}
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_valid)
+        self.assertTrue("Validation error for field 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
 
     def test_validate_checkbox_correct_value(self):
         schema = AirtableSchema("testSchema", {
@@ -295,9 +349,23 @@ class TestEmrTableSchema(unittest.TestCase):
         })
         record = {"CheckboxField": "yes"}
         errors = []
-        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
-        self.assertFalse(is_valid)
+        is_all_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_all_valid, json.dumps(errors))
         self.assertEqual(len(errors), 1)
+
+    def test_validate_checkbox_incorrect_required_value(self):
+        schema = AirtableSchema("testSchema", {
+            "name": "testSchema",
+            "fields": [
+                {"name": "CheckboxField", "type": "checkbox", "description": "required"}
+            ]
+        })
+        record = {"CheckboxField": "yes"}
+        errors = []
+        is_all_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_all_valid, json.dumps(errors))
+        self.assertEqual(len(errors), 1)
+
 
 
     def test_validate_currency_correct_value(self):
@@ -323,8 +391,21 @@ class TestEmrTableSchema(unittest.TestCase):
         record = {"CurrencyField": "one hundred"}
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a currency." in errors[0])
+
+    def test_validate_currency_incorrect_required_value(self):
+        schema = AirtableSchema("testSchema", {
+            "name": "testSchema",
+            "fields": [
+                {"name": "CurrencyField", "type": "currency", "description": "required"}
+            ]
+        })
+        record = {"CurrencyField": "one hundred"}
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertEqual(len(errors), 1)
+        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a currency." in errors[0])        
 
 if __name__ == '__main__':
     unittest.main()
