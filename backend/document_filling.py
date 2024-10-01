@@ -1,9 +1,12 @@
-from speakcare_emr_utils import EmrUtils
-from speakcare_emr import SpeakCareEmr
-from stt import transcribe_audio
 import json
 import os
 import openai
+from stt import transcribe_audio
+from speakcare_emr_utils import EmrUtils
+from speakcare_emr import SpeakCareEmr
+from speakcare_logging import create_logger
+from speakcare_emr_utils import EmrUtils
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 from dotenv import load_dotenv
