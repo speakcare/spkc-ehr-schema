@@ -116,8 +116,8 @@ class MedicalRecordsResource(Resource):
         record_id , record_state, response = EmrUtils.create_record(data)
         if record_id and record_state != RecordState.ERRORS:
             return jsonify(response), 201
-        elif record_id:
-            return jsonify(response), 207 # Partial success
+        elif record_id: # errors
+            return jsonify(response), 422 # Unprocessable Entity (due to semantic errors)
         else:
             return jsonify(response), 400
         
