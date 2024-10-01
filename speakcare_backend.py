@@ -1,8 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_restx import Api, Resource, fields, Namespace
+import json
 from models import Transcripts, MedicalRecords, TranscriptsDBSession, MedicalRecordsDBSession, RecordState, RecordType, TranscriptState
 #from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
 from speakcare_emr_utils import EmrUtils
+from speakcare_audio import get_input_audio_devices
+from speakcare import speakcare_process_audio
+from speakcare_logging import create_logger
+
+logger = create_logger(__name__)
 
 APP_PORT = 3000
 
@@ -58,7 +64,6 @@ transcripts_get_model = ns.model('TranscriptsGet', {
     'id': fields.Integer(readonly=True, escription='The unique identifier of the transcript'),
     'text': fields.String(required=True, description='The raw text from speech-to-text transcription'),
     'state': fields.String(description='State of the transcript', enum=[state.value for state in TranscriptState]),  # Convert Enum to string 
-    'errors': fields.Raw(readonly=True, description='Errors encountered during processing'),
     'errors': fields.List(fields.String, readonly=True, description='Errors encountered during processing'),
     'created_time': fields.DateTime(readonly=True, description='Time when the record was created'),  # Add created_time field
     'modified_time': fields.DateTime(readonly=True, description='Time when the record was last modified')  # Add modified_time field
@@ -108,9 +113,11 @@ class MedicalRecordsResource(Resource):
         """Add a new medical record"""
         #session = MedicalRecordsDBSession()
         data = request.json
-        record_id , response = EmrUtils.create_record(data)
-        if record_id:
+        record_id , record_state, response = EmrUtils.create_record(data)
+        if record_id and record_state != RecordState.ERRORS:
             return jsonify(response), 201
+        elif record_id:
+            return jsonify(response), 207 # Partial success
         else:
             return jsonify(response), 400
         
@@ -227,7 +234,7 @@ class TranscriptsResource(Resource):
         session.commit()
         return jsonify({'message': 'Transcript updated successfully'})
     
-    @ns.doc('delete__transcript')
+    @ns.doc('delete_transcript')
     def delete(self, id):
         """Permanently delete a transcript by ID"""
         deleted, response = EmrUtils.delete_transcript(id)
@@ -267,6 +274,71 @@ class PatientResource(Resource):
             return jsonify({'error': f'Patient {name} not found'}), 404
         return patient_info  # Response will be formatted according to patient_info_model
 
+@ns.route('/table-names')
+class TableNamesResource(Resource):
+    @ns.doc('get_emr_table_names')
+    #@ns.marshal_with(audio_devices_model)  # Document the response with the defined model
+    def get(self):
+        
+        """Get EMR table names"""
+        table_names = EmrUtils.get_table_names()
+        return Response(json.dumps(table_names), mimetype='application/json')
+
+
+# Define the models for Swagger documentation
+audio_devices_model = ns.model('AudioInputDevices', {
+        'name': fields.String(description='Unique audio device name'),
+        'index':fields.String(description='Unique audio device index')
+})
+
+# Define other models like transcripts_get_model, transcripts_input_model, and transcripts_patch_model...
+
+# Patient Info Endpoint
+@ns.route('/audio-devices')
+class AudioDeviceResource(Resource):
+    @ns.doc('get_input_audio_devices')
+    @ns.marshal_with(audio_devices_model)  # Document the response with the defined model
+    def get(self):
+        
+        """Get auido device information"""
+        device_info = get_input_audio_devices()
+        return device_info, 200  # Response will be formatted according to audio_devices_model
+
+
+
+process_audio_model = ns.model('ProcessAudio', {
+    'output_file_prefix': fields.String(required=False, default='output', description='Prefix for the output file'),
+    'recording_duration': fields.Integer(required=False, default=30, description='Duration of the recording in seconds'),
+    'table_name': fields.String(required=True, description='Name of the table to store data'),
+    'audio_device': fields.Integer(required=True, description='Audio device index'),
+    'dryrun': fields.Boolean(required=False, default=False, description='Run without actually processing the audio')
+})
+
+@ns.route('/process-audio')
+class ProcessAudioResource(Resource):
+    @ns.doc('process_audio')
+    @ns.expect(process_audio_model) # Use the updated model for response
+    def post(self):
+
+        # Extract JSON data from request body
+        data = request.json
+        
+        # Extract parameters with default values if not provided
+        output_file_prefix = data.get('output_file_prefix', 'output')
+        recording_duration = data.get('duration', 30)
+        table_name = data.get('table_name', None)
+        audio_device = data.get('audio_device', None)
+        dryrun = data.get('dryrun', False)
+        
+        logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
+        record_id, err = speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
+
+        if record_id:
+            logger.info(f"Audio processed successfully. Record ID: {record_id}")
+            return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201
+        else:
+            logger.error(f"Error processing audio: {err}")
+            return jsonify({'error': f'Error processing audio. {err}'}), 400
 
 # Register the namespace with the API
 api.add_namespace(ns)

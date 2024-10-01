@@ -4,11 +4,11 @@ from pydub import AudioSegment
 
 # Define your text
 text = """
-        Good afternoon Alice Johnson. I’m going to check your blood pressure now.
-        I’ll start by taking it while you're seated. I’ll use your left arm for this.
+        Good afternoon Alice Johnson. I'm going to check your blood pressure now.
+        I'll start by taking it while you're seated. I'll use your left arm for this.
         Please relax for a moment while I take the reading.
         Your blood pressure is 130 over 85.
-        I’ll make a note of that. If there’s anything else, feel free to mention it later.
+        I'll make a note of that. If there's anything else, feel free to mention it later.
         """
 
 # Initialize gTTS with your text and language (e.g., 'en' for English)
