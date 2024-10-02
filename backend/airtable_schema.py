@@ -1,9 +1,9 @@
 from enum import Enum as PyEnum
 from datetime import datetime
 import logging
-from speakcare_logging import create_logger
 import copy
 import json
+from speakcare_logging import create_logger
 
 
 # Logger setup
