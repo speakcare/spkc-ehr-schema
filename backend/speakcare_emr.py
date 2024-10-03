@@ -12,8 +12,8 @@ from typing import Dict
 
 # Load the .env file
 load_dotenv()
-
-APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
+AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
+AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 
 class SpeakCareEmr:
 
@@ -91,7 +91,7 @@ class SpeakCareEmr:
                             'multipleRecordLinks', 'rollup', 'singleCollaborator']
 
     def __init__(self, baseId: str, logger: logging.Logger):
-        self.apiKey = os.getenv('AIRTABLE_API_KEY')
+        self.apiKey = AIRTABLE_API_KEY
         self.api = AirtableApi(self.apiKey)
         self.appBaseId = baseId
         self.logger = logger
