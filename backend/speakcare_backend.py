@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, render_template_string
 from flask_restx import Api, Resource, fields, Namespace
 import json
 from dotenv import load_dotenv
@@ -9,6 +9,8 @@ from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_process_audio
 from speakcare_logging import create_logger
+# import speakcare_flask
+# from speakcare_flask import speakcare_app as app, speakcare_api as api, speakcare_ns as ns
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -18,10 +20,35 @@ logger = create_logger(__name__)
 APP_PORT = 3000
 
 app = Flask(__name__)
-api = Api(app, doc='/docs')  # Swagger UI will be available at /docs
+api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
+
+
+@app.route('/redoc')
+def redoc():
+    return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="X-UA-Compatible" content="ie=edge">
+            <title>Redoc API Docs</title>
+            <!-- Link to the locally hosted favicon -->
+            <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+            <!-- Redoc CDN script -->
+            <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+        </head>
+        <body>
+            <redoc spec-url="/swagger.json"></redoc>
+            <script>
+                Redoc.init("/swagger.json")
+            </script>
+        </body>
+        </html>
+    ''')    
 
 # Define a Namespace for the API
-ns = Namespace('api', description='Operations related to transcripts and medical records')
+ns = Namespace('api', description='All SpeakCare API endpoints')
 
 
 # Define the MedicalRecords model for API documentation
