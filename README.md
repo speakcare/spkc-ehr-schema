@@ -63,13 +63,23 @@ This will start the Flask server, and you can access the web interface by naviga
 
 ## Environment Variables
 Ensure you have the following environment variables set in your .env file, as shown in the .env_example file:
-AIRTABLE_API_KEY='airtable_api_key'
-AIRTABLE_APP_BASE_ID = 'airtable_app_base_id'
-OPENAI_API_KEY='openai_api_key'
-LOGGER_LEVEL='DEBUG'
-UT_RUN_SKIPPED_TESTS=False
-DB_DIRECTORY='db'
+* AIRTABLE_API_KEY='airtable_api_key'
+* AIRTABLE_APP_BASE_ID = 'airtable_app_base_id'
+* OPENAI_API_KEY='openai_api_key'
+* LOGGER_LEVEL='DEBUG'
+* UT_RUN_SKIPPED_TESTS=False
+* DB_DIRECTORY='db'
 
+## Viewing the docs
+* Go to http://localhost:3000/redoc to see the API documenation in redoc.
+* Go to http://localhost:3000/docs to see the Swagger documentation of the api. You can also try out the API through the Swagger doc page.
+
+## Viweing the sqlite database content
+From the backend direcrtory run the datasette server.
+```sh
+datasette serve db/medical_records.db db/transcripts.db 
+```
+You can access the datasette server on port 8001:  http://localhost:8001
 
 
 ## Summary
