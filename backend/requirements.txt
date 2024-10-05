@@ -12,3 +12,5 @@ pyaudio
 wave
 gtts
 pydub
+gunicorn
+flask-cors

@@ -57,7 +57,7 @@ python3 speakcare.py -t 'Temperatures' -o 'temperature' -a 0
 ### 2. Running the Flask Server
 You can also run the Flask server to provide a web interface for the demo:
 ```sh
-python3 speakcare_backend.py
+./run_server.sh
 ```
 This will start the Flask server, and you can access the web interface by navigating to http://localhost:3000 in your web browser.
 
@@ -71,8 +71,9 @@ Ensure you have the following environment variables set in your .env file, as sh
 * DB_DIRECTORY='db'
 
 ## Viewing the docs
-* Go to http://localhost:3000/redoc to see the API documenation in redoc.
-* Go to http://localhost:3000/docs to see the Swagger documentation of the api. You can also try out the API through the Swagger doc page.
+* Go to <speackare-hostname>/redoc to see the API documenation in redoc.
+* Go to <speackare-hostname>/docs to see the Swagger documentation of the api. You can also try out the API through the Swagger doc page.
+* Note: when running locally the speakcare-hostname is http://localhost:5000. You can change the port name by changing the environment variable APP_PORT in your .env file.
 
 ## Viweing the sqlite database content
 From the backend direcrtory run the datasette server.

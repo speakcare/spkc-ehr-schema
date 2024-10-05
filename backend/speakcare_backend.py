@@ -1,26 +1,40 @@
 from flask import Flask, request, jsonify, Response, render_template_string
 from flask_restx import Api, Resource, fields, Namespace
+from flask_cors import CORS
 import json
 from dotenv import load_dotenv
-import os
+import os, sys
 from models import RecordState, RecordType, TranscriptState, init_speakcare_db
+#from waitress import serve
+import logging
 #from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_process_audio
 from speakcare_logging import create_logger
-# import speakcare_flask
-# from speakcare_flask import speakcare_app as app, speakcare_api as api, speakcare_ns as ns
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
-logger = create_logger(__name__)
+#logger = create_logger(__name__)
 
 
-APP_PORT = 3000
+
+APP_PORT = os.getenv("APP_PORT", 5000)
 
 app = Flask(__name__)
+# Enable CORS only for localhost:4000
+CORS(app, resources={r"/*": {"origins": "http://localhost:4000"}})
+
+app.logger = create_logger(__name__)
+#app.logger.setLevel('DEBUG')
+app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
+
+@app.route('/hello', methods=['GET'])
+def hello():
+    #print("Flask route is hit!")  # To ensure the request is processed
+    app.logger.debug('Debug message: Saying Hello!')
+    return 'Hello, World!\r\n'
 
 
 @app.route('/redoc')
@@ -347,14 +361,14 @@ class ProcessAudioResource(Resource):
         audio_device = data.get('audio_device', None)
         dryrun = data.get('dryrun', False)
         
-        logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
+        app.logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
         record_id, err = speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
 
         if record_id:
-            logger.info(f"Audio processed successfully. Record ID: {record_id}")
+            app.logger.info(f"Audio processed successfully. Record ID: {record_id}")
             return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201
         else:
-            logger.error(f"Error processing audio: {err}")
+            app.logger.error(f"Error processing audio: {err}")
             return jsonify({'error': f'Error processing audio. {err}'}), 400
 
 # Register the namespace with the API
@@ -363,10 +377,10 @@ api.add_namespace(ns)
 if __name__ == '__main__':
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
     try:
-        app.run(debug=True, port=APP_PORT)
+        app.run(debug=True,host='::', port=APP_PORT)
     except KeyboardInterrupt as e:
-        logger.info(f'API server exited by user. ({e})')
+        app.logger.info(f'API server exited by user. ({e})')
     except Exception as e:
-        logger.error(f'API server exited with error: {e}')
+        app.logger.error(f'API server exited with error: {e}')
     finally:
         EmrUtils.cleanup_db(delete_db_files=False)

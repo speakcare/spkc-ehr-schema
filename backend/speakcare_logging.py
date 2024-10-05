@@ -1,6 +1,6 @@
 import logging
 from dotenv import load_dotenv
-import os
+import os, sys
 
 # Load environment variables
 load_dotenv()
@@ -17,6 +17,7 @@ def create_logger(name: str, level: int = None, propagate: bool = False) -> logg
     logger = logging.getLogger(name)
     logger.setLevel(_level)
     handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
