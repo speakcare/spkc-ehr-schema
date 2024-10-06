@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, render_template_string
+from flask import Flask, request, render_template_string
 from flask_restx import Api, Resource, fields, Namespace
 from flask_cors import CORS
 import json
@@ -23,7 +23,7 @@ APP_PORT = os.getenv("APP_PORT", 5000)
 
 app = Flask(__name__)
 # Enable CORS only for localhost:4000
-CORS(app, resources={r"/*": {"origins": "http://localhost:4000"}})
+CORS(app, resources={r"/*": {"origins": ["http://localhost:4000", "https://airtable.com"]}})
 
 app.logger = create_logger(__name__)
 #app.logger.setLevel('DEBUG')
@@ -141,7 +141,8 @@ class MedicalRecordsResource(Resource):
             # List all medical records
             records, error = EmrUtils.get_all_records(state=state, table_name=table_name_param)
             if records is None:
-                return jsonify({'error': f'Error fetching all records. {error}'}), 400
+                return {'error': f'Error fetching all records. {error}'}, 400
+                
             elif not records:
                 return [], 200
             else:   
@@ -150,7 +151,7 @@ class MedicalRecordsResource(Resource):
             # Get a specific medical record by ID
             record, err = EmrUtils.get_record(id)
             if not record:
-                return jsonify({'error': f'Record {id} not found. {err}'}), 404
+                return {'error': f'Record {id} not found. {err}'}, 404
             return record
 
     @ns.doc('create_record') 
@@ -160,11 +161,11 @@ class MedicalRecordsResource(Resource):
         data = request.json
         record_id , record_state, response = EmrUtils.create_record(data)
         if record_id and record_state != RecordState.ERRORS:
-            return jsonify(response), 201
+            return response, 201
         elif record_id: # errors
-            return jsonify(response), 422 # Unprocessable Entity (due to semantic errors)
+            return response, 422 # Unprocessable Entity (due to semantic errors)
         else:
-            return jsonify(response), 400
+            return response, 400
         
 
     @ns.doc('update_record')
@@ -174,18 +175,18 @@ class MedicalRecordsResource(Resource):
         data = request.json
         success, response = EmrUtils.update_record(data, id)
         if success:
-            return jsonify(response), 200
+            return response, 200
         else:
-            return jsonify(response), 400
+            return response, 400
     
     @ns.doc('delete_record')
     def delete(self, id):
         """Permanently delete a record by ID"""
         deleted, response = EmrUtils.delete_record(id)
         if deleted:
-            return jsonify(response), 204
+            return response, 204
         else:
-            return jsonify(response), 400
+            return response, 400
 
 
 # Define separate endpoints for custom actions
@@ -196,9 +197,9 @@ class CommitRecordResource(Resource):
         """Commit a record to EMR by ID"""
         emr_record_id, response = EmrUtils.commit_record_to_emr(record_id=id)
         if emr_record_id:
-            return jsonify(response), 201
+            return response, 201
         else:
-            return jsonify(response), 400
+            return response, 400
 
 
 @ns.route('/records/<int:id>/discard')
@@ -208,9 +209,9 @@ class DiscardRecordResource(Resource):
         """Discard a record by ID"""
         success, response = EmrUtils.discard_record(id)
         if success:
-            return jsonify(response), 204
+            return response, 204
         else:
-            return jsonify(response), 400
+            return response, 400
 
 
 @ns.route('/transcripts')
@@ -236,16 +237,15 @@ class TranscriptsResource(Resource):
             # List all transcripts
             transcripts, err = EmrUtils.get_all_transcripts(text_limit=text_limit_param, state=state)
             if transcripts is None:
-                return jsonify({'error': f'Error fetching all transcripts. {err}'}), 400
+                return {'error': f'Error fetching all transcripts. {err}'}, 400
             elif not transcripts:
                 return [], 200
-                #return jsonify({'error': f'No transcripts found. Error: {err}'}), 404
             return transcripts
         else:
             # Get a specific transcript by ID
             transcript, err = EmrUtils.get_transcript(id)
             if not transcript:
-                return jsonify({'error': f'Transcript id {id} not found. Error: {err}'}), 404
+                return {'error': f'Transcript id {id} not found. Error: {err}'}, 404
             return transcript
     
     @ns.doc('create_transcript')
@@ -256,13 +256,13 @@ class TranscriptsResource(Resource):
         transcript = data['transcript']
         new_transcript, response = EmrUtils.create_transcript(text=transcript)
         if not new_transcript:
-            return jsonify({'error': f'Error creating transcript. {response}'}), 400            
-        return jsonify({'message': 'Transcript added successfully', 'id': new_transcript.id}), 201
+            return {'error': f'Error creating transcript. {response}'}, 400            
+        return {'message': 'Transcript added successfully', 'id': new_transcript.id}, 201
 
     @ns.doc('update_transcript')
     @ns.expect(transcripts_input_model, validate=True)  # Use PATCH model with optional fields
     def patch(self, id):
-        return jsonify({'error': '"Method not allowed"'}), 405
+        return {'error': '"Method not allowed"'}, 405
         """Update a transcript by ID"""
     
     @ns.doc('delete_transcript')
@@ -270,9 +270,9 @@ class TranscriptsResource(Resource):
         """Permanently delete a transcript by ID"""
         deleted, response = EmrUtils.delete_transcript(id)
         if deleted:
-            return jsonify(response), 204
+            return response, 204
         else:
-            return jsonify(response), 400
+            return response, 400
         
 # Define the models for Swagger documentation
 patient_info_model = ns.model('PatientInfo', {
@@ -297,12 +297,12 @@ class PatientResource(Resource):
     def get(self):
         name = request.args.get('name')
         if not name:
-            return jsonify({'error': 'Name query parameter is required'}), 400
+            return {'error': 'Name query parameter is required'}, 400
         
         """Get patient information by name"""
         patient_info = EmrUtils.get_patient_info(name)
         if not patient_info:
-            return jsonify({'error': f'Patient {name} not found'}), 404
+            return {'error': f'Patient {name} not found'}, 404
         return patient_info  # Response will be formatted according to patient_info_model
 
 @ns.route('/table-names')
@@ -313,7 +313,7 @@ class TableNamesResource(Resource):
         
         """Get EMR table names"""
         table_names = EmrUtils.get_table_names()
-        return Response(json.dumps(table_names), mimetype='application/json')
+        return {'table_names': table_names}, 200
 
 
 # Define the models for Swagger documentation
@@ -356,10 +356,10 @@ class ProcessAudioResource(Resource):
         
         # Extract parameters with default values if not provided
         output_file_prefix = data.get('output_file_prefix', 'output')
-        recording_duration = data.get('duration', 30)
+        recording_duration = int(data.get('duration', 30))
         table_name = data.get('table_name', None)
-        audio_device = data.get('audio_device', None)
-        dryrun = data.get('dryrun', False)
+        audio_device = int(data.get('audio_device', None))
+        dryrun = bool(data.get('dryrun', False))
         
         app.logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
         record_id, err = speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
@@ -369,13 +369,16 @@ class ProcessAudioResource(Resource):
             return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201
         else:
             app.logger.error(f"Error processing audio: {err}")
-            return jsonify({'error': f'Error processing audio. {err}'}), 400
+            return err, 400
 
 # Register the namespace with the API
 api.add_namespace(ns)
 
+# Initialize the database
+EmrUtils.init_db(db_directory=DB_DIRECTORY)
+
 if __name__ == '__main__':
-    EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    # for debug purposes allow running the app from the command line
     try:
         app.run(debug=True,host='::', port=APP_PORT)
     except KeyboardInterrupt as e:

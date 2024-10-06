@@ -31,7 +31,7 @@ supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE,
 def get_supported_tables():
     return supported_tables
 
-def speakcare_process_audio(output_file_prefix="output", recording_duration=30, table_name=None, audio_device=None, dryrun=False):
+def speakcare_process_audio(output_file_prefix:str="output", recording_duration:int=30, table_name:str=None, audio_device:int =None, dryrun: bool=False):
     """
     Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
     """    
