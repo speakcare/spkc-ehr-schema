@@ -17,7 +17,9 @@ const App: React.FC = () => {
   // Fetch EMR tables
   useEffect(() => {
     axios.get(`${apiBaseUrl}/api/table-names`)
-      .then(response => setTables(response.data))
+      .then(response => {
+        setTables(response.data.table_names);  // Accessing the array inside the object
+      })
       .catch(error => console.error("Error fetching tables:", error));
   }, []);
 
@@ -30,9 +32,10 @@ const App: React.FC = () => {
 
   // Handle "Start Listening" button click
   const startListening = () => {
+    const audioDeviceIndex = parseInt(selectedDevice, 10);
     axios.post(`${apiBaseUrl}/api/process-audio`, {
       table_name: selectedTable,
-      audio_device: selectedDevice
+      audio_device: audioDeviceIndex
     })
     .then(response => {
       console.log("Audio processing started:", response.data);
@@ -44,12 +47,12 @@ const App: React.FC = () => {
 
   return (
     <div>
-      <h1>EMR Audio Processor</h1>
+      <h1>SpeakCare</h1>
 
       <div>
-        <label htmlFor="table-select">Select EMR Table:</label>
+        <label htmlFor="table-select">Select EMR Chart:</label>
         <select id="table-select" value={selectedTable} onChange={e => setSelectedTable(e.target.value)}>
-          <option value="">Select a table</option>
+          <option value="">Select a chart</option>
           {tables.map((table, index) => (
             <option key={index} value={table}>{table}</option>
           ))}
