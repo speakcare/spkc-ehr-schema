@@ -1,16 +1,17 @@
 from flask import Flask, request, render_template_string
-from flask_restx import Api, Resource, fields, Namespace
+from flask_restx import Api, Resource, fields, Namespace, reqparse
 from flask_cors import CORS
 import json
 from dotenv import load_dotenv
 import os, sys
 from models import RecordState, RecordType, TranscriptState, init_speakcare_db
-#from waitress import serve
 import logging
-#from speakcare_emr_utils import get_patient_info, commit_record_to_ehr, discard_record, delete_record, create_emr_record, update_emr_record
+from werkzeug.utils import secure_filename
+from werkzeug.datastructures import FileStorage 
+from os_utils import ensure_directory_exists
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
-from speakcare import speakcare_process_audio
+from speakcare import speakcare_record_and_process_audio, speakcare_process_audio
 from speakcare_logging import create_logger
 
 load_dotenv()
@@ -22,11 +23,11 @@ DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 APP_PORT = os.getenv("APP_PORT", 5000)
 
 app = Flask(__name__)
-# Enable CORS only for localhost:4000
+# Enable CORS only for localhost:4000 and airtable.com
 CORS(app, resources={r"/*": {"origins": ["http://localhost:4000", "https://airtable.com"]}})
 
 app.logger = create_logger(__name__)
-#app.logger.setLevel('DEBUG')
+app.logger.setLevel('DEBUG')
 app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
 
@@ -362,7 +363,7 @@ class ProcessAudioResource(Resource):
         dryrun = bool(data.get('dryrun', False))
         
         app.logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
-        record_id, err = speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
+        record_id, err = speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
 
         if record_id:
             app.logger.info(f"Audio processed successfully. Record ID: {record_id}")
@@ -370,7 +371,48 @@ class ProcessAudioResource(Resource):
         else:
             app.logger.error(f"Error processing audio: {err}")
             return err, 400
+        
 
+audio_parser = api.parser()
+audio_parser.add_argument('audio_file', location='files', type=FileStorage, required=True, help='The audio file to be uploaded')
+audio_parser.add_argument('table_name', location='form', type=str, required=True, help='Name of the table to store converted data')
+
+
+@ns.route('/process-audio2')
+class ProcessAudioResource2(Resource):
+    @ns.doc('process_audio2')
+    @ns.expect(audio_parser)
+    def post(self):
+
+        # Get the file from the request
+        dirname = './out/audio'
+        args = audio_parser.parse_args()
+        audio_file = args['audio_file']
+        if audio_file and audio_file.filename == '':
+            return {'error': 'No file provided'}, 400
+        
+        # Secure the filename and save the file (modify as needed)
+        filename = secure_filename(audio_file.filename)
+        audio_local_filename = os.path.join(dirname, filename)
+        ensure_directory_exists(dirname)
+
+        # Get other form fields
+        table_name = args['table_name']
+
+        app.logger.debug(f"POST: process-audio received: audio_filename={audio_local_filename}, table_name={table_name}")
+        
+        audio_file.save(audio_local_filename)
+        app.logger.debug(f"Audio file saved as {audio_local_filename}")
+
+        # Now, you have both the audio file and the other data fields
+        record_id, err = speakcare_process_audio(audio_filename=audio_local_filename, table_name=table_name)
+        if record_id:
+            app.logger.info(f"Audio file {audio_local_filename} processed successfully. Record ID: {record_id}")
+            return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201
+        else:
+            app.logger.error(f"Error processing audio file {audio_local_filename}: {err}")
+            return err, 400
+       
 # Register the namespace with the API
 api.add_namespace(ns)
 

@@ -31,30 +31,24 @@ supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE,
 def get_supported_tables():
     return supported_tables
 
-def speakcare_process_audio(output_file_prefix:str="output", recording_duration:int=30, table_name:str=None, audio_device:int =None, dryrun: bool=False):
+def speakcare_process_audio(audio_filename:str, output_file_prefix:str="output", table_name:str=None, dryrun: bool=False):
     """
-    Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
+    Transcribe audio, convert transcription to EMR record
     """    
     # prepare file names
-    # Get the current UTC time
-    utc_now = datetime.now(timezone.utc)
-    # Format the datetime as a string without microseconds and timezone
-    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
-    recording_filename = f'{recordings_dir}/{output_file_prefix}.{utc_string}.wav'
-    transcription_filename = f'{transciptions_dir}/{output_file_prefix}.{utc_string}.txt'
-    json_filename = f'{jsons_dir}/{output_file_prefix}.{utc_string}.json'
+    transcription_filename = f'{transciptions_dir}/{output_file_prefix}.txt'
+    json_filename = f'{jsons_dir}/{output_file_prefix}.json'
 
     try:
-        # Step 1: Record Audio
-        logger.info(f"Recording audio from device index {audio_device} for {recording_duration} seconds into {recording_filename}")
-        recording = record_audio(device_index=audio_device, duration=recording_duration, output_filename=recording_filename)
-        if recording == 0:
-            err="Error occurred while recording audio."
+        # Step 1: Verify the audio file exists
+        if not os.path.isfile(audio_filename):
+            err = f"Audio file not found or not file type: {audio_filename}"
             logger.error(err)
             raise Exception(err)
+        
         # Step 2: Transcribe Audio (speech to text)
-        transcription = transcribe_audio(input_file=recording_filename, output_file=transcription_filename)
+        transcription = transcribe_audio(input_file=audio_filename, output_file=transcription_filename)
         if transcription == 0:
             err = "Error occurred while transcribing audio."
             logger.error(err)
@@ -71,6 +65,48 @@ def speakcare_process_audio(output_file_prefix:str="output", recording_duration:
         
         logger.info(f"Speakcare completed. EMR record created: {record_id}")
         return record_id, ""
+
+    except Exception as e:
+        logger.error(f"Error occurred while processing audio: {e}")
+        return None, {"error": str(e)}
+
+
+def speakcare_record_and_process_audio(output_file_prefix:str="output", recording_duration:int=30, table_name:str=None, audio_device:int =None, dryrun: bool=False):
+    """
+    Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
+    """    
+    # prepare file names
+    recording_filename = f'{recordings_dir}/{output_file_prefix}.wav'
+    #transcription_filename = f'{transciptions_dir}/{output_file_prefix}.txt'
+    #json_filename = f'{jsons_dir}/{output_file_prefix}.json'
+
+    try:
+        # Step 1: Record Audio
+        logger.info(f"Recording audio from device index {audio_device} for {recording_duration} seconds into {recording_filename}")
+        recording = record_audio(device_index=audio_device, duration=recording_duration, output_filename=recording_filename)
+        if recording == 0:
+            err="Error occurred while recording audio."
+            logger.error(err)
+            raise Exception(err)
+        # Step 2: Transcribe Audio (speech to text)
+        return speakcare_process_audio(audio_filename=recording_filename, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        # transcription = transcribe_audio(input_file=recording_filename, output_file=transcription_filename)
+        # if transcription == 0:
+        #     err = "Error occurred while transcribing audio."
+        #     logger.error(err)
+        #     raise Exception(err)
+
+        # # Step 3: Convert transcription to EMR record
+        # record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
+        #                                 table_name=table_name, dryrun=dryrun)
+        # if not record_id:
+        #     err = "Error occurred while converting transcription to EMR record."
+        #     logger.error(err)
+        #     raise Exception(err)
+        # # Step 2: Transcribe Audio
+        
+        # logger.info(f"Speakcare completed. EMR record created: {record_id}")
+        # return record_id, ""
 
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
@@ -125,7 +161,12 @@ def main():
     if dryrun:
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
-    speakcare_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
+    utc_now = datetime.now(timezone.utc)
+    # Format the datetime as a string without microseconds and timezone
+    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
+    output_file_prefix = f'{output_file_prefix}.{utc_string}'
+
+    speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
     EmrUtils.cleanup_db(delete_db_files=False)
 
 if __name__ == "__main__":
