@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AudioRecorder from './components/AudioRecorder';
 import axios from 'axios';
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
@@ -67,6 +68,11 @@ const App: React.FC = () => {
             <option key={index} value={device.index}>{device.name}</option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <h2>Speech Recorder</h2>
+        <AudioRecorder />
       </div>
 
       <button onClick={startListening} disabled={!selectedTable || !selectedDevice}>
