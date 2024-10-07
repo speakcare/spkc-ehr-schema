@@ -23,6 +23,7 @@
 ### System
 - [ ] Add run script to load all the processes
 - [x] Add sqlite db browser to the project
+- [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
 
 ### General
-- [ ] README file
+- [x] README file

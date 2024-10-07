@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 
-const AudioRecorder: React.FC = () => {
+interface AudioRecorderProps {
+  onAudioBlobReady: (audioBlob: Blob, fileName: string) => void;
+}
+
+const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0); // Timer state
@@ -16,24 +20,34 @@ const AudioRecorder: React.FC = () => {
     setIsPaused(false);
     setAudioChunks([]);
     setRecordingTime(0);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      setMediaRecorder(recorder);
+      recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+              setAudioChunks((prevChunks) => [...prevChunks, event.data]);
+              console.log('Audio chunk received:', event.data);
+        }
+      };
+      console.log('Starting recording:', recorder);
+      recorder.start(1000);
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    setMediaRecorder(recorder);
-
-    recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-            setAudioChunks((prevChunks) => [...prevChunks, event.data]);
-            console.log('Audio chunk received:', event.data);
-       }
-    };
-    console.log('Starting recording:', recorder);
-    recorder.start(1000);
-
-    // Start timer
-    timerRef.current = window.setInterval(() => {
-      setRecordingTime((prevTime) => prevTime + 1);
-    }, 1000);
+      // Start timer
+      timerRef.current = window.setInterval(() => {
+        setRecordingTime((prevTime) => prevTime + 1);
+      }, 1000);
+    } catch (error) {
+      if (error instanceof DOMException) {
+        // Now we know `error` is a DOMException, we can access name and message
+        console.error("Error starting recording:", error);
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+      } else {
+        // Fallback for other types of errors
+        console.error("Unknown error:", error);
+      }
+    }
   };
 
   // Pause the recording
@@ -76,36 +90,18 @@ const AudioRecorder: React.FC = () => {
                 const audioUrl = URL.createObjectURL(audioBlob);
                 console.log('Blob URL:', audioUrl);
                 setAudioUrl(audioUrl); // Set the audio URL for playback
+                onAudioBlobReady(audioBlob, 'recording.webm');
             } else {
                 console.error('Audio Blob is empty or corrupted');
             }
         };
+        
         mediaRecorder.stop();
         console.log('Recording stopped');
     }
   };
 
-  // Handle sending the recording to the backend
-  const sendToBackend = async () => {
-    if (audioChunks.length > 0) {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus'});
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'recording.webm');
-
-      // Replace with actual API endpoint later
-      const response = await fetch('YOUR_BACKEND_API_ENDPOINT', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        alert('Recording successfully sent to the backend!');
-      } else {
-        alert('Failed to send recording.');
-      }
-    }
-  };
-
+  
   // Format the timer for display
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -144,7 +140,6 @@ const AudioRecorder: React.FC = () => {
       {audioUrl && (
         <div>
           <audio controls src={audioUrl}></audio>
-          <button onClick={sendToBackend}>Update EMR</button>
         </div>
       )}
     </div>

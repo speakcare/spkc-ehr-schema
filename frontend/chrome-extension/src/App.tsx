@@ -4,16 +4,12 @@ import axios from 'axios';
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
 
-interface AudioDevice {
-  name: string;
-  index: string;
-}
 
 const App: React.FC = () => {
   const [tables, setTables] = useState<string[]>([]);
-  const [devices, setDevices] = useState<AudioDevice[]>([]);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioFileName, setAudioFileName] = useState<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<string>('');
-  const [selectedDevice, setSelectedDevice] = useState<string>('');
 
   // Fetch EMR tables
   useEffect(() => {
@@ -24,28 +20,35 @@ const App: React.FC = () => {
       .catch(error => console.error("Error fetching tables:", error));
   }, []);
 
-  // Fetch audio devices
-  useEffect(() => {
-    axios.get(`${apiBaseUrl}/api/audio-devices`)
-      .then(response => setDevices(response.data))
-      .catch(error => console.error("Error fetching devices:", error));
-  }, []);
-
-  // Handle "Start Listening" button click
-  const startListening = () => {
-    const audioDeviceIndex = parseInt(selectedDevice, 10);
-    axios.post(`${apiBaseUrl}/api/process-audio`, {
-      table_name: selectedTable,
-      audio_device: audioDeviceIndex
-    })
-    .then(response => {
-      console.log("Audio processing started:", response.data);
-    })
-    .catch(error => {
-      console.error("Error starting audio processing:", error);
-    });
+  const updateEmr = async (formData: FormData) => {
+    try {
+      const response = await axios.post(`${apiBaseUrl}/api/process-audio2`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      console.log('Response from backend:', response.data);
+    } catch (error) {
+      console.error('Error sending data to backend:', error);
+    }
   };
 
+  const handleAudioBlobReady = (blob: Blob, fileName: string) => {
+    setAudioBlob(blob);
+    setAudioFileName(fileName);
+  };
+
+  const handleUpdateEMR = () => {
+    if (audioBlob && selectedTable && audioFileName) {
+      const formData = new FormData();
+      formData.append('audio_file', audioBlob, audioFileName);
+      formData.append('table_name', selectedTable);
+      updateEmr(formData);
+      setAudioBlob(null); // Reset the audio blob
+    }
+  };
+
+  
   return (
     <div>
       <h1>SpeakCare</h1>
@@ -61,23 +64,12 @@ const App: React.FC = () => {
       </div>
 
       <div>
-        <label htmlFor="device-select">Select Audio Device:</label>
-        <select id="device-select" value={selectedDevice} onChange={e => setSelectedDevice(e.target.value)}>
-          <option value="">Select a device</option>
-          {devices.map((device, index) => (
-            <option key={index} value={device.index}>{device.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
         <h2>Speech Recorder</h2>
-        <AudioRecorder />
-      </div>
-
-      <button onClick={startListening} disabled={!selectedTable || !selectedDevice}>
-        Start Listening
+        <AudioRecorder onAudioBlobReady={handleAudioBlobReady} />
+        <button onClick={handleUpdateEMR} disabled={!audioBlob || !selectedTable}>
+          Update EMR
       </button>
+      </div>
     </div>
   );
 };
