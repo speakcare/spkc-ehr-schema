@@ -8,6 +8,7 @@
 - [ ] Support deletion of EMR records
 - [ ] Supprot deletion of db records and if connected to EMR delete from EMR
 
+
 ### EMR utils
 - [x] work on utils to finish the create record and update record
 - [x] Add support for records with sections in utils and in create records
@@ -18,12 +19,14 @@
 - [ ] Handle cases of repeated information in the same transcript
 
 ### User app
-- [ ] Add browser extension
+- [x] Add browser extension
+- [ ] Make browser extension look nice
 
 ### System
 - [ ] Add run script to load all the processes
 - [x] Add sqlite db browser to the project
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
+- [ ] Change GPT API to use the new structured output using pydantic
 
 ### General
 - [x] README file
