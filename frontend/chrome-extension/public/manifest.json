@@ -1,9 +1,9 @@
 {
-  "short_name": "speakcare",
-  "name": "SpeakCare nursing speech to EMR",
+  "short_name": "SpeakCare",
+  "name": "SpeakCare - speech to EMR",
   "version": "0.1.0",
   "manifest_version": 3,
-  "description": "A Chrome extension recording nurse interaction with patient and converting into EMR charts.",
+  "description": "Recording nurse interaction with patient and converting into EMR charts.",
   "icons": {
     "16": "icons/speakcare-icon-16.png",     
     "48": "icons/speakcare-icon-48.png",      
