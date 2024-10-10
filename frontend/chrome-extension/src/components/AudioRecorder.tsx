@@ -1,20 +1,30 @@
 import React, { useState, useRef } from 'react';
+import { Button, Box, Typography, IconButton } from '@mui/material';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import StopIcon from '@mui/icons-material/Stop';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+
+
+// interface AudioRecorderProps {
+//   onAudioBlobReady: (audioBlob: Blob, fileName: string) => void;
+// }
 
 interface AudioRecorderProps {
-  onAudioBlobReady: (audioBlob: Blob, fileName: string) => void;
+  audioType: string;
+  onAudioBlobReady: (audioBlob: Blob) => void;
 }
 
-const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
+const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, onAudioBlobReady }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0); // Timer state
-  const [audioUrl, setAudioUrl] = useState<string | null>(null); // URL for recorded audio
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]); // Array to hold audio data chunks
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
-  const timerRef = useRef<number | null>(null); // Timer reference
+  const timerRef = useRef<number | null>(null);
 
-  // Function to handle starting the recording
   const startRecording = async () => {
     setIsRecording(true);
     setIsPaused(false);
@@ -22,41 +32,36 @@ const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
     setRecordingTime(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, { mimeType: audioType });
       setMediaRecorder(recorder);
       recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-              setAudioChunks((prevChunks) => [...prevChunks, event.data]);
-              console.log('Audio chunk received:', event.data);
+        if (event.data && event.data.size > 0) {
+          setAudioChunks((prevChunks) => [...prevChunks, event.data]);
+          console.log('Audio chunk received:', event.data);
         }
       };
       console.log('Starting recording:', recorder);
-      recorder.start(1000);
-
+      recorder.start(500);
       // Start timer
       timerRef.current = window.setInterval(() => {
         setRecordingTime((prevTime) => prevTime + 1);
       }, 1000);
     } catch (error) {
+      console.error("Error starting recording:", error);
       if (error instanceof DOMException) {
         // Now we know `error` is a DOMException, we can access name and message
-        console.error("Error starting recording:", error);
         console.error("Error name:", error.name);
         console.error("Error message:", error.message);
-      } else {
-        // Fallback for other types of errors
-        console.error("Unknown error:", error);
       }
     }
   };
 
-  // Pause the recording
   const pauseRecording = () => {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       mediaRecorder.pause();
       setIsPaused(true);
       if (timerRef.current) {
-        clearInterval(timerRef.current); // Stop timer when paused
+        clearInterval(timerRef.current);
       }
     }
   };
@@ -66,7 +71,6 @@ const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
     if (mediaRecorder && mediaRecorder.state === 'paused') {
       mediaRecorder.resume();
       setIsPaused(false);
-
       timerRef.current = window.setInterval(() => {
         setRecordingTime((prevTime) => prevTime + 1);
       }, 1000);
@@ -76,32 +80,29 @@ const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
   // Stop recording
   const stopRecording = () => {
     if (mediaRecorder) {
-        mediaRecorder.requestData();  
-        setIsRecording(false);
-        setIsPaused(false);
-        if (timerRef.current) {
-            clearInterval(timerRef.current); // Stop timer when recording stops
+      mediaRecorder.requestData();
+      setIsRecording(false);
+      setIsPaused(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: audioType });
+        console.log('Audio Blob:', audioBlob);
+        if (audioBlob.size > 0) {
+          const audioUrl = URL.createObjectURL(audioBlob);
+          console.log('Blob URL:', audioUrl);
+          setAudioUrl(audioUrl);
+          onAudioBlobReady(audioBlob);
+        } else {
+          console.error('Audio Blob is empty or corrupted');
         }
-
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
-            console.log('Audio Blob:', audioBlob);
-            if (audioBlob.size > 0) {
-                const audioUrl = URL.createObjectURL(audioBlob);
-                console.log('Blob URL:', audioUrl);
-                setAudioUrl(audioUrl); // Set the audio URL for playback
-                onAudioBlobReady(audioBlob, 'recording.webm');
-            } else {
-                console.error('Audio Blob is empty or corrupted');
-            }
-        };
-        
-        mediaRecorder.stop();
-        console.log('Recording stopped');
+      };
+      mediaRecorder.stop();
+      console.log('Recording stopped');
     }
   };
 
-  
   // Format the timer for display
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -110,39 +111,39 @@ const AudioRecorder: React.FC<AudioRecorderProps>  = ({ onAudioBlobReady }) => {
   };
 
   return (
-    <div>
-      <div>
-        <button onClick={startRecording} disabled={isRecording}>
-          Start Recording {isRecording && !isPaused && <span>🔴</span>}
-        </button>
-
+    <Box sx={{ marginBottom: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {!isRecording && (
+          <Button variant="contained" color="primary" onClick={startRecording} startIcon={<FiberManualRecordIcon />}>
+            Start Recording
+          </Button>
+        )}
         {isRecording && !isPaused && (
-          <button onClick={pauseRecording}>
-            Pause Recording
-          </button>
+          <IconButton color="secondary" onClick={pauseRecording}>
+            <PauseIcon />
+          </IconButton>
         )}
-
         {isPaused && (
-          <button onClick={resumeRecording}>
-            Resume Recording
-          </button>
+          <IconButton color="secondary" onClick={resumeRecording}>
+            <PlayArrowIcon />
+          </IconButton>
         )}
-
         {isRecording && (
-          <button onClick={stopRecording}>
-            Stop Recording
-          </button>
+          <IconButton color="error" onClick={stopRecording}>
+            <StopIcon />
+          </IconButton>
         )}
-
-        <div>Recording Time: {formatTime(recordingTime)}</div>
-      </div>
+      </Box>
+      <Typography variant="body1" sx={{ marginTop: 1 }}>
+        Recording Time: {formatTime(recordingTime)}
+      </Typography>
 
       {audioUrl && (
-        <div>
+        <Box sx={{ marginTop: 2 }}>
           <audio controls src={audioUrl}></audio>
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 

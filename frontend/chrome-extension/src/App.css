@@ -1,3 +1,17 @@
+#root {
+  width: 380px;       /* Set fixed width */
+  height: 510px;      /* Set fixed height */
+  padding: 0px;      /* Add padding */
+  margin: 0px;       /* Add margin */
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: white;
+  overflow-y: auto;   /* Allow vertical scroll if content overflows */
+  border-radius: 16px;  /* Rounded corners */
+  border: 1px solid #ccc; /*Optional border for better visual effect */
+  box-shadow: '0px 4px 10px rgba(0, 0, 0, 0.1)';
+}
+
 .App {
   text-align: center;
 }
