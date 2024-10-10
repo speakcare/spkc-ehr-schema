@@ -77,8 +77,6 @@ def speakcare_record_and_process_audio(output_file_prefix:str="output", recordin
     """    
     # prepare file names
     recording_filename = f'{recordings_dir}/{output_file_prefix}.wav'
-    #transcription_filename = f'{transciptions_dir}/{output_file_prefix}.txt'
-    #json_filename = f'{jsons_dir}/{output_file_prefix}.json'
 
     try:
         # Step 1: Record Audio
@@ -90,24 +88,7 @@ def speakcare_record_and_process_audio(output_file_prefix:str="output", recordin
             raise Exception(err)
         # Step 2: Transcribe Audio (speech to text)
         return speakcare_process_audio(audio_filename=recording_filename, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
-        # transcription = transcribe_audio(input_file=recording_filename, output_file=transcription_filename)
-        # if transcription == 0:
-        #     err = "Error occurred while transcribing audio."
-        #     logger.error(err)
-        #     raise Exception(err)
-
-        # # Step 3: Convert transcription to EMR record
-        # record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
-        #                                 table_name=table_name, dryrun=dryrun)
-        # if not record_id:
-        #     err = "Error occurred while converting transcription to EMR record."
-        #     logger.error(err)
-        #     raise Exception(err)
-        # # Step 2: Transcribe Audio
-        
-        # logger.info(f"Speakcare completed. EMR record created: {record_id}")
-        # return record_id, ""
-
+    
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
         return None, {"error": str(e)}
