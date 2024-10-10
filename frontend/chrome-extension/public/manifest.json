@@ -5,13 +5,17 @@
   "manifest_version": 3,
   "description": "A Chrome extension recording nurse interaction with patient and converting into EMR charts.",
   "icons": {
-    "16": "favicon.ico",     
-    "48": "logo192.png",      
-    "128": "logo512.png"      
+    "16": "icons/speakcare-icon-16.png",     
+    "48": "icons/speakcare-icon-48.png",      
+    "128": "icons/speakcare-icon-128.png"      
   },
   "action": {
     "default_popup": "index.html",
-    "default_icon": "favicon.ico"
+    "default_icon": {
+      "16": "icons/speakcare-icon-16.png",     
+      "48": "icons/speakcare-icon-48.png",      
+      "128": "icons/speakcare-icon-128.png"      
+    }
   },
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
