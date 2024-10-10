@@ -1,23 +1,26 @@
 {
   "short_name": "SpeakCare",
   "name": "SpeakCare - speech to EMR",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "manifest_version": 3,
   "description": "Recording nurse interaction with patient and converting into EMR charts.",
   "icons": {
-    "16": "icons/speakcare-icon-16.png",     
-    "48": "icons/speakcare-icon-48.png",      
-    "128": "icons/speakcare-icon-128.png"      
+    "16": "icons/speakcare-icon-16.png",
+    "48": "icons/speakcare-icon-48.png",
+    "128": "icons/speakcare-icon-128.png"
   },
   "action": {
     "default_popup": "index.html",
     "default_icon": {
-      "16": "icons/speakcare-icon-16.png",     
-      "48": "icons/speakcare-icon-48.png",      
-      "128": "icons/speakcare-icon-128.png"      
+      "16": "icons/speakcare-icon-16.png",
+      "48": "icons/speakcare-icon-48.png",
+      "128": "icons/speakcare-icon-128.png"
     }
   },
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "http://localhost:3000/*",
     "https://airtable.com/appRFbM7KJ2QwCDb6/*"
