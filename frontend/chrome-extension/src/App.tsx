@@ -3,9 +3,12 @@ import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typograph
 import AudioRecorder from './components/AudioRecorder';
 import axios from 'axios';
 import './App.css';
+import { refreshCurrentTab, dispatchVisibilityChangeEvent } from './utils';
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
+const isExtension = process.env.REACT_APP_IS_EXTENSION === 'true';
+console.log('Running in extension mode:', isExtension);
 
 const App: React.FC = () => {
   const [tables, setTables] = useState<string[]>([]);
@@ -45,6 +48,10 @@ const App: React.FC = () => {
       });
       setAudioBlob(null);
       console.log('Response from backend:', response.data);
+      if (isExtension) {
+        // refresh the EHR page so we can see the new data
+        dispatchVisibilityChangeEvent();
+      }
     } catch (error) {
       console.error('Error sending data to backend:', error);
     }
