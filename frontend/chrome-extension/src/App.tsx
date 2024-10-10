@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent } from '@mui/material';
+import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent, CircularProgress } from '@mui/material';
 import AudioRecorder from './components/AudioRecorder';
 import axios from 'axios';
 import './App.css';
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [tables, setTables] = useState<string[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [selectedTable, setSelectedTable] = useState<string>('');
+  const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
   const audioType = 'audio/webm; codecs=opus';
   const audioFileName = 'recording.webm';
 
@@ -39,7 +40,7 @@ const App: React.FC = () => {
     const formData = new FormData();
     formData.append('audio_file', audioBlob, audioFileName ?? 'recording.webm'); // Append the audio file with a filename
     formData.append('table_name', selectedTable); // Append the table name
-  
+    setEhrUpdating(true);
     try {
       const response = await axios.post(`${apiBaseUrl}/api/process-audio2`, formData, {
         headers: {
@@ -55,6 +56,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Error sending data to backend:', error);
     }
+    setEhrUpdating(false);
   };
   
 
@@ -94,9 +96,9 @@ const App: React.FC = () => {
         fullWidth 
         onClick={updateEmr} 
         sx={{ marginTop: 3 }}
-        disabled={!audioBlob || !selectedTable}
+        disabled={!audioBlob || !selectedTable || ehrUpdating}
       >
-        Update EHR
+        {ehrUpdating ? <CircularProgress size={24} /> : 'Update EHR'}
       </Button>
     </Container>
   );
