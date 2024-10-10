@@ -1,4 +1,5 @@
 import openai
+#from openai import OpenAI
 import argparse
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -10,15 +11,27 @@ from speakcare_logging import create_logger
 logger = create_logger(__name__)
 load_dotenv()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
 # Set your OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 #openai.api_key = 'your-api-key'
+
+# New OpenAI API - not yet working
+# client = OpenAI()
+
+# transcript = client.audio.transcriptions.create(
+#   model="whisper-1", 
+#   file=audio_file
+# )
 
 def transcribe_audio(input_file="output.wav", output_file="output.txt"):
 
     transcript = None
+    #client = OpenAI()
+
     try:
         with open(input_file, "rb") as audio_file:
+     #       transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+
             transcript = openai.Audio.transcribe(model= "whisper-1", file=audio_file)
 
         # write the transcript to a text file
