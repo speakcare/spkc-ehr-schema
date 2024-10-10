@@ -104,41 +104,29 @@ def main():
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
     list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
-    args, remaining_args = list_parser.parse_known_args()
-    if args.list_devices:
+    list_args, remaining_args = list_parser.parse_known_args()
+    if list_args.list_devices:
         print_input_devices()
         exit(0)
 
-    full_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', parents=[list_parser])
-    full_parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
-    full_parser.add_argument('-o', '--output-prefix', type=str, default="output", help='Output file prefix (default: output)')
-    full_parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
-    full_parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
-    full_parser.add_argument('-a', '--audio-device', type=int, required=True, help='Audio device index (required)')
+    basic_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')#, parents=[list_parser])
+    basic_parser.add_argument('-o', '--output-prefix', type=str, default="output", help='Output file prefix (default: output)')
+    basic_parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
+    basic_parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
+    basic_parser.add_argument('-i', '--input-recording', type=str, help='Name of input recording file to process. If provided we skip the recording and use this file instead.')
 
-    args = full_parser.parse_args()
+    basic_args, remaining_args = basic_parser.parse_known_args(remaining_args)
 
     output_file_prefix = "output"
-    if args.output_prefix:
-        output_file_prefix = args.output_prefix
+    if basic_args.output_prefix:
+        output_file_prefix = basic_args.output_prefix
     
-    recording_duration = 30
-    if args.seconds:
-        recording_duration = args.seconds
-
-    audio_device = args.audio_device
-    if not check_input_device(audio_device):
-        print("Please provide a valid device index (-a | --audio-device) to record audio.")
-        print_audio_devices()
-        exit(1)
-    
-    
-    table_name = args.table
+    table_name = basic_args.table
     if table_name not in supported_tables:
         logger.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
         exit(1)
     
-    dryrun = args.dryrun
+    dryrun = basic_args.dryrun
     if dryrun:
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
@@ -147,6 +135,29 @@ def main():
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
     output_file_prefix = f'{output_file_prefix}.{utc_string}'
 
+    if basic_args.input_recording:
+        # Process the provided audio file and exit
+        record_id, error = speakcare_process_audio(audio_filename=basic_args.input_recording, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        EmrUtils.cleanup_db(delete_db_files=False)
+        exit(0)
+
+
+    recording_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')#, parents=[list_parser, basic_parser])
+    recording_parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
+    recording_parser.add_argument('-a', '--audio-device', type=int, required=True, help='Audio device index (required)')
+
+    recordinng_args = recording_parser.parse_args(remaining_args)
+
+    recording_duration = 30
+    if recordinng_args.seconds:
+        recording_duration = recordinng_args.seconds
+
+    audio_device = recordinng_args.audio_device
+    if not check_input_device(audio_device):
+        print("Please provide a valid device index (-a | --audio-device) to record audio.")
+        print_audio_devices()
+        exit(1)
+    
     speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
     EmrUtils.cleanup_db(delete_db_files=False)
 

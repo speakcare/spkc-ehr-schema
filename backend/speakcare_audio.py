@@ -80,9 +80,10 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
         #     error = f"Sample format {sample_format} not supported by input device {device_index}"
         #     raise Exception(error)
         frames = [] 
-        logger.info(f'Recording device index: {device_index} for {duration} seconds into {output_filename}')
-        logger.info(f"Calling audio.open(format={pyaudio.paInt16}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
-        stream = audio.open(format=pyaudio.paInt16,
+        max_file_size = fs * duration * channels * audio.get_sample_size(sample_format)
+        logger.info(f'Recording device index: {device_index} for {duration} seconds into {output_filename}, maximum file size: {max_file_size} bytes')
+        logger.info(f"Calling audio.open(format={sample_format}, channels={channels}, rate={fs}, input=True, input_device_index={device_index}, frames_per_buffer={samples_per_chunk})")
+        stream = audio.open(format=sample_format,
                         channels=channels,
                         rate=fs,
                         input=True,
@@ -97,7 +98,8 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
 
         silence_start = None
         recording_length = 0
-
+        total_bytes = 0
+        
         with wave.open(output_filename, 'wb') as wf:
             wf.setnchannels(channels)
             wf.setsampwidth(audio.get_sample_size(sample_format))
@@ -116,6 +118,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
                         logger.debug("Sound detected, resuming recording...")
 
                     frames.append(data)
+                    total_bytes += len(data)
                     if len(frames) >= 10000:
                         wf.writeframes(b''.join(frames))
                         logger.debug(f"Writing {len(frames)} frames to {output_filename}")
@@ -129,13 +132,12 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
                     if time.time() - silence_start > max_silence:
                         logger.info(f"Silence detected for more than {max_silence} seconds, stopping recording.")
                         break
-
-                    #time.sleep(0.01)  # Sleep for 0.1 seconds to reduce CPU usage
-
                 
                 # Check if the recording duration has been reached
-                if wf.tell() >= fs * duration * channels * audio.get_sample_size(sample_format):
+                if total_bytes >= max_file_size:
+                    logger.info(f"Maximum file size reached: {max_file_size} bytes")
                     break
+
             if len(frames) > 0:
                 wf.writeframes(b''.join(frames))
                 logger.debug(f"Writing {len(frames)} frames to {output_filename}")
