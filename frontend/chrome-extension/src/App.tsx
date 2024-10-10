@@ -3,7 +3,7 @@ import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typograph
 import AudioRecorder from './components/AudioRecorder';
 import axios from 'axios';
 import './App.css';
-import { refreshCurrentTab, dispatchVisibilityChangeEvent } from './utils';
+import { dispatchVisibilityChangeEvent } from './utils';
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
