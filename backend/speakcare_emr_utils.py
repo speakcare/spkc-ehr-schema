@@ -205,7 +205,6 @@ class EmrUtils:
         if not isValid:
             _state = RecordState.ERRORS
 
-        # TODO: validate sections
         if sections and table_name in SpeakCareEmr.TABLE_SECTIONS:  
             for section in sections:
                 section_name = section.get('table_name', None)
@@ -562,8 +561,8 @@ class EmrUtils:
                         section_fields = section.get('fields', None)
                         if section_name and section_fields:
                             emr_record, url, err = emr_api.create_assessment_section(sectionTableName=section_name, record=section_fields, 
-                                                              assessmentId=record.emr_record_id, createdByNurseEmrId=nurseEmrId, 
-                                                              errors=errors)
+                                                                                     patientEmrId=patientEmrId, assessmentId=record.emr_record_id, 
+                                                                                     createdByNurseEmrId=nurseEmrId, errors=errors)
                             if not emr_record:
                                 raise ValueError(f"Failed to create assessment section '{section_name} fields: '{section_fields}' in assessment {table_name}. Error: {err}")
             else:

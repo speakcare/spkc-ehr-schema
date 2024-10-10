@@ -18,22 +18,24 @@ AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 class SpeakCareEmr:
 
     # Table names
-
+    #TODO: load tables dynamically from the API
     ### People ###
     PATIENTS_TABLE = 'Patients'
     NURSES_TABLE = 'Nurses'
     DOCTORS_TABLE = 'Doctors'
     
     ### Medical Records ###
+    VITALS_TABLE = 'Vitals'
     WEIGHTS_TABLE = 'Weights'
     BLOOD_PRESSURES_TABLE = 'Blood Pressures'
     BLOOD_SUGARS_TABLE = 'Blood Sugars'
     HEIGHTS_TABLE = 'Heights'
     TEMPERATURES_TABLE = 'Temperatures'
     O2_SATURATIONS_TABLE = 'O2 Saturations'
+    PULSES_TABLE = 'Pulses'
+    RESPIRATION_TABLE = 'Respiration'
     EPISODES_TABLE = 'Episodes'
     PROGRESS_NOTES_TABLE = 'Progress Notes'
-    PULSES_TABLE = 'Pulses'
 
     ### Assessments ###
     # Admission
@@ -44,7 +46,7 @@ class SpeakCareEmr:
     ADMISSION_SECTION_PHYSICAL_TABLE      = 'Admission: SECTION 4. PHYSICAL / ADL /COMMUNICATION STATUS'
     ADMISSION_SECTION_BOWEL_BLADDER_TABLE = 'Admission: SECTION 5. BOWEL-BLADDER EVALUATION'
     ADMISSION_SECTION_PSYCHOSOCIAL_TABLE  = 'Admission: SECTION 6. PSYCHOSOCIAL ASPECTS'
-    ADMISSION_SECTION_DISCHARGE_TABLE     = 'Admission: SECTION 7. SECTION 7. DISCHARGE EVALUATION'
+    ADMISSION_SECTION_DISCHARGE_TABLE     = 'Admission: SECTION 7. DISCHARGE EVALUATION'
     ADMISSION_SECTION_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
 
     # Fall Risk Screen
@@ -60,10 +62,12 @@ class SpeakCareEmr:
         TEMPERATURES_TABLE,
         O2_SATURATIONS_TABLE,
         PULSES_TABLE,
+        RESPIRATION_TABLE,
         EPISODES_TABLE, 
         PROGRESS_NOTES_TABLE,
         ADMISSION_TABLE,
-        FALL_RISK_SCREEN_TABLE
+        FALL_RISK_SCREEN_TABLE,
+        VITALS_TABLE
     ]
 
     TABLE_SECTIONS = { 
@@ -74,9 +78,21 @@ class SpeakCareEmr:
                 ADMISSION_SECTION_PHYSICAL_TABLE, 
                 ADMISSION_SECTION_BOWEL_BLADDER_TABLE, 
                 ADMISSION_SECTION_PSYCHOSOCIAL_TABLE,
+                ADMISSION_SECTION_DISCHARGE_TABLE,
                 ADMISSION_SECTION_FACILITY_TABLE
             ],            
-            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE]
+            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
+            VITALS_TABLE: [
+                WEIGHTS_TABLE,
+                BLOOD_PRESSURES_TABLE,
+                BLOOD_SUGARS_TABLE,
+                HEIGHTS_TABLE,
+                TEMPERATURES_TABLE,
+                O2_SATURATIONS_TABLE,
+                PULSES_TABLE
+            ]
+
+
     }
 
     METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
@@ -343,11 +359,11 @@ class SpeakCareEmr:
         record['SpeakCare'] = 'Draft'
         status = record.get('Status')
         if not status:
-            record['Status'] = 'In Progress'
+            record['Status'] = 'In progress'
         record, url = self.create_record(assessmentTableName, record)
         return record, url, None
     
-    def create_assessment_section(self, sectionTableName, record, 
+    def create_assessment_section(self, sectionTableName, record, patientEmrId,
                                   assessmentId, createdByNurseEmrId, errors=[]):
         
         isValidRecord, valid_fields = self.validate_record(tableName=sectionTableName, record=record, errors=errors)
@@ -357,6 +373,7 @@ class SpeakCareEmr:
             self.logger.error(err_msg)
             return None, None, err_msg         
 
+        record['Patient'] = [patientEmrId]
         record['ParentRecord'] = [assessmentId]
         record['CreatedBy'] = [createdByNurseEmrId]
         record, url = self.create_record(sectionTableName, record)

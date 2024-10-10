@@ -132,14 +132,14 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "Total score": 19
     }
     assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
-                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
+                                                                   patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     if not assessSection1Record:
         logger.error(f'Correctly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')
 
     # fix the error
     fallRiskSectionRecord['VISION STATUS'] = "POOR (with or without glasses) (2 points)"
     assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
-                                                         assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
+                                                                   patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     
     if not assessSection1Record:
         logger.error(f'Wrongly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')

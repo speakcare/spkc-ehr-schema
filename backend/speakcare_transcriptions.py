@@ -188,7 +188,7 @@ def create_emr_record(data: dict, dryrun=False) -> int:
     record['nurse_name'] = "Rebecca Jones"
     
     # handle table with sections
-    if table_name in [SpeakCareEmr.ADMISSION_TABLE, SpeakCareEmr.FALL_RISK_SCREEN_TABLE]:
+    if table_name in [SpeakCareEmr.ADMISSION_TABLE, SpeakCareEmr.FALL_RISK_SCREEN_TABLE, SpeakCareEmr.VITALS_TABLE]:
         assessment_name = table_name
         # This is an assessment table we need to handle sections as well
         record['type'] = 'ASSESSMENT'

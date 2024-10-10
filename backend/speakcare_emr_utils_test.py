@@ -586,6 +586,115 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['Status'], "Completed")
         self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
   
+    def test_record_create_vitals_commit_and_sign(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.VITALS_TABLE,
+            "patient_name": "Bob Williams",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P003",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+
+        rescord_sections = [
+            {
+                "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+                "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+            },
+            {
+                "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
+                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting Left Arm", "Notes": "no answer"}
+            },
+            {
+                "table_name": SpeakCareEmr.TEMPERATURES_TABLE,
+                "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+            },
+            {
+                "table_name": SpeakCareEmr.HEIGHTS_TABLE,
+                "fields": {"Height": 168, "Units": "Centimeters", "Method": "Wing span"}
+            }
+        ]
+        record_data['sections'] = rescord_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(len(record.sections), 4)  
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Status'], "New")
+
+        # Check the blood pressure section
+        self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
+        sectionEmrId = emr_record['fields']['Blood Pressure'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.BLOOD_PRESSURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
+        self.assertEqual(section_emr_record['fields']['Diastolic'], 85)
+        self.assertEqual(section_emr_record['fields']['Position'], "Sitting Left Arm")
+        self.assertEqual(section_emr_record['fields']['Notes'], "no answer")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the temperature section
+        # "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+        self.assertIsNotNone(emr_record['fields']['Temperature'])
+        sectionEmrId = emr_record['fields']['Temperature'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.TEMPERATURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Degrees'], 99.9)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Fahrenheit")
+        self.assertEqual(section_emr_record['fields']['Route'], "Oral")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the weight section
+        # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+        self.assertIsNotNone(emr_record['fields']['Weight'])
+        sectionEmrId = emr_record['fields']['Weight'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.WEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Weight'], 120)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Lbs")
+        self.assertEqual(section_emr_record['fields']['Scale'], "Bath")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the height section
+        self.assertIsNotNone(emr_record['fields']['Height'])
+        sectionEmrId = emr_record['fields']['Height'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.HEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Height'], 168)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Centimeters")
+        self.assertEqual(section_emr_record['fields']['Method'], "Wing span")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+
+        self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
+
+        EmrUtils.sign_assessgment(record_id)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertEqual(emr_record['fields']['Status'], "Completed")
+        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+  
+
 
     def test_record_create_and_commit_record(self):
                 # Create a record example
@@ -625,6 +734,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
         self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
+
 
 
     def test_record_create_and_commit_blood_pressure(self):
