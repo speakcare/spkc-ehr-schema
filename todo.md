@@ -21,6 +21,7 @@
 ### User app
 - [x] Add browser extension
 - [x] Make browser extension look nice
+- [ ] Check why extension microphone permission is not requersted automatically
 
 ### System
 - [ ] Add run script to load all the processes
