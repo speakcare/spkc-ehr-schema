@@ -3,7 +3,7 @@ from datetime import datetime
 from airtable_schema import AirtableSchema, FieldTypes
 import json
 
-class TestEmrTableSchema(unittest.TestCase):
+class TestSchema(unittest.TestCase):
 
     def setUp(self):
         self.valid_schema = {
@@ -203,8 +203,126 @@ class TestEmrTableSchema(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation error for field 'Route': Multi select validation error: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
-        self.assertEqual(len(errors), 1)         
+        self.assertTrue("Validation warning for field 'Route': Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        # check the route includes only valid values
+        self.assertEqual(valid_fields["Route"], ["Tympanic", "Axilla", "Rectal"])
+
+    def test_validate_multi_select_incorrect_required_values(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
+                {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}, "description": "required"}
+            ]
+        })
+        record = {
+            "Temperature": 37,
+            "Units": "Celsius",
+            "Route": ["Tympanic", "Axilla", "Forehead", "Rectal"]
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation warning for field 'Route': Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(valid_fields["Route"], ["Tympanic", "Axilla", "Rectal"])
+
+    def test_validate_multi_select_incorrect_multiple_values(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
+                {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}, "description": "required"}
+            ]
+        })
+        record = {
+            "Temperature": 37,
+            "Units": "Celsius",
+            "Route": ["Tympanic", "Ear", "Axilla", "Forehead", "Rectal", "Mouth"]
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation warning for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(valid_fields["Route"], ["Tympanic", "Axilla", "Rectal"]) 
+
+    def test_validate_multi_select_no_valid_values(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
+                {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}}
+            ]
+        })
+        record = {
+            "Temperature": 37,
+            "Units": "Celsius",
+            "Route": ["Ear", "Forehead", "Mouth"]
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        self.assertIsNone(valid_fields.get("Route", None))
+
+    def test_validate_multi_select_no_valid_required_values(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
+                {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}, "description": "required"}
+            ]
+        })
+        record = {
+            "Temperature": 37,
+            "Units": "Celsius",
+            "Route": ["Ear", "Forehead", "Mouth"]
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_valid)
+        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        self.assertIsNone(valid_fields.get("Route", None))
+        
+
+    def test_validate_multi_select_not_a_list_required(self):
+        schema = AirtableSchema("temperatureRecord", {
+            "name": "temperatureRecord",
+            "fields": [
+                {"name": "Units", "type": 'singleSelect', "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": 'number', "options":{"precision": "1"}},
+                {"name": "Route", "type": 'multipleSelects', "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}, "description": "required"}
+            ]
+        })
+        record = {
+            "Temperature": 37,
+            "Units": "Celsius",
+            "Route": "Tympanic"
+        }
+        errors = []
+        is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
+        self.assertFalse(is_valid)
+        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Argumment 'Tympanic' is not a valid multi select list option." in errors[0], errors[0])
+        self.assertEqual(len(errors), 1)
+        self.assertIsNone(valid_fields.get("Route", None))
 
     def test_validate_date_correct_value(self):
         schema = AirtableSchema("testSchema", {
@@ -392,7 +510,7 @@ class TestEmrTableSchema(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a currency." in errors[0])
+        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a float." in errors[0])
 
     def test_validate_currency_incorrect_required_value(self):
         schema = AirtableSchema("testSchema", {
@@ -405,7 +523,7 @@ class TestEmrTableSchema(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a currency." in errors[0])        
+        self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a float." in errors[0], errors[0])        
 
 if __name__ == '__main__':
     unittest.main()

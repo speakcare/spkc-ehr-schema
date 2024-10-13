@@ -95,8 +95,7 @@ class AirtableSchema:
     
     def get_name(self):
         return self.table_name
-    
-    
+        
     def validate_record(self, record,  errors, checkRequired: bool=True):
         """
         Takes a record and validates that it adheres to this schema
@@ -121,9 +120,13 @@ class AirtableSchema:
                     field_info = self.__field_registry[field_name]
                     field_type = FieldTypes(field_info["type"])
                     field_options = field_info["options"]
-                    is_field_valid, error_message = self.__validate_field(field_type, field_value, field_options)
-                    if is_field_valid:
-                        validated_fields[field_name] = field_value
+                    validated_value, error_message = self.__validate_field(field_type, field_value, field_options)
+                    if validated_value is not None:
+                        validated_fields[field_name] = validated_value
+                        if error_message:
+                            error_message = f"Validation warning for field '{field_name}': {error_message}"
+                            self.logger.warning(error_message)
+                            errors.append(error_message)
                     else:
                         error_message = f"Validation error for field '{field_name}': {error_message}"
                         self.logger.error(error_message)
@@ -163,11 +166,11 @@ class AirtableSchema:
             else:
                 error_message = f"No validation function found for field type '{field_type}'."
                 self.logger.error(error_message)
-                return False, error_message
+                return None, error_message
         except Exception as e:
             error_message = f"Validation function error: {e}"
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
 
     def __create_field_schema(self, field_type: FieldTypes, airtable_schema: dict):
         global _field_schema_registry
@@ -200,14 +203,14 @@ class AirtableSchema:
         """
         try:
             if isinstance(value, (int, float)):
-                return True, ""
+                return value, ""
 
             # Check if the value is a string that can be converted to a number
             if isinstance(value, str):
                 try:
                     # Attempt to convert the string to a float
-                    float(value)
-                    return True, ""
+                    float_val = float(value)
+                    return float_val, ""
                 except ValueError:
                     raise ValueError(f"Value '{value}' cannot be converted to a number.")
 
@@ -215,7 +218,7 @@ class AirtableSchema:
             raise ValueError(f"Invalid type for number field: {type(value)}")
         except Exception as e:
             self.logger.error(f"Number validation error: {e}")
-            return False, str(e)
+            return None, str(e)
         
     @register_field_type_schema(FieldTypes.NUMBER)
     def __number_schema(self, airtable_schema: dict):
@@ -245,11 +248,11 @@ class AirtableSchema:
         Validates a single line text field
         """
         if isinstance(value, str) and '\n' not in value:
-            return True, ""
+            return value, ""
         else:
             error_message = f"Single line text validation error: Value '{value}' is not a valid single line string."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         
     @register_field_type_schema(FieldTypes.SINGLE_LINE_TEXT)
     def __single_line_text_schema(self, airtable_schema: dict):
@@ -271,11 +274,11 @@ class AirtableSchema:
         Validates a multi line text field
         """
         if isinstance(value, str):
-            return True, ""
+            return value, ""
         else:
             error_message = f"Multi line text validation error: Value '{value}' is not a valid multi line string."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         
 
     @register_field_type_schema(FieldTypes.MULTI_LINE_TEXT)
@@ -300,13 +303,13 @@ class AirtableSchema:
         if not isinstance(value, str) or options is None:
             error_message = f"Single select validation error: Value '{value}' is not a valid single select option."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         for choice in options.get("choices", []):
             if choice.get("name") == value:
-                return True, ""
+                return value, ""
         error_message = f"Single select validation error: Value '{value}' is not a valid choice."
         self.logger.error(error_message)
-        return False, error_message
+        return None, error_message
     
     @register_field_type_schema(FieldTypes.SINGLE_SELECT)
     def __single_select_schema(self, airtable_schema: dict):
@@ -342,17 +345,28 @@ class AirtableSchema:
         """
         Validates a multi select field
         """
+        error_prefix = "Multi select validation errors:"
+        error_message = None
         if not isinstance(value, list) or options is None:
-            error_message = f"Multi select validation error: Value '{value}' is not a valid multi select option."
+            error_message = error_prefix + f" Argumment '{value}' is not a valid multi select list option."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         allowed_choices = {choice.get("name") for choice in options.get("choices", [])}
+        validated_values_list = []
         for item in value:
-            if not isinstance(item, str) or item not in allowed_choices:
-                error_message = f"Multi select validation error: Value '{item}' is not a valid choice."
-                self.logger.error(error_message)
-                return False, error_message
-        return True, ""
+            if isinstance(item, str) and item in allowed_choices:
+                validated_values_list.append(item)
+            else: #if not isinstance(item, str) or item not in allowed_choices:
+                err = f" Value '{item}' is not a valid choice."
+                self.logger.warning(error_prefix + err)
+                error_message = (error_message + err) if error_message else (error_prefix + err)
+        if len(validated_values_list) == 0:
+            err = " No valid choices found."
+            error_message = (error_message + err) if error_message else (error_prefix + err)
+            self.logger.error(error_message)
+            return None, error_message
+        return validated_values_list, error_message
+    
     
     @register_field_type_schema(FieldTypes.MULTI_SELECT)
     def __multi_select_schema(self, airtable_schema: dict):
@@ -390,16 +404,16 @@ class AirtableSchema:
         Validates that the string is in ISO date format (YYYY-MM-DD)
         """
         if not isinstance(value, str):
-            error_message = f"Date validation error: Value '{value}' is not a valid date string."
+            error_message = f"Date validation error: Value '{value}' is not a string."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         try:
             datetime.fromisoformat(value)
-            return True, ""
+            return value, ""
         except ValueError:
             error_message = f"Date validation error: Value '{value}' is not a valid ISO date."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
 
     @register_field_type_schema(FieldTypes.DATE)
     def __date_schema(self, airtable_schema: dict):
@@ -429,9 +443,9 @@ class AirtableSchema:
         Validates a date_time field
         """
         if not isinstance(value, str):
-            error_message = f"Date-time validation error: Value '{value}' is not a valid date-time string."
+            error_message = f"Date-time validation error: Value '{value}' is not a string."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
 
         # Replace 'Z' with '+00:00' to use datetime.fromisoformat
         if value.endswith('Z'):
@@ -440,11 +454,11 @@ class AirtableSchema:
         try:
             # Attempt to parse the string with datetime.fromisoformat()
             datetime.fromisoformat(value)
-            return True, ""
+            return value, ""
         except ValueError:
             error_message = f"Date-time validation error: Value '{value}' is not a valid ISO date-time."
             self.logger.error(error_message)
-            return False, error_message    
+            return None, error_message    
         
     @register_field_type_schema(FieldTypes.DATE_TIME)
     def __date_time_schema(self, airtable_schema: dict):
@@ -478,17 +492,18 @@ class AirtableSchema:
         """
         if isinstance(value, str):
             try:
+                # convert the string to a float
                 value = float(value)
             except ValueError:
                 error_message = f"Percent validation error: Value '{value}' cannot be converted to a percent."
                 self.logger.error(error_message)
                 return False, error_message
         if isinstance(value, (int, float)) and 0 <= value <= 100:
-            return True, ""
+            return value, ""
         else:
             error_message = f"Percent validation error: Value '{value}' is not a valid percent (0-100)."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         
     @register_field_type_schema(FieldTypes.PERCENT)
     def __percent_schema(self, airtable_schema: dict):
@@ -518,11 +533,11 @@ class AirtableSchema:
         Validates that the value is a boolean.
         """
         if isinstance(value, bool):
-            return True, ""
+            return value, ""
         else:
             error_message = f"Checkbox validation error: Value '{value}' is not a valid boolean for checkbox."
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         
     @register_field_type_schema(FieldTypes.CHECKBOX)
     def __checkbox_schema(self, airtable_schema: dict):
@@ -550,18 +565,18 @@ class AirtableSchema:
         """
         if isinstance(value, (int, float)):
             return True, ""
-        if isinstance(value, str):
+        elif isinstance(value, str):
             try:
                 float(value)
-                return True, ""
+                return value, ""
             except ValueError:
-                error_message = f"Currency validation error: Value '{value}' cannot be converted to a currency."
+                error_message = f"Currency validation error: Value '{value}' cannot be converted to a float."
                 self.logger.error(error_message)
-                return False, error_message
+                return None, error_message
         else:
             error_message = f"Currency validation error: Invalid type for currency field: {type(value)}"
             self.logger.error(error_message)
-            return False, error_message
+            return None, error_message
         
 
     ### Currency field schema

@@ -3,7 +3,7 @@
 ### Speakcare emr
 - [x] Add validation to record create and update using the schema
 - [x] Create the db folder if not exist
-- [ ] Allow multi select with partial wrong values
+- [x] Allow multi select with partial wrong values
 - [x] Fail validation on wrong or missing required fields
 - [ ] Support deletion of EMR records
 - [ ] Supprot deletion of db records and if connected to EMR delete from EMR
