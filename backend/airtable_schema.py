@@ -490,6 +490,7 @@ class AirtableSchema:
         Validates that the value is a percentage (0 to 100 inclusive).
         The value can be a string that represents a number.
         """
+
         if isinstance(value, str):
             try:
                 # convert the string to a float
@@ -499,7 +500,8 @@ class AirtableSchema:
                 self.logger.error(error_message)
                 return False, error_message
         if isinstance(value, (int, float)) and 0 <= value <= 100:
-            return value, ""
+            decimal = value / 100
+            return decimal, ""
         else:
             error_message = f"Percent validation error: Value '{value}' is not a valid percent (0-100)."
             self.logger.error(error_message)
