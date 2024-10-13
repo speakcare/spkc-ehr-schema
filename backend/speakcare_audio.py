@@ -15,17 +15,23 @@ from os_utils import ensure_directory_exists
 logger = create_logger(__name__)
 
 # List all available audio devices
-def print_audio_devices():
+def get_audio_devices_string():
     p = pyaudio.PyAudio()
+    intput_device_string = ""
     for i in range(p.get_device_count()):
         info = p.get_device_info_by_index(i)
         device_info = f"Device {i}: {info['name']}\n" +\
                       f"  Max Input Channels: {info['maxInputChannels']}\n" +\
                       f"  Max Output Channels: {info['maxOutputChannels']}\n" +\
                       f"  Default Sample Rate: {info['defaultSampleRate']}\n" +\
-                      f"  Host API: {info['hostApi']}"
-        print(device_info)    
+                      f"  Host API: {info['hostApi']}\n"
+        intput_device_string += device_info
     p.terminate()
+    return intput_device_string
+
+
+def print_audio_devices():
+    print(get_audio_devices_string())
 
 def get_input_audio_devices():
     p = pyaudio.PyAudio()
@@ -53,7 +59,7 @@ def check_input_device(device_index: int):
         inputChannels = int(info['maxInputChannels'])
         return inputChannels > 0
     except OSError as e:
-        logger.error(f"Error checking input device {device_index}: {e}")
+        logger.debug(f"Error checking input device {device_index}: {e}")
         return False
     finally:
         p.terminate()
@@ -76,9 +82,10 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
             error = "Failed to initialize PyAudio"
             raise Exception(error)
         
-        # if not audio.is_format_supported(sample_format, input_device=device_index):
-        #     error = f"Sample format {sample_format} not supported by input device {device_index}"
-        #     raise Exception(error)
+        if not audio.is_format_supported(rate=fs, input_format=sample_format, input_device=device_index, input_channels=channels):
+            error = f"Sample format {sample_format} not supported by input device {device_index}"
+            raise Exception(error)
+        
         frames = [] 
         max_file_size = fs * duration * channels * audio.get_sample_size(sample_format)
         logger.info(f'Recording device index: {device_index} for {duration} seconds into {output_filename}, maximum file size: {max_file_size} bytes')
@@ -186,9 +193,7 @@ def main():
     
     audio_device = args.audio_device
     if not check_input_device(audio_device):
-        print("Please provide a valid device index (-a | --audio-device) to record audio.")
-        print_audio_devices()
-        exit(1)
+        full_parser.error(f"Invalid audio device index: {audio_device} \n{get_audio_devices_string()}")
     
     # Get the current UTC time
     utc_now = datetime.now(timezone.utc)

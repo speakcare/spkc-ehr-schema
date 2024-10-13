@@ -405,7 +405,7 @@ class ProcessAudioResource2(Resource):
         app.logger.debug(f"Audio file saved as {audio_local_filename}")
 
         # Now, you have both the audio file and the other data fields
-        record_id, err = speakcare_process_audio(audio_filename=audio_local_filename, table_name=table_name)
+        record_id, err = speakcare_process_audio(audio_files=[audio_local_filename], table_name=table_name)
         if record_id:
             app.logger.info(f"Audio file {audio_local_filename} processed successfully. Record ID: {record_id}")
             return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201

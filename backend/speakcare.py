@@ -3,9 +3,10 @@
 import argparse
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+from typing import List
 import os
 from os_utils import ensure_directory_exists
-from speakcare_audio import record_audio, print_audio_devices, check_input_device, print_input_devices
+from speakcare_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
 from speakcare_logging import create_logger
 from speakcare_stt import transcribe_audio
 from speakcare_transcriptions import transcription_to_emr
@@ -22,16 +23,10 @@ recordings_dir = f"{output_root_dir}/recordings"
 transciptions_dir = f"{output_root_dir}/transcriptions"
 jsons_dir = f"{output_root_dir}/jsons"
 
-supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE, 
-                    SpeakCareEmr.WEIGHTS_TABLE, 
-                    SpeakCareEmr.ADMISSION_TABLE,
-                    SpeakCareEmr.TEMPERATURES_TABLE,
-                    SpeakCareEmr.PULSES_TABLE]
+supported_tables = EmrUtils.get_table_names()
 
-def get_supported_tables():
-    return supported_tables
 
-def speakcare_process_audio(audio_filename:str, output_file_prefix:str="output", table_name:str=None, dryrun: bool=False):
+def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="output", table_name:str=None, dryrun: bool=False):
     """
     Transcribe audio, convert transcription to EMR record
     """    
@@ -42,21 +37,22 @@ def speakcare_process_audio(audio_filename:str, output_file_prefix:str="output",
 
     try:
         # Step 1: Verify the audio file exists
-        if not os.path.isfile(audio_filename):
-            err = f"Audio file not found or not file type: {audio_filename}"
-            logger.error(err)
-            raise Exception(err)
-        
-        # Step 2: Transcribe Audio (speech to text)
-        transcription = transcribe_audio(input_file=audio_filename, output_file=transcription_filename)
-        if transcription == 0:
-            err = "Error occurred while transcribing audio."
-            logger.error(err)
-            raise Exception(err)
+        for audio_filename in audio_files:
+            if not os.path.isfile(audio_filename):
+                err = f"Audio file not found or not file type: {audio_filename}"
+                logger.error(err)
+                raise Exception(err)
+            
+            # Step 2: Transcribe Audio (speech to text)
+            transcript_len = transcribe_audio(input_file=audio_filename, output_file=transcription_filename, append=True)
+            if transcript_len == 0:
+                err = "Error occurred while transcribing audio."
+                logger.error(err)
+                raise Exception(err)
 
         # Step 3: Convert transcription to EMR record
         record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
-                                        table_name=table_name, dryrun=dryrun)
+                                         table_name=table_name, dryrun=dryrun)
         if not record_id:
             err = "Error occurred while converting transcription to EMR record."
             logger.error(err)
@@ -87,7 +83,7 @@ def speakcare_record_and_process_audio(output_file_prefix:str="output", recordin
             logger.error(err)
             raise Exception(err)
         # Step 2: Transcribe Audio (speech to text)
-        return speakcare_process_audio(audio_filename=recording_filename, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        return speakcare_process_audio(audio_files=[recording_filename], output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
     
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
@@ -102,31 +98,44 @@ def main():
     ensure_directory_exists(jsons_dir)
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
 
-    list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
-    list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
-    list_args, remaining_args = list_parser.parse_known_args()
-    if list_args.list_devices:
+    parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
+    # Add arguments
+    parser.add_argument('-l', '--list-devices', action='store_true',
+                        help='Print input devices list and exit')
+    parser.add_argument('-o', '--output-prefix', type=str, default="output",
+                        help='Output file prefix (default: output)')
+    parser.add_argument('-t', '--table', type=str, 
+                        help=f'Table name (supported tables: {supported_tables})')
+    parser.add_argument('-d', '--dryrun', action='store_true',
+                        help='If dryrun, write JSON only and do not create EMR record')
+    parser.add_argument('-i', '--input-recording', nargs='+', type=str,
+                        help='Name of input recording file to process. If provided, we skip the recording and use this file instead.')
+    parser.add_argument('-s', '--seconds', type=int, default=30,
+                        help='Recording duration in seconds (default: 30)')
+    parser.add_argument('-a', '--audio-device', type=int,
+                        help='Audio device index (required if recording is needed)')
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    if args.list_devices:
         print_input_devices()
         exit(0)
 
-    basic_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')#, parents=[list_parser])
-    basic_parser.add_argument('-o', '--output-prefix', type=str, default="output", help='Output file prefix (default: output)')
-    basic_parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
-    basic_parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
-    basic_parser.add_argument('-i', '--input-recording', type=str, help='Name of input recording file to process. If provided we skip the recording and use this file instead.')
+    # Ensure --table is always provided if --list-devices is not used
+    if not args.table:
+        parser.error("--table is required.")
+ 
+    table_name = args.table
+    if table_name not in supported_tables:
+        parser.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
 
-    basic_args, remaining_args = basic_parser.parse_known_args(remaining_args)
 
     output_file_prefix = "output"
-    if basic_args.output_prefix:
-        output_file_prefix = basic_args.output_prefix
-    
-    table_name = basic_args.table
-    if table_name not in supported_tables:
-        logger.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
-        exit(1)
-    
-    dryrun = basic_args.dryrun
+    if args.output_prefix:
+        output_file_prefix = args.output_prefix
+
+    dryrun = args.dryrun
     if dryrun:
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
@@ -135,28 +144,25 @@ def main():
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
     output_file_prefix = f'{output_file_prefix}.{utc_string}'
 
-    if basic_args.input_recording:
+    if args.input_recording:
         # Process the provided audio file and exit
-        record_id, error = speakcare_process_audio(audio_filename=basic_args.input_recording, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        record_id, error = speakcare_process_audio(audio_files=args.input_recording, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
         EmrUtils.cleanup_db(delete_db_files=False)
         exit(0)
 
 
-    recording_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')#, parents=[list_parser, basic_parser])
-    recording_parser.add_argument('-s', '--seconds', type=int, default=30, help='Recording duration (default: 30)')
-    recording_parser.add_argument('-a', '--audio-device', type=int, required=True, help='Audio device index (required)')
-
-    recordinng_args = recording_parser.parse_args(remaining_args)
-
-    recording_duration = 30
-    if recordinng_args.seconds:
-        recording_duration = recordinng_args.seconds
-
-    audio_device = recordinng_args.audio_device
+    # If --input-recording is not provided, then --audio-device is required
+    if args.audio_device is None:
+        parser.error("--audio-device is required when recording audio")
+    
+    audio_device = args.audio_device
     if not check_input_device(audio_device):
-        print("Please provide a valid device index (-a | --audio-device) to record audio.")
-        print_audio_devices()
-        exit(1)
+        parser.error(f"Invalid audio device index: {audio_device}. Please provide a valid device index: \n{get_audio_devices_string()}")
+ 
+    recording_duration = 30
+    if args.seconds:
+        recording_duration = args.seconds
+
     
     speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
     EmrUtils.cleanup_db(delete_db_files=False)

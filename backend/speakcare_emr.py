@@ -55,19 +55,19 @@ class SpeakCareEmr:
 
     # TODO: Table and sections names need to be loaded dyanically from the API
     EMR_TABLES = [
-        WEIGHTS_TABLE, 
-        BLOOD_PRESSURES_TABLE, 
-        BLOOD_SUGARS_TABLE, 
-        HEIGHTS_TABLE, 
-        TEMPERATURES_TABLE,
-        O2_SATURATIONS_TABLE,
-        PULSES_TABLE,
-        RESPIRATION_TABLE,
         EPISODES_TABLE, 
         PROGRESS_NOTES_TABLE,
         ADMISSION_TABLE,
         FALL_RISK_SCREEN_TABLE,
         VITALS_TABLE
+        # WEIGHTS_TABLE, 
+        # BLOOD_PRESSURES_TABLE, 
+        # BLOOD_SUGARS_TABLE, 
+        # HEIGHTS_TABLE, 
+        # TEMPERATURES_TABLE,
+        # O2_SATURATIONS_TABLE,
+        # PULSES_TABLE,
+        # RESPIRATION_TABLE
     ]
 
     TABLE_SECTIONS = { 
