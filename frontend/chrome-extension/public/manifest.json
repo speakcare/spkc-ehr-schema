@@ -23,7 +23,8 @@
   ],
   "host_permissions": [
     "http://localhost:3000/*",
-    "https://airtable.com/appRFbM7KJ2QwCDb6/*"
+    "https://airtable.com/appRFbM7KJ2QwCDb6/*",
+    "https://*.pointclickcare.com/*"
   ],
   "background": {
     "service_worker": "background.js"
