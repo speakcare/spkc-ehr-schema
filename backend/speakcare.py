@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import random
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from typing import List
@@ -32,8 +33,9 @@ def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="outp
     """    
     # prepare file names
 
-    transcription_filename = f'{transciptions_dir}/{output_file_prefix}.txt'
-    json_filename = f'{jsons_dir}/{output_file_prefix}.json'
+    rnd = random.randint(1000, 9999)
+    transcription_filename = f'{transciptions_dir}/{output_file_prefix}_{rnd}.txt'
+    json_filename = f'{jsons_dir}/{output_file_prefix}_{rnd}.json'
 
     try:
         # Step 1: Verify the audio file exists
