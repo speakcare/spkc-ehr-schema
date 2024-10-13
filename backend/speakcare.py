@@ -39,14 +39,15 @@ def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="outp
 
     try:
         # Step 1: Verify the audio file exists
-        for audio_filename in audio_files:
+        for num, audio_filename in enumerate(audio_files):
             if not os.path.isfile(audio_filename):
                 err = f"Audio file not found or not file type: {audio_filename}"
                 logger.error(err)
                 raise Exception(err)
             
             # Step 2: Transcribe Audio (speech to text)
-            transcript_len = transcribe_audio(input_file=audio_filename, output_file=transcription_filename, append=True)
+            # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
+            transcript_len = transcribe_audio(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
             if transcript_len == 0:
                 err = "Error occurred while transcribing audio."
                 logger.error(err)
