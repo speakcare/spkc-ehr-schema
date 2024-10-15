@@ -26,7 +26,7 @@
 ### System
 - [ ] Add run script to load all the processes
 - [x] Add sqlite db browser to the project
-- [ ] Update the transcription db and connect it to the medical reocords
+- [x] Update the transcription db and connect it to the medical reocords
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
 - [ ] Change GPT API to use the new structured output using pydantic
 
