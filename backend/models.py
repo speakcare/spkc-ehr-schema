@@ -71,31 +71,23 @@ class MedicalRecords(Base):
 
 
 class SpeakCareDB:
-    TRANSCRIPTS_DB     = 'transcripts.db'
-    MEDICAL_RECORDS_DB = 'medical_records.db'
+    DB_FILE_NAME     = 'speakcare.db'
 
     def __init__(self, db_directory: str):
         # Create database engines
         self.db_path = ensure_directory_exists(db_directory)
-        transcripts_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.TRANSCRIPTS_DB}'#transcripts.db'
-        medical_records_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.MEDICAL_RECORDS_DB}'#medical_records.db'
-        logger.debug(f"Creating Transcripts database at {transcripts_sqlite_db}")
-        self.transcripts_engine = create_engine(transcripts_sqlite_db)
-        logger.debug(f"Creating MedicalRecords database at {medical_records_sqlite_db}")
-        self.medical_records_engine = create_engine(medical_records_sqlite_db)
+        speakcare_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.DB_FILE_NAME}'#medical_records.db'
+        logger.debug(f"Creating SpeakCare database at {speakcare_sqlite_db}")
+        self.speakcare_db_engine = create_engine(speakcare_sqlite_db)
         # Create tables
-        Base.metadata.create_all(self.transcripts_engine)
-        Base.metadata.create_all(self.medical_records_engine)
-        self.TranscriptsDBSession = scoped_session(sessionmaker(bind=self.transcripts_engine))
-        self.MedicalRecordsDBSession = scoped_session(sessionmaker(bind=self.medical_records_engine))
+        Base.metadata.create_all(self.speakcare_db_engine)
+        self.SpeakCareDBSession = scoped_session(sessionmaker(bind=self.speakcare_db_engine))
         atexit.register(self.__cleanup)
     
     def __cleanup(self):
         # Clean up sessions and dispose of engines
-        self.TranscriptsDBSession.remove()
-        self.MedicalRecordsDBSession.remove()
-        self.transcripts_engine.dispose()
-        self.medical_records_engine.dispose()
+        self.SpeakCareDBSession.remove()
+        self.speakcare_db_engine.dispose()
         logger.debug("Cleaned up database sessions and disposed of engines.")
 
     def do_cleanup(self, delete_db_files = False):
@@ -103,8 +95,7 @@ class SpeakCareDB:
         atexit.unregister(self.__cleanup)
         if delete_db_files:
             logger.debug(f"Deleting database files from {self.db_path}")
-            os.remove(f"{self.db_path}/{SpeakCareDB.TRANSCRIPTS_DB}")
-            os.remove(f"{self.db_path}/{SpeakCareDB.MEDICAL_RECORDS_DB}")
+            os.remove(f"{self.db_path}/{SpeakCareDB.DB_FILE_NAME}")
             logger.debug(f"Deleting database directory {self.db_path}")
             os.rmdir(self.db_path)
         else:

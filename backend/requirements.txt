@@ -3,7 +3,7 @@ sqlalchemy
 rapidfuzz
 fuzzy
 yt_dlp
-openai
+openai==0.28
 flask_restx
 pyairtable
 python-dotenv

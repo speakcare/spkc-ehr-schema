@@ -559,7 +559,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(len(record.sections), 1)  
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -629,7 +629,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(len(record.sections), 4)  
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -720,7 +720,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -734,6 +734,57 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
         self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
+
+
+    def test_record_create_with_transcript(self):
+
+        transcript_text = "Hello John Doe, I am going to meausre your weight now. I am going to use the Mechanical lift. You are weighing 130 Kilograms. Thnak you."
+        transcript_id, response = EmrUtils.add_transcript(transcript_text)
+        
+        # Assert that the transcript was created successfully
+        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
+        
+        # Get the transcript from the database
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
+        self.assertEqual(transcript.text, transcript_text, "Transcript text does not match.")
+        self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
+        # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, record_state, response = EmrUtils.create_record(record_data, transcript_id)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        # now check that the record is properly connected to the transcript
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id, load_transcript=True) # load the transcript with the record
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.assertEqual(record.transcript_id, transcript_id)
+
+        record_transcript: Optional[Transcripts] = {}
+        record_transcript = record.transcript
+        self.assertIsNotNone(record_transcript, response)
+        self.assertEqual(record_transcript.state, TranscriptState.PROCESSED, "Transcript state should be PROCESSED.")
+        self.assertEqual(record_transcript.text, transcript_text, "Transcript text does not match.")
+
+        # now check that the transcript is properly connected to the record
+        transcript_with_record, response = EmrUtils.get_transcript(transcript_id, load_medical_records=True) # load the record with the transcript
+        transcript_records = transcript_with_record.medical_records
+        self.assertIsNotNone(transcript_records)
+        self.assertEqual(transcript_records[0].id, record_id)
+        self.logger.info(f"Created record {record_id} with transcript id {transcript_id} successfully")     
 
 
 
@@ -757,7 +808,7 @@ class TestRecords(unittest.TestCase):
             self.assertEqual(record.state, RecordState.PENDING)
             self.logger.info(f"Created record {record_id}")
 
-            emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+            emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
             record, err = EmrUtils.get_record(record_id)
             self.assertIsNotNone(emr_id)
             self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -796,14 +847,14 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
         self.assertEqual(record.state, RecordState.COMMITTED)
 
         # try to commit again
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNone(emr_id)
         self.assertEqual(response['error'], f"Record id {record_id} cannot be commited as it is in '{record.state}' state.")
@@ -833,7 +884,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -869,7 +920,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-        emr_id, response = EmrUtils.commit_record_to_emr(record_id)
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(emr_id)
         self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
@@ -893,8 +944,8 @@ class TestTranscripts(unittest.TestCase):
 
     def test_transcript_create(self):
         # Create a transcript
-        transcript_text = "This is a test transcript."
-        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        transcript_text = "This is a new test transcript."
+        transcript_id, response = EmrUtils.add_transcript(transcript_text)
         
         # Assert that the transcript was created successfully
         self.assertIsNotNone(transcript_id, "Failed to create transcript.")
@@ -908,7 +959,7 @@ class TestTranscripts(unittest.TestCase):
     def test_transcript_update_state(self):
         # Create a transcript
         transcript_text = "This is a test transcript for state update."
-        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        transcript_id, response = EmrUtils.add_transcript(transcript_text)
         
         # Assert that the transcript was created successfully
         self.assertIsNotNone(transcript_id, "Failed to create transcript.")
@@ -930,7 +981,7 @@ class TestTranscripts(unittest.TestCase):
     def test_transcript_delete(self):
         # Create a transcript
         transcript_text = "This is a test transcript for deletion."
-        transcript_id, response = EmrUtils.create_transcript(transcript_text)
+        transcript_id, response = EmrUtils.add_transcript(transcript_text)
         
         # Assert that the transcript was created successfully
         self.assertIsNotNone(transcript_id, "Failed to create transcript.")

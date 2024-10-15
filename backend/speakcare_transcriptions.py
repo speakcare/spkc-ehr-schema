@@ -10,7 +10,7 @@ import os
 import traceback
 from speakcare_logging import create_logger
 from speakcare_emr_utils import EmrUtils
-from models import RecordState
+from models import RecordState, TranscriptState
 import copy
 
 import re
@@ -66,7 +66,7 @@ multupleSelectionSchemaExample = {
         }
 multupleSelectionResultExample = {"MOOD (CHECK ALL THAT APPLY)": ["Passive", "Depressed", "Elated"]}
 
-def transcription_to_dict(transcription: str, schema: dict) -> dict:
+def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
 
     """
     Fills a schema based on the conversation transcription, returning a dictionary.
@@ -136,7 +136,7 @@ def transcription_to_dict(transcription: str, schema: dict) -> dict:
         logger.error(f"Error parsing JSON: {e}")
         return {}
 
-def create_emr_record(data: dict, dryrun=False) -> int:
+def create_emr_record(data: dict, transcript_id: int=None, dryrun: bool=False) -> int:
     """
     Create an EMR record based on the transcription and schema.
     
@@ -218,22 +218,22 @@ def create_emr_record(data: dict, dryrun=False) -> int:
    
     logger.info(f"Record: {json.dumps(record, indent = 4)}")
 
- 
-    record_id, record_state, error = EmrUtils.create_record(record)    
+    record_id, record_state, error = EmrUtils.create_record(record, transcript_id)    
     if not record_id:
         logger.error(f"Failed to create record {record} in EMR. Error: {error}")
         return None, record_state
     elif record_state is RecordState.ERRORS:
         logger.warning(f"Record {record_id} created with errors: {error}.")
         return record_id,record_state
+
     elif dryrun:
         logger.info("Dryrun mode enabled. Skipping EMR record creation.")
         return record_id, record_state
     else:
         logger.info(f"Record created successfully with ID: {record_id}")
-        emr_record_id, error = EmrUtils.commit_record_to_emr(record_id)
+        emr_record_id, record_state, error = EmrUtils.commit_record_to_emr(record_id)
         if not emr_record_id:
-            logger.error(f"Failed to commit record {record_id} to EMR. Error: {error}")
+            logger.error(f"Failed to commit record {record_id} to EMR. Error: {error} Record state: {record_state}")
         else:
             logger.info(f"Record id {record_id} committed successfully to EMR with ID: {emr_record_id}")
 
@@ -253,36 +253,36 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
 
     try:
         with open(input_file, "r") as file:
-            transcription = file.readlines()
+            lines = file.readlines()
 
-        if not transcription:
+        if not lines:
             raise ValueError("No transcription found in the input file.")
-        
+        # Join the lines to form a single string
+        transcription = " ".join(line.strip() for line in lines)
         logger.debug(f"Transcription:\n{transcription}")
+        # Write the transcript to the Transcript database
+        transcript_id, err = EmrUtils.add_transcript(transcription)
+        if not transcript_id:
+            logger.error(f"Failed to create transcript: {err}")
+            raise ValueError(err)
+
         schema = EmrUtils.get_record_writable_schema(table_name)
         if not schema:
             raise ValueError(f"Invalid table name: {table_name}")
-        
         logger.debug(f"Schema: {schema}")
         
-        filled_schema_dict = transcription_to_dict(transcription, schema)
+        filled_schema_dict = transcription_to_emr_schema(transcription, schema)
         if not filled_schema_dict:
             err = f"Failed to fill schema of table {table_name} with transcription."
             logger.error(err)
             raise ValueError(err)
-        
         logger.debug(f"Filled Schema: {filled_schema_dict}")
         
         with open(output_file, "w") as json_file:
             json.dump(filled_schema_dict, json_file, indent=4)
-
         logger.info(f"Transcription saved to {output_file}")
 
-        # if debug:
-        #     logger.info("Debug mode enabled. Skipping EMR record creation.")
-        #     return
-
-        record_id, record_state = create_emr_record(filled_schema_dict, dryrun=dryrun)
+        record_id, record_state = create_emr_record(data=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
         if not record_id:
             err = f"Failed to create EMR record for table {table_name}. from data {filled_schema_dict}"
             logger.error(err)
@@ -297,11 +297,7 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
 
 def main():
     output_dir = "out/jsons"
-
-    supported_tables = [SpeakCareEmr.BLOOD_PRESSURES_TABLE, 
-                        SpeakCareEmr.WEIGHTS_TABLE, 
-                        SpeakCareEmr.ADMISSION_TABLE,
-                        SpeakCareEmr.TEMPERATURES_TABLE]
+    supported_tables = EmrUtils.get_table_names()
     
     parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')

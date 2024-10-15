@@ -196,7 +196,7 @@ class CommitRecordResource(Resource):
     @ns.doc('commit_record')
     def post(self, id):
         """Commit a record to EMR by ID"""
-        emr_record_id, response = EmrUtils.commit_record_to_emr(record_id=id)
+        emr_record_id, record_state, response = EmrUtils.commit_record_to_emr(record_id=id)
         if emr_record_id:
             return response, 201
         else:
@@ -255,7 +255,7 @@ class TranscriptsResource(Resource):
         """Add a new transcript"""
         data = request.json
         transcript = data['transcript']
-        new_transcript, response = EmrUtils.create_transcript(text=transcript)
+        new_transcript, response = EmrUtils.add_transcript(text=transcript)
         if not new_transcript:
             return {'error': f'Error creating transcript. {response}'}, 400            
         return {'message': 'Transcript added successfully', 'id': new_transcript.id}, 201
