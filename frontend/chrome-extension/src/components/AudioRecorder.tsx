@@ -4,54 +4,32 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import StopIcon from '@mui/icons-material/Stop';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import { saveState, loadState, blobToBase64, base64ToBlob } from '../utils';
 
 
 
 interface AudioRecorderProps {
   audioType: string;
-  onAudioBlobReady: (audioBlob: Blob) => void;
+  setAudioBlob: (blob: Blob) => void;
+  recordingTime: number;
+  setRecordingTime: React.Dispatch<React.SetStateAction<number>>;
+  initialAudioBlob?: Blob | null;
 }
 
-const AudioRecorder = forwardRef<AudioRecorderHandle, AudioRecorderProps>(({ audioType, onAudioBlobReady }, ref) => {
+const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, setAudioBlob, recordingTime, setRecordingTime, initialAudioBlob }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<number | null>(null);
-
-  // Load saved state on mount
+  
   useEffect(() => {
-    loadState('audioRecorderState', (savedState: any) => {
-      if (savedState) {
-        setRecordingTime(savedState.recordingTime || 0);
-
-        if (savedState.audioBlob) {
-          const blob = base64ToBlob(savedState.audioBlob, audioType);
-          setAudioBlob(blob);
-          const url = URL.createObjectURL(blob);
-          setAudioUrl(url);
-          onAudioBlobReady(blob);
-        }
-      }
-    });
-  }, []);
-
-  // Save state whenever it changes
-  useEffect(() => {
-    const save = async () => {
-      const audioBlobBase64 = audioBlob ? await blobToBase64(audioBlob) : null;
-      saveState('audioRecorderState', {
-        recordingTime,
-        audioBlob: audioBlobBase64,
-      });
-    };
-    save();
-  }, [audioBlob]);
+    if (initialAudioBlob) {
+      const url = URL.createObjectURL(initialAudioBlob);
+      setAudioUrl(url);
+    }
+  }, [initialAudioBlob]);
 
   const startRecording = async () => {
     setIsRecording(true);
@@ -72,8 +50,8 @@ const AudioRecorder = forwardRef<AudioRecorderHandle, AudioRecorderProps>(({ aud
       recorder.start(500);
       // Start timer
       timerRef.current = window.setInterval(() => {
-        setRecordingTime((prevTime) => prevTime + 1);
-      }, 1000);
+        setRecordingTime((prevTime) => prevTime + 1); // Update recording time in the state
+    }, 1000);
     } catch (error) {
       console.error("Error starting recording:", error);
       if (error instanceof DOMException) {
@@ -122,7 +100,6 @@ const AudioRecorder = forwardRef<AudioRecorderHandle, AudioRecorderProps>(({ aud
           const url = URL.createObjectURL(blob);
           setAudioUrl(url);
           console.log('Blob URL:', url);
-          onAudioBlobReady(blob);
         } else {
           console.error('Audio Blob is empty or corrupted');
         }
@@ -138,21 +115,6 @@ const AudioRecorder = forwardRef<AudioRecorderHandle, AudioRecorderProps>(({ aud
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds < 10 ? `0${remainingSeconds}` : remainingSeconds}`;
   };
-
-
-  const resetRecorder = () => {
-    setIsRecording(false);
-    setIsPaused(false);
-    setRecordingTime(0);
-    setAudioChunks([]);
-    setAudioBlob(null);
-    setAudioUrl(null);
-  };
-
-  // Expose resetRecorder to parent component
-  useImperativeHandle(ref, () => ({
-    resetRecorder,
-  }));
 
   return (
     <Box sx={{ marginBottom: 3 }}>
@@ -189,11 +151,8 @@ const AudioRecorder = forwardRef<AudioRecorderHandle, AudioRecorderProps>(({ aud
       )}
     </Box>
   );
-});
+};
 
 
 
 export default AudioRecorder;
-export interface AudioRecorderHandle {
-  resetRecorder: () => void;
-}

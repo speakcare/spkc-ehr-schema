@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent, CircularProgress } from '@mui/material';
-import AudioRecorder, { AudioRecorderHandle } from './components/AudioRecorder'; // Adjust path as needed
+import AudioRecorder from './components/AudioRecorder'; 
 
 import axios from 'axios';
 import './App.css';
-//import { dispatchVisibilityChangeEvent, ExtensionState, saveState, loadState } from './utils';
-import { dispatchVisibilityChangeEvent, saveState, loadState } from './utils';
+import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob  } from './utils';
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
@@ -17,16 +16,23 @@ const App: React.FC = () => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [selectedTable, setSelectedTable] = useState<string>('');
   const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
+  const [recordingTime, setRecordingTime] = useState<number>(0);
   const audioType = 'audio/webm; codecs=opus';
   const audioFileName = 'recording.webm';
-  const audioRecorderRef = useRef<AudioRecorderHandle | null>(null);
 
   // update state on mount
   useEffect(() => {
     // Load saved state on mount
-    loadState('appState', (savedState: any) => {
+    loadState('appState', async (savedState: any) => {
       if (savedState) {
         setSelectedTable(savedState.selectedTable || '');
+      }
+      if (savedState.audioBlob) {
+        const blob = base64ToBlob(savedState.audioBlob, audioType);
+        setAudioBlob(blob);
+      }
+      if (savedState.recordingTime) {
+        setRecordingTime(savedState.recordingTime);
       }
     });
 
@@ -40,8 +46,22 @@ const App: React.FC = () => {
 
   // Save state whenever it changes
   useEffect(() => {
-    saveState('appState', { selectedTable });
-  }, [selectedTable]);
+    const save = async () => {
+      if (audioBlob) {
+        const audioBlobBase64 = await blobToBase64(audioBlob);
+        saveState('appState', {
+          selectedTable,
+          audioBlob: audioBlobBase64,
+          recordingTime,
+        });
+      } else {
+        saveState('appState', {
+          selectedTable,
+        });
+      }
+    };
+    save();
+  }, [selectedTable, audioBlob]);
 
   const handleTableChange = (event: SelectChangeEvent<string>) => {
     setSelectedTable(event.target.value as string);
@@ -64,14 +84,11 @@ const App: React.FC = () => {
         },
       });
       setAudioBlob(null);
+      setRecordingTime(0);
       console.log('Response from backend:', response.data);
       if (isExtension) {
         // refresh the EHR page so we can see the new data
         dispatchVisibilityChangeEvent();
-      }
-      // Reset the AudioRecorder after updating the EHR
-      if (audioRecorderRef.current) {
-        audioRecorderRef.current.resetRecorder();
       }
     } catch (error) {
       console.error('Error sending data to backend:', error);
@@ -106,9 +123,11 @@ const App: React.FC = () => {
       </FormControl>
 
       <AudioRecorder 
-        ref={audioRecorderRef}
         audioType={audioType}
-        onAudioBlobReady={(blob) => setAudioBlob(blob)} 
+        setAudioBlob={setAudioBlob}
+        recordingTime={recordingTime}
+        setRecordingTime={setRecordingTime}
+        initialAudioBlob={audioBlob}
       />
 
       <Button 
