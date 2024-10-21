@@ -22,6 +22,8 @@
 - [x] Add browser extension
 - [x] Make browser extension look nice
 - [ ] Check why extension microphone permission is not requersted automatically
+- [x] save and load extension state to/from local storage
+- [ ] Make the extnesion float and not close when touching the web page
 
 ### System
 - [ ] Add run script to load all the processes
