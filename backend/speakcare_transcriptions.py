@@ -3,6 +3,7 @@ from speakcare_emr import SpeakCareEmr
 from stt import transcribe_audio
 import json
 import openai
+from openai import OpenAI
 from datetime import datetime, timezone
 from os_utils import ensure_directory_exists
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ import logging
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
 logger = create_logger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -107,8 +109,8 @@ def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
     The full response must be a single valid JSON object and nothing else.
 
     '''
-
-    response = openai.ChatCompletion.create(
+    client = OpenAI()
+    completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
@@ -117,15 +119,9 @@ def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
         temperature=0.3,
         max_tokens=4096
     )
-
-    logger.debug(f"OpenAI Response: {response}")
-    
-    filled_schema_str = response['choices'][0]['message']['content'].strip()
-
+    logger.debug(f"OpenAI Response: {completion}")    
+    filled_schema_str = completion.choices[0].message.content.strip()
     logger.debug(f"filled_schema_str: {filled_schema_str}")
-
-    # print(filled_schema_str)
-
     cleaned_filled_schema_str = re.sub(r'```json|```', '', filled_schema_str).strip()
     logger.debug(f"cleaned_filled_schema_str: {cleaned_filled_schema_str}")
 
@@ -135,6 +131,7 @@ def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing JSON: {e}")
         return {}
+
 
 def create_emr_record(data: dict, transcript_id: int=None, dryrun: bool=False) -> int:
     """
@@ -298,6 +295,7 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
 def main():
     output_dir = "out/jsons"
     supported_tables = EmrUtils.get_table_names()
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
     
     parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
@@ -329,7 +327,7 @@ def main():
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
 
-    ensure_directory_exists(output_filename) 
+    ensure_directory_exists(output_dir) 
     transcription_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
 
 

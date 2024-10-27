@@ -178,7 +178,6 @@ class SpeakCareEmr:
     def load_tables(self):
         if not self.tables:
             tables = self.__retreive_all_tables_schema()
-            #self.tables = self.__retreive_all_tables_schema()
             self.tables = {}
             self.tableWriteableSchemas: Dict[str, AirtableSchema] = {}
             # Traverse the tables and create writable schema
@@ -264,6 +263,7 @@ class SpeakCareEmr:
 
 
     def create_record(self, tableId, record):
+        self.logger.debug(f'Creating record in table {tableId} with record {record}')
         record = self.api.table(self.appBaseId, tableId).create(record)
         if record:
             url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
@@ -276,6 +276,7 @@ class SpeakCareEmr:
         return self.api.table(self.appBaseId, tableId).get(recordId)
     
     def update_record(self, tableId, recordId, record):
+        self.logger.debug(f'Update record in table {tableId} with record {record}')
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
     
     def validate_record(self, tableName, record, errors):
@@ -360,6 +361,8 @@ class SpeakCareEmr:
         status = record.get('Status')
         if not status:
             record['Status'] = 'In progress'
+    
+        self.logger.debug(f'Creating assessment in table {assessmentTableName} with record {record}')
         record, url = self.create_record(assessmentTableName, record)
         return record, url, None
     
@@ -376,6 +379,7 @@ class SpeakCareEmr:
         record['Patient'] = [patientEmrId]
         record['ParentRecord'] = [assessmentId]
         record['CreatedBy'] = [createdByNurseEmrId]
+        self.logger.debug(f'Creating assessment section in table {sectionTableName} with record {record}')
         record, url = self.create_record(sectionTableName, record)
         return record, url, None
     
@@ -385,6 +389,7 @@ class SpeakCareEmr:
             record = {}
             record['Status'] = 'Completed'
             record['SignedBy'] = [signedByNurseEmrId]
+            self.logger.debug(f'Sign assessment section in table {assessmentTableName} with record {record}')
             record = self.update_record(assessmentTableName, assessmentId, record)
             return record, None
         else:

@@ -204,7 +204,7 @@ def main():
     duration = args.seconds
     output_filename = f'{output_dir}/{args.output}.{utc_string}.wav'
 
-    ensure_directory_exists(output_filename) 
+    ensure_directory_exists(output_dir) 
     logger.info(f"Recording audio from device index {audio_device} for {duration} seconds into {output_filename}")
     record_audio(device_index=audio_device,  duration=duration, output_filename=output_filename)
 

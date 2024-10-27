@@ -581,7 +581,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited assessment {record_id} to the EMR successfully")
 
-        EmrUtils.sign_assessgment(record_id)
+        EmrUtils.sign_assessment(record_id)
         emr_record, err = EmrUtils.get_emr_record(record_id)
         self.assertEqual(emr_record['fields']['Status'], "Completed")
         self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
@@ -689,7 +689,7 @@ class TestRecords(unittest.TestCase):
 
         self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
 
-        EmrUtils.sign_assessgment(record_id)
+        EmrUtils.sign_assessment(record_id)
         emr_record, err = EmrUtils.get_emr_record(record_id)
         self.assertEqual(emr_record['fields']['Status'], "Completed")
         self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])

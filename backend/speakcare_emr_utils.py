@@ -611,7 +611,7 @@ class EmrUtils:
         
 
     @staticmethod
-    def sign_assessgment(record_id: id):
+    def sign_assessment(record_id: id):
         session = EmrUtils.db.SpeakCareDBSession()
         record = None
         # prepare to commit the record to the EMR
