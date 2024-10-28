@@ -5,25 +5,6 @@ from datetime import datetime, timezone
 from speakcare_logging import create_logger
 from os_utils import ensure_directory_exists
 
-# Define your text
-# text = """
-#         Good afternoon Alice Johnson. I’m going to check your blood pressure now.
-#         I’ll start by taking it while you're seated. I’ll use your left arm for this.
-#         Please relax for a moment while I take the reading.
-#         Your blood pressure is 130 over 85.
-#         I’ll make a note of that. If there’s anything else, feel free to mention it later.
-#         """
-
-# # Initialize gTTS with your text and language (e.g., 'en' for English)
-# tts = gTTS(text=text, lang='en')
-
-# # Define the file path to save the audio
-# speech_file_path = Path(__file__).parent / "blood_pressure.mp3"
-
-# # Save the speech to a file
-# tts.save(speech_file_path)
-
-# print(f"Speech saved to {speech_file_path}")
 
 logger = create_logger(__name__)
 
