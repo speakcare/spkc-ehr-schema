@@ -1,6 +1,5 @@
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
-from stt import transcribe_audio
 import json
 import openai
 from openai import OpenAI
