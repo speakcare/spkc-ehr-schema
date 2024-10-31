@@ -21,5 +21,7 @@ done
 # Make sure APP_PORT is set, otherwise default to 3000
 PORT="${APP_PORT:-3000}"
 
+# create the database 
+python3 speakcare_db_create.py
 # Run Gunicorn with the specified port and log level
 gunicorn -b localhost:$PORT -w 4 --access-logfile - --log-level $LOG_LEVEL --reload --timeout $TIMEOUT speakcare_backend:app

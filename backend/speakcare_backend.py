@@ -4,7 +4,7 @@ from flask_cors import CORS
 import json
 from dotenv import load_dotenv
 import os, sys
-from models import RecordState, RecordType, TranscriptState, init_speakcare_db
+from models import RecordState, RecordType, TranscriptState
 import logging
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
@@ -417,7 +417,8 @@ class ProcessAudioResource2(Resource):
 api.add_namespace(ns)
 
 # Initialize the database
-EmrUtils.init_db(db_directory=DB_DIRECTORY)
+# no need to create it as it is created by a pre-init script
+EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=False)
 
 if __name__ == '__main__':
     # for debug purposes allow running the app from the command line

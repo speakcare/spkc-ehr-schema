@@ -73,14 +73,15 @@ class MedicalRecords(Base):
 class SpeakCareDB:
     DB_FILE_NAME     = 'speakcare.db'
 
-    def __init__(self, db_directory: str):
+    def __init__(self, db_directory: str, create_db= False):
         # Create database engines
         self.db_path = ensure_directory_exists(db_directory)
         speakcare_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.DB_FILE_NAME}'#medical_records.db'
         logger.debug(f"Creating SpeakCare database at {speakcare_sqlite_db}")
         self.speakcare_db_engine = create_engine(speakcare_sqlite_db)
         # Create tables
-        Base.metadata.create_all(self.speakcare_db_engine)
+        if create_db:
+            Base.metadata.create_all(self.speakcare_db_engine)
         self.SpeakCareDBSession = scoped_session(sessionmaker(bind=self.speakcare_db_engine))
         atexit.register(self.__cleanup)
     
@@ -103,7 +104,7 @@ class SpeakCareDB:
 
 
 __singletonDbInstance = None
-def init_speakcare_db(db_directory = None):
+def init_speakcare_db(db_directory = None, create_db = False):
     """
     Provides access to the singleton instance of SpeakCareDB.
     Initializes the instance if it hasn't been created yet.
@@ -115,7 +116,7 @@ def init_speakcare_db(db_directory = None):
         if db_directory is None:
             db_directory = 'db'
         logger.debug(f"Initializing SpeakCareDB with db_directory: {db_directory}")
-        __singletonDbInstance = SpeakCareDB(db_directory)
+        __singletonDbInstance = SpeakCareDB(db_directory, create_db)
     return __singletonDbInstance
 
 def get_speakcare_db_instance():
