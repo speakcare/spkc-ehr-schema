@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 import copy
+import argparse
 import traceback
 from airtable_schema import FieldTypes
 logger = create_logger('speackcare.emr.utils')
@@ -830,3 +831,24 @@ class EmrUtils:
             return False, {"error": str(e)}
         finally:
             EmrUtils.db.SpeakCareDBSession.remove()
+
+DB_DIRECTORY = "db"
+def main():
+    supported_tables = EmrUtils.get_table_names()
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    
+    parser = argparse.ArgumentParser(description='EMR utils.')
+    parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
+    
+    args = parser.parse_args()
+
+    if args.table not in supported_tables:
+        print(f"Table {args.table} not supported.")
+        sys.exit(1)
+    
+    schema = EmrUtils.get_record_writable_schema(args.table)
+    print(json.dumps(schema, indent=4))
+
+
+if __name__ == "__main__":
+    main()
