@@ -31,8 +31,8 @@ if not emr_api:
 class EmrUtils:
     db : Optional[SpeakCareDB] = None
     @staticmethod
-    def init_db(db_directory = None):
-        EmrUtils.db = init_speakcare_db(db_directory)
+    def init_db(db_directory = None, create_db=False):
+        EmrUtils.db = init_speakcare_db(db_directory, create_db=create_db)
 
     @staticmethod
     def cleanup_db(delete_db_files = False):

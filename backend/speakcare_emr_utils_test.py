@@ -1,8 +1,5 @@
 #import speakcare_emr_utils
-from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, init_speakcare_db
-# init the database with the test database before importing the speakcare_emr_utils
-# init_speakcare_db('test_db') 
-
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
 from speakcare_logging import create_logger
@@ -21,7 +18,7 @@ print(f"run_skipped_tests: {run_skipped_tests}")
 def setUpModule():
     # This runs once before all test classes in this module
     print(f"Setup module {__name__}")
-    EmrUtils.init_db('test_db')
+    EmrUtils.init_db('test_db', create_db=True)
 
 def tearDownModule():
     # This runs once after all test classes in this module

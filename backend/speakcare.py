@@ -12,7 +12,6 @@ from speakcare_logging import create_logger
 from speakcare_stt import transcribe_audio
 from speakcare_transcriptions import transcription_to_emr
 from speakcare_emr import SpeakCareEmr
-from models import init_speakcare_db
 from speakcare_emr_utils import EmrUtils
 
 load_dotenv()
@@ -99,7 +98,7 @@ def main():
     ensure_directory_exists(recordings_dir)
     ensure_directory_exists(transciptions_dir)
     ensure_directory_exists(jsons_dir)
-    EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=True)
 
     parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
     # Add arguments
