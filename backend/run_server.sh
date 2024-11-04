@@ -2,7 +2,7 @@
 
 # Load .env file and extract APP_PORT
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  export $(grep -v '^#' .env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*' | xargs)
 fi
 
 # Set default log level to 'info'

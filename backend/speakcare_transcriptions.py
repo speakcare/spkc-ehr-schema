@@ -329,7 +329,7 @@ def main():
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
 
-    ensure_directory_exists(output_filename) 
+    ensure_directory_exists(output_dir) 
     transcription_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
 
 

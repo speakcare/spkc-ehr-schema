@@ -1,6 +1,7 @@
 import openai
 #from openai import OpenAI
 import argparse
+import traceback
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
@@ -8,8 +9,9 @@ from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio
 from speakcare_logging import create_logger
 
-logger = create_logger(__name__)
 load_dotenv()
+logger = create_logger(__name__)
+
 
 # Set your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -35,10 +37,12 @@ def transcribe_audio(input_file="output.wav", output_file="output.txt", append=F
             transcript = openai.Audio.transcribe(model= "whisper-1", file=audio_file)
 
         # write the transcript to a text file
+        logger.debug(f"Opening transcription output file {output_file} in {write_mode} mode")
         with open(output_file, write_mode) as text_file:
             text_file.write(transcript['text'])
     except Exception as e:
         logger.error(f"Error transcribing audio: {e}")
+        traceback.print_exc()
         return 0
 
     transcription_length= len(transcript['text'])
@@ -76,6 +80,6 @@ if __name__ == "__main__":
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.txt'
 
-    ensure_directory_exists(output_filename) 
+    ensure_directory_exists(output_dir) 
     logger.info(f"Transcribing audio from {input_file} into {output_filename}")
     transcribe_audio(input_file, output_filename)
