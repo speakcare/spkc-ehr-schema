@@ -7,7 +7,7 @@ from speakcare_logging import create_logger
 
 
 # Logger setup
-schema_logger = create_logger('emr.schema')
+schema_logger = create_logger(__name__)
 
 class AirtableFieldTypes(PyEnum):
     NUMBER = 'number'
@@ -27,6 +27,7 @@ class JsonSchemaTypes(PyEnum):
     ARRAY = 'array'
     BOOLEAN = 'boolean'
     OBJECT = 'object'
+    NULL = 'null'
 
 
 def precision_to_multiple_of(precision):
@@ -51,6 +52,8 @@ _field_schema_function_registry = {}
 class AirtableSchema:
     """
     A class to create a canonical SpeakCare JSON schema from an Airtable schema
+    This adheres to the current OpenAI schema format with the existing restrictions.
+    As the OpenAI JSON schema support imrpoves with time, we will be able to add more features to the schema and remove restrictions
     """
 
     """
@@ -83,6 +86,8 @@ class AirtableSchema:
         if table_name != table_schema.get("name"):
             raise ValueError(f"Table name '{table_name}' does not match the name in the schema '{table_schema.get('name')}'")
 
+        self.field_registry = {}
+        self.sections = {}
         self.logger = schema_logger
         self.table_name = table_name
         self.json_schema = {}
@@ -98,6 +103,7 @@ class AirtableSchema:
         Create a canonical schema from an Airtable schema
         """
         # Build the JSON schema 
+        fields = table_schema.get("fields", None)
         self.json_schema['title'] = self.table_name
         self.json_schema['type'] = JsonSchemaTypes.OBJECT.value
         # All schemas will have these properties: table_name, patient_name, fields
@@ -108,26 +114,66 @@ class AirtableSchema:
                 "description": "The name of the Airtable table"
             },
             "patient_name": {
-                "type": JsonSchemaTypes.STRING.value,
+                "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
                 "description": "The name of the patient"
             },
-            "fields": {}, # this will be populated later
-            "required": ["table_name", "patient_name", "fields"],
-            "additionalProperties": False
         }
+        self.json_schema['required'] = ["table_name", "patient_name"]
+        self.json_schema['additionalProperties'] = False
         # initialize the field registry
-        self.__create_field_registry(table_schema.get("fields", [])) 
+        if fields:
+            self.json_schema['required'].append('fields')
+            self.__create_field_registry(fields) 
+        
+    def add_section(self, section_name, section_schema: "AirtableSchema", required: bool = False):
+        """
+        Add a section to the schema
+        """
+        if not section_schema:
+            return
+        
+        if not section_name == section_schema.table_name:
+            raise ValueError(f"Table '{self.table_name}' failed to add section '{section_name}' as it is different than in the schema '{section_schema.table_name}'")
+        
+        if not self.json_schema['properties'].get('sections', None):
+            # addin the first section
+            self.json_schema['properties']['sections'] = {
+                "type": JsonSchemaTypes.OBJECT.value,
+                "properties": {},
+                "required": [],
+                "additionalProperties": False
+            }
+            self.json_schema['required'].append('sections')
+
+        self.sections[section_name] = section_schema
+        section_json_schema = copy.deepcopy(section_schema.get_json_schema())
+        if 'patient_name' in section_json_schema['properties']:
+            # we don't need the patient_name in the section schema
+            del section_json_schema['properties']['patient_name']
+            section_json_schema['required'].remove('patient_name')
+
+        if 'table_name' in section_json_schema['properties']:
+            # we don't need the table_name in the section schema as we have it in the section name
+            del section_json_schema['properties']['table_name']
+            section_json_schema['required'].remove('table_name')
+            
+        self.json_schema['properties']['sections']['properties'][section_name] = section_json_schema
+        if required:
+            self.json_schema['properties']['sections']['required'].append(section_name)
         
 
+    def get_section(self, section_name):
+        return self.sections.get(section_name, None)    
+
     def __create_field_registry(self, fields=None):
-        self.__field_registry = {}
+        if not fields:
+            return
         properties = {}
         required = []
         #fields = self.table_schema.get("fields", [])
         for i, field in enumerate(fields):
             field_name = field.get("name")
             field_type = AirtableFieldTypes(field.get("type"))  # if type is not in FieldTypes, it will raise an error
-            #field_schema = field.get("schema", {})
             prop_schema, err = self.__create_property_schema(field_type, field)
             if not prop_schema:
                 error_message = f"Error creating schema for table '{self.table_name}' for field name '{field_name}' field {field}. error: {err}"
@@ -135,22 +181,20 @@ class AirtableSchema:
                 raise ValueError(error_message)
             
             properties[field_name] = prop_schema
-            # Replace the field schema with the canonical schema
-            #fields[i] = field_schema
             
             field_options = field.get("options", {})
             field_description = field.get("description", "")
             is_required = "required" in field_description.lower()
-            if is_required:
-                required.append(field_name)
-            self.__field_registry[field_name] = {
+            # all fields must be set to required in json schema for OpenAI
+            required.append(field_name) 
+            self.field_registry[field_name] = {
                 "type": field_type,
                 "options": field_options,
                 "required": is_required
             }
         
         schema_fields = {}
-        schema_fields["type"] = JsonSchemaTypes.OBJECT.value
+        schema_fields["type"] = [JsonSchemaTypes.OBJECT.value, JsonSchemaTypes.NULL.value]
         schema_fields["properties"] = properties
         schema_fields["required"] = required
         schema_fields["additionalProperties"] = False
@@ -162,7 +206,11 @@ class AirtableSchema:
         """
         Takes a field name and a value and validates that it adheres to the schema
         """
-        global _field_validation_functions_registry 
+        #global _field_validation_functions_registry 
+        if value is None:
+            error_message = "Field value is None"
+            return None, error_message
+            
         try:
             #validation_function = _field_validation_functions_registry.get(field_type)
             validation_function = self.__get_validation_function(field_type)
@@ -178,8 +226,6 @@ class AirtableSchema:
             return None, error_message
 
     def __create_property_schema(self, field_type: AirtableFieldTypes, airtable_schema: dict):
-        #global _field_schema_registry
-        #field_schema_function = _field_schema_registry.get(field_type)
         field_schema_function = self.__get_field_schema_function(field_type)
         if field_schema_function:
             try:
@@ -205,7 +251,7 @@ class AirtableSchema:
         try:
             # Check for required fields only if checkRequired is True
             if checkRequired:
-                for field_name, field_info in self.__field_registry.items():
+                for field_name, field_info in self.field_registry.items():
                     if field_info.get("required") and field_name not in record:
                         error_message = f"Validation error: Required field '{field_name}' is missing."
                         self.logger.error(error_message)
@@ -214,8 +260,8 @@ class AirtableSchema:
             
             # Validate each field in the record
             for field_name, field_value in record.items():
-                if field_name in self.__field_registry:
-                    field_info = self.__field_registry[field_name]
+                if field_name in self.field_registry:
+                    field_info = self.field_registry[field_name]
                     field_type = AirtableFieldTypes(field_info["type"])
                     field_options = field_info["options"]
                     validated_value, error_message = self.__validate_field(field_type, field_value, field_options)
@@ -225,12 +271,15 @@ class AirtableSchema:
                             error_message = f"Validation warning for field '{field_name}': {error_message}"
                             self.logger.warning(error_message)
                             errors.append(error_message)
-                    else:
+                    elif field_info.get("required"):
                         error_message = f"Validation error for field '{field_name}': {error_message}"
                         self.logger.error(error_message)
                         errors.append(error_message)
-                        if field_info.get("required"): # validation failed for a required field
-                            all_valid = False
+                        all_valid = False
+                    else:
+                        error_message = f"Field is None or failed validation '{field_name}': {error_message}"
+                        self.logger.info(error_message)
+                        errors.append(error_message)
                         
                 else:
                     error_message = f"Field name '{field_name}' does not exist in the schema."
@@ -282,26 +331,11 @@ class AirtableSchema:
         
     @__register_field_type_schema(AirtableFieldTypes.NUMBER)
     def __number_schema(self, airtable_schema: dict):
-        #    "type": "number",
-        #     "options": {
-        #         "format": "precision: 1"
-        #     },
-        #     "name": "name",
-        #     "description": "required"
-
-        # {
-        #     "type": "number",
-        #     "minimum": 0,
-        #     "maximum": 100,
-        #     "multipleOf": 0.01,
-        #     "description": "O2 saturation percentage with two decimal precision, required"
-        # }
-
+        hint = f"Must be a number with {airtable_schema.get('options').get('precision')} decimal precision"
+        description = f'{airtable_schema.get("description")}: {hint}' if airtable_schema.get("description") else hint
         return {
-            "type": JsonSchemaTypes.NUMBER.value,
-            "multipleOf": precision_to_multiple_of(airtable_schema.get('options').get('precision')),
-            # user dictionary comprehension to add description only if it exists
-            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.NUMBER.value, JsonSchemaTypes.NULL.value],
+            "description": description
         }
 
 
@@ -321,14 +355,9 @@ class AirtableSchema:
     @__register_field_type_schema(AirtableFieldTypes.SINGLE_LINE_TEXT)
     def __single_line_text_schema(self, airtable_schema: dict):
         return {
-            "type": JsonSchemaTypes.STRING.value,
-            "description": "Single line text" if airtable_schema.get('description') is None else f"Single line text: {airtable_schema.get('description')}" 
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
+            "description": "Single line text" if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: Single line text" 
         }
-        # {
-        #     "type": "singleLineText",
-        #     "name": "TreatmentPlan"
-        # },
 
 
     ### Multi line text field schema
@@ -347,14 +376,9 @@ class AirtableSchema:
 
     @__register_field_type_schema(AirtableFieldTypes.MULTI_LINE_TEXT)
     def __multi_line_text_schema(self, airtable_schema: dict):
-        # {
-        #     "type": "multilineText",
-        #     "name": "Notes"
-        # },
         return {
-            "type": JsonSchemaTypes.STRING.value,
-            "description": "Multi-line text" if airtable_schema.get('description') is None else f"Multi-line text: {airtable_schema.get('description')}" 
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
+            "description": "Multi-line text" if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: Multi-line text" 
         }
 
     ### Single select field schema
@@ -376,24 +400,12 @@ class AirtableSchema:
     
     @__register_field_type_schema(AirtableFieldTypes.SINGLE_SELECT)
     def __single_select_schema(self, airtable_schema: dict):
-        # {
-        #     "type": "singleSelect",
-        #     "options": {
-        #         "choices": [
-        #             {
-        #                 "name": "Wheelchair only",
-        #             },
-        #             {
-        #                 "name": "Wheelchair/propels self",
-        #             },
-        #         ]
-        #     },
-        #     "name": "Ambulation device"
-        # },
+        hint = "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null" 
+        enum_values = [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]
         return {
-            "type": JsonSchemaTypes.STRING.value,
-            "enum": [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])],
-            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
+            "enum": enum_values,
+            "description": f"{hint}" if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: {hint}",
         }
 
     ### Multi select field schema
@@ -420,32 +432,18 @@ class AirtableSchema:
         if len(validated_values_list) == 0:
             err = " No valid choices found."
             error_message = (error_message + err) if error_message else (error_prefix + err)
-            self.logger.error(error_message)
+            self.logger.info(error_message)
             return None, error_message
         return validated_values_list, error_message
     
     
     @__register_field_type_schema(AirtableFieldTypes.MULTI_SELECT)
     def __multi_select_schema(self, airtable_schema: dict):
-        # {
-        #     "type": "multipleSelects",
-        #     "options": {
-        #         "choices": [
-        #             {
-        #                 "name": "Wheelchair only",
-        #             },
-        #             {
-        #                 "name": "Wheelchair/propels self",
-        #             },
-        #         ]
-        #     },
-        #     "name": "Ambulation device"
-        # },
+        hint = "Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null" 
         return {
-            "type": JsonSchemaTypes.ARRAY.value,
-            #"items": {"type": "string", "enum": [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]},
+            "type": [JsonSchemaTypes.ARRAY.value, JsonSchemaTypes.NULL.value],
             "items": {"type": JsonSchemaTypes.STRING.value, "enum": [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]},
-            **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "description": f"{hint}" if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: {hint}"
         }
 
 
@@ -469,20 +467,10 @@ class AirtableSchema:
 
     @__register_field_type_schema(AirtableFieldTypes.DATE)
     def __date_schema(self, airtable_schema: dict):
-        # {
-        #     "type": "date",
-        #     "options": {
-        #         "standard": "ISO-8601",
-        #         "format":   "YYYY-MM-DD"
-        #     },
-        #     "name": "Admission Date",
-        #     "description": "required"
-        # },
+        format = "ISO 8601 date (YYYY-MM-DD)"
         return {
-            "type": JsonSchemaTypes.STRING.value,
-            "format": "date",
-            "description": "ISO 8601 date (YYYY-MM-DD)" if airtable_schema.get('description') is None else f"ISO 8601 date (YYYY-MM-DD): {airtable_schema.get('description')}"
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
+            "description": format if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: {format}"
         }
 
     ### Date-time field schema
@@ -511,22 +499,11 @@ class AirtableSchema:
         
     @__register_field_type_schema(AirtableFieldTypes.DATE_TIME)
     def __date_time_schema(self, airtable_schema: dict):
+        format = "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"
         return {
-            "type": JsonSchemaTypes.STRING.value,
-            "format": "date-time",
-            "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)" if airtable_schema.get('description') is None else f"ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ): {airtable_schema.get('description')}"
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
+            "description": format if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: {format}"
         }
-        # {
-        #     "type": "dateTime",
-        #     "options": {
-        #         "standard": "ISO-8601",
-        #         "format":   "YYYY-MM-DDTHH:MM:SSZ",
-        #         "timezone": "UTC"
-        #     },
-        #     "name": "Admission Date",
-        #     "description": "required"
-        # },
         
     ### Percent field schema
     @__register_validation_function(AirtableFieldTypes.PERCENT)
@@ -554,23 +531,12 @@ class AirtableSchema:
         
     @__register_field_type_schema(AirtableFieldTypes.PERCENT)
     def __percent_schema(self, airtable_schema: dict):
+        hint = f"Percentage - must be a number between 0 and 100 with {airtable_schema.get('options', {}).get('precision', 0)} decimal precision"
+        description = f'{airtable_schema.get("description")}: {hint}' if airtable_schema.get("description") else hint
         return {
-            "type": JsonSchemaTypes.NUMBER.value,
-            "multipleOf": precision_to_multiple_of(airtable_schema.get('options', {}).get('precision', 0)),
-            "minimum": 0,
-            "maximum": 100,
-            "description": "Percentage (0-100)" if airtable_schema.get('description') is None else f"Percentage (0-100): {airtable_schema.get('description')}"
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.NUMBER.value, JsonSchemaTypes.NULL.value],
+            "description": description
         }    
-        #    "type": "percent",
-        #     "options": {
-        #         "format": "precision: 1"
-        #         "min": 0,
-        #         "max": 100
-        #     },
-        #     "name": "name",
-        #     "description": "required"
-
     ### Checkbox field schema
     @__register_validation_function(AirtableFieldTypes.CHECKBOX)
     def __validate_checkbox(self, value, options=None):
@@ -587,17 +553,9 @@ class AirtableSchema:
     @__register_field_type_schema(AirtableFieldTypes.CHECKBOX)
     def __checkbox_schema(self, airtable_schema: dict):
         return {
-            "type": JsonSchemaTypes.BOOLEAN.value,
+            "type": [JsonSchemaTypes.BOOLEAN.value, JsonSchemaTypes.NULL.value],
             **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
         }
-        # {
-        #     "type": "checkbox",
-        #     "options": {
-        #         "format": "boolean"
-        #     },
-        #     "name": "FollowUpRequired"
-        # },
-
 
     @__register_validation_function(AirtableFieldTypes.CURRENCY)
     def __validate_currency(self, value, options=None):
@@ -623,18 +581,12 @@ class AirtableSchema:
     ### Currency field schema
     @__register_field_type_schema(AirtableFieldTypes.CURRENCY)
     def __currency_schema(self, airtable_schema: dict):
+        hint = f"Currency - must be a number with {airtable_schema.get('options', {}).get('precision', 0)} decimal precision"
+        description = f'{airtable_schema.get("description")}: {hint}' if airtable_schema.get("description") else hint
         return {
-            "type": JsonSchemaTypes.NUMBER.value,
-            "multipleOf": precision_to_multiple_of(airtable_schema.get('options', {}).get('precision', 0)),
-            "description": "Currency" if airtable_schema.get('description') is None else f"Currency: {airtable_schema.get('description')}"
-            #**({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
+            "type": [JsonSchemaTypes.NUMBER.value, JsonSchemaTypes.NULL.value],
+            "description": description
         }   
-        #    "type": "percent",
-        #     "options": {
-        #         "format": "precision: 1",
-        #     },
-        #     "name": "name",
-        #     "description": "required"
 
 
     """ 

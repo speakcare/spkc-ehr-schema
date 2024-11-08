@@ -334,365 +334,6 @@ class TestRecords(unittest.TestCase):
         self.logger.info(f"Updated record {record_id} successfully")
 
 
-    def test_record_create_assessment(self):
-        record_data = {
-            "type": RecordType.ASSESSMENT,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "patient_id": "P001",
-            "fields": {
-                 "Status": "New"
-             }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE,
-                 "fields": {
-                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
-                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
-                    "Total score": 10,
-                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
-                    "GAIT/BALANCE/AMBULATION": [
-                        "Balance problem while standing/walking (1 point)"
-                    ],
-                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
-                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
-                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
-                }
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
-        self.assertEqual(record.state, record_state)
-        self.assertEqual(len(record.sections), 1)  
-        self.logger.info(f"Created record {record_id}")
-  
-    def test_record_create_assessment_with_wrong_section_name(self):
-        record_data = {
-            "type": RecordType.ASSESSMENT,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "patient_id": "P001",
-            "fields": {
-                 "Status": "New"
-             }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": "Wrong section name",
-                 "fields": {
-                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
-                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
-                    "Total score": 10,
-                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
-                    "GAIT/BALANCE/AMBULATION": [
-                        "Balance problem while standing/walking (1 point)"
-                    ],
-                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
-                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
-                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
-                }
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertTrue(f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'" in response['error'], response['error'])
-
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertEqual(record.errors[0], f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'")
-        self.logger.info(f"Created record {record_id}")
-
-    def test_record_create_with_wrong_sections(self):
-
-        record_data = { # this is a medical record should not have sections
-            "type": RecordType.MEDICAL_RECORD,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Lbs",
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE,
-                 "fields": {
-                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
-                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
-                    "Total score": "ten", # wrong value sould be integer
-                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
-                    "GAIT/BALANCE/AMBULATION": [
-                        "Balance problem while standing/walking (1 point)"
-                    ],
-                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
-                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
-                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
-                }
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        #self.assertEqual(response['error'], "EMR record created successfully", response['error'])
-        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{SpeakCareEmr.WEIGHTS_TABLE}' that has no sections" in response['error'], response['error'])
-
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertTrue("Sections '['Fall Risk Screen: SECTION 1']' provided for table 'Weights' that has no sections" in record.errors[0])
-        self.logger.info(f"Created record {record_id} with errors:{record.errors}")
-        
-
-    def test_record_create_assessment_with_wrong_section_field(self):
-        record_data = {
-            "type": RecordType.ASSESSMENT,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "patient_id": "P001",
-            "fields": {
-                 "Status": "New"
-             }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE,
-                 "fields": {
-                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
-                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
-                    "Total score": "ten", # wrong value sould be integer
-                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
-                    "GAIT/BALANCE/AMBULATION": [
-                        "Balance problem while standing/walking (1 point)"
-                    ],
-                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
-                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
-                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
-                }
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertTrue("Validation error for field 'Total score': Value 'ten' cannot be converted to a number." in response['error'], response['error'])
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertTrue("field 'Total score': Value 'ten'" in record.errors[0])
-        self.logger.info(f"Created record {record_id} with errors:{record.errors}")
-    
-    def test_record_create_assessment_commit_and_sign(self):
-        record_data = {
-            "type": RecordType.ASSESSMENT,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "patient_id": "P001",
-            "fields": {
-                 "Status": "New"
-             }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE,
-                 "fields": {
-                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
-                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
-                    "Total score": 10,
-                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
-                    "GAIT/BALANCE/AMBULATION": [
-                        "Balance problem while standing/walking (1 point)"
-                    ],
-                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
-                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
-                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
-                }
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
-        self.assertEqual(len(record.sections), 1)  
-        self.logger.info(f"Created record {record_id}")
-
-        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(emr_id)
-        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
-        self.assertEqual(record.state, RecordState.COMMITTED)
-        emr_record, err = EmrUtils.get_emr_record(record_id)
-        self.assertIsNotNone(emr_record)
-        self.assertEqual(emr_record['id'], emr_id)
-        self.assertEqual(emr_record['fields']['Status'], "New")
-        self.assertIsNotNone(emr_record['fields']['SECTION_1_FALL_RISK'])
-        sectionEmrId = emr_record['fields']['SECTION_1_FALL_RISK'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(
-                                                tableId=sectionTableId, 
-                                                emr_record_id= sectionEmrId
-                                            )
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['URINE ELIMINATION STATUS'], "REGULARLY CONTINENT (0 points)")  
-        self.assertEqual(section_emr_record['fields']['Total score'], 10)
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
-        self.logger.info(f"Commited assessment {record_id} to the EMR successfully")
-
-        EmrUtils.sign_assessment(record_id)
-        emr_record, err = EmrUtils.get_emr_record(record_id)
-        self.assertEqual(emr_record['fields']['Status'], "Completed")
-        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
-  
-    def test_record_create_vitals_commit_and_sign(self):
-        record_data = {
-            "type": RecordType.ASSESSMENT,
-            "table_name": SpeakCareEmr.VITALS_TABLE,
-            "patient_name": "Bob Williams",
-            "nurse_name": "Sara Foster",
-            "patient_id": "P003",
-            "fields": {
-                 "Status": "New"
-             }
-        }
-
-        rescord_sections = [
-            {
-                "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-                "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
-            },
-            {
-                "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
-                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting Left Arm", "Notes": "no answer"}
-            },
-            {
-                "table_name": SpeakCareEmr.TEMPERATURES_TABLE,
-                "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
-            },
-            {
-                "table_name": SpeakCareEmr.HEIGHTS_TABLE,
-                "fields": {"Height": 168, "Units": "Centimeters", "Method": "Wing span"}
-            }
-        ]
-        record_data['sections'] = rescord_sections
-        record_id, record_state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
-
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
-        self.assertEqual(len(record.sections), 4)  
-        self.logger.info(f"Created record {record_id}")
-
-        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(emr_id)
-        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
-        self.assertEqual(record.state, RecordState.COMMITTED)
-        emr_record, err = EmrUtils.get_emr_record(record_id)
-        self.assertIsNotNone(emr_record)
-        self.assertEqual(emr_record['id'], emr_id)
-        self.assertEqual(emr_record['fields']['Status'], "New")
-
-        # Check the blood pressure section
-        self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
-        sectionEmrId = emr_record['fields']['Blood Pressure'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.BLOOD_PRESSURES_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
-        self.assertEqual(section_emr_record['fields']['Diastolic'], 85)
-        self.assertEqual(section_emr_record['fields']['Position'], "Sitting Left Arm")
-        self.assertEqual(section_emr_record['fields']['Notes'], "no answer")
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
-
-        # Check the temperature section
-        # "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
-        self.assertIsNotNone(emr_record['fields']['Temperature'])
-        sectionEmrId = emr_record['fields']['Temperature'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.TEMPERATURES_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['Degrees'], 99.9)  
-        self.assertEqual(section_emr_record['fields']['Units'], "Fahrenheit")
-        self.assertEqual(section_emr_record['fields']['Route'], "Oral")
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
-
-        # Check the weight section
-        # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
-        self.assertIsNotNone(emr_record['fields']['Weight'])
-        sectionEmrId = emr_record['fields']['Weight'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.WEIGHTS_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['Weight'], 120)  
-        self.assertEqual(section_emr_record['fields']['Units'], "Lbs")
-        self.assertEqual(section_emr_record['fields']['Scale'], "Bath")
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
-
-        # Check the height section
-        self.assertIsNotNone(emr_record['fields']['Height'])
-        sectionEmrId = emr_record['fields']['Height'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.HEIGHTS_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['Height'], 168)  
-        self.assertEqual(section_emr_record['fields']['Units'], "Centimeters")
-        self.assertEqual(section_emr_record['fields']['Method'], "Wing span")
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
-
-
-        self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
-
-        EmrUtils.sign_assessment(record_id)
-        emr_record, err = EmrUtils.get_emr_record(record_id)
-        self.assertEqual(emr_record['fields']['Status'], "Completed")
-        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
-  
-
-
     def test_record_create_and_commit_record(self):
                 # Create a record example
         record_data = {
@@ -732,59 +373,6 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
-
-    def test_record_create_with_transcript(self):
-
-        transcript_text = "Hello John Doe, I am going to meausre your weight now. I am going to use the Mechanical lift. You are weighing 130 Kilograms. Thnak you."
-        transcript_id, response = EmrUtils.add_transcript(transcript_text)
-        
-        # Assert that the transcript was created successfully
-        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
-        
-        # Get the transcript from the database
-        transcript, response = EmrUtils.get_transcript(transcript_id)
-        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
-        self.assertEqual(transcript.text, transcript_text, "Transcript text does not match.")
-        self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
-        # Create a record example
-        record_data = {
-            "type": RecordType.MEDICAL_RECORD,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
-            "nurse_name": "Sara Foster",
-            "fields": {
-                 "Units": "Kg",
-                 "Weight": 130,
-                 "Scale": "Mechanical Lift"
-            }
-        }
-        record_id, record_state, response = EmrUtils.create_record(record_data, transcript_id)
-        self.assertIsNotNone(record_id)
-        self.assertEqual(response['message'], "EMR record created successfully")
-
-        # now check that the record is properly connected to the transcript
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id, load_transcript=True) # load the transcript with the record
-        self.assertIsNotNone(record)
-        self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.PENDING)
-        self.assertEqual(record.transcript_id, transcript_id)
-
-        record_transcript: Optional[Transcripts] = {}
-        record_transcript = record.transcript
-        self.assertIsNotNone(record_transcript, response)
-        self.assertEqual(record_transcript.state, TranscriptState.PROCESSED, "Transcript state should be PROCESSED.")
-        self.assertEqual(record_transcript.text, transcript_text, "Transcript text does not match.")
-
-        # now check that the transcript is properly connected to the record
-        transcript_with_record, response = EmrUtils.get_transcript(transcript_id, load_medical_records=True) # load the record with the transcript
-        transcript_records = transcript_with_record.medical_records
-        self.assertIsNotNone(transcript_records)
-        self.assertEqual(transcript_records[0].id, record_id)
-        self.logger.info(f"Created record {record_id} with transcript id {transcript_id} successfully")     
-
-
-
     def test_record_create_and_commit_blood_pressure(self):
                     # Create a record example
             record_data = {
@@ -792,7 +380,7 @@ class TestRecords(unittest.TestCase):
                 "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
                 "patient_name": "John Doe",
                 "nurse_name": "Sara Foster",
-                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting Left Arm", "Notes": "no answer"}
+                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
             }
             record_id, record_state, response = EmrUtils.create_record(record_data)
             self.assertIsNotNone(record_id)
@@ -815,7 +403,8 @@ class TestRecords(unittest.TestCase):
             self.assertEqual(emr_record['id'], emr_id)
             self.assertEqual(emr_record['fields']['Systolic'], 130)
             self.assertEqual(emr_record['fields']['Diastolic'], 85)
-            self.assertEqual(emr_record['fields']['Position'], "Sitting Left Arm")  
+            self.assertEqual(emr_record['fields']['Position'], "Sitting")
+            self.assertEqual(emr_record['fields']['Arm'], "Left")  
             self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
             self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
             self.logger.info(f"Commited record {record_id} to the EMR successfully")
@@ -929,6 +518,429 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(response['error'], f"Record id {record_id} cannot be discarded as it already COMMITTED.")
         self.assertEqual(record.state, RecordState.COMMITTED)
 
+    def test_record_create_with_transcript(self):
+
+        transcript_text = "Hello John Doe, I am going to meausre your weight now. I am going to use the Mechanical lift. You are weighing 130 Kilograms. Thnak you."
+        transcript_id, response = EmrUtils.add_transcript(transcript_text)
+        
+        # Assert that the transcript was created successfully
+        self.assertIsNotNone(transcript_id, "Failed to create transcript.")
+        
+        # Get the transcript from the database
+        transcript, response = EmrUtils.get_transcript(transcript_id)
+        self.assertIsNotNone(transcript, "Failed to retrieve transcript.")
+        self.assertEqual(transcript.text, transcript_text, "Transcript text does not match.")
+        self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
+        # Create a record example
+        record_data = {
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Kg",
+                 "Weight": 130,
+                 "Scale": "Mechanical Lift"
+            }
+        }
+        record_id, record_state, response = EmrUtils.create_record(record_data, transcript_id)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        # now check that the record is properly connected to the transcript
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id, load_transcript=True) # load the transcript with the record
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING)
+        self.assertEqual(record.transcript_id, transcript_id)
+
+        record_transcript: Optional[Transcripts] = {}
+        record_transcript = record.transcript
+        self.assertIsNotNone(record_transcript, response)
+        self.assertEqual(record_transcript.state, TranscriptState.PROCESSED, "Transcript state should be PROCESSED.")
+        self.assertEqual(record_transcript.text, transcript_text, "Transcript text does not match.")
+
+        # now check that the transcript is properly connected to the record
+        transcript_with_record, response = EmrUtils.get_transcript(transcript_id, load_medical_records=True) # load the record with the transcript
+        transcript_records = transcript_with_record.medical_records
+        self.assertIsNotNone(transcript_records)
+        self.assertEqual(transcript_records[0].id, record_id)
+        self.logger.info(f"Created record {record_id} with transcript id {transcript_id} successfully")     
+
+
+
+
+
+
+class TestRecordWithSections(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super(TestRecordWithSections, self).__init__(*args, **kwargs)
+        self.logger = create_logger(__name__)
+
+    def setUp(self):
+        pass
+    def test_record_create_fallrisk(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P001",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+
+        record_sections = { 
+            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            {
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": 10,
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        }
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(record.state, record_state)
+        self.assertEqual(len(record.sections), 1)  
+        self.logger.info(f"Created record {record_id}")
+  
+    def test_record_create_fallrisk_with_wrong_section_name(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P001",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+        record_sections = { 
+            "Wrong section name":
+            {
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": 10,
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        }
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertTrue(f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'" in response['error'], response['error'])
+
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
+        self.assertEqual(record.errors[0], f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'")
+        self.logger.info(f"Created record {record_id}")
+
+    def test_record_create_with_wrong_sections(self):
+
+        record_data = { # this is a medical record should not have sections
+            "type": RecordType.MEDICAL_RECORD,
+            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "fields": {
+                 "Units": "Lbs",
+                 "Weight": 120,
+                 "Scale": "Bath"
+            }
+        }
+        record_sections = { 
+            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            {
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": 10,
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        }
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        #self.assertEqual(response['error'], "EMR record created successfully", response['error'])
+        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{SpeakCareEmr.WEIGHTS_TABLE}' that has no sections" in response['error'], response['error'])
+
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
+        self.assertTrue("Sections '['Fall Risk Screen: SECTION 1']' provided for table 'Weights' that has no sections" in record.errors[0])
+        self.logger.info(f"Created record {record_id} with errors:{record.errors}")
+        
+
+    def test_record_create_assessment_with_wrong_section_field(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P001",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+
+        record_sections = { 
+            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            {
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": "ten", # "ten" instead of an integer
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        }
+
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertTrue("Validation error for field 'Total score': Value 'ten' cannot be converted to a number." in response['error'], response['error'])
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
+        self.assertTrue("field 'Total score': Value 'ten'" in record.errors[0])
+        self.logger.info(f"Created record {record_id} with errors:{record.errors}")
+    
+    def test_record_create_assessment_commit_and_sign(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "patient_name": "John Doe",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P001",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+
+        record_sections = { 
+            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            {
+                 "fields": {
+                    "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
+                    "VISION STATUS": "ADEQUATE (with or without glasses) (0 points)",
+                    "Total score": 10,
+                    "LEVEL OF CONSCIOUSNESS/ MENTAL STATUS": "Alert (0 points)",
+                    "GAIT/BALANCE/AMBULATION": [
+                        "Balance problem while standing/walking (1 point)"
+                    ],
+                    "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
+                    "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
+                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
+                }
+            }
+        }
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully", response)
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(len(record.sections), 1)  
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Status'], "New")
+        self.assertIsNotNone(emr_record['fields']['SECTION_1_FALL_RISK'])
+        sectionEmrId = emr_record['fields']['SECTION_1_FALL_RISK'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(
+                                                tableId=sectionTableId, 
+                                                emr_record_id= sectionEmrId
+                                            )
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['URINE ELIMINATION STATUS'], "REGULARLY CONTINENT (0 points)")  
+        self.assertEqual(section_emr_record['fields']['Total score'], 10)
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        self.logger.info(f"Commited assessment {record_id} to the EMR successfully")
+
+        EmrUtils.sign_assessment(record_id)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertEqual(emr_record['fields']['Status'], "Completed")
+        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+  
+    def test_record_create_vitals_commit_and_sign(self):
+        record_data = {
+            "type": RecordType.ASSESSMENT,
+            "table_name": SpeakCareEmr.VITALS_TABLE,
+            "patient_name": "Bob Williams",
+            "nurse_name": "Sara Foster",
+            "patient_id": "P003",
+            "fields": {
+                 "Status": "New"
+             }
+        }
+        record_sections = {
+            SpeakCareEmr.WEIGHTS_TABLE:
+            {
+                "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+            },
+            SpeakCareEmr.BLOOD_PRESSURES_TABLE:
+            {
+                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
+            },
+            SpeakCareEmr.TEMPERATURES_TABLE:
+            {
+                "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+            },
+            SpeakCareEmr.HEIGHTS_TABLE:
+            {
+                "fields": {"Height": 168, "Units": "Centimeters", "Method": "Wing span"}
+            }
+        }
+
+
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
+
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(len(record.sections), 4)  
+        self.logger.info(f"Created record {record_id}")
+
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Status'], "New")
+
+        # Check the blood pressure section
+        self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
+        sectionEmrId = emr_record['fields']['Blood Pressure'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.BLOOD_PRESSURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
+        self.assertEqual(section_emr_record['fields']['Diastolic'], 85)
+        self.assertEqual(section_emr_record['fields']['Position'], "Sitting")
+        self.assertEqual(section_emr_record['fields']['Arm'], "Left")
+        self.assertEqual(section_emr_record['fields']['Notes'], "no answer")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the temperature section
+        # "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+        self.assertIsNotNone(emr_record['fields']['Temperature'])
+        sectionEmrId = emr_record['fields']['Temperature'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.TEMPERATURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Degrees'], 99.9)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Fahrenheit")
+        self.assertEqual(section_emr_record['fields']['Route'], "Oral")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the weight section
+        # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+        self.assertIsNotNone(emr_record['fields']['Weight'])
+        sectionEmrId = emr_record['fields']['Weight'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.WEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Weight'], 120)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Lbs")
+        self.assertEqual(section_emr_record['fields']['Scale'], "Bath")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+        # Check the height section
+        self.assertIsNotNone(emr_record['fields']['Height'])
+        sectionEmrId = emr_record['fields']['Height'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.HEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Height'], 168)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Centimeters")
+        self.assertEqual(section_emr_record['fields']['Method'], "Wing span")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+
+
+        self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
+
+        EmrUtils.sign_assessment(record_id)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertEqual(emr_record['fields']['Status'], "Completed")
+        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+  
+
+
 
 ### Transcript unit tests
 class TestTranscripts(unittest.TestCase):
@@ -1013,17 +1025,13 @@ class TestSchema(unittest.TestCase):
 
     @unittest.skipIf(not run_skipped_tests, "Skipping by default")
     def test_get_all_record_writable_schema(self):
-        # Getting all table schema aexample
+        # Getting all table schema example
         table_names = EmrUtils.get_table_names()
         for table_name in table_names:
             self.logger.info(f'Getting schema for table {table_name}')
-            record_schema, sections_schema = EmrUtils.get_record_writable_schema(table_name)
+            record_schema = EmrUtils.get_table_json_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
-            if sections_schema:
-                for section, schema in sections_schema.items():
-                    self.logger.info(f"Getting schema for section {section} in table {table_name}")
-                    self.logger.debug(f"{table_name} Table {section} section schema: {json.dumps(schema, indent=4)}")
     
 
 

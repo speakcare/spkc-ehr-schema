@@ -1,7 +1,6 @@
 import unittest
 from datetime import datetime
-#from airtable_schema import AirtableSchema, FieldTypes
-from speakcare_airtable_schema import AirtableSchema, AirtableFieldTypes
+from speakcare_schema import AirtableSchema, AirtableFieldTypes
 import json
 import copy
 from deepdiff import DeepDiff
@@ -68,7 +67,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation error for field 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
     def test_validate_record_invalid_required_field(self):
@@ -223,7 +222,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'Route': Multi select validation errors:" in errors[0], errors[0])
         self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
@@ -367,7 +366,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation error for field 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         
     def test_validate_percent_incorrect_required_value(self):
@@ -469,6 +468,89 @@ class TestValidations(unittest.TestCase):
         self.assertTrue("Currency validation error: Value 'one hundred' cannot be converted to a float." in errors[0], errors[0])        
 
 
+
+
+    def test_validate_section_correct_value(self):
+        main_schema = AirtableSchema("testSchema", {
+            "name": "testSchema"
+        })
+        section1_schema = AirtableSchema("section1", {
+            "name": "section1",
+            "fields": [
+                {"name": "DateTimeField1", "type": "dateTime"},
+                {"name": "DateTimeField2", "type": "dateTime"},
+            ]
+        })
+        section2_schema = AirtableSchema("section2", {
+            "name": "section2",
+            "fields": [
+                {"name": "DateTimeField1", "type": "dateTime"},
+                {"name": "DateTimeField2", "type": "dateTime"},
+            ]
+        })
+
+        main_schema.add_section("section1", section1_schema)
+        main_schema.add_section("section2", section2_schema)
+
+        record = {
+            "DateTimeField1": "2023-10-01T12:00:00Z",
+            "DateTimeField2": "2023-10-01T12:00:00+00:00"
+        }
+        errors = []
+
+        is_valid, valid_fields = main_schema.get_section("section1").validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertEqual(len(errors), 0, errors)
+
+        is_valid, valid_fields = main_schema.get_section("section2").validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        self.assertEqual(len(errors), 0, errors)
+
+
+    def test_validate_section_incorrect_value(self):
+
+        main_schema = AirtableSchema("testSchema", {
+            "name": "testSchema"
+        })
+        section1_schema = AirtableSchema("section1", {
+            "name": "section1",
+            "fields": [
+                {"name": "DateTimeField", "type": "dateTime"}
+            ]
+        })
+        section2_schema = AirtableSchema("section2", {
+            "name": "section2",
+            "fields": [
+                {"name": "DateTimeField", "type": "dateTime"}
+            ]
+        })
+
+        main_schema.add_section("section1", section1_schema)
+        main_schema.add_section("section2", section2_schema)
+
+        dateTimeString = "2023-10-01 25:00:00"
+        record = {"DateTimeField": dateTimeString}
+        errors = []
+        is_valid, valid_fields = main_schema.get_section("section1").validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        expected_error = f"Date-time validation error: Value '{dateTimeString}' is not a valid ISO date-time."
+        self.assertTrue(expected_error in errors[0], errors[0])
+        self.assertEqual(len(errors), 1, errors)
+
+        dateTimeString = "2023-10-01T12:00:00+00:00"
+        record = {"DateTimeField": dateTimeString}
+        is_valid, valid_fields = main_schema.get_section("section2").validate_record(record=record, errors=errors)
+        self.assertTrue(is_valid)
+        # make sure only the previous error still listed and no new errors for this section
+        self.assertTrue(expected_error in errors[0], errors[0])
+        self.assertEqual(len(errors), 1, errors)
+
+
+
+
+
+
+
 class TestJsonSchema(unittest.TestCase):
 
     def test_valid_json_schema(self):
@@ -498,58 +580,199 @@ class TestJsonSchema(unittest.TestCase):
                         "type": "string", "const": "test_table", "description": "The name of the Airtable table"
                     },
                     "patient_name": {
-                        "type": "string", "description": "The name of the patient"
+                        "type": ["string", "null"], "description": "The name of the patient"
                     },
                     "fields": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "properties": {
                             "Notes": {
-                                "type": "string", "description": "Multi-line text: optional"
+                                "type": ["string", "null"], "description": "optional: Multi-line text"
                             },
                             "Title": {
-                                "type": "string", "description": "Single line text: optional"
+                                "type": ["string", "null"], "description": "optional: Single line text"
                             },
                             "Units": {
-                                "type": "string", "enum": ["Fahrenheit", "Celsius"],"description": "required"
+                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius"],
+                                "description": 
+                                "required: Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                             },
                             "Temperature": {
-                                "type": "number","multipleOf": 0.1, "description": "required"
+                                "type": ["number", "null"],"description": "required: Must be a number with 1 decimal precision"
                             },
                             "Route": {
-                                "type": "array", "items": { "type": "string", "enum": ["Tympanic","Oral","Rectal","Axilla"]},"description": "required"
+                                "type": ["array", "null"], "items": { "type": "string", "enum": ["Tympanic","Oral","Rectal","Axilla"]},
+                                "description": 
+                                "required: Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                             },
                             "Date": {
-                                "type": "string","format": "date","description": "ISO 8601 date (YYYY-MM-DD): required"
+                                "type": ["string", "null"],"description": "required: ISO 8601 date (YYYY-MM-DD)"
                             },
                             "DateTime": {
-                                "type": "string","format": "date-time","description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ): required"
+                                "type": ["string", "null"],"description": "required: ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"
                             },
                             "Percent": {
-                                "type": "number", "multipleOf": 0.01, "minimum": 0,"maximum": 100,"description": "Percentage (0-100): required"
+                                "type": ["number", "null"],"description": "required: Percentage - must be a number between 0 and 100 with 2 decimal precision"
                             },
                             "Percent0": {
-                                "type": "number","multipleOf": 1,"minimum": 0,"maximum": 100, "description": "Percentage (0-100)"
+                                "type": ["number", "null"],"description": "Percentage - must be a number between 0 and 100 with 0 decimal precision"
                             },
                             "Percent00": {
-                                "type": "number","multipleOf": 1,"minimum": 0,"maximum": 100, "description": "Percentage (0-100)"
+                                "type": ["number", "null"],"description": "Percentage - must be a number between 0 and 100 with 0 decimal precision"
                             },
                             "Checkbox": {
-                                "type": "boolean","description": "required"
+                                "type": ["boolean", "null"],"description": "required"
                             },
                             "Currency": {
-                                "type": "number","multipleOf": 1,"description": "Currency: required"
+                                "type": ["number", "null"],"description": "required: Currency - must be a number with 0 decimal precision"
                             }
                         },
-                        "required": ["Units", "Temperature","Route","Date","DateTime","Percent","Checkbox","Currency"],
+                        "required": [
+                            # all fields MUST be in the required list, even if not required by model
+                            "Notes","Title","Units","Temperature","Route","Date","DateTime","Percent","Percent0","Percent00","Checkbox","Currency"
+                        ],
                         "additionalProperties": False
                     },
-                    "required": ["table_name","patient_name","fields"],
-                    "additionalProperties": False
-                }
+                },
+                "required": ["table_name","patient_name","fields"],
+                "additionalProperties": False
             }
 
         schema = AirtableSchema("test_table", airtable_schema)
         json_schema = schema.get_json_schema()
+        print("json_schema: ", json.dumps(json_schema, indent=4))
+        self.assertTrue(json_schema)
+        diff = DeepDiff(json_schema, expected_json_schema, ignore_order=True)
+        self.assertEqual(diff, {}, diff)
+    
+    def test_valid_json_schema_with_sections(self):
+
+        main_schema = {
+            "name": "test_table"
+        }
+
+        section1_schema = {
+            "name": "section1",
+            "fields": [
+                {"name": "Notes", "type": AirtableFieldTypes.MULTI_LINE_TEXT, "description": "optional"},
+                {"name": "Title", "type": AirtableFieldTypes.SINGLE_LINE_TEXT, "description": "optional"},
+                {"name": "Units", "type": AirtableFieldTypes.SINGLE_SELECT, "options": {"choices": [{"name": "Fahrenheit"}, {"name": "Celsius"}]}, "description": "required"},
+                {"name": "Temperature", "type": AirtableFieldTypes.NUMBER, "options": {"precision": "1"}, "description": "required"},
+                {"name": "Route", "type": AirtableFieldTypes.MULTI_SELECT, "options": {"choices": [{"name": "Tympanic"}, {"name": "Oral"}, {"name": "Rectal"}, {"name": "Axilla"}]}, "description": "required"},
+                {"name": "Date", "type": AirtableFieldTypes.DATE, "description": "required"},
+                {"name": "DateTime", "type": AirtableFieldTypes.DATE_TIME, "description": "required"},
+            ]
+        }
+        section2_schema = {
+            "name": "section2",
+            "fields": [
+                {"name": "Percent", "type": AirtableFieldTypes.PERCENT, "options": {"precision": "2"}, "description": "optional"},
+                {"name": "Percent0", "type": AirtableFieldTypes.PERCENT, "options": {"precision": "0"}},
+                {"name": "Percent00", "type": AirtableFieldTypes.PERCENT},
+                {"name": "Checkbox", "type": AirtableFieldTypes.CHECKBOX, "description": "required"},
+                {"name": "Currency", "type": AirtableFieldTypes.CURRENCY, "description": "required"}
+            ]
+        }
+
+
+        expected_json_schema = {
+                "title": "test_table",
+                "type": "object",
+                "properties": {
+                    "table_name": {
+                        "type": "string", "const": "test_table", "description": "The name of the Airtable table"
+                    },
+                    "patient_name": {
+                        "type": ["string", "null"], "description": "The name of the patient"
+                    },
+                    "sections": {
+                        "type": "object",
+                        "properties": {
+                            "section1": {
+                                "title": "section1",
+                                "type": "object",
+                                "properties": {
+                                    "fields": {        
+                                        "type": ["object", "null"],
+                                        "properties": {
+                                            "Notes": {
+                                                "type": ["string", "null"], "description": "optional: Multi-line text"
+                                            },
+                                            "Title": {
+                                                "type": ["string","null"], "description": "optional: Single line text"
+                                            },
+                                            "Units": {
+                                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius"],
+                                                "description": 
+                                                "required: Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
+                                            },
+                                            "Temperature": {
+                                                "type": ["number", "null"],"description": "required: Must be a number with 1 decimal precision"
+                                            },
+                                            "Route": {
+                                                "type":["array", "null"], "items": { "type": "string", "enum": ["Tympanic","Oral","Rectal","Axilla"]},
+                                                "description": 
+                                                "required: Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
+                                            },
+                                            "Date": {
+                                                "type": ["string", "null"], "description": "required: ISO 8601 date (YYYY-MM-DD)"
+                                            },
+                                            "DateTime": {
+                                                "type": ["string", "null"], "description": "required: ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"
+                                            }
+                                        },
+                                        "required": ["Notes", "Title", "Units", "Temperature","Route","Date","DateTime"],
+                                        "additionalProperties": False
+                                    },
+
+                                },
+                                "required": ["fields"],
+                                "additionalProperties": False
+                            },
+                            "section2": {
+                                "title": "section2",
+                                "type": "object",
+                                "properties": {
+                                    "fields": {        
+                                        "type": ["object", "null"],
+                                        "properties": {
+                                            "Percent": {
+                                                "type": ["number", "null"],"description": "optional: Percentage - must be a number between 0 and 100 with 2 decimal precision"
+                                            },
+                                            "Percent0": {
+                                                "type": ["number", "null"],"description": "Percentage - must be a number between 0 and 100 with 0 decimal precision"
+                                            },
+                                            "Percent00": {
+                                                "type": ["number", "null"],"description": "Percentage - must be a number between 0 and 100 with 0 decimal precision"
+                                            },
+                                            "Checkbox": {
+                                                "type": ["boolean", "null"],"description": "required"
+                                            },
+                                            "Currency": {
+                                                "type": ["number", "null"],"description": "required: Currency - must be a number with 0 decimal precision"
+                                            }
+                                        },
+                                        "required": ["Percent", "Percent0", "Percent00", "Checkbox","Currency"],
+                                        "additionalProperties": False
+                                    },
+
+                                },
+                                "required": ["fields"],
+                                "additionalProperties": False
+                            }
+                        },
+                        "required": ["section1"],
+                        "additionalProperties": False
+                    },
+                },
+                "required": ["table_name","patient_name","sections"],
+                "additionalProperties": False
+            }
+
+        schema = AirtableSchema("test_table", main_schema)
+        schema.add_section(section_name="section1", section_schema=AirtableSchema("section1", section1_schema), required=True)
+        schema.add_section(section_name="section2", section_schema=AirtableSchema("section2", section2_schema), required=False)
+        json_schema = schema.get_json_schema()
+        #print(json.dumps(json_schema, indent=4))
         self.assertTrue(json_schema)
         diff = DeepDiff(json_schema, expected_json_schema, ignore_order=True)
         self.assertEqual(diff, {}, diff)

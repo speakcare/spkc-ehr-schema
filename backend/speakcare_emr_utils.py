@@ -27,7 +27,6 @@ if not emr_api:
     logger.error('Failed to initialize EMR API')
     raise Exception('Failed to initialize EMR API')
 
-#db = get_speakcare_db_instance()
 
 class EmrUtils:
     db : Optional[SpeakCareDB] = None
@@ -80,7 +79,7 @@ class EmrUtils:
         return section_names
 
     @staticmethod
-    def get_record_writable_schema(tableName: str):
+    def get_table_json_schema(tableName: str):
         """
         get_table_writable_schema 
         returns the table schema for a given table name in the EMR system.
@@ -88,30 +87,7 @@ class EmrUtils:
         IF there are no sections, the sections dictionary will be None.
         """
         # Get the main table schema
-        main_schema = emr_api.get_record_writable_schema(tableName=tableName)
-        # Add the patient name field to the main schema - we need it for all main schemas
-        main_schema['fields'].append({
-            "name": "patient_name",
-            "type": FieldTypes.SINGLE_LINE_TEXT.value,
-            "description": "required"
-        })
-
-                # always require patient_name
-
-
-        # Retrieve section names
-        sections = EmrUtils.get_record_section_names(tableName)
-
-        # If sections exist, build a sections dictionary
-        sections_schema = None
-        if sections:
-            sections_schema = {}
-            for section in sections:
-                section_schema = emr_api.get_record_writable_schema(tableName=section)
-                sections_schema[section] = section_schema
-
-        # Return main schema and sections separately
-        return main_schema, sections_schema
+        return emr_api.get_table_json_schema(tableName=tableName)
 
     @staticmethod
     def validate_record(table_name: str, data: dict, errors: list = []):
@@ -139,7 +115,7 @@ class EmrUtils:
                                    patient_name: str,
                                    nurse_name: str,
                                    fields: dict,
-                                   sections = [],
+                                   sections = None,
                                    patient_id: str = None, 
                                    nurse_id: str = None):
         _errors =[]
@@ -148,7 +124,7 @@ class EmrUtils:
         _patient_id = patient_id
         _nurse_name = nurse_name
         _nurse_id = nurse_id
-        _valid_sections = []
+        _valid_sections = {}
         
          # validate patient
         foundPatientByName = None
@@ -210,8 +186,7 @@ class EmrUtils:
             _state = RecordState.ERRORS
 
         if sections and table_name in SpeakCareEmr.TABLE_SECTIONS:  
-            for section in sections:
-                section_name = section.get('table_name', None)
+            for section_name, section in sections.items():
                 section_fields = section.get('fields', None)
                 if not section_name in SpeakCareEmr.TABLE_SECTIONS[table_name]:
                     err = f"Section '{section_name}' not found in table '{table_name}'"
@@ -222,17 +197,16 @@ class EmrUtils:
                     isValid, section_valid_fields =\
                             EmrUtils.validate_record(section_name, section_fields, _errors)
                     if isValid:
-                        _valid_sections.append(
-                            {
-                                'section_name': section_name,
-                                'fields': section_valid_fields
-                            }
-                        )
+                        section['fields'] = section_valid_fields
+                        _valid_sections[section_name] = section
                     else:
                         _state = RecordState.ERRORS
+                else:
+                    logger.debug(f"Section '{section_name}' has no fields. Skipping it.")
+
         elif sections and not table_name in SpeakCareEmr.TABLE_SECTIONS:
                 #create a list from sections field 'table_name'
-                _sections_names = [section.get('table_name', None) for section in sections]
+                _sections_names = [section_name for section_name, _ in sections.items()]
                 err = f"Sections '{_sections_names}' provided for table '{table_name}' that has no sections"
                 logger.error(err)
                 _errors.append(err)
@@ -274,7 +248,6 @@ class EmrUtils:
         session = EmrUtils.db.SpeakCareDBSession()
         try:
             query = session.query(MedicalRecords)
-            # records = session.query(MedicalRecords).all()
             if state:
                 query = query.filter_by(state=state)
             if table_name:
@@ -324,14 +297,13 @@ class EmrUtils:
             _nurse_name = data['nurse_name']
             _nurse_id = data.get('nurse_id', None)
             _fields = data['fields']
-            _sections = data.get('sections', [])
+            _sections = data.get('sections',None)
             _transcript = None
 
 
             # Check if the transcript_ids exists
             if transcript_id is not None:
                 _transcript = session.get(Transcripts, transcript_id)
-                #_transcript = session.query(Transcripts).get(transcript_id)
                 if not _transcript:
                     raise ValueError(f"Transcript if {transcript_id} not found")
                 
@@ -421,7 +393,7 @@ class EmrUtils:
             _nurse_name = updates.get('nurse_name', record.nurse_name)
             _nurse_id = updates.get('nurse_id', record.nurse_id)
             _fields = updates.get('fields', None)
-            _sections = updates.get('sections', [])
+            _sections = updates.get('sections', None)
             if _fields:
                 old_fields = copy.deepcopy(record.fields)
                 old_fields.update(_fields)
@@ -552,7 +524,7 @@ class EmrUtils:
             record_type = record.type
             errors = record.errors
             if (record_type == RecordType.MEDICAL_RECORD):
-                emr_record, url, err = emr_api.create_medical_record(tableName=record.table_name, record=record_fields, 
+                emr_record, url, err = emr_api.create_simple_record(tableName=record.table_name, record=record_fields, 
                                                                      patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                      errors=errors)
                 if not emr_record:    
@@ -562,7 +534,7 @@ class EmrUtils:
                     record.emr_record_id = emr_record['id']
                     record.emr_url = url                
             elif record_type == RecordType.ASSESSMENT:
-                emr_record, url, err = emr_api.create_assessment(assessmentTableName=record.table_name, record=record_fields, 
+                emr_record, url, err = emr_api.create_complex_record(tableName=record.table_name, record=record_fields, 
                                                                  patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                  errors=errors)
                 if not emr_record:
@@ -571,11 +543,12 @@ class EmrUtils:
                 record.emr_record_id = emr_record['id']
                 record.emr_url = url
                 if record.sections:
-                    for section in record.sections:
-                        section_name = section.get('section_name', None)
+                    #for section in record.sections:
+                    for section_name, section in record.sections.items():
+                        #section_name = section.get('section_name', None)
                         section_fields = section.get('fields', None)
                         if section_name and section_fields:
-                            emr_record, url, err = emr_api.create_assessment_section(sectionTableName=section_name, record=section_fields, 
+                            emr_record, url, err = emr_api.create_record_section(sectionTableName=section_name, record=section_fields, 
                                                                                      patientEmrId=patientEmrId, assessmentId=record.emr_record_id, 
                                                                                      createdByNurseEmrId=nurseEmrId, errors=errors)
                             if not emr_record:
@@ -846,7 +819,7 @@ def main():
         print(f"Table {args.table} not supported.")
         sys.exit(1)
     
-    schema = EmrUtils.get_record_writable_schema(args.table)
+    schema = EmrUtils.get_table_json_schema(args.table)
     print(json.dumps(schema, indent=4))
 
 

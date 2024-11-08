@@ -6,7 +6,7 @@ import requests
 import time
 from name_matching import NameMatcher
 from dotenv import load_dotenv
-from airtable_schema import AirtableSchema
+from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
 
@@ -40,14 +40,14 @@ class SpeakCareEmr:
     ### Assessments ###
     # Admission
     ADMISSION_TABLE = 'Admission'
-    ADMISSION_SECTION_DEMOGRAPHCS_TABLE   = 'Admission: SECTION 1. DEMOGRAPHICS'
-    ADMISSION_SECTION_VITALS_TABLE        = 'Admission: SECTION 2. VITALS-ALLERGIES'
-    ADMISSION_SECTION_SKIN_TABLE          = 'Admission: SECTION 3. SKIN CONDITION'
-    ADMISSION_SECTION_PHYSICAL_TABLE      = 'Admission: SECTION 4. PHYSICAL / ADL / COMMUNICATION STATUS'
-    ADMISSION_SECTION_BOWEL_BLADDER_TABLE = 'Admission: SECTION 5. BOWEL-BLADDER EVALUATION'
-    ADMISSION_SECTION_PSYCHOSOCIAL_TABLE  = 'Admission: SECTION 6. PSYCHOSOCIAL ASPECTS'
-    ADMISSION_SECTION_DISCHARGE_TABLE     = 'Admission: SECTION 7. DISCHARGE EVALUATION'
-    ADMISSION_SECTION_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
+    ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE   = 'Admission: SECTION 1. DEMOGRAPHICS'
+    ADMISSION_SECTION_2_VITALS_TABLE        = 'Admission: SECTION 2. VITALS-ALLERGIES'
+    ADMISSION_SECTION_3_SKIN_TABLE          = 'Admission: SECTION 3. SKIN CONDITION'
+    ADMISSION_SECTION_4_PHYSICAL_TABLE      = 'Admission: SECTION 4. PHYSICAL / ADL / COMMUNICATION STATUS'
+    ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE = 'Admission: SECTION 5. BOWEL-BLADDER EVALUATION'
+    ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE  = 'Admission: SECTION 6. PSYCHOSOCIAL ASPECTS'
+    ADMISSION_SECTION_7_DISCHARGE_TABLE     = 'Admission: SECTION 7. DISCHARGE EVALUATION'
+    ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
 
     # Fall Risk Screen
     FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
@@ -59,7 +59,7 @@ class SpeakCareEmr:
         PROGRESS_NOTES_TABLE,
         ADMISSION_TABLE,
         FALL_RISK_SCREEN_TABLE,
-        VITALS_TABLE
+        VITALS_TABLE,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 
@@ -72,14 +72,14 @@ class SpeakCareEmr:
 
     TABLE_SECTIONS = { 
             ADMISSION_TABLE: [
-                ADMISSION_SECTION_DEMOGRAPHCS_TABLE, 
-                ADMISSION_SECTION_VITALS_TABLE, 
-                ADMISSION_SECTION_SKIN_TABLE, 
-                ADMISSION_SECTION_PHYSICAL_TABLE, 
-                ADMISSION_SECTION_BOWEL_BLADDER_TABLE, 
-                ADMISSION_SECTION_PSYCHOSOCIAL_TABLE,
-                ADMISSION_SECTION_DISCHARGE_TABLE,
-                ADMISSION_SECTION_FACILITY_TABLE
+                ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
+                ADMISSION_SECTION_2_VITALS_TABLE, 
+                ADMISSION_SECTION_3_SKIN_TABLE, 
+                ADMISSION_SECTION_4_PHYSICAL_TABLE, 
+                ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
+                ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
+                ADMISSION_SECTION_7_DISCHARGE_TABLE,
+                ADMISSION_SECTION_8_FACILITY_TABLE
             ],            
             FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
             VITALS_TABLE: [
@@ -91,8 +91,6 @@ class SpeakCareEmr:
                 O2_SATURATIONS_TABLE,
                 PULSES_TABLE
             ]
-
-
     }
 
     METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
@@ -125,7 +123,7 @@ class SpeakCareEmr:
     
 
 
-    def __external_writable_schema(self, tableSchema):
+    def __writable_fields(self, tableSchema):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
@@ -179,7 +177,7 @@ class SpeakCareEmr:
         if not self.tables:
             tables = self.__retreive_all_tables_schema()
             self.tables = {}
-            self.tableWriteableSchemas: Dict[str, AirtableSchema] = {}
+            self.tableEmrSchemas: Dict[str, AirtableSchema] = {}
             # Traverse the tables and create writable schema
             for table in tables:
                 # add the table to the tables dictionary
@@ -190,12 +188,25 @@ class SpeakCareEmr:
                     # Create writeable schema by copy from table
                     writeableSchema = copy.deepcopy(table)
                     # replace the fields with the writable fields
-                    writeableSchema['fields'] = self.__external_writable_schema(table)
+                    writeableSchema['fields'] = self.__writable_fields(table)
                     # create the EmrTableSchema object
                     emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema)
                     # add the EmrTableSchema to the tableWriteableSchemas dictionary
                     self.logger.debug(f'Created writable schema for table {tableName}')
-                    self.tableWriteableSchemas[tableName] = emrSchema
+                    self.tableEmrSchemas[tableName] = emrSchema
+            
+            # register sections
+            for tableName, sections in self.TABLE_SECTIONS.items():
+                if tableName in self.tableEmrSchemas:
+                    tableSchema = self.tableEmrSchemas.get(tableName)
+                    for section in sections:
+                        if section in self.tableEmrSchemas:
+                            sectionSchema = self.tableEmrSchemas.get(section)
+                            if sectionSchema:
+                                tableSchema.add_section(section, sectionSchema, required=True)
+                                self.logger.debug(f'Added section {section} to table {tableName}')
+                            else:
+                                self.logger.error(f'Failed to add section {section} to table {tableName}')
         
         self.logger.debug(f'Loaded tables. Tables')
         return self.tables
@@ -222,7 +233,7 @@ class SpeakCareEmr:
                 return table['name']
         return None
 
-    def get_table_schema(self, tableId=None, tableName=None):
+    def get_airtable_schema(self, tableId=None, tableName=None):
         if tableName:
             return self.tables.get(tableName)
         elif tableId:
@@ -233,7 +244,7 @@ class SpeakCareEmr:
             return None
         
     
-    def get_record_writable_schema(self, tableId=None, tableName=None):
+    def get_table_json_schema(self, tableId=None, tableName=None):
         if not tableId and not tableName:
             self.logger.warning(f'get_table_writable_schema: tableId and tableName are None')
             return None
@@ -248,7 +259,7 @@ class SpeakCareEmr:
             self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
             return None
         
-        tableSchema = self.tableWriteableSchemas.get(tableName)
+        tableSchema = self.tableEmrSchemas.get(tableName)
 
         if not tableSchema:
             self.logger.error(f'get_table_writable_schema: Table {tableName} failed to get schema')
@@ -259,7 +270,7 @@ class SpeakCareEmr:
             self.logger.error(error_message)
             raise ValueError(error_message)
         
-        return tableSchema.get_schema()
+        return tableSchema.get_json_schema()
 
 
     def create_record(self, tableId, record):
@@ -280,7 +291,7 @@ class SpeakCareEmr:
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
     
     def validate_record(self, tableName, record, errors):
-        tableSchema = self.tableWriteableSchemas.get(tableName)
+        tableSchema = self.tableEmrSchemas.get(tableName)
         valid_fields = {}
         if not tableSchema:
             errors.append(f'validate_record: Failed to get writable schema for table {tableName}')
@@ -294,7 +305,7 @@ class SpeakCareEmr:
         return True, valid_fields
     
     def validate_partial_record(self, tableName, record, errors):
-        tableSchema = self.tableWriteableSchemas.get(tableName)
+        tableSchema = self.tableEmrSchemas.get(tableName)
         valid_fields = {}
         if not tableSchema:
             errors.append(f'validate_partial_record: Failed to get writable schema for table {tableName}')
@@ -305,7 +316,7 @@ class SpeakCareEmr:
             errors.append(f'validate_partial_record: Invalid record {record} for table {tableName}.')
             return False, valid_fields
         
-        return True, valid_fields    
+        return True, valid_fields
         
     def get_table_url(self, tableId=None, tableName=None):
         if tableId:
@@ -327,7 +338,7 @@ class SpeakCareEmr:
         return f'{self.webBaseUrl}{_tableId}/{recordId}'
         
 
-    def create_medical_record(self, tableName, record, 
+    def create_simple_record(self, tableName, record, 
                               patientEmrId, createdByNurseEmrId, errors=[]):
  
         
@@ -346,11 +357,13 @@ class SpeakCareEmr:
         return record, url, None
 
 
-    def create_assessment(self, assessmentTableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
-        
-        isValidRecord, valid_fields = self.validate_record(tableName=assessmentTableName, record=record, errors=errors)
+    def create_complex_record(self, tableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
+        """
+        Complex record has sections that are implemtedd in different tables
+        """
+        isValidRecord, valid_fields = self.validate_record(tableName=tableName, record=record, errors=errors)
         if not isValidRecord:
-            err_msg = f'create_assessment: Invalid record {record} for table {assessmentTableName}.'
+            err_msg = f'create_complex_record: Invalid record {record} for table {tableName}.'
             errors.append(err_msg)
             self.logger.error(err_msg)
             return None, None, err_msg        
@@ -362,11 +375,11 @@ class SpeakCareEmr:
         if not status:
             record['Status'] = 'In progress'
     
-        self.logger.debug(f'Creating assessment in table {assessmentTableName} with record {record}')
-        record, url = self.create_record(assessmentTableName, record)
+        self.logger.debug(f'Creating assessment in table {tableName} with record {record}')
+        record, url = self.create_record(tableName, record)
         return record, url, None
     
-    def create_assessment_section(self, sectionTableName, record, patientEmrId,
+    def create_record_section(self, sectionTableName, record, patientEmrId,
                                   assessmentId, createdByNurseEmrId, errors=[]):
         
         isValidRecord, valid_fields = self.validate_record(tableName=sectionTableName, record=record, errors=errors)

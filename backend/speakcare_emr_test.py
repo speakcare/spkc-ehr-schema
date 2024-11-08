@@ -31,7 +31,7 @@ def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, p
     
 
 
-    record, url, err = api.create_medical_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
+    record, url, err = api.create_simple_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not record:
         logger.error(f'Failed to create temperature record: {temperatureRecord} error: {err}')
@@ -62,7 +62,7 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         return None
 
     
-    record, url, err = api.create_medical_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
+    record, url, err = api.create_simple_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     
     if not record:
@@ -98,13 +98,13 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "Status": "Old"
     }
     # This should fail
-    assementRecord, url, err = api.create_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Correctly failed to create fall risk assessment {fallRiskRecord} error: {err}')
 
     # now set correct status name
     fallRiskRecord["Status"] = "New"
-    assementRecord, url, err = api.create_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Wrongly failed to create fall risk assessment {fallRiskRecord} error: {err}')
         return None
@@ -131,14 +131,14 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "PREDISPOSING DISEASES": "1 - 2 PRESENT (2 points)",
         "Total score": 19
     }
-    assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+    assessSection1Record, url, err = api.create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
                                                                    patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     if not assessSection1Record:
         logger.error(f'Correctly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')
 
     # fix the error
     fallRiskSectionRecord['VISION STATUS'] = "POOR (with or without glasses) (2 points)"
-    assessSection1Record, url, err = api.create_assessment_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+    assessSection1Record, url, err = api.create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
                                                                    patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     
     if not assessSection1Record:
@@ -158,32 +158,19 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
 
     return assementRecord
 
-def test_get_single_table_schema(api: SpeakCareEmr, logger: logging.Logger, tableName, writeableOnly: bool = True):
-    if writeableOnly:
-        tableSchema = api.get_record_writable_schema(tableName=tableName)
-    else:
-        tableSchema = api.get_table_schema(tableName=tableName)
-
+def test_get_single_table_schema(api: SpeakCareEmr, logger: logging.Logger, tableName):
+    tableSchema = api.get_table_json_schema(tableName=tableName)
     logger.info(f'{tableName} Table schema: {json.dumps(tableSchema, indent=4)}')
-    sectionNames = api.get_emr_table_section_names(tableName=tableName)
-    if sectionNames is not None:
-        logger.info(f'{tableName} Table section names: {sectionNames}')
-        for sectionName in sectionNames:
-            if writeableOnly: 
-                sectionSchema = api.get_record_writable_schema(tableName=tableName, sectionName=sectionName)
-            else:
-                sectionSchema = api.get_table_schema(tableName=sectionName)
-            logger.info(f'{tableName} Table {sectionName} section schema: {json.dumps(sectionSchema, indent=4)}')
     return
 
-def test_get_tables_schemas(api: SpeakCareEmr, logger: logging.Logger, tableName: str = None, writeableOnly: bool = True):
+def test_get_tables_schemas(api: SpeakCareEmr, logger: logging.Logger, tableName: str = None):
 
     tableNames = api.get_emr_table_names()
     logger.info(f'Table names: {tableNames}')
 
     if tableName and tableName in tableNames:
         logger.info(f'Getting schema for table {tableName}')
-        test_get_single_table_schema(api, logger, tableName, writeableOnly)
+        test_get_single_table_schema(api, logger, tableName)
         return
     elif tableName and tableName not in tableNames:
         logger.error(f'Table {tableName} not found')
@@ -191,7 +178,7 @@ def test_get_tables_schemas(api: SpeakCareEmr, logger: logging.Logger, tableName
     else: # get schema for all tables
         logger.info(f'Getting schema for all tables')
         for _tableName in tableNames:
-            test_get_single_table_schema(api, logger, _tableName, writeableOnly)
+            test_get_single_table_schema(api, logger, _tableName)
         
     return
 
