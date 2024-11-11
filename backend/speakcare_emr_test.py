@@ -2,7 +2,7 @@ import sys
 import json
 import logging
 from speakcare_emr import SpeakCareEmr, get_emr_api_instance
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from config import SpeakCareEmrApiconfig
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'
@@ -202,7 +202,7 @@ def test_get_tables_schemas(api: SpeakCareEmr, logger: logging.Logger, tableName
 def main(argv):    
 
     # Initialize logging
-    testLogger = create_logger('api_test')
+    testLogger = SpeakcareLogger('api_test')
 
     api = get_emr_api_instance(SpeakCareEmrApiconfig)
     if not api:

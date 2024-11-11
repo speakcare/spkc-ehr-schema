@@ -7,7 +7,7 @@ from models import MedicalRecords, Transcripts, RecordType, RecordState, Transcr
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,7 +17,7 @@ import copy
 import argparse
 import traceback
 from airtable_schema import FieldTypes
-logger = create_logger('speackcare.emr.utils')
+logger = SpeakcareLogger('speackcare.emr.utils')
 
 class RecordStateError(Exception): ...
 
@@ -124,7 +124,7 @@ class EmrUtils:
         _patient_id = patient_id
         _nurse_name = nurse_name
         _nurse_id = nurse_id
-        _valid_sections = {}
+        _sections = {}
         
          # validate patient
         foundPatientByName = None
@@ -194,13 +194,26 @@ class EmrUtils:
                     _errors.append(err)
                     _state = RecordState.ERRORS
                 elif section_name and section_fields:
+                    section_errors = []
                     isValid, section_valid_fields =\
-                            EmrUtils.validate_record(section_name, section_fields, _errors)
-                    if isValid:
+                            EmrUtils.validate_record(section_name, section_fields, section_errors)
+                    logger.debug(f"Validating section '{section_name}' valid: {isValid}\n" 
+                                 f"Pre-validated fields:\n {json.dumps(section_fields, indent=4)}\n" 
+                                 f"Validated fields:\n {json.dumps(section_valid_fields, indent=4)}")
+                    if not isValid:
+                        # I am keeping the original fields in the section so we can debug the error
+                        section['fields'] = section_fields
+                        section['state'] = RecordState.ERRORS.value
+                        section['errors'] = section_errors
+                        _errors.append(f"Section '{section_name}' validation failed with errors")
+                        _sections[section_name] = section
+                    elif not section_valid_fields:
+                        # no fields but all valid, we can skip this section
+                        _errors.append(f"Section '{section_name}' has no valid fields. Skipping it.")
+                    else: # isValid and section_valid_fields
                         section['fields'] = section_valid_fields
-                        _valid_sections[section_name] = section
-                    else:
-                        _state = RecordState.ERRORS
+                        section['state'] = RecordState.PENDING.value
+                        _sections[section_name] = section                    
                 else:
                     logger.debug(f"Section '{section_name}' has no fields. Skipping it.")
 
@@ -212,7 +225,7 @@ class EmrUtils:
                 _errors.append(err)
                 _state = RecordState.ERRORS
             
-        return _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields, _valid_sections
+        return _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields, _sections
 
 
     @staticmethod
@@ -312,7 +325,7 @@ class EmrUtils:
                 raise ValueError(f"Table name {_table_name} not found in the EMR.")
 
                 # fields data integrity check is done inside the create_record function - no need to do it here
-            _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields, _valid_sections =\
+            _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _validated_fields, _validated_sections =\
                 EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 
                                                     fields=_fields, sections=_sections, patient_id=_patient_id, nurse_id=_nurse_id)
 
@@ -323,8 +336,8 @@ class EmrUtils:
                 patient_id= _patient_id,
                 nurse_name=_nurse_name,
                 nurse_id= _nurse_id,
-                fields= _valid_fields,
-                sections = _valid_sections,
+                fields= _validated_fields,
+                sections = _validated_sections,
                 transcript = _transcript,
                 state= _state,
                 errors = _errors
@@ -403,7 +416,7 @@ class EmrUtils:
 
             # first validate the record with the new fields
 
-            _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _valid_fields, _valid_sections =\
+            _new_state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _validated_fields, _validated_sections =\
                 EmrUtils.__record_validation_helper(table_name=record.table_name, patient_name=_patient_name, nurse_name=_nurse_name, 
                                                     fields=_fields, sections=_sections,  patient_id=_patient_id, nurse_id=_nurse_id)
             
@@ -419,8 +432,8 @@ class EmrUtils:
                 record.patient_id = _patient_id
                 record.nurse_name = _nurse_name
                 record.nurse_id = _nurse_id
-                record.fields = _valid_fields
-                record.sections = _valid_sections
+                record.fields = _validated_fields
+                record.sections = _validated_sections
                 record.state = _new_state
                 record.errors = _errors
                 flag_modified(record, 'fields')
@@ -523,6 +536,8 @@ class EmrUtils:
             # TODO - continue from here
             record_type = record.type
             errors = record.errors
+            any_section_errors = False
+
             if (record_type == RecordType.MEDICAL_RECORD):
                 emr_record, url, err = emr_api.create_simple_record(tableName=record.table_name, record=record_fields, 
                                                                      patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
@@ -545,40 +560,49 @@ class EmrUtils:
                 if record.sections:
                     #for section in record.sections:
                     for section_name, section in record.sections.items():
-                        #section_name = section.get('section_name', None)
                         section_fields = section.get('fields', None)
-                        if section_name and section_fields:
+                        section_state =  section['state'] #section.get('state', RecordState.PENDING)
+                        if section_fields and section_state != RecordState.ERRORS.value:
+                            logger.debug(f"Commiting section '{section_name}' in record '{record.id}' state: '{section_state}'")
                             emr_record, url, err = emr_api.create_record_section(sectionTableName=section_name, record=section_fields, 
                                                                                      patientEmrId=patientEmrId, assessmentId=record.emr_record_id, 
                                                                                      createdByNurseEmrId=nurseEmrId, errors=errors)
                             if not emr_record:
                                 raise ValueError(f"Failed to create assessment section '{section_name} fields: '{section_fields}' in assessment {table_name}. Error: {err}")
+                            else:
+                                section['emr_record_id'] = emr_record['id']
+                                section['state'] = RecordState.COMMITTED.value
+                        elif section_fields and section_state == RecordState.ERRORS.value:
+                            any_section_errors = True
+                            logger.error(f"Section '{section_name}' in record '{record.id}' has errors and cannot be commited.")
             else:
                 raise ValueError(f"Record type {record_type} not supported.")            
 
             # update the record state to 'COMMITTED'
             logger.info(f"Commiting record {record.id}")
-            record.state = RecordState.COMMITTED
+            if any_section_errors:
+                record.state = RecordState.PARTIALLY_COMMITTED
+            else:
+                record.state = RecordState.COMMITTED                
             flag_modified(record, 'errors')
+            flag_modified(record, 'sections')
             session.commit()
             return record.emr_record_id, record.state, {"message": f"Record {record.id} commited successfully to the EMR."}
         
         except RecordStateError as e:
             # in case of record state error, we don't want to update the record state
-            logger.error(e)
+            logger.log_exception("RecordStateError", e)
+            #logger.error(e)
             session.rollback()
             return None, None, {"error": str(e)}
         except (KeyError, ValueError) as e:
         # Handle the error by adding it to the record's errors field
-            errors = record.errors.get('errors', []) if record.errors else []  # Get existing errors, defaulting to an empty list
-            if not isinstance(errors, list):        # Ensure it's a list
-                errors = []
             errors.append(str(e))                   # Add the new error message
-            record.errors = {"errors": errors}      # Update the record's errors field with the modified list
+            record.errors = errors                  # Update the record's errors field with the modified list
             flag_modified(record, 'errors')         # Flag the 'errors' field as modified
             record.state = RecordState.ERRORS       # Update the record's state to 'ERRORS'
             session.commit()                        # Commit the changes to the database
-            logger.error(f"Error committing record {record.id} to the EMR: {e}")
+            logger.log_exception(f"Error committing record {record.id} to the EMR", e)
             return None, record.state, {"error": str(e)}          # Return error response and status code
         finally:
             EmrUtils.db.SpeakCareDBSession.remove()

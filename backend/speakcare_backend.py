@@ -12,21 +12,17 @@ from os_utils import ensure_directory_exists
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_record_and_process_audio, speakcare_process_audio
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
-#logger = create_logger(__name__)
-
-
-
 APP_PORT = os.getenv("APP_PORT", 5000)
 
 app = Flask(__name__)
 # Enable CORS only for localhost:4000 and airtable.com
 CORS(app, resources={r"/*": {"origins": ["http://localhost:4000", "https://airtable.com"]}})
 
-app.logger = create_logger(__name__)
+app.logger = SpeakcareLogger(__name__)
 app.logger.setLevel('DEBUG')
 app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')

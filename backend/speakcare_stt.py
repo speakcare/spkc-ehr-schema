@@ -7,9 +7,9 @@ import traceback
 import os
 from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 load_dotenv()
 
 # Set your OpenAI API key
@@ -28,8 +28,7 @@ def transcribe_audio(input_file="output.wav", output_file="output.txt", append=F
         with open(output_file, write_mode) as text_file:
             text_file.write(transcript.text)
     except Exception as e:
-        logger.error(f"Error transcribing audio: {e}")
-        traceback.print_exc()
+        logger.log_exception("Error transcribing audio", e)
         return 0
 
     transcription_length= len(transcript.text)

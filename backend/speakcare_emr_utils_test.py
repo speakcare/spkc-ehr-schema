@@ -2,7 +2,7 @@
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json
 from dotenv import load_dotenv
@@ -32,7 +32,7 @@ class TestRecords(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestRecords, self).__init__(*args, **kwargs)
-        self.logger = create_logger(__name__)
+        self.logger = SpeakcareLogger(__name__)
 
     def setUp(self):
         pass
@@ -87,7 +87,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
-        self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema.")
+        self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema of table Weights.")
         self.logger.info(f"Created record {record_id}")
 
     def test_record_create_and_update(self):
@@ -577,7 +577,7 @@ class TestRecordWithSections(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestRecordWithSections, self).__init__(*args, **kwargs)
-        self.logger = create_logger(__name__)
+        self.logger = SpeakcareLogger(__name__)
 
     def setUp(self):
         pass
@@ -702,7 +702,6 @@ class TestRecordWithSections(unittest.TestCase):
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        #self.assertEqual(response['error'], "EMR record created successfully", response['error'])
         self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{SpeakCareEmr.WEIGHTS_TABLE}' that has no sections" in response['error'], response['error'])
 
 
@@ -749,14 +748,17 @@ class TestRecordWithSections(unittest.TestCase):
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertTrue("Validation error for field 'Total score': Value 'ten' cannot be converted to a number." in response['error'], response['error'])
+        self.assertEqual(response['message'], "EMR record created successfully", response)
 
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
-        self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertTrue("field 'Total score': Value 'ten'" in record.errors[0])
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertTrue("Section 'Fall Risk Screen: SECTION 1' validation failed with errors" in record.errors[0], record.errors)
+        self.assertTrue("Validation error for a required field 'Total score' in table Fall Risk Screen: SECTION 1: Value 'ten' cannot be converted to a number."\
+                         in record.sections['Fall Risk Screen: SECTION 1']['errors'], 
+                         json.dumps(record.sections['Fall Risk Screen: SECTION 1'], indent=4))
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
     
     def test_record_create_assessment_commit_and_sign(self):
@@ -946,7 +948,7 @@ class TestRecordWithSections(unittest.TestCase):
 class TestTranscripts(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestTranscripts, self).__init__(*args, **kwargs)
-        self.logger = create_logger(__name__)
+        self.logger = SpeakcareLogger(__name__)
 
     def setUp(self):
         pass
@@ -1018,7 +1020,7 @@ class TestTranscripts(unittest.TestCase):
 class TestSchema(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestSchema, self).__init__(*args, **kwargs)
-        self.logger = create_logger(__name__)
+        self.logger = SpeakcareLogger(__name__)
 
     def setUp(self):
         pass

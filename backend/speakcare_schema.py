@@ -3,11 +3,13 @@ from datetime import datetime
 import logging
 import copy
 import json
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
+import traceback
+
 
 
 # Logger setup
-schema_logger = create_logger(__name__)
+schema_logger = SpeakcareLogger(__name__)
 
 class AirtableFieldTypes(PyEnum):
     NUMBER = 'number'
@@ -217,7 +219,7 @@ class AirtableSchema:
             if validation_function:
                 return validation_function(self, value, options)
             else:
-                error_message = f"No validation function found for field type '{field_type}'."
+                error_message = f"No validation function found for field type '{field_type}' in table {self.table_name}."
                 self.logger.error(error_message)
                 return None, error_message
         except Exception as e:
@@ -235,7 +237,7 @@ class AirtableSchema:
                 self.logger.error(error_message)
                 return None, error_message
         else:
-            error_message = f"No schema function found for field type '{field_type}'."
+            error_message = f"No schema function found for field type '{field_type}' in table {self.table_name}."
             self.logger.error(error_message)
             return None, error_message
 
@@ -253,44 +255,49 @@ class AirtableSchema:
             if checkRequired:
                 for field_name, field_info in self.field_registry.items():
                     if field_info.get("required") and field_name not in record:
-                        error_message = f"Validation error: Required field '{field_name}' is missing."
+                        error_message = f"Validation error: Required field '{field_name}' in table {self.table_name} is missing."
                         self.logger.error(error_message)
                         errors.append(error_message)
                         all_valid = False
             
             # Validate each field in the record
-            for field_name, field_value in record.items():
-                if field_name in self.field_registry:
-                    field_info = self.field_registry[field_name]
-                    field_type = AirtableFieldTypes(field_info["type"])
-                    field_options = field_info["options"]
-                    validated_value, error_message = self.__validate_field(field_type, field_value, field_options)
-                    if validated_value is not None:
-                        validated_fields[field_name] = validated_value
-                        if error_message:
-                            error_message = f"Validation warning for field '{field_name}': {error_message}"
-                            self.logger.warning(error_message)
+            if not record:
+                error_message = f"Validation warning: Record for table {self.table_name} is empty."
+                self.logger.warning(error_message)
+                errors.append(error_message)
+            else:
+                for field_name, field_value in record.items():
+                    if field_name in self.field_registry:
+                        field_info = self.field_registry[field_name]
+                        field_type = AirtableFieldTypes(field_info["type"])
+                        field_options = field_info["options"]
+                        validated_value, error_message = self.__validate_field(field_type, field_value, field_options)
+                        if validated_value is not None:
+                            validated_fields[field_name] = validated_value
+                            if error_message:
+                                error_message = f"Validation warning for field '{field_name}' in table {self.table_name}: {error_message}"
+                                self.logger.warning(error_message)
+                                errors.append(error_message)
+                        elif field_info.get("required"):
+                            error_message = f"Validation error for a required field '{field_name}' in table {self.table_name}: {error_message}"
+                            self.logger.error(error_message)
                             errors.append(error_message)
-                    elif field_info.get("required"):
-                        error_message = f"Validation error for field '{field_name}': {error_message}"
+                            all_valid = False
+                        else:
+                            error_message = f"Field is None or failed validation '{field_name}' in table {self.table_name}: {error_message}"
+                            self.logger.info(error_message)
+                            errors.append(error_message)
+                            
+                    else:
+                        error_message = f"Field name '{field_name}' does not exist in the schema of table {self.table_name}."
                         self.logger.error(error_message)
                         errors.append(error_message)
-                        all_valid = False
-                    else:
-                        error_message = f"Field is None or failed validation '{field_name}': {error_message}"
-                        self.logger.info(error_message)
-                        errors.append(error_message)
-                        
-                else:
-                    error_message = f"Field name '{field_name}' does not exist in the schema."
-                    self.logger.error(error_message)
-                    errors.append(error_message)
-                    # Here we don't set is_valid to False as we can silently ignore fields that are not in the schema
+                        # Here we don't set is_valid to False as we can silently ignore fields that are not in the schema
             
             return all_valid, validated_fields
         except Exception as e:
             error_message = f"Validation error: {e}"
-            self.logger.error(error_message)
+            self.logger.log_exception(self.logger, "Validation error", e)
             errors.append(error_message)
             return False, validated_fields
 
@@ -402,6 +409,7 @@ class AirtableSchema:
     def __single_select_schema(self, airtable_schema: dict):
         hint = "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null" 
         enum_values = [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]
+        enum_values.append(None)
         return {
             "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
             "enum": enum_values,
@@ -440,9 +448,10 @@ class AirtableSchema:
     @__register_field_type_schema(AirtableFieldTypes.MULTI_SELECT)
     def __multi_select_schema(self, airtable_schema: dict):
         hint = "Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null" 
+        enum_values = [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]
         return {
             "type": [JsonSchemaTypes.ARRAY.value, JsonSchemaTypes.NULL.value],
-            "items": {"type": JsonSchemaTypes.STRING.value, "enum": [choice["name"] for choice in airtable_schema.get("options", {}).get("choices", [])]},
+            "items": {"type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value], "enum": enum_values},
             "description": f"{hint}" if airtable_schema.get('description') is None else f"{airtable_schema.get('description')}: {hint}"
         }
 

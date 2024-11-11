@@ -67,7 +67,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Field is None or failed validation 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'Temperature' in table temperatureRecord: Value 'high' cannot be converted to a number." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
     def test_validate_record_invalid_required_field(self):
@@ -80,7 +80,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertTrue("Validation error for field 'Temperature': Value 'high' cannot be converted to a number." in errors[0], errors[0])
+        self.assertTrue("Validation error for a required field 'Temperature' in table temperatureRecord: Value 'high' cannot be converted to a number." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
 
@@ -117,7 +117,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertEqual(errors[0], "Validation error: Required field 'Units' is missing.")
+        self.assertEqual(errors[0], "Validation error: Required field 'Units' in table temperatureRecord is missing.")
 
     def test_validate_partial_record_missing_required_field(self):
         # In partial udpate we allow missing required fields
@@ -170,7 +170,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation warning for field 'Route': Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Validation warning for field 'Route' in table temperatureRecord: Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         # check the route includes only valid values
         self.assertEqual(valid_fields["Route"], ["Tympanic", "Axilla", "Rectal"])
@@ -187,7 +187,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation warning for field 'Route': Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
+        self.assertTrue("Validation warning for field 'Route' in table temperatureRecord: Multi select validation errors: Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         self.assertEqual(valid_fields["Route"], ["Tympanic", "Axilla", "Rectal"])
 
@@ -203,7 +203,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Validation warning for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Validation warning for field 'Route' in table temperatureRecord: Multi select validation errors:" in errors[0], errors[0])
         self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
@@ -222,7 +222,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Field is None or failed validation 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'Route' in table temperatureRecord: Multi select validation errors:" in errors[0], errors[0])
         self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
@@ -241,7 +241,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Validation error for a required field 'Route' in table temperatureRecord: Multi select validation errors:" in errors[0], errors[0])
         self.assertTrue("Value 'Forehead' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Ear' is not a valid choice." in errors[0], errors[0])
         self.assertTrue("Value 'Mouth' is not a valid choice." in errors[0], errors[0])
@@ -261,7 +261,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertTrue("Validation error for field 'Route': Multi select validation errors:" in errors[0], errors[0])
+        self.assertTrue("Validation error for a required field 'Route' in table temperatureRecord: Multi select validation errors:" in errors[0], errors[0])
         self.assertTrue("Argumment 'Tympanic' is not a valid multi select list option." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         self.assertIsNone(valid_fields.get("Route", None))
@@ -366,7 +366,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertTrue(is_valid)
-        self.assertTrue("Field is None or failed validation 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
+        self.assertTrue("Field is None or failed validation 'PercentField' in table testSchema: Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
         
     def test_validate_percent_incorrect_required_value(self):
@@ -380,7 +380,7 @@ class TestValidations(unittest.TestCase):
         errors = []
         is_valid, valid_fields = schema.validate_record(record=record, errors=errors)
         self.assertFalse(is_valid)
-        self.assertTrue("Validation error for field 'PercentField': Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
+        self.assertTrue("Validation error for a required field 'PercentField' in table testSchema: Percent validation error: Value '150' is not a valid percent (0-100)." in errors[0], errors[0])
         self.assertEqual(len(errors), 1)
 
     def test_validate_checkbox_correct_value(self):
@@ -592,7 +592,7 @@ class TestJsonSchema(unittest.TestCase):
                                 "type": ["string", "null"], "description": "optional: Single line text"
                             },
                             "Units": {
-                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius"],
+                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius", None],
                                 "description": 
                                 "required: Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                             },
@@ -600,7 +600,7 @@ class TestJsonSchema(unittest.TestCase):
                                 "type": ["number", "null"],"description": "required: Must be a number with 1 decimal precision"
                             },
                             "Route": {
-                                "type": ["array", "null"], "items": { "type": "string", "enum": ["Tympanic","Oral","Rectal","Axilla"]},
+                                "type": ["array", "null"], "items": { "type": ["string", "null"], "enum": ["Tympanic","Oral","Rectal","Axilla"]},
                                 "description": 
                                 "required: Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                             },
@@ -701,7 +701,7 @@ class TestJsonSchema(unittest.TestCase):
                                                 "type": ["string","null"], "description": "optional: Single line text"
                                             },
                                             "Units": {
-                                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius"],
+                                                "type": ["string", "null"], "enum": ["Fahrenheit", "Celsius", None],
                                                 "description": 
                                                 "required: Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                                             },
@@ -709,7 +709,7 @@ class TestJsonSchema(unittest.TestCase):
                                                 "type": ["number", "null"],"description": "required: Must be a number with 1 decimal precision"
                                             },
                                             "Route": {
-                                                "type":["array", "null"], "items": { "type": "string", "enum": ["Tympanic","Oral","Rectal","Axilla"]},
+                                                "type":["array", "null"], "items": { "type": ["string", "null"], "enum": ["Tympanic","Oral","Rectal","Axilla"]},
                                                 "description": 
                                                 "required: Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
                                             },

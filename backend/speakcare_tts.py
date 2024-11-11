@@ -2,11 +2,11 @@ from gtts import gTTS
 from pathlib import Path
 import argparse
 from datetime import datetime, timezone
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from os_utils import ensure_directory_exists
 
 
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 
 def text_to_speech(text: str, output_file: str):
     """

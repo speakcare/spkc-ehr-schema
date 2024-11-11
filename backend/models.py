@@ -8,18 +8,19 @@ from sqlalchemy.types import JSON
 import os
 import atexit
 from os_utils import ensure_directory_exists
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
 # Define the base class for declarative models
 
 
 Base = declarative_base()
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 
 class RecordState(PyEnum):
     PENDING = 'PENDING'       # created but not commited yet, pending for user
     ERRORS = 'ERRORS'         # created with errors or attempt to commit resutlted in errors
     COMMITTED = 'COMMITTED'   # commited to the EMR
+    PARTIALLY_COMMITTED = 'PARTIALLY_COMMITTED'   # commited to the EMR but some sections are with errors
     DISCARDED = 'DISCARDED'   # discared by user, not commited to the EMR
 
 class TranscriptState(PyEnum):

@@ -294,11 +294,15 @@ class SpeakCareEmr:
         tableSchema = self.tableEmrSchemas.get(tableName)
         valid_fields = {}
         if not tableSchema:
-            errors.append(f'validate_record: Failed to get writable schema for table {tableName}')
+            error = f'validate_record: Failed to get EMR schema for table {tableName}'
+            self.logger.error(error)
+            errors.append(error)
             return False, {}
         
         isValidRecord, valid_fields = tableSchema.validate_record(record=record, errors= errors)
         if not isValidRecord:
+            err= f'validate_record: Invalid record {record} for table {tableName}.'
+            self.logger.warning(err)
             errors.append(f'validate_record: Invalid record {record} for table {tableName}.')
             return False, valid_fields
         

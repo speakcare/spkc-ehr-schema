@@ -3,11 +3,11 @@ from datetime import datetime
 import logging
 import copy
 import json
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
 
 # Logger setup
-schema_logger = create_logger('emr.schema')
+schema_logger = SpeakcareLogger('emr.schema')
 
 class FieldTypes(PyEnum):
     NUMBER = 'number'

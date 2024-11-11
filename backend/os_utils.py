@@ -1,8 +1,9 @@
 import os
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 import time
 
-logger = create_logger(__name__)
+
+logger = SpeakcareLogger(__name__)
 
 def __get_directory_path(dir_name):
     if os.path.isabs(dir_name):
@@ -40,4 +41,5 @@ class Timer:
 
     def elapsed_time(self):
         return self.end_time - self.start_time
+
 
