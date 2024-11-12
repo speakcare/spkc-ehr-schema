@@ -20,8 +20,11 @@ DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 logger = SpeakcareLogger(__name__)
 output_root_dir = "out"
 recordings_dir = f"{output_root_dir}/recordings"
+ensure_directory_exists(recordings_dir)
 transciptions_dir = f"{output_root_dir}/transcriptions"
+ensure_directory_exists(transciptions_dir)
 jsons_dir = f"{output_root_dir}/jsons"
+ensure_directory_exists(jsons_dir)
 
 supported_tables = EmrUtils.get_table_names()
 
