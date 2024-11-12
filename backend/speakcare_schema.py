@@ -285,7 +285,7 @@ class AirtableSchema:
                             all_valid = False
                         else:
                             error_message = f"Field is None or failed validation '{field_name}' in table {self.table_name}: {error_message}"
-                            self.logger.info(error_message)
+                            self.logger.debug(error_message)
                             errors.append(error_message)
                             
                     else:
