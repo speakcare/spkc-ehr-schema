@@ -9,10 +9,10 @@ from datetime import datetime, timezone
 import argparse
 import time
 import traceback
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from os_utils import ensure_directory_exists
 
-logger = create_logger(__name__)
+logger= SpeakcareLogger(__name__)
 
 # List all available audio devices
 def get_audio_devices_string():
@@ -152,8 +152,7 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
         recording_length = wf.tell() / (fs * channels * audio.get_sample_size(sample_format))
 
     except Exception as e:
-        logger.error(f"Error occurred while recording audio: {e}")
-        traceback.print_exc()
+        logger.log_exception("Error occurred while recording audio", e)
         return 0
     
     finally:

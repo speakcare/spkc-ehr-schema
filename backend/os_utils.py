@@ -1,7 +1,9 @@
 import os
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
+import time
 
-logger = create_logger(__name__)
+
+logger = SpeakcareLogger(__name__)
 
 def __get_directory_path(dir_name):
     if os.path.isabs(dir_name):
@@ -25,4 +27,19 @@ def ensure_directory_exists(dir_name):
         logger.debug(f"Creating directory {_dir_path}")
         os.makedirs(_dir_path, exist_ok=True)
     return _dir_path
+
+class Timer:
+    def __init__(self):
+        self.start_time = None
+        self.end_time = None
+
+    def start(self):
+        self.start_time = time.perf_counter()
+
+    def stop(self):
+        self.end_time = time.perf_counter()
+
+    def elapsed_time(self):
+        return self.end_time - self.start_time
+
 

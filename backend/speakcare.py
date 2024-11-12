@@ -8,7 +8,7 @@ from typing import List
 import os
 from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 from speakcare_stt import transcribe_audio
 from speakcare_transcriptions import transcription_to_emr
 from speakcare_emr import SpeakCareEmr
@@ -17,7 +17,7 @@ from speakcare_emr_utils import EmrUtils
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 output_root_dir = "out"
 recordings_dir = f"{output_root_dir}/recordings"
 ensure_directory_exists(recordings_dir)

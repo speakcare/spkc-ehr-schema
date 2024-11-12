@@ -8,18 +8,19 @@ from sqlalchemy.types import JSON
 import os
 import atexit
 from os_utils import ensure_directory_exists
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
 # Define the base class for declarative models
 
 
 Base = declarative_base()
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 
 class RecordState(PyEnum):
     PENDING = 'PENDING'       # created but not commited yet, pending for user
     ERRORS = 'ERRORS'         # created with errors or attempt to commit resutlted in errors
     COMMITTED = 'COMMITTED'   # commited to the EMR
+    PARTIALLY_COMMITTED = 'PARTIALLY_COMMITTED'   # commited to the EMR but some sections are with errors
     DISCARDED = 'DISCARDED'   # discared by user, not commited to the EMR
 
 class TranscriptState(PyEnum):
@@ -58,8 +59,7 @@ class MedicalRecords(Base):
     nurse_name = Column(String)
     nurse_id = Column(String)  # External EMR application nurse ID
     fields = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured records in JSON format
-    # TODO: Add sections list for admissions. Should be able to be null
-    sections = Column(MutableList.as_mutable(JSON), default=[])
+    sections = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured sections in JSON format
     errors = Column(MutableList.as_mutable(JSON), default=[])
     state = Column(Enum(RecordState), default=RecordState.PENDING)  # Use Enum type for state
     created_time = Column(DateTime, server_default=func.now())  # Auto-set on creation

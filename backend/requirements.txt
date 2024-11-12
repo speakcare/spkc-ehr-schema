@@ -3,7 +3,7 @@ sqlalchemy
 rapidfuzz
 fuzzy
 yt_dlp
-openai==0.28
+openai
 flask_restx
 pyairtable
 python-dotenv
@@ -14,3 +14,4 @@ gtts
 pydub
 gunicorn
 flask-cors
+deepdiff

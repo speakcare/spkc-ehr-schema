@@ -1,13 +1,13 @@
 #This reads text sessions and converts them into structured data records.
 from models import Transcripts, MedicalRecords, TranscriptState, TranscriptsDBSession, MedicalRecordsDBSession
 from speakcare_emr_utils import EmrUtils
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 import time
 import argparse
 import signal
 import sys
 
-logger = create_logger(__name__)
+logger = SpeakcareLogger(__name__)
 
 
 def process_new_transcripts():

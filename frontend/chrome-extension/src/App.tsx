@@ -88,6 +88,7 @@ const App: React.FC = () => {
       console.log('Response from backend:', response.data);
       if (isExtension) {
         // refresh the EHR page so we can see the new data
+        console.log('Dispatching visibility change event to current tab');
         dispatchVisibilityChangeEvent();
       }
     } catch (error) {

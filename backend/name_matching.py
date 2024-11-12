@@ -2,7 +2,7 @@ from rapidfuzz import process, fuzz
 import fuzzy  # For Double Metaphone
 import sys
 import logging
-from speakcare_logging import create_logger
+from speakcare_logging import SpeakcareLogger
 
 # NameMatcher class that provides a method to find the best match for a given name
 
@@ -10,7 +10,7 @@ class NameMatcher:
     def __init__(self, primary_threshold=90, secondary_threshold=80):
         self.primary_threshold = primary_threshold
         self.secondary_threshold = secondary_threshold
-        self.logger = create_logger(__name__)
+        self.logger = SpeakcareLogger(__name__)
         
     def get_best_match(self, input_name= None, names_to_match = None):
         # Initial character-based matching
