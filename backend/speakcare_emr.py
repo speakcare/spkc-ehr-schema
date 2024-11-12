@@ -89,7 +89,8 @@ class SpeakCareEmr:
                 HEIGHTS_TABLE,
                 TEMPERATURES_TABLE,
                 O2_SATURATIONS_TABLE,
-                PULSES_TABLE
+                PULSES_TABLE,
+                RESPIRATION_TABLE
             ]
     }
 

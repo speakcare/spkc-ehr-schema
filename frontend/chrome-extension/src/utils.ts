@@ -61,6 +61,11 @@ export const base64ToBlob = (base64: string, contentType = 'audio/webm; codecs=o
   return new Blob([byteArray], { type: contentType });
 };
 
+/**
+ * Save state to Chrome local storage.
+ * @param key - The key under which the state will be saved.
+ * @param state - The state to be saved. Can be an object or an array.
+ */
 export const saveState = (key: string, state: any) => {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     chrome.storage.local.set({ [key]: state }, () => {
@@ -69,6 +74,11 @@ export const saveState = (key: string, state: any) => {
   }
 };
 
+/**
+ * Load state from Chrome local storage.
+ * @param key - The key under which the state is saved.
+ * @param callback - The callback function to be called with the loaded state.
+ */
 export const loadState = (key: string, callback: (state: any) => void) => {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     chrome.storage.local.get([key], (result) => {

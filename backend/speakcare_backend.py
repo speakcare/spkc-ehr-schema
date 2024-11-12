@@ -342,9 +342,9 @@ process_audio_model = ns.model('ProcessAudio', {
     'dryrun': fields.Boolean(required=False, default=False, description='Run without actually processing the audio')
 })
 
-@ns.route('/process-audio')
-class ProcessAudioResource(Resource):
-    @ns.doc('process_audio')
+@ns.route('/record-and-process-audio')
+class RecordAndProcessAudioResource(Resource):
+    @ns.doc('record_and_process_audio')
     @ns.expect(process_audio_model) # Use the updated model for response
     def post(self):
 
@@ -371,12 +371,12 @@ class ProcessAudioResource(Resource):
 
 audio_parser = api.parser()
 audio_parser.add_argument('audio_file', location='files', type=FileStorage, required=True, help='The audio file to be uploaded')
-audio_parser.add_argument('table_name', location='form', type=str, required=True, help='Name of the table to store converted data')
+audio_parser.add_argument('table_name', location='form', type=str, action='append', required=True, help='Name of the tables to store converted data')
 
 
-@ns.route('/process-audio2')
-class ProcessAudioResource2(Resource):
-    @ns.doc('process_audio2')
+@ns.route('/process-audio')
+class ProcessAudioResource(Resource):
+    @ns.doc('process_audio')
     @ns.expect(audio_parser)
     def post(self):
 
@@ -393,18 +393,18 @@ class ProcessAudioResource2(Resource):
         ensure_directory_exists(dirname)
 
         # Get other form fields
-        table_name = args['table_name']
+        table_names = args['table_name']
 
-        app.logger.debug(f"POST: process-audio received: audio_filename={audio_local_filename}, table_name={table_name}")
+        app.logger.debug(f"POST: process-audio received: audio_filename={audio_local_filename}, table_names={table_names}")
         
         audio_file.save(audio_local_filename)
         app.logger.debug(f"Audio file saved as {audio_local_filename}")
 
         # Now, you have both the audio file and the other data fields
-        record_id, err = speakcare_process_audio(audio_files=[audio_local_filename], table_name=table_name)
-        if record_id:
-            app.logger.info(f"Audio file {audio_local_filename} processed successfully. Record ID: {record_id}")
-            return {'message': f'Audio processed successfully. New record id: {record_id}'}, 201
+        record_ids, err = speakcare_process_audio(audio_files=[audio_local_filename], tables=table_names)
+        if record_ids:
+            app.logger.info(f"Audio file {audio_local_filename} processed successfully. Create {len(record_ids)} records. IDs: {record_ids}")
+            return {'message': f'Audio processed successfully. New record ids: {record_ids}'}, 201
         else:
             app.logger.error(f"Error processing audio file {audio_local_filename}: {err}")
             return err, 400

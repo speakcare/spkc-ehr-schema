@@ -29,7 +29,7 @@ ensure_directory_exists(jsons_dir)
 supported_tables = EmrUtils.get_table_names()
 
 
-def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="output", table_name:str=None, dryrun: bool=False):
+def speakcare_process_audio(audio_files: List[str], tables: List[str], output_file_prefix:str="output", dryrun: bool=False):
     """
     Transcribe audio, convert transcription to EMR record
     """    
@@ -39,9 +39,11 @@ def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="outp
     transcription_filename = f'{transciptions_dir}/{output_file_prefix}_{rnd}.txt'
     json_filename = f'{jsons_dir}/{output_file_prefix}_{rnd}.json'
 
+
     try:
-        # Step 1: Verify the audio file exists
+        record_ids = []    
         for num, audio_filename in enumerate(audio_files):
+            # Step 1: Verify the audio file exists
             if not os.path.isfile(audio_filename):
                 err = f"Audio file not found or not file type: {audio_filename}"
                 logger.error(err)
@@ -55,24 +57,26 @@ def speakcare_process_audio(audio_files: List[str], output_file_prefix:str="outp
                 logger.error(err)
                 raise Exception(err)
 
-        # Step 3: Convert transcription to EMR record
-        record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
-                                         table_name=table_name, dryrun=dryrun)
-        if not record_id:
-            err = "Error occurred while converting transcription to EMR record."
-            logger.error(err)
-            raise Exception(err)
-        # Step 2: Transcribe Audio
+        # Step 3: Convert transcription to EMR record for all tables
+        for table_name in tables:
+            record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
+                                            table_name=table_name, dryrun=dryrun)
+            if not record_id:
+                err = "Error occurred while converting transcription to EMR record."
+                logger.error(err)
+                raise Exception(err)
+                        
+            record_ids.append(record_id)
+            logger.info(f"Speakcare converted transctiption to table {table_name}. EMR record created: {record_id}")
         
-        logger.info(f"Speakcare completed. EMR record created: {record_id}")
-        return record_id, ""
+        return record_ids, ""
 
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
         return None, {"error": str(e)}
 
 
-def speakcare_record_and_process_audio(output_file_prefix:str="output", recording_duration:int=30, table_name:str=None, audio_device:int =None, dryrun: bool=False):
+def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str="output", recording_duration:int=30, audio_device:int =None, dryrun: bool=False):
     """
     Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
     """    
@@ -88,7 +92,7 @@ def speakcare_record_and_process_audio(output_file_prefix:str="output", recordin
             logger.error(err)
             raise Exception(err)
         # Step 2: Transcribe Audio (speech to text)
-        return speakcare_process_audio(audio_files=[recording_filename], output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        return speakcare_process_audio(audio_files=[recording_filename], output_file_prefix=output_file_prefix, tables=tables, dryrun=dryrun)
     
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
@@ -109,12 +113,12 @@ def main():
                         help='Print input devices list and exit')
     parser.add_argument('-o', '--output-prefix', type=str, default="output",
                         help='Output file prefix (default: output)')
-    parser.add_argument('-t', '--table', type=str, 
-                        help=f'Table name (supported tables: {supported_tables})')
+    parser.add_argument('-t', '--table', type=str, nargs='+',
+                        help=f'Table names (supported tables: {supported_tables})')
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='If dryrun, write JSON only and do not create EMR record')
     parser.add_argument('-i', '--input-recording', nargs='+', type=str,
-                        help='Name of input recording file to process. If provided, we skip the recording and use this file instead.')
+                        help='Name of input recording files to process. If provided, we skip the recording and use these files instead.')
     parser.add_argument('-s', '--seconds', type=int, default=30,
                         help='Recording duration in seconds (default: 30)')
     parser.add_argument('-a', '--audio-device', type=int,
@@ -131,9 +135,12 @@ def main():
     if not args.table:
         parser.error("--table is required.")
  
-    table_name = args.table
-    if table_name not in supported_tables:
-        parser.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
+    table_names = args.table
+    unsupported_tables = [table for table in table_names if table not in supported_tables]
+    if unsupported_tables:
+        parser.error(f"Invalid table names: {unsupported_tables}. Supported tables: {supported_tables}")
+    # if table_name not in supported_tables:
+    #     parser.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
 
 
     output_file_prefix = "output"
@@ -151,7 +158,7 @@ def main():
 
     if args.input_recording:
         # Process the provided audio file and exit
-        record_id, error = speakcare_process_audio(audio_files=args.input_recording, output_file_prefix=output_file_prefix, table_name=table_name, dryrun=dryrun)
+        record_ids, error = speakcare_process_audio(audio_files=args.input_recording, output_file_prefix=output_file_prefix, tables=table_names, dryrun=dryrun)
         EmrUtils.cleanup_db(delete_db_files=False)
         exit(0)
 
@@ -169,7 +176,7 @@ def main():
         recording_duration = args.seconds
 
     
-    speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
+    speakcare_record_and_process_audio(tables=table_names, output_file_prefix=output_file_prefix, recording_duration=recording_duration, audio_device=audio_device, dryrun=dryrun)
     EmrUtils.cleanup_db(delete_db_files=False)
 
 if __name__ == "__main__":

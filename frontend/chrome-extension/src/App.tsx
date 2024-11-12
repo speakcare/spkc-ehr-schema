@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent, CircularProgress } from '@mui/material';
+import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent, CircularProgress, Checkbox, ListItemText } from '@mui/material';
 import AudioRecorder from './components/AudioRecorder'; 
 
 import axios from 'axios';
@@ -14,7 +14,7 @@ console.log('Running in extension mode:', isExtension);
 const App: React.FC = () => {
   const [tables, setTables] = useState<string[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [selectedTable, setSelectedTable] = useState<string>('');
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
   const audioType = 'audio/webm; codecs=opus';
@@ -25,7 +25,7 @@ const App: React.FC = () => {
     // Load saved state on mount
     loadState('appState', async (savedState: any) => {
       if (savedState) {
-        setSelectedTable(savedState.selectedTable || '');
+        setSelectedTables(savedState.selectedTables || []);
       }
       if (savedState.audioBlob) {
         const blob = base64ToBlob(savedState.audioBlob, audioType);
@@ -50,35 +50,41 @@ const App: React.FC = () => {
       if (audioBlob) {
         const audioBlobBase64 = await blobToBase64(audioBlob);
         saveState('appState', {
-          selectedTable,
+          selectedTables,
           audioBlob: audioBlobBase64,
           recordingTime,
         });
       } else {
         saveState('appState', {
-          selectedTable,
+          selectedTables,
         });
       }
     };
     save();
-  }, [selectedTable, audioBlob]);
+  }, [selectedTables, audioBlob]);
 
-  const handleTableChange = (event: SelectChangeEvent<string>) => {
-    setSelectedTable(event.target.value as string);
+
+  const handleTableChange = (event: SelectChangeEvent<string[]>) => {
+    const value = event.target.value;
+    setSelectedTables(typeof value === 'string' ? value.split(',') : value);
   };
 
   const updateEhr = async () => {
-    if (!audioBlob || !selectedTable) {
+    if (!audioBlob || !selectedTables) {
       console.error('Please select a chart and make a recording first.');
       return;
     }
   
     const formData = new FormData();
     formData.append('audio_file', audioBlob, audioFileName ?? 'recording.webm'); // Append the audio file with a filename
-    formData.append('table_name', selectedTable); // Append the table name
+      // Append each table name to the form data
+    selectedTables.forEach((table) => {
+      formData.append('table_name', table);
+    });
+    //formData.append('table_name', selectedTable); // Append the table name
     setEhrUpdating(true);
     try {
-      const response = await axios.post(`${apiBaseUrl}/api/process-audio2`, formData, {
+      const response = await axios.post(`${apiBaseUrl}/api/process-audio`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -114,11 +120,17 @@ const App: React.FC = () => {
 
       <FormControl fullWidth sx={{ marginBottom: 3 }}>
         <InputLabel>Chart Selection</InputLabel>
-        <Select value={selectedTable} onChange={handleTableChange} label="Chart Selection">
+        <Select 
+          multiple
+          value={selectedTables} 
+          onChange={handleTableChange} 
+          renderValue={(selected) => selected.join(', ')}
+          label="Chart Selection">
           {tables.map((table) => (
             <MenuItem key={table} value={table}>
-              {table}
-            </MenuItem>
+            <Checkbox checked={selectedTables.indexOf(table) > -1} />
+            <ListItemText primary={table} />
+          </MenuItem>
           ))}
         </Select>
       </FormControl>
@@ -137,7 +149,7 @@ const App: React.FC = () => {
         fullWidth 
         onClick={updateEhr} 
         sx={{ marginTop: 3 }}
-        disabled={!audioBlob || !selectedTable || ehrUpdating}
+        disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
       >
         {ehrUpdating ? <CircularProgress size={24} /> : 'Update EHR'}
       </Button>
