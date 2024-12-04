@@ -4,8 +4,8 @@ import AudioRecorder from './components/AudioRecorder';
 
 import axios from 'axios';
 import './App.css';
-import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob } from './utils';
-import { extractAssessmentSectionFormFields, sendSaveRequest} from './pcc-utils'
+import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob, reloadCurrentTab } from './utils';
+import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils'
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
@@ -118,15 +118,44 @@ const App: React.FC = () => {
       // Add static data to formData
       const formData = {
         ...extractedFields,
+        ESOLsaveflag: 'SONLY',
+        ESOLsavedUDASaveFlag: 'N',
+        Cust_A_1: '4',
+        ackCust_A_1: 'Y',
+        Cust_B_2: '4',
+        ackCust_B_2: 'Y',
+        Cust_C_3: '2',
+        ackCust_C_3: 'Y',
+        Cust_D_4: '2',
+        ackCust_D_4: 'Y',
+        Cust_E_5: '0',
+        ackCust_E_5: 'Y',
+        Cust_E_6: '0',
+        chkCust_E_6: 'on',
+        ackCust_E_6: 'Y',
+        Cust_E_7: '0',
+        chkCust_E_7: 'on',
+        ackCust_E_7: 'Y',
+        Cust_E_8: '1',
+        ackCust_E_8: 'Y',
+        Cust_E_9: '1',
+        ackCust_E_9: 'Y',
+        Cust_E_10: '0',
+        ackCust_E_10: 'Y',
+        Cust_F_12: '0',
+        ackCust_F_12: 'Y',
         lastUpdateField: 'Cust_G_14',
-        Cust_G_14: 'Test message from Chrome extension',
-        ackCust_G_14: 'Y',
+        Cust_G_14: 'This is a message to show that we can actually write into the pcc server from the extension',
+        ackCust_G_14: 'Y'
       };
 
+
       // Send the save request
-      const response = await sendSaveRequest(formData);
+      const response = await sendRequestToTabUrl(formData);
       console.log('Response:', response);
       setMessage('Data submitted successfully!');
+      // Reload the current tab to see the changes
+      reloadCurrentTab();
     } catch (error) {
       console.error('Error:', error);
       if (error instanceof Error) {
@@ -196,7 +225,7 @@ const App: React.FC = () => {
           onClick={updatePcc} 
           sx={{ marginTop: 2 }}
         >
-          {loading ? <CircularProgress size={24} /> : 'Save to PCC EHR'}
+          {loading ? <CircularProgress size={24} /> : 'Save to PointClickCare'}
       </Button>
       {/* Feedback Message */}
       {message && <Typography variant="body1">{message}</Typography>}

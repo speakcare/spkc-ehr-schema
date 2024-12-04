@@ -33,11 +33,7 @@ export function dispatchVisibilityChangeEvent(): void {
         });
     }
 }
-// // Define the interface for the saved state
-// export interface ExtensionState {
-//   selectedTable: string;
-//   audioBlob?: string | null;
-// }
+
 
 export const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -88,3 +84,15 @@ export const loadState = (key: string, callback: (state: any) => void) => {
     });
   }
 };
+
+
+export async function reloadCurrentTab() {
+  if (typeof chrome !== 'undefined' && chrome.tabs) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs: chrome.tabs.Tab[]) => {
+      if (tabs.length > 0 && tabs[0].id !== undefined) {
+        chrome.tabs.reload(tabs[0].id);
+      }
+    });
+  }
+}
+
