@@ -10,14 +10,10 @@
     "128": "icons/speakcare-icon-128.png"
   },
   "action": {
-    "default_popup": "index.html",
-    "default_icon": {
-      "16": "icons/speakcare-icon-16.png",
-      "48": "icons/speakcare-icon-48.png",
-      "128": "icons/speakcare-icon-128.png"
-    }
+    "default_title": "Click to open SpeakCare panel"
   },
   "permissions": [
+    "sidePanel",
     "storage",
     "activeTab"
   ],

@@ -4,7 +4,8 @@ import AudioRecorder from './components/AudioRecorder';
 
 import axios from 'axios';
 import './App.css';
-import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob  } from './utils';
+import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob } from './utils';
+import { extractAssessmentSectionFormFields, sendSaveRequest} from './pcc-utils'
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
@@ -17,6 +18,8 @@ const App: React.FC = () => {
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const audioType = 'audio/webm; codecs=opus';
   const audioFileName = 'recording.webm';
 
@@ -69,7 +72,7 @@ const App: React.FC = () => {
     setSelectedTables(typeof value === 'string' ? value.split(',') : value);
   };
 
-  const updateEhr = async () => {
+  const updateDemoEhr = async () => {
     if (!audioBlob || !selectedTables) {
       console.error('Please select a chart and make a recording first.');
       return;
@@ -101,6 +104,39 @@ const App: React.FC = () => {
       console.error('Error sending data to backend:', error);
     }
     setEhrUpdating(false);
+  };
+
+  const updatePcc = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      // Extract form fields from the current page
+      const extractedFields = await extractAssessmentSectionFormFields();
+      console.log('Extracted Fields:', extractedFields);
+
+      // Add static data to formData
+      const formData = {
+        ...extractedFields,
+        lastUpdateField: 'Cust_G_14',
+        Cust_G_14: 'Test message from Chrome extension',
+        ackCust_G_14: 'Y',
+      };
+
+      // Send the save request
+      const response = await sendSaveRequest(formData);
+      console.log('Response:', response);
+      setMessage('Data submitted successfully!');
+    } catch (error) {
+      console.error('Error:', error);
+      if (error instanceof Error) {
+        setMessage(`Error: ${error.message}`);
+      } else {
+        setMessage('An unknown error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
   
 
@@ -147,14 +183,27 @@ const App: React.FC = () => {
         variant="contained" 
         color="primary" 
         fullWidth 
-        onClick={updateEhr} 
+        onClick={updateDemoEhr} 
         sx={{ marginTop: 3 }}
         disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
       >
         {ehrUpdating ? <CircularProgress size={24} /> : 'Update EHR'}
       </Button>
+      <Button 
+          variant="outlined" 
+          color="secondary" 
+          fullWidth 
+          onClick={updatePcc} 
+          sx={{ marginTop: 2 }}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Save to PCC EHR'}
+      </Button>
+      {/* Feedback Message */}
+      {message && <Typography variant="body1">{message}</Typography>}
+
     </Container>
   );
+ 
 };
 
 export default App;
