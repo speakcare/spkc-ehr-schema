@@ -57,7 +57,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 - **Purpose:** Orchestrates sequential execution of microservices in the data pipeline.  
 - **Responsibilities:**  
    - Trigger and monitor:  
-     - **Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
+     - **Audio Ingestion -> STT -> Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
    - Ensure retries, fault tolerance, and step recovery.  
 - **Technologies:**  
    - Apache Airflow, Temporal, or Step Functions.
