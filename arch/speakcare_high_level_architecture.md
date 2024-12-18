@@ -64,7 +64,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.5 Initial Sanitation Service**
+### **1.5 Initial Text Sanitation Service**
 - **Type:** Microservice.  
 - **Purpose:** Cleans irrelevant data from raw STT output before patient attribution.  
 - **Features:**
@@ -93,7 +93,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.7 Data Sanitation Service**
+### **1.7 Patient Data Sanitation Service**
 - **Type:** Microservice.  
 - **Purpose:** Filters and sanitizes raw text to ensure relevance and compliance.  
 - **Features:**
