@@ -113,7 +113,7 @@ The MVP will deliver the following key functionalities:
 | **EHR Integration (Read/Write)**     | 4                           | 5                           | Core Team        |
 | **User Management (IDM + OAuth 2.0)**| 3                           | 3.75                        | Core Team        |
 | **DevOps and IaC**                   | 3                           | 3                           | Outsourced       |
-| **Testing and Debugging**            | 4                           | 5                           | Core Team + QA   |
+| **Testing and Debugging**            | 4                           | 5                           | Core Team        |
 
 ---
 
