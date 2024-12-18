@@ -25,7 +25,19 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.2 Audio Ingestion and Pre-Processing Service**
+### **1.2 Orchestration and Workflow Management**
+- **Type:** Workflow Engine.  
+- **Purpose:** Orchestrates sequential execution of microservices in the data pipeline.  
+- **Responsibilities:**  
+   - Trigger and monitor:  
+     - **Audio Ingestion -> STT -> Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
+   - Ensure retries, fault tolerance, and step recovery.  
+- **Technologies:**  
+   - Apache Airflow, Temporal, or Step Functions.
+
+---
+
+### **1.3 Audio Ingestion and Pre-Processing Service**
 - **Type:** Microservice.  
 - **Purpose:** Collects audio from mobile devices, enhances it, and prepares it for STT processing.  
 - **Features:**
@@ -39,7 +51,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.3 Speech-to-Text (STT) Service**
+### **1.4 Speech-to-Text (STT) Service**
 - **Type:** Microservice.  
 - **Purpose:** Converts pre-processed audio into text with speaker diarization.  
 - **Features:**
@@ -52,32 +64,36 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.4 Orchestration and Workflow Management**
-- **Type:** Workflow Engine.  
-- **Purpose:** Orchestrates sequential execution of microservices in the data pipeline.  
-- **Responsibilities:**  
-   - Trigger and monitor:  
-     - **Audio Ingestion -> STT -> Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
-   - Ensure retries, fault tolerance, and step recovery.  
+### **1.5 Initial Sanitation Service**
+- **Type:** Microservice.  
+- **Purpose:** Cleans irrelevant data from raw STT output before patient attribution.  
+- **Features:**
+   - Filters casual or irrelevant conversations (e.g., personal chats during breaks).
+   - Rule-based and ML-based filtering to identify and remove noise.
+   - Outputs sanitized text to the NoSQL Document Database for Patient Attribution.
 - **Technologies:**  
-   - Apache Airflow, Temporal, or Step Functions.
-
+   - Python with NLP-based filtering pipelines.
+   - Deployment: Docker/Kubernetes for scalability. 
 ---
 
-### **1.5 Patient Attribution Service**
+### **1.6 Patient Attribution Service**
 - **Type:** Microservice.  
-- **Purpose:** Identifies the patient associated with a conversation.  
+- **Purpose:** Identifies the patient associated with conversations and reconstructs context streams for the patient.  
 - **Features:**
-   - Analyze verbal cues (e.g., patient names, keywords).  
-   - Cross-reference with EHR patient data.  
-   - Use temporal and spatial context for validation.  
-   - Update results to the NoSQL Document Database.  
+   - Context Identification:
+       - Uses keywords, phrases, and verbal cues (e.g., "Regarding [Patient Name]").
+       - Cross-references with the EHR to validate patient identity using conditions, medications, and other details.
+   - Segment Linking:
+       - Merges snippets into coherent streams using rules or ML models.
+       - Applies time thresholds to group interactions (e.g., 10-15 minutes without explicit interruption).
+       - Uses semantic similarity analysis with transformer models (e.g., BERT) to link segments.
+    - Outputs patient-specific, reconstructed context streams to the NoSQL Document Database for further processing. 
 - **Technologies:**  
    - Python with NLP libraries (SpaCy, Hugging Face Transformers).  
 
 ---
 
-### **1.6 Data Sanitation Service**
+### **1.7 Data Sanitation Service**
 - **Type:** Microservice.  
 - **Purpose:** Filters and sanitizes raw text to ensure relevance and compliance.  
 - **Features:**
@@ -89,7 +105,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.7 Clinical Documentation Conversion Service**
+### **1.8 Clinical Documentation Conversion Service**
 - **Type:** Microservice.  
 - **Purpose:** Converts sanitized text into structured clinical documentation.  
 - **Features:**
@@ -106,7 +122,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.8 EHR Integration Service**
+### **1.9 EHR Integration Service**
 - **Type:** Microservice.  
 - **Purpose:** Manages reading and writing data to the EHR.  
 - **Features:**
@@ -118,7 +134,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.9 Data Storage**
+### **1.10 Data Storage**
 - **Components:**
    - **Object Store**: Temporary storage for audio and raw text.  
    - **NoSQL Document Database**: Stores intermediate text outputs (STT, Patient Attribution, Sanitized Text).  
@@ -127,14 +143,14 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.10 Monitoring and Logging**
+### **1.11 Monitoring and Logging**
 - **Purpose:** Provides real-time monitoring, logging, and HIPAA audit trails.  
 - **Technologies:**  
    - DataDog, ELK Stack (Elasticsearch, Logstash, Kibana), or AWS CloudWatch.  
 
 ---
 
-### **1.11 User Management**
+### **1.12 User Management**
 - **Purpose:** Centralized authentication and authorization for all users.  
 - **Features:**  
    - OAuth 2.0 for secure integration with EHR systems (e.g., PCC).  
@@ -144,7 +160,7 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 
 ---
 
-### **1.12 Deployment Infrastructure**
+### **1.13 Deployment Infrastructure**
 - **Components:**
    - **Infrastructure as Code (IaC):** Terraform or CloudFormation.  
    - **Container Orchestration:** Kubernetes for scalable deployments.  
