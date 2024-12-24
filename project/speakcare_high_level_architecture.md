@@ -354,8 +354,28 @@ The **Human-in-the-Loop Service** integrates seamlessly with the following compo
    - Archived data supports continuous improvements, such as refining speaker profiles, enhancing sentiment models, and personalizing documentation.
 
 ---
+## **3. Dependency Analysis**
+This is an analysis of the main system components dependencies.
 
-## **3. Security and Privacy**
+| **Component**                  | **Dependencies**                                                                                                                                             |
+|--------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Frontend Application**       | Relies on the Web Application Service for APIs, EHR Integration for patient data, and HITL Service for exposing correction and feedback APIs.                |
+| **Orchestration and Workflow Management** | Depends on all microservices in the data pipeline to trigger workflows and manage retries and fault tolerance.                                            |
+| **Audio Ingestion Service**    | Receives audio from the Mobile App and stores enhanced audio in the object store. Provides input to the STT and Sentiment Analysis services.                   |
+| **Speech-to-Text (STT) Service** | Uses audio from the Audio Ingestion Service. Feeds raw text to the Initial Text Sanitization Service and HITL Service for corrections.                        |
+| **Initial Text Sanitization Service** | Relies on STT outputs for input. Provides sanitized text to Patient Attribution and HITL Service for review and rule refinement.                          |
+| **Patient Attribution and Context Construction Service** | Depends on sanitized text from Initial Text Sanitization and metadata from the EHR Integration Service. Provides output to Patient Data Sanitization. |
+| **Human-in-the-Loop (HITL) Service** | Interfaces with all data pipeline components for intervention points. Updates Knowledge Base, Compliance Framework, and other downstream components.        |
+| **Patient Data Sanitization Service** | Receives reconstructed text streams from the Patient Attribution Service. Outputs sanitized data to Sentiment Analysis and HITL Service for review.        |
+| **Knowledge Base Management Service** | Gathers user feedback via HITL Service. Provides templates, rules, and personalized prompts to Documentation Preparation and Sentiment Analysis services.  |
+| **Documentation Preparation Service (LLM)** | Depends on sanitized text from Patient Data Sanitization and templates from Knowledge Base. Feeds structured output to Rule-Based Post-Processing.        |
+| **Rule-Based Post-Processing** | Uses outputs from Documentation Preparation (LLM) and compliance rules/templates from the Knowledge Base. Feeds validated data to EHR Integration.            |
+| **EHR Integration Service**    | Relies on Rule-Based Post-Processing for validated documents and metadata from Patient Attribution. Provides patient schedules to Smart Task Manager.           |
+| **Smart Task Manager**         | Pulls patient schedules and care plans from the EHR Integration Service. Integrates with Sentiment Analysis for urgent tasks and flagged items.                |
+| **Compliance and Audit Framework** | Monitors all services in the data pipeline for PII/PHI handling and logs human interventions from the HITL Service. Provides immutable logs to the Data Lake. |
+
+---
+## **4. Security and Privacy**
 - **Encryption:** TLS for data in transit, AES-256 for data at rest.  
 - **HIPAA Compliance:**  
    - Role-Based Access Control (RBAC).  
@@ -364,7 +384,7 @@ The **Human-in-the-Loop Service** integrates seamlessly with the following compo
 
 ---
 
-## **4. Scalability**
+## **5. Scalability**
 - Designed to handle 10,000+ concurrent users.  
 - Modular architecture supports distributed deployments.  
 
