@@ -2,7 +2,10 @@
 
 ## **Overview**
 
-SpeakCare is an ambient listening system for nurses that captures audio conversations, processes them, and generates structured clinical documentation ready for submission to Electronic Health Records (EHR) systems. The architecture ensures scalability, fault tolerance, and compliance with HIPAA.
+SpeakCare is an ambient listening system for nurses that captures audio conversations, processes them, and generates structured clinical documentation ready for submission to Electronic Health Records (EHR) systems. 
+The microphone escorts the nurse during the whole shift and any conversation can potentially be used to create and improve documentation.  
+
+The architecture ensures scalability, fault tolerance, and compliance with HIPAA.
 
 ---
 
@@ -123,6 +126,18 @@ SpeakCare is an ambient listening system for nurses that captures audio conversa
 ---
 
 ### **1.9 EHR Integration Service**
+- **Type:** Microservice.  
+- **Purpose:** Manages reading and writing data to the EHR.  
+- **Features:**
+   - **EHR Read Service**: Fetches patient history and metadata.  
+   - **EHR Write Service**: Submits approved documentation to the EHR.  
+   - Secure integration using OAuth 2.0 for authentication.  
+- **Technologies:**  
+   - Python with EHR APIs/SDKs.  
+
+---
+
+### **1.9 Web Application Service**
 - **Type:** Microservice.  
 - **Purpose:** Manages reading and writing data to the EHR.  
 - **Features:**
