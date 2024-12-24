@@ -3,7 +3,7 @@
 ## **Overview**
 
 SpeakCare is an ambient listening system for nurses that captures audio conversations, processes them, and generates structured clinical documentation ready for submission to Electronic Health Records (EHR) systems. 
-The microphone escorts the nurse during the whole shift and any conversation can potentially be used to create and improve documentation.  
+The microphone escorts the nurse during the whole shift, and any conversation can potentially be used to create and improve documentation.  
 
 The architecture ensures scalability, fault tolerance, and compliance with HIPAA.
 
@@ -20,7 +20,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
      - Approve and submit documentation to EHR.  
   - **Mobile App**:  
      - Notifications for flagged, incomplete, or pending documents.  
-     - Task management.  
+     - Task management and smart reminders.  
   - **Security**: OAuth 2.0 (3-legged authentication) for secure login.  
 - **Technologies:**  
    - Browser: React.js/Vue.js with API integration.  
@@ -33,7 +33,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Purpose:** Orchestrates sequential execution of microservices in the data pipeline.  
 - **Responsibilities:**  
    - Trigger and monitor:  
-     - **Audio Ingestion -> STT -> Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
+     - **Audio Ingestion → STT → Text Sanitization → Patient Attribution → Patient Data Sanitization → Sentiment Analysis → EHR Integration → Knowledge Base → Documentation Preparation → Rule-Based Processing → Compliance Framework**.  
    - Ensure retries, fault tolerance, and step recovery.  
 - **Technologies:**  
    - Apache Airflow, Temporal, or Step Functions.
@@ -46,6 +46,8 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Features:**
    - **Audio Enhancement**: Noise reduction, speech enhancement, echo cancellation, and normalization.  
    - **Segmentation**: Splits audio into manageable chunks with timestamps.  
+   - **Speaker Recognition**: Build and update speaker profiles progressively for better attribution.  
+   - **Sentiment Detection**: Detect critical cues such as distress, coughing, or shouting.  
    - **Metadata Tagging**: Adds timestamps, user ID, and device metadata.  
    - **Temporary Storage**: Enhanced audio is stored in an object store for downstream processing.  
 - **Technologies:**  
@@ -71,26 +73,26 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Type:** Microservice.  
 - **Purpose:** Cleans irrelevant data from raw STT output before patient attribution.  
 - **Features:**
-   - Filters casual or irrelevant conversations (e.g., personal chats during breaks).
-   - Rule-based and ML-based filtering to identify and remove noise.
-   - Outputs sanitized text to the NoSQL Document Database for Patient Attribution.
+   - Filters casual or irrelevant conversations (e.g., personal chats during breaks).  
+   - Rule-based and ML-based filtering to identify and remove noise.  
+   - Outputs sanitized text to the NoSQL Document Database for Patient Attribution.  
 - **Technologies:**  
-   - Python with NLP-based filtering pipelines.
-   - Deployment: Docker/Kubernetes for scalability. 
+   - Python with NLP-based filtering pipelines.  
+   - Deployment: Docker/Kubernetes for scalability.
+
 ---
 
-### **1.6 Patient Attribution Service**
+### **1.6 Patient Attribution and Context Construction Service**
 - **Type:** Microservice.  
 - **Purpose:** Identifies the patient associated with conversations and reconstructs context streams for the patient.  
 - **Features:**
    - Context Identification:
-       - Uses keywords, phrases, and verbal cues (e.g., "Regarding [Patient Name]").
-       - Cross-references with the EHR to validate patient identity using conditions, medications, and other details.
+       - Uses keywords, phrases, and verbal cues (e.g., "Regarding [Patient Name]").  
+       - Cross-references with the EHR to validate patient identity using conditions, medications, and other details.  
    - Segment Linking:
-       - Merges snippets into coherent streams using rules or ML models.
-       - Applies time thresholds to group interactions (e.g., 10-15 minutes without explicit interruption).
-       - Uses semantic similarity analysis with transformer models (e.g., BERT) to link segments.
-    - Outputs patient-specific, reconstructed context streams to the NoSQL Document Database for further processing. 
+       - Merges snippets into coherent streams using rules or ML models.  
+       - Applies time thresholds to group interactions (e.g., 10-15 minutes without explicit interruption).  
+       - Uses semantic similarity analysis with transformer models (e.g., BERT) to link segments.  
 - **Technologies:**  
    - Python with NLP libraries (SpaCy, Hugging Face Transformers).  
 
@@ -108,20 +110,14 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 
 ---
 
-### **1.8 Clinical Documentation Conversion Service**
+### **1.8 Sentiment Analysis Service**
 - **Type:** Microservice.  
-- **Purpose:** Converts sanitized text into structured clinical documentation.  
+- **Purpose:** Detects emotional cues, complaints, and changes in patient conditions.  
 - **Features:**
-   - Leverages **LLM Service** to convert text into structured EHR-ready forms.  
-   - Integrates with:  
-     - **RAG** (Retrieval-Augmented Generation) for contextual data.  
-     - **Vector Databases** (e.g., Pinecone, FAISS) for fast, semantic searches.  
-   - Enforces JSON schema validation for structured outputs.  
-   - Outputs candidate documents to the relational database.  
+   - **Audio Sentiment Analysis**: Identify tone, distress, or critical audio cues (e.g., shouting, coughing).  
+   - **Text Sentiment Analysis**: Extract complaints and pain descriptions from text.  
 - **Technologies:**  
-   - OpenAI GPT API or equivalent LLM.  
-   - RAG/GraphRAG and Vector DB (Pinecone, FAISS).  
-   - JSON schema validation for output safety.  
+   - Python with pre-trained transformer models (e.g., BERT, OpenAI).
 
 ---
 
@@ -133,39 +129,93 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - **EHR Write Service**: Submits approved documentation to the EHR.  
    - Secure integration using OAuth 2.0 for authentication.  
 - **Technologies:**  
-   - Python with EHR APIs/SDKs.  
+   - Python with EHR APIs/SDKs.
 
 ---
 
-### **1.9 Web Application Service**
+### **1.10 Knowledge Base Management Service**
 - **Type:** Microservice.  
-- **Purpose:** Manages reading and writing data to the EHR.  
+- **Purpose:** Centralized storage and retrieval of knowledge for dynamic prompting and compliance.  
 - **Features:**
-   - **EHR Read Service**: Fetches patient history and metadata.  
-   - **EHR Write Service**: Submits approved documentation to the EHR.  
-   - Secure integration using OAuth 2.0 for authentication.  
+   - **Knowledge Sources**: CMS protocols, ICD-10, organizational templates, nurse-specific styles, etc.  
+   - **Vector Database**: Semantic search for embeddings (e.g., Pinecone).  
+   - **Graph Database**: Store relational data (e.g., templates and conditions).  
 - **Technologies:**  
-   - Python with EHR APIs/SDKs.  
+   - Vector Database: Pinecone or FAISS.  
+   - Graph Database: Neo4j.
 
 ---
 
-### **1.10 Data Storage**
-- **Components:**
-   - **Object Store**: Temporary storage for audio and raw text.  
-   - **NoSQL Document Database**: Stores intermediate text outputs (STT, Patient Attribution, Sanitized Text).  
-   - **Relational Database (PostgreSQL)**: Holds candidate documents awaiting user approval.  
-   - **Data Lake**: Archives processed data for analytics and future AI/ML pipelines.  
+### **1.11 Documentation Preparation Service (LLM)**
+- **Type:** Microservice.  
+- **Purpose:** Converts sanitized text and retrieved knowledge into structured clinical documentation.  
+- **Features:**
+   - Use LLM with dynamic prompting for structured notes generation.  
+   - Integrates with Knowledge Base for dynamic templates, rules, and compliance information.  
+   - Enforces JSON schema validation for structured outputs.  
+- **Technologies:**  
+   - OpenAI GPT API or equivalent LLM.  
+   - JSON schema validation for output safety.  
 
 ---
 
-### **1.11 Monitoring and Logging**
+### **1.12 Rule-Based Post-Processing**
+- **Type:** Microservice.  
+- **Purpose:** Ensures that LLM outputs are compliant, optimized, and aligned with various requirements before submission.  
+- **Features:**
+   - Apply rules for:
+     - **HIPAA Compliance**: Ensure no Protected Health Information (PHI) or Personally Identifiable Information (PII) violations occur in output.  
+     - **Clinical Compliance**: Adherence to CMS protocols and other regulatory standards.  
+     - **Reimbursement Optimization**: Tailor documentation to maximize accuracy and completeness for billing and reimbursement models (e.g., PDPM, DRG, RUG-III).  
+     - **Liability Mitigation**: Flag potentially harmful or legally sensitive statements.  
+     - **Organization Policies**: Enforce specific documentation styles, templates, and terminologies defined by the organization.  
+     - **Personal Style**: Align generated documentation with the preferred style and language of individual nurses.  
+   - Modular design to enable tenant-specific rules.  
+   - Validate outputs against documentation guidelines and regulatory standards.  
+- **Technologies:**  
+   - NLP libraries (spaCy) for rule implementation and validation.  
+   - Custom rule-based systems for tenant-specific policies and templates.  
+
+---
+
+### **1.13 Smart Task Manager**
+- **Type:** Microservice.  
+- **Purpose:** Generate dynamic task lists and reminders for nurses.  
+- **Features:**  
+   - Fetch task schedules from EHR.  
+   - Generate notifications for overdue or high-priority tasks.  
+
+---
+
+### **1.14 Compliance and Audit Framework**
+- **Type:** Framework.  
+- **Purpose:** Replace PII with placeholders and ensure audit logging.  
+- **Features:**  
+   - Detect and replace PII in free-text data.  
+   - Maintain audit logs for compliance tracking.
+
+---
+
+### **1.15 Web Application Service**
+- **Type:** Microservice.  
+- **Purpose:** Centralized API gateway for managing system interactions.  
+- **Features:**
+   - Supports human-in-the-loop corrections for flagged or draft notes.  
+   - Provides endpoints for frontend communication (browser/mobile).  
+   - Handles authentication and session management.  
+- **Technologies:**  
+   - Django/Flask API framework.
+
+---
+
+### **1.16 Monitoring and Logging**
 - **Purpose:** Provides real-time monitoring, logging, and HIPAA audit trails.  
 - **Technologies:**  
    - DataDog, ELK Stack (Elasticsearch, Logstash, Kibana), or AWS CloudWatch.  
 
 ---
 
-### **1.12 User Management**
+### **1.17 User Management**
 - **Purpose:** Centralized authentication and authorization for all users.  
 - **Features:**  
    - OAuth 2.0 for secure integration with EHR systems (e.g., PCC).  
@@ -175,7 +225,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 
 ---
 
-### **1.13 Deployment Infrastructure**
+### **1.18 Deployment Infrastructure**
 - **Components:**
    - **Infrastructure as Code (IaC):** Terraform or CloudFormation.  
    - **Container Orchestration:** Kubernetes for scalable deployments.  
@@ -183,29 +233,86 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 
 ---
 
+### **1.19 Data Storage**
+- **Components:**
+   - **Object Store**: Temporary storage for audio and raw text.  
+   - **NoSQL Document Database**: Stores intermediate text outputs (STT, Patient Attribution, Sanitized Text).  
+   - **Relational Database (PostgreSQL)**: Holds candidate documents awaiting user approval.  
+   - **Data Lake**: Archives processed data for analytics and future AI/ML pipelines.  
+
+---
+
+Here’s the updated **Core System Flows** section reflecting the revised architecture:
+
+---
+
 ## **2. Core System Flows**
 
 ### **2.1 Audio Ingestion to Text Flow**
-1. Mobile App → **Audio Ingestion Service** → Audio Enhancement & Noise Reduction.  
-2. Enhanced audio → **STT Service** → Text with timestamps and speaker labels → **NoSQL Database**.
+1. **Mobile App → Audio Ingestion Service**:
+   - Audio is collected, enhanced (noise reduction, echo cancellation), and segmented into chunks with timestamps.
+   - Sentiment cues such as shouting or distress are detected at this stage.
+2. **Audio Ingestion Service → STT Service**:
+   - Enhanced audio is converted to text with diarization (speaker identification and labeling).
+3. **STT Service → Initial Text Sanitization Service**:
+   - Casual or irrelevant conversations (e.g., personal chats) are filtered out.
+4. **Sanitized text → NoSQL Database**:
+   - Outputs are stored for subsequent processing.
 
 ---
 
 ### **2.2 Data Processing Flow**
-1. **Workflow Orchestrator** triggers:  
-   - **Patient Attribution → Data Sanitation → Clinical Documentation Conversion**.  
-2. Processed text → Finalized candidate documents → **PostgreSQL**.
+1. **Workflow Orchestrator triggers sequential services**:
+   - **Patient Attribution and Context Construction**:
+     - Identify the patient associated with the conversation and reconstruct their conversation streams.
+   - **Patient Data Sanitization**:
+     - Remove irrelevant, private, or harmful information to ensure relevance and compliance.
+   - **Sentiment Analysis**:
+     - Analyze text for patient complaints, pain levels, and other indicators of emotional or physical distress.
+   - **EHR Integration**:
+     - Fetch relevant patient data (e.g., history, medication) to enrich processing.
+   - **Knowledge Base Management**:
+     - Retrieve templates, organizational rules, and nurse-specific styles for use in subsequent stages.
+   - **Documentation Preparation (LLM)**:
+     - Use the LLM to generate structured clinical documentation, enriched by the knowledge base.
+   - **Rule-Based Post-Processing**:
+     - Validate generated outputs against rules for HIPAA compliance, CMS protocols, reimbursement optimization, liability, and organizational or personal styles.
+2. **Processed text → Finalized candidate documents → Relational Database (PostgreSQL)**:
+   - Structured documentation is stored for user review and approval.
 
 ---
 
 ### **2.3 User Review and Submission**
-1. Nurses review candidate documents via the **Browser Extension**.  
-2. Approved documents → **EHR Write Service** → EHR API.
+1. **User Interaction**:
+   - Nurses access candidate documentation via the **Browser Extension** for review, optional edits, and approval.
+2. **Approved documents → EHR Write Service → EHR API**:
+   - Approved documentation is securely submitted to the EHR system.
 
 ---
 
-### **2.4 Long-Term Storage and Analytics**
-- Processed data and candidate documents → **Data Lake** for future AI/ML pipelines and analytics.
+### **2.4 Task Management and Notifications**
+1. **Task Generation**:
+   - The **Smart Task Manager** retrieves patient care schedules and care plan details from the EHR.
+   - Tasks are generated based on urgency, pending actions, and sentiment analysis outcomes.
+2. **Notifications**:
+   - Nurses receive notifications via the Mobile App for overdue tasks, high-priority issues, or flagged items.
+
+---
+
+### **2.5 Compliance and Audit**
+1. **Audit Framework**:
+   - All intermediate and final outputs are scanned to replace PII with markup placeholders (e.g., `<patient-name>`).
+   - Logs are maintained to track compliance across all data processing stages.
+2. **Finalized Outputs**:
+   - Ensure audit trails are complete before submission to external systems (e.g., EHR or analytics platforms).
+
+---
+
+### **2.6 Long-Term Storage and Analytics**
+1. **Data Lake Integration**:
+   - Finalized and intermediate data, including sentiment analysis and generated documentation, is archived for future AI/ML pipelines and analytics.
+2. **AI/ML Enhancements**:
+   - Archived data supports continuous improvements, such as refining speaker profiles, enhancing sentiment models, and personalizing documentation.
 
 ---
 
