@@ -4,7 +4,8 @@ import AudioRecorder from './components/AudioRecorder';
 
 import axios from 'axios';
 import './App.css';
-import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob  } from './utils';
+import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob, reloadCurrentTab } from './utils';
+import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils'
 
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
@@ -17,6 +18,8 @@ const App: React.FC = () => {
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const audioType = 'audio/webm; codecs=opus';
   const audioFileName = 'recording.webm';
 
@@ -69,7 +72,7 @@ const App: React.FC = () => {
     setSelectedTables(typeof value === 'string' ? value.split(',') : value);
   };
 
-  const updateEhr = async () => {
+  const updateDemoEhr = async () => {
     if (!audioBlob || !selectedTables) {
       console.error('Please select a chart and make a recording first.');
       return;
@@ -101,6 +104,73 @@ const App: React.FC = () => {
       console.error('Error sending data to backend:', error);
     }
     setEhrUpdating(false);
+  };
+
+  const updatePcc = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      // Extract form fields from the current page
+      const extractedFields = await extractAssessmentSectionFormFields();
+      console.log('Extracted Fields:', extractedFields);
+
+      // Add static data to formData
+      const formData = {
+        ...extractedFields,
+        ESOLsaveflag: 'SONLY',
+        ESOLsavedUDASaveFlag: 'N',
+        Cust_A_1: '4',
+        ackCust_A_1: 'Y',
+        Cust_B_2: '4',
+        ackCust_B_2: 'Y',
+        Cust_C_3: '2',
+        ackCust_C_3: 'Y',
+        Cust_D_4: '2',
+        ackCust_D_4: 'Y',
+        Cust_E_5: '0',
+        ackCust_E_5: 'Y',
+        Cust_E_6: '0',
+        chkCust_E_6: 'on',
+        ackCust_E_6: 'Y',
+        Cust_E_7: '0',
+        chkCust_E_7: 'on',
+        ackCust_E_7: 'Y',
+        Cust_E_8: '1',
+        ackCust_E_8: 'Y',
+        Cust_E_9: '1',
+        ackCust_E_9: 'Y',
+        Cust_E_10: '0',
+        ackCust_E_10: 'Y',
+        Cust_F_11: '2',
+        ackCust_F_11: 'Y',
+        Cust_F_12: '1',
+        chkCust_F_12: 'on',
+        ackCust_F_12: 'Y',
+        Cust_G_13: '4',
+        ackCust_G_13: 'Y',
+        lastUpdateField: 'Cust_G_14',
+        Cust_G_14: 'Mrs. Adam has high blood pressure, Parkinson and possibly Vertigo which is still under examinations. She is taking medication for high blood pressure and Parkinson',
+        ackCust_G_14: 'Y'
+      };
+
+
+      // Send the save request
+      const response = await sendRequestToTabUrl(formData);
+      console.log('Response:', response);
+      setMessage('Data submitted successfully!');
+      // Reload the current tab to see the changes
+      reloadCurrentTab();
+    } catch (error) {
+      console.error('Error:', error);
+      if (error instanceof Error) {
+        setMessage(`Error: ${error.message}`);
+      } else {
+        setMessage('An unknown error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
   
 
@@ -147,14 +217,27 @@ const App: React.FC = () => {
         variant="contained" 
         color="primary" 
         fullWidth 
-        onClick={updateEhr} 
+        onClick={updateDemoEhr} 
         sx={{ marginTop: 3 }}
         disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
       >
-        {ehrUpdating ? <CircularProgress size={24} /> : 'Update EHR'}
+        {ehrUpdating ? <CircularProgress size={24} /> : 'Update Demo EHR'}
       </Button>
+      <Button 
+          variant="outlined" 
+          color="secondary" 
+          fullWidth 
+          onClick={updatePcc} 
+          sx={{ marginTop: 2 }}
+        >
+          {loading ? <CircularProgress size={24} /> : 'Update PointClickCare'}
+      </Button>
+      {/* Feedback Message */}
+      {message && <Typography variant="body1">{message}</Typography>}
+
     </Container>
   );
+ 
 };
 
 export default App;
