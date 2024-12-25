@@ -142,10 +142,15 @@ const App: React.FC = () => {
         ackCust_E_9: 'Y',
         Cust_E_10: '0',
         ackCust_E_10: 'Y',
-        Cust_F_12: '0',
+        Cust_F_11: '2',
+        ackCust_F_11: 'Y',
+        Cust_F_12: '1',
+        chkCust_F_12: 'on',
         ackCust_F_12: 'Y',
+        Cust_G_13: '4',
+        ackCust_G_13: 'Y',
         lastUpdateField: 'Cust_G_14',
-        Cust_G_14: 'This is a message to show that we can actually write into the pcc server from the extension',
+        Cust_G_14: 'Mrs. Adam has high blood pressure, Parkinson and possibly Vertigo which is still under examinations. She is taking medication for high blood pressure and Parkinson',
         ackCust_G_14: 'Y'
       };
 
@@ -216,7 +221,7 @@ const App: React.FC = () => {
         sx={{ marginTop: 3 }}
         disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
       >
-        {ehrUpdating ? <CircularProgress size={24} /> : 'Update EHR'}
+        {ehrUpdating ? <CircularProgress size={24} /> : 'Update Demo EHR'}
       </Button>
       <Button 
           variant="outlined" 
@@ -225,7 +230,7 @@ const App: React.FC = () => {
           onClick={updatePcc} 
           sx={{ marginTop: 2 }}
         >
-          {loading ? <CircularProgress size={24} /> : 'Save to PointClickCare'}
+          {loading ? <CircularProgress size={24} /> : 'Update PointClickCare'}
       </Button>
       {/* Feedback Message */}
       {message && <Typography variant="body1">{message}</Typography>}
