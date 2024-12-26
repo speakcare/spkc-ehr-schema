@@ -147,7 +147,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 
 ---
 
-### **1.11 Documentation Preparation Service (LLM)**
+### **1.11 Documentation Conversion Service (LLM)**
 - **Type:** Microservice.  
 - **Purpose:** Converts sanitized text and retrieved knowledge into structured clinical documentation.  
 - **Features:**
