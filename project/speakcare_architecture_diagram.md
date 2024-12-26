@@ -3,60 +3,99 @@ flowchart TB
     %% User Interaction
     NurseUser["👩‍⚕️ Nurse User"] --> MobileApp["📱 Mobile App<br>(Audio Collector)"]
     NurseUser --> BrowserExt["💻 Browser Extension<br>(Document Review & Approval)"]
+    SpeakCareStuff["👩🏽‍🦳 SpeakCare personnel"] --> HITLApp["Human-In-The-Loop Application"]
 
-    %% Data Processing Pipeline
-    MobileApp --> AudioProcessing["🎛️ Audio Processing (Noise Reduction)"]
-    AudioProcessing --> AudioStorage["🗄️ Audio Storage"]
-    AudioStorage --> STT["🗣️ Speech-to-Text Service"]
-    STT --> InitialSanitization["🧹 Initial Text Sanitization"]
-    InitialSanitization --> PatientAttribution["🔍 Patient Attribution & Context Construction"]
-    PatientAttribution --> PatientSanitization["🧹 Patient Data Sanitization"]
-    PatientSanitization --> ClinicalDocs["📑 Clinical Documentation Conversion"]
-
-    %% Clinical Documentation Conversion Details
-    subgraph ClinicalDocsDetails["📑 Clinical Documentation Conversion Details"]
-        ClinicalDocs --> LLMService["🤖 LLM"]
-        LLMService --> RAG["📚 RAG (Retrieval-Augmented Generation)"]
-        LLMService --> GraphRAG["🌐 GraphRAG"]
-        LLMService --> VectorDB["🔎 Vector Database"]
+    %% User Applications
+    subgraph UserApplications["👩🏽‍🔧 User Applications"]
+        BrowserExt
+        HITLApp
     end
 
-    %% EHR Integration
-    ClinicalDocs --> CandidateDocs["📄 Candidate Documents"]
-    CandidateDocs --> StructuredDB["🗂️ Relational Database (PostgreSQL)"]
-    StructuredDB --> BrowserExt
-    BrowserExt --> UserApproval["✅ User Approval"]
-    UserApproval --> EHRWrite["📤 EHR Write Service"]
-    EHRWrite --> EHRAPI["🛠️ EHR API"]
-    EHRAPI --> StructuredDB
+    %% Data Processing Pipeline
+    MobileApp --> AudioIngestionAndProcessing["🎛️ Audio Ingestion and Processing"]
+    AudioIngestionAndProcessing .-> AudioStorage["🫙 Audio Object Store"]
+    AudioIngestionAndProcessing --> STT["🗣️ Speech-to-Text Service"]
+    STT .-> DocumentDB["📄 NoSQL DocumentDB"]
+    STT --> InitialSanitization["🧹 Initial Text Sanitization"]
+    InitialSanitization .-> DocumentDB
+    InitialSanitization --> PatientAttribution["🔍 Patient Attribution & Context Construction"]
+    PatientAttribution .-> DocumentDB
+    PatientAttribution --> PatientSanitization["🧹 Patient Data Sanitization"]
+    PatientSanitization .-> DocumentDB
+    PatientSanitization --> ConversationSentimentAnalysis["😡 Conversation Sentiment Analysis"]
+    ConversationSentimentAnalysis .-> DocumentDB
+    ConversationSentimentAnalysis --> DocumentationConversion["📑 Documentation Conversion Service (LLM)"]
+    DocumentationConversion .-> LLMService["🤖 LLM"]
+    DocumentationConversion .-> DocumentDB
+    DocumentationConversion --> RuleBasedProcessing["👮🏼 Rule Based Post Processing"]
+    RuleBasedProcessing .-> RuleDB["Rules Database"]
+    RuleBasedProcessing .-> DocumentDB
+    RuleBasedProcessing --> CandidateDocs["📄 Candidate Documents"] 
+
+    %% Knowledge Base Details
+    subgraph KnowledgeBaseDetails["📖 Knowledge Base"]
+        VectorDB["⌗ Vector Database (Embeddings)"]
+        GraphDB["🔎 GraphDB"]
+        RuleDB["Rules Database"]
+    end
+
+
+    %% Documentation Conversion Details
+    subgraph DocsConversionDetails["📑 Documentation Conversion Details"]
+        LLMService --> RAG["📚 RAG (Retrieval-Augmented Generation)"]
+        RAG --> VectorDB
+        LLMService --> GraphRAG["🌐 GraphRAG"]
+        GraphRAG --> GraphDB
+    end
 
     %% Data Enrichment via EHR
-    EHRRead["📥 EHR Read Service"] --> PatientAttribution
-    EHRRead --> ClinicalDocs
-    EHRRead --> LLMService
+    PatientAttribution --> EHRRead["📥 EHR Read Service"]
+    VectorDB --> EHRRead 
+    GraphDB --> EHRRead
+
+
+    %% User flow
+    CandidateDocs --> StructuredDB["🗂️ Relational Database (PostgreSQL)"]
+    BrowserExt .-> WebService["🌐 Web Application Service"]
+    WebService .-> UserWebApp["User Web Application Service"]
+    UserWebApp --> StructuredDB
+    UserWebApp .->  EHRWrite["📤 EHR Write Service"]
+    EHRWrite .-> EHRAPI["🛠️ EHR API"]
+    HITLApp --> WebService
+    EHRRead --> EHRAPI
+    WebService .-> InternalUserService["SpeakCare Internal User Service"]
+
 
     %% Workflow Orchestrator
     WorkflowOrchestrator["🔗 Workflow Orchestrator"]
-    WorkflowOrchestrator --> AudioProcessing
+    WorkflowOrchestrator --> AudioIngestionAndProcessing
     WorkflowOrchestrator --> STT
     WorkflowOrchestrator --> InitialSanitization
     WorkflowOrchestrator --> PatientAttribution
     WorkflowOrchestrator --> PatientSanitization
-    WorkflowOrchestrator --> ClinicalDocs
+    WorkflowOrchestrator --> ConversationSentimentAnalysis
+    WorkflowOrchestrator --> DocumentationConversion
+    WorkflowOrchestrator --> RuleBasedProcessing
 
     %% Long-Term Storage and Analytics
     StructuredDB --> DataLake["🌊 Data Lake<br>(Future AI/ML Analytics)"]
-    PatientSanitization --> DataLake
+    DocumentDB --> DataLake
+
+    %% Human In The Loop Flows
+    InternalUserService .-> StructuredDB
+    InternalUserService .-> DocumentDB
 
     %% Grouping for Clarity
     subgraph DataProcessingPipeline["🔗 Data Processing Pipeline"]
-        AudioProcessing
-        AudioStorage
+        AudioIngestionAndProcessing
         STT
         InitialSanitization
         PatientAttribution
         PatientSanitization
-        ClinicalDocs
+        ConversationSentimentAnalysis
+        DocumentationConversion
+        RuleBasedProcessing
+        CandidateDocs
     end
 
     subgraph EHRIntegration["🛠️ EHR Integration"]
@@ -68,6 +107,9 @@ flowchart TB
     subgraph DataStorage["📊 Data Storage"]
         StructuredDB
         DataLake
+        AudioStorage
+        DocumentDB
+
     end
 
     subgraph ClinicalDocsDetails["📑 Clinical Documentation Conversion Details"]
