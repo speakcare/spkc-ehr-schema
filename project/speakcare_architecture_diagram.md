@@ -66,16 +66,19 @@ flowchart TB
     WebService .-> InternalUserService["SpeakCare Internal User Service"]
 
 
-    %% Workflow Orchestrator
-    WorkflowOrchestrator["🔗 Workflow Orchestrator"]
-    WorkflowOrchestrator --> AudioIngestionAndProcessing
-    WorkflowOrchestrator --> STT
-    WorkflowOrchestrator --> InitialSanitization
-    WorkflowOrchestrator --> PatientAttribution
-    WorkflowOrchestrator --> PatientSanitization
-    WorkflowOrchestrator --> ConversationSentimentAnalysis
-    WorkflowOrchestrator --> DocumentationConversion
-    WorkflowOrchestrator --> RuleBasedProcessing
+    %% Workflow Orchestrator and Event Queues
+    WorkflowOrchestrator["🔗 Workflow Orchestrator and Event Queues"]
+    WorkflowOrchestrator <--> AudioIngestionAndProcessing
+    WorkflowOrchestrator <--> STT
+    WorkflowOrchestrator <--> InitialSanitization
+    WorkflowOrchestrator <--> PatientAttribution
+    WorkflowOrchestrator <--> PatientSanitization
+    WorkflowOrchestrator <--> ConversationSentimentAnalysis
+    WorkflowOrchestrator <--> DocumentationConversion
+    WorkflowOrchestrator <--> RuleBasedProcessing
+
+    %% Event Queueu
+    
 
     %% Long-Term Storage and Analytics
     StructuredDB --> DataLake["🌊 Data Lake<br>(Future AI/ML Analytics)"]
