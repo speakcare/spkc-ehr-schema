@@ -259,6 +259,36 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - **Multi-Tenant Support**:
        - Segregates HITL operations for different organizations and users to maintain data privacy and compliance.
 
+### **1.21 Event Queue Management**
+Ensure scalability, fault tolerance, and efficient data flow across all stages of the pipeline while providing the flexibility to support real-time and asynchronous workflows.
+
+- **Type:** Messaging Infrastructure.  
+- **Purpose:** Manages asynchronous communication and data flow between microservices in the data pipeline.  
+
+- **Responsibilities:**  
+   - **Event Publishing and Subscription**:  
+     - Facilitate seamless data exchange between services by enabling producers to publish messages and consumers to subscribe to relevant topics or queues.  
+   - **Decoupling Services**:  
+     - Ensure microservices operate independently, reducing dependencies and enabling flexible scaling.  
+   - **Message Durability and Replay**:  
+     - Persist messages for configurable durations, allowing downstream services to replay events in case of failures or reprocessing needs.  
+   - **Load Balancing and Backpressure Management**:  
+     - Distribute workloads evenly across consumers and buffer messages to prevent overloading services.  
+   - **Real-Time Event Streaming**:  
+     - Enable real-time processing and event-driven workflows, ensuring data is immediately available to dependent services.  
+
+- **Integration with Workflow Orchestration**:  
+   - Complements the workflow engine by serving as the communication layer, allowing the orchestrator to trigger actions based on message-driven events.
+
+- **Technologies:**  
+   - Apache Kafka, RabbitMQ, or AWS SQS/SNS.  
+
+- **Proposed Workflow Examples**:  
+   - **Audio Ingestion**: Publishes enhanced audio events (e.g., `audio_ready` topic) for downstream processing.  
+   - **STT Processing**: Subscribes to `audio_ready`, processes the data, and publishes results to `transcribed_text_ready`.  
+   - **Sanitization**: Subscribes to `transcribed_text_ready` and publishes sanitized outputs to `sanitized_text_ready`.  
+   - **Compliance Framework**: Consumes events from multiple stages for monitoring and audit logging.  
+
 #### **Integration with Remaining Components**
 The **Human-in-the-Loop Service** integrates seamlessly with the following components:
 1. **Knowledge Base Management Service**:
@@ -339,7 +369,8 @@ The **Human-in-the-Loop Service** integrates seamlessly with the following compo
 ### **2.5 Compliance and Audit**
 1. **Audit Framework**:
    - All intermediate and final outputs are scanned to replace PII with markup placeholders (e.g., `<patient-name>`).
-   - Logs are maintained to track compliance across all data processing stages.
+   - Logs are maintained to track compliance across all data processing stages, using solutions like ELK or CloudWatch (prefer ELK)
+   - Data lineage is managed by a dedicated data lineage solutions like OpenLineage, Apache Atlas, or Amundsen
 2. **Human-in-the-Loop Interventions**:
    - Log all manual interventions and corrections for traceability.
 3. **Finalized Outputs**:
