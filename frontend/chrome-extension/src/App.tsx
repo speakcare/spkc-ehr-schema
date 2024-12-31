@@ -1,12 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Container, FormControl, InputLabel, MenuItem, Select, Button, Typography, SelectChangeEvent, CircularProgress, Checkbox, ListItemText } from '@mui/material';
-import AudioRecorder from './components/AudioRecorder'; 
-
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './App.css';
+import { Container, Button, CircularProgress, Typography, SelectChangeEvent, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, IconButton, Box } from '@mui/material';
+import { Audiotrack, Delete } from '@mui/icons-material';
+import AudioRecorder from './components/AudioRecorder';
 import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob, reloadCurrentTab } from './utils';
 import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils'
-
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
 const isExtension = process.env.REACT_APP_IS_EXTENSION === 'true';
@@ -72,6 +70,11 @@ const App: React.FC = () => {
     setSelectedTables(typeof value === 'string' ? value.split(',') : value);
   };
 
+  const handleDeleteAudio = () => {
+    setAudioBlob(null);
+    setRecordingTime(0);
+  };
+
   const updateDemoEhr = async () => {
     if (!audioBlob || !selectedTables) {
       console.error('Please select a chart and make a recording first.');
@@ -92,8 +95,8 @@ const App: React.FC = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
-      setAudioBlob(null);
-      setRecordingTime(0);
+      //setAudioBlob(null);
+      //setRecordingTime(0);
       console.log('Response from backend:', response.data);
       if (isExtension) {
         // refresh the EHR page so we can see the new data
@@ -175,7 +178,7 @@ const App: React.FC = () => {
   
 
   return (
-    <Container maxWidth="sm" sx={{ marginTop: 4 }}>
+    <Container maxWidth="sm" sx={{ marginTop: 4, height: '100vh', padding: 2 }}>
       {/* Flexbox Container for Logo and Title */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '15px',marginTop: '-20px'}}>
         <img 
@@ -213,6 +216,24 @@ const App: React.FC = () => {
         initialAudioBlob={audioBlob}
       />
 
+      {/* Icons for audio file and delete */}
+      {/* <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 2 }}>
+        <IconButton 
+          color={audioBlob ? 'primary' : 'default'} 
+          disabled={!audioBlob}
+        >
+          <Audiotrack />
+        </IconButton>
+        <IconButton 
+          color={audioBlob ? 'error' : 'default'} 
+          onClick={handleDeleteAudio} 
+          disabled={!audioBlob}
+        >
+          <Delete />
+        </IconButton>
+      </Box> */}
+
+
       <Button 
         variant="contained" 
         color="primary" 
@@ -228,7 +249,23 @@ const App: React.FC = () => {
           color="secondary" 
           fullWidth 
           onClick={updatePcc} 
-          sx={{ marginTop: 2 }}
+          sx={{ 
+            marginTop: 2, 
+            color: 'black', // Semi-dark gray text color
+            backgroundColor: 'teal', // Teal fill color
+            borderColor: 'teal',
+            fontWeight: 'bold',
+            '&:hover': {
+              borderColor: 'teal',
+              backgroundColor: 'rgba(0, 128, 128, 0.8)', // Teal with some transparency on hover
+            },
+            '&.Mui-disabled': {
+              color: 'gray', // Gray text color when disabled
+              backgroundColor: 'lightgray', // Gray background color when disabled
+              borderColor: 'lightgray', // Gray border color when disabled
+            }
+          }}
+          disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
         >
           {loading ? <CircularProgress size={24} /> : 'Update PointClickCare'}
       </Button>

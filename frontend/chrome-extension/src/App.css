@@ -1,6 +1,6 @@
 #root {
   width: 380px;       /* Set fixed width */
-  height: 510px;      /* Set fixed height */
+  height: 100%;      /* Set full window height */
   padding: 0px;      /* Add padding */
   margin: 0px;       /* Add margin */
   box-sizing: border-box;

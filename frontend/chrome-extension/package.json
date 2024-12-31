@@ -57,7 +57,9 @@
     "@types/chrome": "^0.0.277",
     "@types/react": "^18.3.12",
     "dotenv-cli": "^7.4.2",
+    "madge": "^8.0.0",
     "react-scripts": "^5.0.1",
-    "typescript": "^3.4.5"
+    "typescript": "^3.4.5",
+    "webpack-bundle-analyzer": "^4.10.2"
   }
 }

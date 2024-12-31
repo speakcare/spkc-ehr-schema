@@ -9,7 +9,7 @@ import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 
 interface AudioRecorderProps {
   audioType: string;
-  setAudioBlob: (blob: Blob) => void;
+  setAudioBlob: (blob: Blob | null) => void;
   recordingTime: number;
   setRecordingTime: React.Dispatch<React.SetStateAction<number>>;
   initialAudioBlob?: Blob | null;
@@ -36,6 +36,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, setAudioBlob, 
     setIsPaused(false);
     setAudioChunks([]);
     setRecordingTime(0);
+    setAudioBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream, { mimeType: audioType });
