@@ -420,3 +420,6 @@ This is an analysis of the main system components dependencies.
 - Modular architecture supports distributed deployments.  
 
 ---
+
+
+
