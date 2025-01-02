@@ -406,12 +406,84 @@ This is an analysis of the main system components dependencies.
 | **Compliance and Audit Framework** | Monitors all services in the data pipeline for PII/PHI handling and logs human interventions from the HITL Service. Provides immutable logs to the Data Lake. |
 
 ---
-## **4. Security and Privacy**
-- **Encryption:** TLS for data in transit, AES-256 for data at rest.  
-- **HIPAA Compliance:**  
-   - Role-Based Access Control (RBAC).  
-   - Comprehensive logging and audit trails.  
-   - Data segregation for multi-tenancy.  
+
+## **4. Security, Privacy and HIPAA**
+
+### **4.1 Security**
+#### Encryption
+- All data in transit will use TLS for encryption, while data at rest will use AES-256 encryption.
+- Encryption key rotation will follow configurable best practices and utilize a centralized key management system. This can include AWS KMS, Azure Key Vault, or cloud-agnostic solutions such as HashiCorp Vault, with an evaluation of cost-effective virtual or cloud HSM solutions where applicable.
+
+#### Access Control
+- Role-Based Access Control (RBAC) will minimize access to APIs and data based on roles and responsibilities.
+- Future enhancements will explore zero-trust principles, emphasizing identity verification and network segmentation, provided they do not significantly impact initial timelines.
+
+#### DevSecOps Methodologies
+- Security will be integrated into the development lifecycle using the following tools and practices:
+  - **Static Application Security Testing (SAST)**: Analyze code for vulnerabilities during development.
+  - **Dependency Scanning**: Identify and mitigate vulnerabilities in third-party dependencies.
+  - **Runtime Application Self-Protection (RASP)**: Deploy RASP on backend services to monitor and block malicious activity in real-time.
+- Comprehensive DevSecOps frameworks such as OWASP SAMM or integrated solutions like Sonatype Nexus, Snyk, or Aqua Security will be considered to meet broad requirements.
+
+#### Additional Measures
+- Configure virtual networks (VPCs) to restrict access to required ports and protocols.
+- Use container security best practices, including image vulnerability scanning and runtime protection.
+- Integrate with intrusion detection and prevention systems to enhance cloud security monitoring.
+
+---
+
+### **4.2 Privacy**
+
+#### Avoiding Long-Term Storage of Patient Identifiable Data
+- Patient identifiers will not be stored in long-term storage unless absolutely necessary.
+- A secure, ephemeral caching mechanism will store identifiable data temporarily to reduce API call overheads while respecting expiration policies (e.g., 15 minutes, configurable). Redis with encryption and data eviction policies will be a preferred implementation choice.
+
+#### Compliance Framework
+- A privacy compliance framework will continuously scan all data to identify and de-identify patient information in accordance with HIPAA Safe Harbor guidelines [1](#ref1).
+- Automated audit trails will log every data access, modification, and correction to maintain compliance and enable monitoring.
+
+#### Hierarchical Access Control
+- Attribute-Based Access Control (ABAC) will complement RBAC, enabling hierarchical, role-specific access to sensitive data. For example:
+  - Customer service engineers: Full data access for operational support.
+  - Data scientists: Limited access to anonymized datasets tailored to their needs.
+
+---
+
+### **4.3 Data Retention**
+
+#### Retention Policies
+- Define clear retention timelines for different types of data:
+  - **Temporary Processing Data**: Dispose within 24 hours.
+  - **Operational Logs**: Retain for 30 days for debugging and up to 6 months for compliance audits.
+  - **Backups**: Encrypt and retain for 1 year.
+- Automated lifecycle management policies will enforce these timelines, with manual policies sufficient during the initial phase.
+
+#### Backup and Recovery
+- Backups will be encrypted at rest and designed for reliability, with recovery point objectives (RPOs) and recovery time objectives (RTOs) scoped in later phases.
+- Data loss prevention (DLP) systems will enforce backup and recovery policies effectively.
+
+---
+
+### **4.4 Multi-Tenancy**
+
+#### Approach
+Multi-tenancy will be implemented using a hybrid model that balances segregation and shared workloads, with the following key components:
+
+1. **Data Segregation**:
+   - Each customer will have dedicated databases and object storage, ensuring strong isolation of data.
+   - Customer-specific encryption keys will secure access to data, limiting visibility and access to authorized users.
+
+2. **Shared Workloads**:
+   - Compute workloads (e.g., microservices, orchestration) will be shared across customers to optimize resource usage and reduce operational overhead.
+   - Services accessing customer data will authenticate using customer-specific keys to maintain data segregation.
+
+3. **Infrastructure Configuration**:
+   - Workloads will have access to multiple customer VPCs securely through IAM policies and network configurations.
+   - Automated provisioning of customer-specific resources will ensure scalability and consistency across deployments.
+
+4. **Advantages**:
+   - Combines cost-efficiency of shared workloads with the security of segregated data storage.
+   - Reduces complexity compared to fully segregated deployments while ensuring compliance and scalability.
 
 ---
 
@@ -420,6 +492,11 @@ This is an analysis of the main system components dependencies.
 - Modular architecture supports distributed deployments.  
 
 ---
+
+### References
+
+<a id="ref1"></a>[1] https://www.hhs.gov/hipaa/for-professionals/special-topics/de-identification/index.html
+
 
 
 
