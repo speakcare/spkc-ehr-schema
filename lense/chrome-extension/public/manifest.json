@@ -1,0 +1,39 @@
+{
+    "manifest_version": 3,
+    "name": "SessionSync",
+    "description": "Tracks user session duration and activity on subdomains.",
+    "version": "1.0",
+    "icons": {
+      "16": "icons/speakcare-icon-16.png",
+      "48": "icons/speakcare-icon-48.png",
+      "128": "icons/speakcare-icon-128.png"
+    },
+    "permissions": [
+      "sidePanel",
+      "cookies",
+      "storage",
+      "webRequest",
+      "tabs"
+    ],
+    "host_permissions": ["*://*.pointclickcare.com/*"],
+    "background": {
+      "service_worker": "background.bundle.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["*://*.pointclickcare.com/*"],
+        "js": ["content.bundle.js"]
+      }
+    ],
+    "side_panel": {
+      "default_path": "panel.html"
+    },
+    "action": {
+      "default_icon": {
+        "16": "icons/speakcare-icon-16.png",
+        "48": "icons/speakcare-icon-48.png",
+        "128": "icons/speakcare-icon-128.png"
+      }
+    }
+  }
+  
