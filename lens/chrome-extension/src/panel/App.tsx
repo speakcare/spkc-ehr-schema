@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { SessionLog } from '../types';
+import { getSessionLogs } from '../utils/session_manager';  
 
 const App: React.FC = () => {
   const [logs, setLogs] = useState<SessionLog[]>([]);
   const [filter, setFilter] = useState('');
 
+
   useEffect(() => {
-    const savedLogs = JSON.parse(localStorage.getItem('session_logs') || '[]');
-    setLogs(savedLogs);
+    const fetchLogs = async () => {
+        const savedLogs = await getSessionLogs();
+        console.log('Fetched logs:', savedLogs); // Debugging
+        //setLogs(savedLogs);
+        setLogs(savedLogs.map(log => ({ ...log, userId: log.userId || '' })));
+    };
+
+    fetchLogs();
   }, []);
 
-  const filteredLogs = logs.filter(log => log.userId.includes(filter));
+  //const filteredLogs = logs.filter(log => log.userId.includes(filter));
+  const filteredLogs = logs.filter(log => log.userId && log.userId.includes(filter));
+
 
   return (
     <div>

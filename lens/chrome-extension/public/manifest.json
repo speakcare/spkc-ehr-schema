@@ -1,0 +1,42 @@
+{
+    "manifest_version": 3,
+    "name": "SessionLens",
+    "description": "Tracks user session duration and activity on PointClickCare subdomains.",
+    "version": "1.0",
+    "icons": {
+      "16": "icons/lens-icon-16.png",
+      "48": "icons/lens-icon-48.png",
+      "128": "icons/lens-icon-128.png"
+    },
+    "permissions": [
+      "sidePanel",
+      "scripting",
+      "cookies",
+      "storage",
+      "webRequest",
+      "tabs"
+    ],
+    "host_permissions": ["https://*.pointclickcare.com/*"],
+    "background": {
+      "service_worker": "background.bundle.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["*://*.pointclickcare.com/*"],
+        "js": ["content.bundle.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "side_panel": {
+      "default_path": "panel.html"
+    },
+    "action": {
+      "default_icon": {
+        "16": "icons/lens-icon-16.png",
+        "48": "icons/lens-icon-48.png",
+        "128": "icons/lens-icon-128.png"
+      },
+      "default_title": "Click to open SpeakCare session lens panel"
+    }
+}
+  
