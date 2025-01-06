@@ -258,6 +258,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
        - Tracks all human interventions to ensure regulatory compliance and traceability.  
    - **Multi-Tenant Support**:
        - Segregates HITL operations for different organizations and users to maintain data privacy and compliance.
+---
 
 ### **1.21 Event Queue Management**
 Ensure scalability, fault tolerance, and efficient data flow across all stages of the pipeline while providing the flexibility to support real-time and asynchronous workflows.
