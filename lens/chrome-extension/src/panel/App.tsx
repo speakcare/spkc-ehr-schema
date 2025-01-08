@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SessionLog } from '../types';
-import { getSessionLogs } from '../utils/session_manager';  
+import { getSessionLogs } from '../background/session_manager';  
 
 const App: React.FC = () => {
   const [logs, setLogs] = useState<SessionLog[]>([]);

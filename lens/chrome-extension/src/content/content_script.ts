@@ -1,22 +1,33 @@
 
 // Extend the Window interface to include the hasInitialized property
-interface Window {
-  hasInitialized?: boolean;
-}
+// interface Window {
+//   hasInitialized?: boolean;
+// }
+
+
 
 let lastMessageSentTime: number = Date.now();
 
-function sendMessageWithTimestamp(message: any) {
-  chrome.runtime.sendMessage(message, () => {
-    if (chrome.runtime.lastError) {
-      console.error("Error sending message:", chrome.runtime.lastError);
-    }
-  });
+async function sendMessageWithTimestamp(message: any) {
+  try {
 
-  // Update the timestamp after sending the message
-  lastMessageSentTime = Date.now();
-  console.log(`Message sent at ${lastMessageSentTime}:`, message);
+    // Send the message to the background script
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error sending message:', chrome.runtime.lastError.message);
+      } else if (response?.success) {
+        console.log(`Message sent successfully:`, response.enrichedMessage);
+      } else {
+        console.warn('Failed to enrich and send message:', response?.error);
+      }
+    });
+
+    console.log(`Message sent at ${new Date().toISOString()}:`, message);
+  } catch (err) {
+    console.error('Failed to send message:', err);
+  }
 }
+
 
 let debounceTimer: NodeJS.Timeout | null = null;
 
@@ -87,17 +98,12 @@ const changeHandler = (event: Event) => {
 };
 
 
-// Ensure only one instance of listeners
-if (window.hasInitialized) {
-  console.log('Cleaning up stale listeners');
-  // Remove any existing listeners
-  document.removeEventListener('input', inputHandler);
-  document.removeEventListener('change', changeHandler);
-} else {
-  document.addEventListener('input', inputHandler);
-  document.addEventListener('change', changeHandler);
+// Remmove existing event listeners in case they were added by previous loading of the script
+document.removeEventListener('input', inputHandler);
+document.removeEventListener('change', changeHandler);
 
-  console.log('Content script initialized');
-  window.hasInitialized = true;
-}
+// Attach new event listeners
+document.addEventListener('input', inputHandler);
+document.addEventListener('change', changeHandler);
 
+console.log('Content script initialized or re-initialized');

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "SessionLens",
-    "description": "Tracks user session duration and activity on PointClickCare subdomains.",
+    "description": "Tracks user session duration and activity on PointClickCare domains.",
     "version": "1.0",
     "icons": {
       "16": "icons/lens-icon-16.png",

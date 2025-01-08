@@ -1,37 +1,15 @@
-import { manageSession, updateLastActivity, logEvent } from '../utils/session_manager';
+import { manageSession } from './session_manager';
+import { Tab } from '../types/index.d';
+import { isTabUrlAllowed, isUrlAllowed } from '../utils/hosts';
 
 chrome.cookies.onChanged.addListener((changeInfo) => {
   const { cookie, removed } = changeInfo;
 
   if (removed) return;
 
-  if (cookie.domain.endsWith('.pointclickcare.com')) {
-    manageSession(cookie);
+  if (cookie.name === 'JSESSIONID' && cookie.domain.endsWith('.pointclickcare.com')) {
+    manageSession(cookie.domain);
   }
-});
-
-// Listen for DOM change messages from content scripts
-chrome.runtime.onMessage.addListener((
-  message: any,
-  sender: chrome.runtime.MessageSender,
-  sendResponse: (response?: any) => void
-): boolean | void => {
-  if (message.type === 'user_input' && sender.tab) {
-    const url = new URL(sender.tab.url || '');
-    const subdomain = url.hostname;
-
-    console.log(`DOM change detected on ${subdomain} at ${message.timestamp}`);
-    updateLastActivity(subdomain, new Date(message.timestamp));
-    // Explicitly respond to the message
-    sendResponse({ success: true });
-
-  } else {
-    console.warn('Unhandled message type:', message.type);
-    sendResponse({ success: false, error: 'Unhandled message type' });
-}
-
-// Return true to indicate that we may respond asynchronously
-return true;
 });
 
 
@@ -40,38 +18,15 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
     .then(() => console.log("Toolbar action button linked to side panel."))
     .catch((error) => console.error("Error linking action button to side panel:", error));
 
+// interface ChangeInfo {
+//   cookie: chrome.cookies.Cookie;
+//   removed: boolean;
+// }
 
-const allowedUrlPatterns = [
-  /^https?:\/\/.*\.pointclickcare\.com\/.*/, // Matches URLs like "https://*.pointclickcare.com"
-];
-
-
-
-interface Tab {
-  id: number;
-  url?: string;
-}
-
-interface ChangeInfo {
-  cookie: chrome.cookies.Cookie;
-  removed: boolean;
-}
-
-interface Message {
-  type: string;
-  timestamp: string;
-}
-
-function isUrlAllowed(url: string): boolean {
-  return allowedUrlPatterns.some((pattern) => pattern.test(url));
-}
-
-function isTabUrlAllowed(tab: Tab): boolean {
-  if (!tab.url) return false; 
-  const url = new URL(tab.url);
-  //return url && validUrlPatterns.some((pattern) => pattern.test(url.href));
-  return url && isUrlAllowed(url.href);
-}
+// interface Message {
+//   type: string;
+//   timestamp: string;
+// }
 
 interface SidePanelOptions {
   tabId: number;
