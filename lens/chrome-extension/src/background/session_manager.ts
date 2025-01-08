@@ -4,7 +4,8 @@ interface Session {
     sessionId: string; 
     domain: string;
     userId: string;
-    startTime: Date;
+    startTime: Date; // the actual start time when the session was created
+    userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
     lastActivityTime: Date | null;
   }
   
@@ -80,6 +81,7 @@ function createNewSession(
     domain,
     userId,
     startTime: new Date(),
+    userActivitySeen: false,
     lastActivityTime: null,
   };
 
@@ -250,7 +252,6 @@ async function handleNewSession(domain: string, sessionId?: string, userId?: str
   if (newSession) {
     console.log('Session successfully created:', newSession);
     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
-    logEvent(domain, 'session_started', newSession.startTime, sessionId, userId || '');
   } else {
     console.error('Failed to create a new session.');
   }    
@@ -266,6 +267,11 @@ export function updateLastActivity(sessionId: string, timestamp: Date) {
   if (!session) {
     console.warn(`No active session found for sessionId: ${sessionId}`);
     return;
+  }
+  if (!session.userActivitySeen) {
+    // mark first activity time - we log the session start only once there is activity otherwise the session is not considered started
+    session.userActivitySeen = true;
+    logEvent(session.domain, 'session_started', session.startTime, sessionId, session.userId || '');
   }
   session.lastActivityTime = timestamp; // Update in memory
   // Debounce the persistence

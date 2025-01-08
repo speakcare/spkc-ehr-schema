@@ -7,7 +7,6 @@
 
 
 let lastMessageSentTime: number = Date.now();
-
 async function sendMessageWithTimestamp(message: any) {
   try {
 
@@ -16,13 +15,15 @@ async function sendMessageWithTimestamp(message: any) {
       if (chrome.runtime.lastError) {
         console.error('Error sending message:', chrome.runtime.lastError.message);
       } else if (response?.success) {
+        // Update the last message sent time
+        lastMessageSentTime = Date.now();
         console.log(`Message sent successfully:`, response.enrichedMessage);
       } else {
         console.warn('Failed to enrich and send message:', response?.error);
       }
     });
 
-    console.log(`Message sent at ${new Date().toISOString()}:`, message);
+    //console.log(`Message sent at ${new Date().toISOString()}:`, message);
   } catch (err) {
     console.error('Failed to send message:', err);
   }
@@ -30,8 +31,6 @@ async function sendMessageWithTimestamp(message: any) {
 
 
 let debounceTimer: NodeJS.Timeout | null = null;
-
-
 function debounceAndThrottle(callback: () => void, debounceDelay: number, throttleDelay: number) {
   const now = Date.now();
 
