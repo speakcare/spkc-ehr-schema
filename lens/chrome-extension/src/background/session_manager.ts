@@ -1,4 +1,4 @@
-import { isTabUrlAllowed, isUrlAllowed } from '../utils/hosts';
+import { isTabUrlPermitted, isUrlPermitted } from '../utils/hosts';
 
 interface Session {
     sessionId: string; 
@@ -53,7 +53,7 @@ async function loadActiveSessions(): Promise<void> {
 (async function initializeSessionManager() {
   console.log('Initializing session manager...');
   await loadActiveSessions(); // Load active sessions into memory
-  let activeSessionsInitialized = true;
+  activeSessionsInitialized = true;
   console.log('Session manager initialized.');
 })();
 
@@ -215,10 +215,12 @@ async function saveSessionLogs(logs: any[]): Promise<void> {
 //   );
 // }
 
-export async function manageSession(domain: string) {
+export async function manageSessionChange(domain: string) {
   try {
-    const sessionId = await getCookieFromUrl('JSESSIONID', `https://${domain}`);
-    const userId = await getCookieFromUrl('last_org', `https://${domain}`);
+
+    // TODO - improve this to handle cases if session ID changes for the same domain
+    const sessionId = await getCookieValueFromUrl('JSESSIONID', `https://${domain}`);
+    const userId = await getCookieValueFromUrl('last_org', `https://${domain}`);
     await handleNewSession(domain, sessionId || undefined, userId || undefined);
   } catch (error) {
     console.error(`Failed to manage session for domain ${domain}:`, error);
@@ -294,7 +296,6 @@ async function flushPendingUpdate(sessionId: string) {
 
 
 export async function persistLastActivity(sessionId: string, timestamp: Date) {
-  //const persistenActiveSessions = await getActiveSessions(); // Load from storage
   const session = getActiveSessionById(sessionId);
 
   if (session) {
@@ -309,7 +310,7 @@ export async function persistLastActivity(sessionId: string, timestamp: Date) {
 
 // Helper function to get a cookie value from a specific URL
 
-async function getCookieFromUrl(cookieName: string, url: string): Promise<string | null> {
+async function getCookieValueFromUrl(cookieName: string, url: string): Promise<string | null> {
   return new Promise((resolve, reject) => {
     chrome.cookies.get({ url, name: cookieName }, (cookie) => {
       if (chrome.runtime.lastError) {
@@ -318,6 +319,19 @@ async function getCookieFromUrl(cookieName: string, url: string): Promise<string
         return;
       }
       resolve(cookie?.value || null);
+    });
+  });
+}
+
+async function getCookieFromUrl(cookieName: string, url: string): Promise<chrome.cookies.Cookie | null> {
+  return new Promise((resolve, reject) => {
+    chrome.cookies.get({ url, name: cookieName }, (cookie) => {
+      if (chrome.runtime.lastError) {
+        console.error(`Failed to get cookie ${cookieName} from ${url}:`, chrome.runtime.lastError.message);
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      resolve(cookie|| null);
     });
   });
 }
@@ -333,17 +347,17 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log(`Ignoring tab update for tabId: ${tabId} with no url.`);
     return;
   }
-  const isAllowed = isUrlAllowed(tab.url);
-  const sessionId = tabSessionId[tabId];
+  const isPermitted = isUrlPermitted(tab.url);
+  const thisTabSessionId = tabSessionId[tabId];
 
   if (changeInfo.status === 'loading' && tab.url) {
     console.log(`Tab started loading: ${tab.url} (tabId: ${tabId})`);
     
-    if (sessionId) {
-      await flushPendingUpdate(sessionId);
-      console.log(`Flushed pending updates for sessionId: ${sessionId} before navigation.`);
+    if (thisTabSessionId) {
+      await flushPendingUpdate(thisTabSessionId);
+      console.log(`Flushed pending updates for sessionId: ${thisTabSessionId} before navigation.`);
     }
-    if (!isAllowed && sessionId) {
+    if (!isPermitted && thisTabSessionId) {
       // navigating away from a previously allowed url
       console.log(`URL not allowed: ${tab.url}. remove this tab session.`);
       delete tabSessionId[tabId]; // Remove the mapping
@@ -354,14 +368,28 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     console.log(`Tab finished loading: ${tab.url} (tabId: ${tabId})`);
 
     // Refresh session context
-    if (isAllowed) {
-      const sessionId = await getCookieFromUrl('JSESSIONID', tab.url);
-      if (sessionId) {
-        tabSessionId[tabId] = sessionId; // Update session mapping
-        console.log(`Updated sessionId for tabId ${tabId} to ${sessionId}`);
+    if (isPermitted) {
+      //const sessionId = await getCookieValueFromUrl('JSESSIONID', tab.url);
+      const cookie = await getCookieFromUrl('JSESSIONID', tab.url);
+      if (cookie) {
+        const cookieSessionId = cookie.value;
+        const domain = cookie.domain;
+        const session = getActiveSessionById(cookieSessionId);
+        if (session) {
+          // Session already exists, only update the sessionId mapping to this tab
+          tabSessionId[tabId] = cookieSessionId; // Update session mapping
+          console.log(`Updated sessionId for tabId ${tabId} to ${cookieSessionId}`);
+        }
+        else {
+          // No active session yet, create a new session
+          console.log(`Creating new session for tabId ${tabId} with sessionId ${cookieSessionId}`);
+          const userId = await getCookieValueFromUrl('last_org', tab.url);
+          await handleNewSession(domain, cookieSessionId, userId || undefined);
+          tabSessionId[tabId] = cookieSessionId; // Update session mapping
+        }
       } 
       else if (tabSessionId[tabId]) {
-        // this tab previously had a sessionId but no longer does
+        // this tab was previously on permitted url but no longer is, so we remove the session
         console.warn(`No sessionId found for tabId ${tabId}. Removing mapping.`);
         delete tabSessionId[tabId];
       }
@@ -420,7 +448,7 @@ chrome.runtime.onMessage.addListener((
     // Fallback: Retrieve sessionId asynchronously
     (async () => {
       const url = sender.tab?.url || '';
-      const sessionIdFromCookie = await getCookieFromUrl('JSESSIONID', url);
+      const sessionIdFromCookie = await getCookieValueFromUrl('JSESSIONID', url);
 
       if (!sessionIdFromCookie) {
         console.warn('Failed to recover sessionId from cookies.');

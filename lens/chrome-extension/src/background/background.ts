@@ -1,14 +1,14 @@
-import { manageSession } from './session_manager';
+import { manageSessionChange } from './session_manager';
 import { Tab } from '../types/index.d';
-import { isTabUrlAllowed, isUrlAllowed } from '../utils/hosts';
+import { isTabUrlPermitted, isUrlPermitted, isDomainPermitted } from '../utils/hosts';
 
 chrome.cookies.onChanged.addListener((changeInfo) => {
   const { cookie, removed } = changeInfo;
 
   if (removed) return;
 
-  if (cookie.name === 'JSESSIONID' && cookie.domain.endsWith('.pointclickcare.com')) {
-    manageSession(cookie.domain);
+  if (cookie.name === 'JSESSIONID' && isDomainPermitted(cookie.domain)/*cookie.domain.endsWith('.pointclickcare.com')*/) {
+      manageSessionChange(cookie.domain);
   }
 });
 
@@ -38,7 +38,7 @@ async function updateSidePanelForTab(tab: Tab): Promise<void> {
   // console.log(`SpeakCare Lens side panel: updateSidePanelForTab called for tab`, tab);
   const tabId = tab.id;
   console.log(`SpeakCare Lens side panel: updateSidePanelForTab tab.id ${tabId}`);
-  const isValid = isTabUrlAllowed(tab);
+  const isValid = isTabUrlPermitted(tab);
   if (isValid) {
     const options: SidePanelOptions = {
       tabId,
