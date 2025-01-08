@@ -1,13 +1,17 @@
 import { isTabUrlPermitted, isUrlPermitted } from '../utils/hosts';
 
 interface Session {
-    sessionId: string; 
     domain: string;
     userId: string;
     startTime: Date; // the actual start time when the session was created
     userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
     lastActivityTime: Date | null;
-  }
+}
+    
+function calcSessionKey(userId: string, domain: string): string {
+  return `${userId}@${domain}`;
+}
+
   
 //*****************************************************/
 // Session Management Functions
@@ -27,7 +31,6 @@ export async function getActiveSessionsFromLocalStorage(): Promise<Record<string
       } else {
         resolve(result.activeSessions || {});
       }
-      //resolve(result.activeSessions || {});
     });
   });
 }
@@ -51,69 +54,67 @@ async function loadActiveSessions(): Promise<void> {
   console.log('Loaded active sessions:', activeSessions);
 }
 
-(async function initializeSessionManager() {
+export async function initializeSessionManager() {
   console.log('Initializing session manager...');
   await loadActiveSessions(); // Load active sessions into memory
   activeSessionsInitialized = true;
   console.log('Session manager initialized.');
-})();
+}
 
-function getActiveSessionById(sessionId: string): Session | undefined {
+function getActiveSession(sessionKey: string): Session | undefined {
   if (!activeSessionsInitialized) {
-    console.warn(`Attempted to access activeSessions before initialization. sessionId: ${sessionId}`);
+    console.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
     return undefined; // Indicate that `activeSessions` is not ready
   }
-  return activeSessions[sessionId];
+  return activeSessions[sessionKey];
 }
 
 function createNewSession(
-  sessionId: string,
   domain: string,
   userId: string = ''
-): Session | null {
+): string | null {
   if (!activeSessionsInitialized) {
     console.warn('Attempted to create a new session before activeSessions initialization.');
     return null;
   }
 
   const newSession: Session = {
-    sessionId,
     domain,
     userId,
     startTime: new Date(),
     userActivitySeen: false,
     lastActivityTime: null,
   };
+  const sessionKey = calcSessionKey(userId, domain);
+  activeSessions[sessionKey] = newSession;
+  console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
-  activeSessions[sessionId] = newSession;
-  console.log(`New session created for sessionId: ${sessionId}`, newSession);
-
-  return newSession;
+  return sessionKey;
 }
   
   
-function deleteActiveSession(sessionId: string): boolean {
+function deleteActiveSession(sessionKey: string): boolean {
   if (!activeSessionsInitialized) {
     console.warn('Attempted to delete a session before activeSessions initialization.');
     return false;
   }
 
-  if (!activeSessions[sessionId]) {
-    console.warn(`No session found for sessionId: ${sessionId}. Deletion skipped.`);
+  if (!activeSessions[sessionKey]) {
+    console.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
     return false;
   }
 
-  delete activeSessions[sessionId];
-  console.log(`Session deleted for sessionId: ${sessionId}`);
+  delete activeSessions[sessionKey];
+  console.log(`Session deleted for sessionKey: ${sessionKey}`);
   return true;
 }
   
 
-async function terminateSession(sessionId: string) {
-  const session = getActiveSessionById(sessionId);
+async function terminateSession(sessionKey: string) {
+  const session = getActiveSession(sessionKey);
 
   if (!session) {
-    console.warn(`No active session found for sessionId: ${sessionId}`);
+    console.warn(`No active session found for sessionKey: ${sessionKey}`);
     return;
   }
 
@@ -124,17 +125,16 @@ async function terminateSession(sessionId: string) {
     session.domain,
     'session_ended',
     endTime,
-    session.sessionId,
     session.userId,
     duration // Calculated duration
   );
 
-  const success = deleteActiveSession(sessionId);
+  const success = deleteActiveSession(sessionKey);
   if (success) {
-    console.log(`Session successfully deleted for sessionId: ${sessionId}`);
+    console.log(`Session successfully deleted for sessionKey: ${sessionKey}`);
     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
   } else {
-    console.warn(`Failed to delete session for sessionId: ${sessionId}`);
+    console.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
   }
 }
 
@@ -143,7 +143,6 @@ export async function logEvent(
   domain: string,
   event: 'session_started' | 'session_ended',
   timestamp: Date,
-  sessionId: string,
   userId: string,
   duration: number = 0, // Default to 0 for session_started
   extraData?: Record<string, any>
@@ -152,7 +151,6 @@ export async function logEvent(
     domain,
     event,
     timestamp: timestamp.toISOString(),
-    sessionId,
     userId,
     duration,
     ...extraData, // Auxiliary metadata
@@ -179,7 +177,6 @@ export async function getSessionLogs(): Promise<any[]> {
       } else {
         resolve(result.session_logs || []);
       }
-      //resolve(result.session_logs || []);
     });
   });
 }
@@ -199,117 +196,99 @@ async function saveSessionLogs(logs: any[]): Promise<void> {
   });
 }
 
-// export function manageSession(domain: string) {
-//   chrome.cookies.get(
-//     { url: `https://${domain}`, name: 'JSESSIONID' },
-//     (sessionCookie) => {
-//       const sessionId = sessionCookie?.value;
 
-//       chrome.cookies.get(
-//         { url: `https://${domain}`, name: 'last_org' },
-//         (userCookie) => {
-//           const userId = userCookie?.value;
+async function handleNewSession(domain: string, /*sessionId?: string,*/ userId: string): Promise<string | null> {
 
-//           handleNewSession(domain, sessionId, userId);
-//         }
-//       );
-//     }
-//   );
-// }
-
-export async function manageSessionChange(domain: string) {
-  try {
-
-    // TODO - improve this to handle cases if session ID changes for the same domain
-    const sessionId = await getCookieValueFromUrl('JSESSIONID', `https://${domain}`);
-    const userId = await getCookieValueFromUrl('last_org', `https://${domain}`);
-    await handleNewSession(domain, sessionId || undefined, userId || undefined);
-  } catch (error) {
-    console.error(`Failed to manage session for domain ${domain}:`, error);
-  }
-}
-
-async function handleNewSession(domain: string, sessionId?: string, userId?: string) {
-
-  if (!sessionId) {
-    console.warn(`No JSESSIONID cookie found for domain: ${domain}`);
-    return;
+  if (!domain || !userId) {
+    console.warn(`handleNewSession called with no domain ${domain} or no userId ${userId}`);
+    return null;
   }
 
   // If the session already exists, update the userId if provided
-  const session = getActiveSessionById(sessionId);
+  const sessionKey = calcSessionKey(userId, domain);
+  const session = getActiveSession(sessionKey);
   if (session) {
-    console.log(`Session already exists for sessionId: ${sessionId}.`);
-    if (userId && session.userId !== userId) {
-      // update the userId
+    console.log(`Session already exists for sessionKey: ${sessionKey}.`);
+    if (session.userId !== userId || session.domain !== domain) {
+      // this should never happen
+      console.warn(`Session for sessionKey: ${sessionKey} found with different userId: ${session.userId} or different domain: ${session.domain}`);
+      // recover this
+      session.domain = domain;
       session.userId = userId;
-      console.log(`Updated userId for sessionId: ${sessionId} to ${userId}`);
+      console.log(`Updated userId for domain: ${domain} to ${userId}`);
       await saveActiveSessionsToLocalStorage();
     }
-    return;
+    return sessionKey;
   }
-  const newSession = createNewSession(sessionId, domain, userId || '');
+  const newSessionKey = createNewSession(/*sessionId,*/ domain, userId || '');
+  if (!newSessionKey) {
+    console.error('Failed to create a new session.');
+    return null;
+  }
+  const newSession = getActiveSession(newSessionKey);
   if (newSession) {
     console.log('Session successfully created:', newSession);
     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
+    return newSessionKey; 
   } else {
     console.error('Failed to create a new session.');
+    return null;
   }    
 }
 
 
 
 const debouncedUpdates: Record<string, NodeJS.Timeout> = {};
-export function updateLastActivity(sessionId: string, timestamp: Date) {
-  console.log(`Updating last activity for sessionId: ${sessionId} at ${timestamp}`);
+export function updateLastActivity(sessionKey: string, timestamp: Date) {
+  console.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
 
-  const session = getActiveSessionById(sessionId);
+  const session = getActiveSession(sessionKey);
   if (!session) {
-    console.warn(`No active session found for sessionId: ${sessionId}`);
+    console.warn(`No active session found for sessionKey: ${sessionKey}`);
     return;
   }
   if (!session.userActivitySeen) {
     // mark first activity time - we log the session start only once there is activity otherwise the session is not considered started
     session.userActivitySeen = true;
-    logEvent(session.domain, 'session_started', session.startTime, sessionId, session.userId || '');
+    logEvent(session.domain, 'session_started', session.startTime, session.userId || '');
   }
   session.lastActivityTime = timestamp; // Update in memory
   // Debounce the persistence
-  if (debouncedUpdates[sessionId]) {
-    clearTimeout(debouncedUpdates[sessionId]);
+  if (debouncedUpdates[sessionKey]) {
+    clearTimeout(debouncedUpdates[sessionKey]);
   }
 
-  debouncedUpdates[sessionId] = setTimeout(() => {
-    persistLastActivity(sessionId, timestamp);
+  debouncedUpdates[sessionKey] = setTimeout(() => {
+    persistLastActivity(sessionKey, timestamp);
   }, 3000); // Delay of 3 seconds
 }
 
   
-// Immediately flush updates for a specific domain
-async function flushPendingUpdate(sessionId: string) {
-  if (debouncedUpdates[sessionId]) {
-    clearTimeout(debouncedUpdates[sessionId]);
-    delete debouncedUpdates[sessionId];
+// Immediately flush updates for a specific sessionKey
+async function flushPendingUpdate(sessionKey: string) {
+  if (debouncedUpdates[sessionKey]) {
+    clearTimeout(debouncedUpdates[sessionKey]);
+    delete debouncedUpdates[sessionKey];
   }
-  const session = getActiveSessionById(sessionId);
+  const session = getActiveSession(sessionKey);
   if (session && session.lastActivityTime) {
-    await persistLastActivity(sessionId, session.lastActivityTime); // Persist latest in-memory state
-    console.log(`Flushed last activity time for sessionId ${sessionId}`);
+    await persistLastActivity(sessionKey, session.lastActivityTime); // Persist latest in-memory state
+    console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
   } else {
-    console.warn(`No active session found for sessionId: ${sessionId}`);
+    console.warn(`No active session found for sessionKey: ${sessionKey}`);
   }
 }
 
 
-export async function persistLastActivity(sessionId: string, timestamp: Date) {
-  const session = getActiveSessionById(sessionId);
+export async function persistLastActivity(sessionKey: string, timestamp: Date) {
+  const session = getActiveSession(sessionKey);
 
   if (session) {
     session.lastActivityTime = timestamp;
     await saveActiveSessionsToLocalStorage(); // Persist updated table
-    console.log(`Persisted last activity time for sessionId ${sessionId}: ${timestamp}`);
+    console.log(`Persisted last activity time for sessionKey ${sessionKey}: ${timestamp}`);
   } else {
-    console.warn(`Session not found for sessionId ${sessionId}. Unable to persist last activity.`);
+    console.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
   }
 }
 
@@ -346,7 +325,7 @@ async function getCookieFromUrl(cookieName: string, url: string): Promise<chrome
 // Event Listeners & Handlers
 /**************************/
 
-const tabSessionId: Record<number, string> = {}; // Maps tabId to sessionId
+const tabSessionKey: Record<number, string> = {}; // Maps tabId to domain
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!tab.url) {
@@ -354,19 +333,19 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     return;
   }
   const isPermitted = isUrlPermitted(tab.url);
-  const thisTabSessionId = tabSessionId[tabId];
+  const thisTabSessionKey = tabSessionKey[tabId];
 
   if (changeInfo.status === 'loading' && tab.url) {
     console.log(`Tab started loading: ${tab.url} (tabId: ${tabId})`);
     
-    if (thisTabSessionId) {
-      await flushPendingUpdate(thisTabSessionId);
-      console.log(`Flushed pending updates for sessionId: ${thisTabSessionId} before navigation.`);
+    if (thisTabSessionKey) {
+      await flushPendingUpdate(thisTabSessionKey);
+      console.log(`Flushed pending updates for sessionKey: ${thisTabSessionKey} before navigation.`);
     }
-    if (!isPermitted && thisTabSessionId) {
+    if (!isPermitted && thisTabSessionKey) {
       // navigating away from a previously allowed url
       console.log(`URL not allowed: ${tab.url}. remove this tab session.`);
-      delete tabSessionId[tabId]; // Remove the mapping
+      delete tabSessionKey[tabId]; // Remove the mapping
     }
   }
 
@@ -375,35 +354,39 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     // Refresh session context
     if (isPermitted) {
-      //const sessionId = await getCookieValueFromUrl('JSESSIONID', tab.url);
-      const cookie = await getCookieFromUrl('JSESSIONID', tab.url);
-      if (cookie) {
-        const cookieSessionId = cookie.value;
-        const domain = cookie.domain;
-        const session = getActiveSessionById(cookieSessionId);
+      const cookieUserId = await getCookieValueFromUrl('last_org', tab.url);
+      if (cookieUserId) {
+        const url = new URL(tab.url);
+        const domain = url.hostname;
+        const sessionKey = calcSessionKey(cookieUserId, domain);
+        const session = getActiveSession(sessionKey);
         if (session) {
           // Session already exists, only update the sessionId mapping to this tab
-          tabSessionId[tabId] = cookieSessionId; // Update session mapping
-          console.log(`Updated sessionId for tabId ${tabId} to ${cookieSessionId}`);
+          tabSessionKey[tabId] = sessionKey; // Update session mapping
+          console.log(`Updated sessionKey for tabId ${tabId} to ${sessionKey}`);
         }
         else {
           // No active session yet, create a new session
-          console.log(`Creating new session for tabId ${tabId} with sessionId ${cookieSessionId}`);
-          const userId = await getCookieValueFromUrl('last_org', tab.url);
-          await handleNewSession(domain, cookieSessionId, userId || undefined);
-          tabSessionId[tabId] = cookieSessionId; // Update session mapping
+          console.log(`Creating new session for tabId ${tabId} with domain ${domain} and userId ${cookieUserId}`);
+          const newSessionKey = await handleNewSession(domain, /*cookieSessionId,*/ cookieUserId);
+          if (newSessionKey) {
+             tabSessionKey[tabId] = newSessionKey; // Update session mapping
+          }
+          else {
+            console.error('chrome.tabs.onUpdated: Failed to create a new session.');
+          }
         }
       } 
-      else if (tabSessionId[tabId]) {
-        // this tab was previously on permitted url but no longer is, so we remove the session
-        console.warn(`No sessionId found for tabId ${tabId}. Removing mapping.`);
-        delete tabSessionId[tabId];
+      else if (tabSessionKey[tabId]) {
+        // this tab was previously on active session key but no longer is, so we remove the session
+        console.warn(`No userId cookie found. for tabId ${tabId}. Removing mapping.`);
+        delete tabSessionKey[tabId];
       }
     }
-    else if (tabSessionId[tabId]) {
+    else if (tabSessionKey[tabId]) {
       // note allowed but there is still a sessionid on this tab - remove it
-      console.log(`URL not allowed: ${tab.url}. remove this tab session.`);
-      delete tabSessionId[tabId]; // Remove the
+      console.log(`URL not allowed: ${tab.url}. remove this tab sessionKey.`);
+      delete tabSessionKey[tabId]; // Remove the
     }
   }
 });
@@ -412,15 +395,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   console.log(`Tab closed: ${tabId}`);
 
-  const sessionId = tabSessionId[tabId];
-  if (sessionId) {
-    await flushPendingUpdate(sessionId);
-    console.log(`Flushed pending updates for sessionId: ${sessionId} on tab close.`);
+  const sessionKey = tabSessionKey[tabId];
+  if (sessionKey) {
+    await flushPendingUpdate(sessionKey);
+    console.log(`Flushed pending updates for sessionKey: ${sessionKey} on tab close.`);
   } else {
-    console.warn(`No sessionId found for tabId: ${tabId}`);
+    console.warn(`No sessionKey found for tabId: ${tabId}`);
   }
 
-  delete tabSessionId[tabId]; // Cleanup mapping for the closed tab
+  delete tabSessionKey[tabId]; // Cleanup mapping for the closed tab
 });
 
 
@@ -447,41 +430,43 @@ chrome.runtime.onMessage.addListener((
   }
 
   // Attempt to fetch sessionId from the tabSessionId map
-  let sessionId = tabSessionId[tabId];
-  if (!sessionId) {
-    console.warn(`No sessionId found for tabId: ${tabId}. Attempting fallback to cookies.`);
+  let sessionKey = tabSessionKey[tabId];
+  if (!sessionKey) {
+    // Optimistic synchronous flow
+    processUserInputMessage(message, sessionKey,/*sessionId,*/ sendResponse);
+  }
+  else { // no sessionKey found for this tab 
+    console.warn(`No sessionKey found for tabId: ${tabId}. Attempting fallback to cookie.`);
 
     // Fallback: Retrieve sessionId asynchronously
     (async () => {
-      const url = sender.tab?.url || '';
-      const sessionIdFromCookie = await getCookieValueFromUrl('JSESSIONID', url);
-
-      if (!sessionIdFromCookie) {
-        console.warn('Failed to recover sessionId from cookies.');
-        sendResponse({ success: false, error: 'SessionId not found' });
+      const senderTabUrl = sender.tab?.url || '';
+      const url = new URL(senderTabUrl);
+      const domain = url.hostname;
+      const userIdFromCookie = await getCookieValueFromUrl('last_org', senderTabUrl);
+      if (!userIdFromCookie) {
+        console.warn('Failed to recover userId from cookie.');
+        sendResponse({ success: false, error: 'userId not found' });
         return;
       }
-
-      console.log(`Recovered sessionId from cookie for tabId ${tabId}`);
-      tabSessionId[tabId] = sessionIdFromCookie; // Update tabSessionId map
+      console.log(`Recovered userId ${userIdFromCookie} from cookie for tabId ${tabId}`);
+      sessionKey = calcSessionKey(userIdFromCookie, domain);
+      tabSessionKey[tabId] = sessionKey; // Update tabSessionKey map
 
       // Process the message with the resolved sessionId
-      processUserInputMessage(message, sender, sessionIdFromCookie, sendResponse);
+      processUserInputMessage(message, sessionKey, sendResponse);
     })();
-
     // Return true to keep the message channel open for asynchronous handling
     return true;
   }
-  // Optimistic synchronous flow
-  processUserInputMessage(message, sender, sessionId, sendResponse);
 });
 
 
 // Shared function to process user input messages
 function processUserInputMessage(
   message: any,
-  sender: chrome.runtime.MessageSender,
-  sessionId: string,
+  //sender: chrome.runtime.MessageSender,
+  sessionKey: string,
   sendResponse: (response?: any) => void
 ) {
   // Check for valid message type
@@ -490,17 +475,11 @@ function processUserInputMessage(
     sendResponse({ success: false, error: 'Invalid message type' });
     return;
   }
-
-  const enrichedMessage = { ...message, sessionId };
-
-  const url = new URL(sender.tab?.url || '');
-  const domain = url.hostname;
-
-  console.log(`DOM change detected on ${domain} sessionId ${sessionId} at ${message.timestamp}`);
-  updateLastActivity(sessionId, new Date(message.timestamp));
+  console.log(`DOM change detected on ${sessionKey} at ${message.timestamp}`);
+  updateLastActivity(sessionKey, new Date(message.timestamp));
 
   // Explicitly respond to the message
-  sendResponse({ success: true, enrichedMessage });
+  sendResponse({ success: true, message });
 }
 
 // function getdomainForTab(tabId: number): Promise<string | null> {

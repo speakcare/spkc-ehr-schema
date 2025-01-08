@@ -1,16 +1,6 @@
-import { manageSessionChange } from './session_manager';
+import { initializeSessionManager } from './session_manager';
 import { Tab } from '../types/index.d';
 import { isTabUrlPermitted, isUrlPermitted, isDomainPermitted } from '../utils/hosts';
-
-chrome.cookies.onChanged.addListener((changeInfo) => {
-  const { cookie, removed } = changeInfo;
-
-  if (removed) return;
-
-  if (cookie.name === 'JSESSIONID' && isDomainPermitted(cookie.domain)/*cookie.domain.endsWith('.pointclickcare.com')*/) {
-      manageSessionChange(cookie.domain);
-  }
-});
 
 
 console.log('Setting up side panel behavior...');
@@ -18,15 +8,6 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
     .then(() => console.log("Toolbar action button linked to side panel."))
     .catch((error) => console.error("Error linking action button to side panel:", error));
 
-// interface ChangeInfo {
-//   cookie: chrome.cookies.Cookie;
-//   removed: boolean;
-// }
-
-// interface Message {
-//   type: string;
-//   timestamp: string;
-// }
 
 interface SidePanelOptions {
   tabId: number;
@@ -99,11 +80,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
 
 
 console.log('Background script loaded at', new Date().toISOString());
-
 self.addEventListener('activate', () => {
   console.log('Background script activated at', new Date().toISOString());
 });
-
 self.addEventListener('message', (event) => {
   console.log('Message received in background script:', event.data);
 });
+
+await initializeSessionManager();
+console.log('Background script sesssion manager initialized at', new Date().toISOString());
+

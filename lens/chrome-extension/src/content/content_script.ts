@@ -1,11 +1,4 @@
 
-// Extend the Window interface to include the hasInitialized property
-// interface Window {
-//   hasInitialized?: boolean;
-// }
-
-
-
 let lastMessageSentTime: number = Date.now();
 async function sendMessageWithTimestamp(message: any) {
   try {
@@ -17,13 +10,12 @@ async function sendMessageWithTimestamp(message: any) {
       } else if (response?.success) {
         // Update the last message sent time
         lastMessageSentTime = Date.now();
-        console.log(`Message sent successfully:`, response.enrichedMessage);
+        console.log(`Message sent successfully:`, response.message);
       } else {
         console.warn('Failed to enrich and send message:', response?.error);
       }
     });
 
-    //console.log(`Message sent at ${new Date().toISOString()}:`, message);
   } catch (err) {
     console.error('Failed to send message:', err);
   }
