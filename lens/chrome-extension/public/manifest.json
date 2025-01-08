@@ -22,7 +22,11 @@
     },
     "content_scripts": [
       {
-        "matches": ["*://*.pointclickcare.com/*"],
+        "matches": ["https://*.pointclickcare.com/*"],
+        "include_globs": [
+          "https://usnpint.pointclickcare.com/*",
+          "https://www??.pointclickcare.com/*"
+        ],
         "js": ["content.bundle.js"],
         "run_at": "document_idle"
       }
