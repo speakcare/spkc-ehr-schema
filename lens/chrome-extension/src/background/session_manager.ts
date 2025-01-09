@@ -3,13 +3,14 @@ import { isTabUrlPermitted, isUrlPermitted } from '../utils/hosts';
 interface Session {
     domain: string;
     userId: string;
+    orgId: string;
     startTime: Date; // the actual start time when the session was created
     userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
     lastActivityTime: Date | null;
 }
     
-function calcSessionKey(userId: string, domain: string): string {
-  return `${userId}@${domain}`;
+function calcSessionKey(userId: string, orgId: string): string {
+  return `${userId}@${orgId}`;
 }
 
   
@@ -71,7 +72,9 @@ function getActiveSession(sessionKey: string): Session | undefined {
 
 function createNewSession(
   domain: string,
-  userId: string = ''
+  orgId: string = '',
+  userId: string = '',
+  startTime: Date | undefined,
 ): string | null {
   if (!activeSessionsInitialized) {
     console.warn('Attempted to create a new session before activeSessions initialization.');
@@ -81,11 +84,12 @@ function createNewSession(
   const newSession: Session = {
     domain,
     userId,
-    startTime: new Date(),
+    orgId,
+    startTime: startTime ?? new Date(),
     userActivitySeen: false,
     lastActivityTime: null,
   };
-  const sessionKey = calcSessionKey(userId, domain);
+  const sessionKey = calcSessionKey(userId, orgId);
   activeSessions[sessionKey] = newSession;
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
@@ -197,30 +201,35 @@ async function saveSessionLogs(logs: any[]): Promise<void> {
 }
 
 
-async function handleNewSession(domain: string, /*sessionId?: string,*/ userId: string): Promise<string | null> {
+async function handleNewSession(
+  domain: string, 
+  orgId: string, 
+  userId: string,
+  startTime: Date | undefined,
+): Promise<string | null> {
 
-  if (!domain || !userId) {
-    console.warn(`handleNewSession called with no domain ${domain} or no userId ${userId}`);
+  if (!domain || !userId || !orgId) {
+    console.warn(`handleNewSession called with no domain ${domain}, userId ${userId}, or orgId ${orgId}`);
     return null;
   }
 
   // If the session already exists, update the userId if provided
-  const sessionKey = calcSessionKey(userId, domain);
+  const sessionKey = calcSessionKey(userId, orgId);
   const session = getActiveSession(sessionKey);
   if (session) {
     console.log(`Session already exists for sessionKey: ${sessionKey}.`);
-    if (session.userId !== userId || session.domain !== domain) {
-      // this should never happen
-      console.warn(`Session for sessionKey: ${sessionKey} found with different userId: ${session.userId} or different domain: ${session.domain}`);
-      // recover this
-      session.domain = domain;
-      session.userId = userId;
-      console.log(`Updated userId for domain: ${domain} to ${userId}`);
-      await saveActiveSessionsToLocalStorage();
-    }
+    // if (session.userId !== userId || session.orgId !== orgId) {
+    //   // this should never happen
+    //   console.warn(`Session for sessionKey: ${sessionKey} found with different userId: ${session.userId} or different domain: ${session.domain}`);
+    //   // recover this
+    //   session.domain = domain;
+    //   session.userId = userId;
+    //   console.log(`Updated userId for domain: ${domain} to ${userId}`);
+    //   await saveActiveSessionsToLocalStorage();
+    // }
     return sessionKey;
   }
-  const newSessionKey = createNewSession(/*sessionId,*/ domain, userId || '');
+  const newSessionKey = createNewSession(domain, orgId, userId, startTime);
   if (!newSessionKey) {
     console.error('Failed to create a new session.');
     return null;
@@ -327,69 +336,69 @@ async function getCookieFromUrl(cookieName: string, url: string): Promise<chrome
 
 const tabSessionKey: Record<number, string> = {}; // Maps tabId to domain
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (!tab.url) {
-    console.log(`Ignoring tab update for tabId: ${tabId} with no url.`);
-    return;
-  }
-  const isPermitted = isUrlPermitted(tab.url);
-  const thisTabSessionKey = tabSessionKey[tabId];
+// chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+//   if (!tab.url) {
+//     console.log(`Ignoring tab update for tabId: ${tabId} with no url.`);
+//     return;
+//   }
+//   const isPermitted = isUrlPermitted(tab.url);
+//   const thisTabSessionKey = tabSessionKey[tabId];
 
-  if (changeInfo.status === 'loading' && tab.url) {
-    console.log(`Tab started loading: ${tab.url} (tabId: ${tabId})`);
+//   if (changeInfo.status === 'loading' && tab.url) {
+//     console.log(`Tab started loading: ${tab.url} (tabId: ${tabId})`);
     
-    if (thisTabSessionKey) {
-      await flushPendingUpdate(thisTabSessionKey);
-      console.log(`Flushed pending updates for sessionKey: ${thisTabSessionKey} before navigation.`);
-    }
-    if (!isPermitted && thisTabSessionKey) {
-      // navigating away from a previously allowed url
-      console.log(`URL not allowed: ${tab.url}. remove this tab session.`);
-      delete tabSessionKey[tabId]; // Remove the mapping
-    }
-  }
+//     if (thisTabSessionKey) {
+//       await flushPendingUpdate(thisTabSessionKey);
+//       console.log(`Flushed pending updates for sessionKey: ${thisTabSessionKey} before navigation.`);
+//     }
+//     if (!isPermitted && thisTabSessionKey) {
+//       // navigating away from a previously allowed url
+//       console.log(`URL not allowed: ${tab.url}. remove this tab session.`);
+//       delete tabSessionKey[tabId]; // Remove the mapping
+//     }
+//   }
 
-  if (changeInfo.status === 'complete' && tab.url) {
-    console.log(`Tab finished loading: ${tab.url} (tabId: ${tabId})`);
+//   if (changeInfo.status === 'complete' && tab.url) {
+//     console.log(`Tab finished loading: ${tab.url} (tabId: ${tabId})`);
 
-    // Refresh session context
-    if (isPermitted) {
-      const cookieUserId = await getCookieValueFromUrl('last_org', tab.url);
-      if (cookieUserId) {
-        const url = new URL(tab.url);
-        const domain = url.hostname;
-        const sessionKey = calcSessionKey(cookieUserId, domain);
-        const session = getActiveSession(sessionKey);
-        if (session) {
-          // Session already exists, only update the sessionId mapping to this tab
-          tabSessionKey[tabId] = sessionKey; // Update session mapping
-          console.log(`Updated sessionKey for tabId ${tabId} to ${sessionKey}`);
-        }
-        else {
-          // No active session yet, create a new session
-          console.log(`Creating new session for tabId ${tabId} with domain ${domain} and userId ${cookieUserId}`);
-          const newSessionKey = await handleNewSession(domain, /*cookieSessionId,*/ cookieUserId);
-          if (newSessionKey) {
-             tabSessionKey[tabId] = newSessionKey; // Update session mapping
-          }
-          else {
-            console.error('chrome.tabs.onUpdated: Failed to create a new session.');
-          }
-        }
-      } 
-      else if (tabSessionKey[tabId]) {
-        // this tab was previously on active session key but no longer is, so we remove the session
-        console.warn(`No userId cookie found. for tabId ${tabId}. Removing mapping.`);
-        delete tabSessionKey[tabId];
-      }
-    }
-    else if (tabSessionKey[tabId]) {
-      // note allowed but there is still a sessionid on this tab - remove it
-      console.log(`URL not allowed: ${tab.url}. remove this tab sessionKey.`);
-      delete tabSessionKey[tabId]; // Remove the
-    }
-  }
-});
+//     // Refresh session context
+//     if (isPermitted) {
+//       const cookieOrgId = await getCookieValueFromUrl('last_org', tab.url);
+//       if (cookieOrgId) {
+//         const url = new URL(tab.url);
+//         const domain = url.hostname;
+//         const sessionKey = calcSessionKey(cookieOrgId, domain);
+//         const session = getActiveSession(sessionKey);
+//         if (session) {
+//           // Session already exists, only update the sessionId mapping to this tab
+//           tabSessionKey[tabId] = sessionKey; // Update session mapping
+//           console.log(`Updated sessionKey for tabId ${tabId} to ${sessionKey}`);
+//         }
+//         else {
+//           // No active session yet, create a new session
+//           console.log(`Creating new session for tabId ${tabId} with userId ${userId} and orgId ${cookieOrgId}`);
+//           const newSessionKey = await handleNewSession(domain, cookieOrgId, userId);
+//           if (newSessionKey) {
+//              tabSessionKey[tabId] = newSessionKey; // Update session mapping
+//           }
+//           else {
+//             console.error('chrome.tabs.onUpdated: Failed to create a new session.');
+//           }
+//         }
+//       } 
+//       else if (tabSessionKey[tabId]) {
+//         // this tab was previously on active session key but no longer is, so we remove the session
+//         console.warn(`No userId cookie found. for tabId ${tabId}. Removing mapping.`);
+//         delete tabSessionKey[tabId];
+//       }
+//     }
+//     else if (tabSessionKey[tabId]) {
+//       // note allowed but there is still a sessionid on this tab - remove it
+//       console.log(`URL not allowed: ${tab.url}. remove this tab sessionKey.`);
+//       delete tabSessionKey[tabId]; // Remove the
+//     }
+//   }
+// });
 
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -406,6 +415,46 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   delete tabSessionKey[tabId]; // Cleanup mapping for the closed tab
 });
 
+async function findOrCreateSession(
+  tabId: number,
+  sender: chrome.runtime.MessageSender,
+  userId: string,
+  pageStartTime: Date,
+  sendResponse: (response?: any) => void
+
+): Promise<string | null> {
+  const senderTabUrl = sender.tab?.url || '';
+  const url = new URL(senderTabUrl);
+  const domain = url.hostname;
+  const orgIdFromCookie = await getCookieValueFromUrl('last_org', senderTabUrl);
+
+  if (!orgIdFromCookie) {
+    console.warn('Failed to recover orgId from cookie.');
+    sendResponse({ success: false, error: 'orgId not found' });
+    return null;
+  }
+
+  console.log(`Got orgId ${orgIdFromCookie} from cookie for tabId ${tabId}`);
+  let sessionKey = calcSessionKey(userId, orgIdFromCookie);
+  const session = getActiveSession(sessionKey);
+  if (!session) {
+    // no session yet, create a new one
+    console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
+                user input message for a non existing session. Creating a new session.`);
+    //const startTime = new Date(pageLoadTime);
+    const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId, pageStartTime);
+    if (newSessionKey) {
+      sessionKey = newSessionKey;
+    } else { 
+      console.error('chrome.runtime.onMessage: Failed to create a new session.');
+      sendResponse({ success: false, error: 'Failed to create a new session' });
+      return null;
+    }
+  }
+  return sessionKey;
+  //abSessionKey[tabId] = sessionKey; // Update tabSessionKey map
+}
+
 
 chrome.runtime.onMessage.addListener((
   message: any,
@@ -415,7 +464,7 @@ chrome.runtime.onMessage.addListener((
   console.log('Received message from content script:', message);
 
   // Check for valid message type
-  if (message.type !== 'user_input') {
+  if (message.type !== 'user_input' || message.type !== 'page_load') {
     console.warn(`Invalid message type: ${message.type}`);
     sendResponse({ success: false, error: 'Invalid message type' });
     return;
@@ -429,35 +478,77 @@ chrome.runtime.onMessage.addListener((
     return;
   }
 
-  // Attempt to fetch sessionId from the tabSessionId map
-  let sessionKey = tabSessionKey[tabId];
-  if (!sessionKey) {
-    // Optimistic synchronous flow
-    processUserInputMessage(message, sessionKey,/*sessionId,*/ sendResponse);
-  }
-  else { // no sessionKey found for this tab 
-    console.warn(`No sessionKey found for tabId: ${tabId}. Attempting fallback to cookie.`);
-
-    // Fallback: Retrieve sessionId asynchronously
+  const userId = message.username;
+  const pageStartTime = new Date(message.pageLoadTime);
+  //let sessionKey = tabSessionKey[tabId];
+  if (message.type == 'page_load') {
     (async () => {
-      const senderTabUrl = sender.tab?.url || '';
-      const url = new URL(senderTabUrl);
-      const domain = url.hostname;
-      const userIdFromCookie = await getCookieValueFromUrl('last_org', senderTabUrl);
-      if (!userIdFromCookie) {
-        console.warn('Failed to recover userId from cookie.');
-        sendResponse({ success: false, error: 'userId not found' });
-        return;
+      const sessionKey = await findOrCreateSession(tabId, sender, userId, pageStartTime, sendResponse);
+      if (sessionKey) {
+        tabSessionKey[tabId] = sessionKey
+      } else {
+        console.error(`chrome.runtime.onMessage('page_load'): Failed to find or create session for userId ${userId}.`);
+        if (tabSessionKey[tabId]) {
+          // remove this as we don't know if it is valid
+          delete tabSessionKey[tabId];
+        }
+        sendResponse({ success: false, error: 'Failed to create a new session' });
       }
-      console.log(`Recovered userId ${userIdFromCookie} from cookie for tabId ${tabId}`);
-      sessionKey = calcSessionKey(userIdFromCookie, domain);
-      tabSessionKey[tabId] = sessionKey; // Update tabSessionKey map
 
-      // Process the message with the resolved sessionId
-      processUserInputMessage(message, sessionKey, sendResponse);
     })();
     // Return true to keep the message channel open for asynchronous handling
     return true;
+  }
+  else if (message.type == 'user_input') {
+    let sessionKey = tabSessionKey[tabId];
+    if (sessionKey) {
+      // Optimistic synchronous flow
+      processUserInputMessage(message, sessionKey,sendResponse);
+    }
+    else { // no sessionKey found for this tab 
+      console.log(`No sessionKey found for tabId: ${tabId}. Searching for it in session table.`);
+  
+      // Fallback: Retrieve sessionId asynchronously
+      (async () => {
+        const sessionKey = await findOrCreateSession(tabId, sender, userId, pageStartTime, sendResponse);
+        if (sessionKey) {
+          tabSessionKey[tabId] = sessionKey
+          processUserInputMessage(message, sessionKey, sendResponse);
+        } else {
+          console.error(`chrome.runtime.onMessage('user_input'): Failed to find or create session for userId ${userId}.`);
+          sendResponse({ success: false, error: 'Failed to create a new session' });
+        }
+        // const senderTabUrl = sender.tab?.url || '';
+        // const url = new URL(senderTabUrl);
+        // const domain = url.hostname;
+        // const orgIdFromCookie = await getCookieValueFromUrl('last_org', senderTabUrl);
+        // if (!orgIdFromCookie) {
+        //   console.warn('Failed to recover orgId from cookie.');
+        //   sendResponse({ success: false, error: 'orgId not found' });
+        //   return;
+        // }
+        // console.log(`Recovered orgId ${orgIdFromCookie} from cookie for tabId ${tabId}`);
+        // sessionKey = calcSessionKey(userId, orgIdFromCookie);
+        // const session = getActiveSession(sessionKey);
+        // if (!session) {
+        //   console.log('Received user input message for a non existing session. Creating a new session.');
+        //   const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId);
+        //   if (newSessionKey) {
+        //     sessionKey = newSessionKey;
+        //   } else { 
+        //     console.error('chrome.runtime.onMessage: Failed to create a new session.');
+        //     sendResponse({ success: false, error: 'Failed to create a new session' });
+        //     return;
+        //   }
+        // }
+        // tabSessionKey[tabId] = sessionKey; // Update tabSessionKey map
+  
+        // Process the message with the resolved sessionId
+        
+      })();
+      // Return true to keep the message channel open for asynchronous handling
+      return true;
+    }
   }
 });
 
