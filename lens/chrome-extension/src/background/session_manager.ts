@@ -1,13 +1,6 @@
 import { isTabUrlPermitted, isUrlPermitted } from '../utils/hosts';
+import { SessionLogEvent, ActiveSession } from '../types/index.d';
 
-interface Session {
-    domain: string;
-    userId: string;
-    orgId: string;
-    startTime: Date; // the actual start time when the session was created
-    userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
-    lastActivityTime: Date | null;
-}
     
 function calcSessionKey(userId: string, orgId: string): string {
   return `${userId}@${orgId}`;
@@ -19,11 +12,11 @@ function calcSessionKey(userId: string, orgId: string): string {
 // All other functions should access the activeSessions 
 // table through these functions
 //*****************************************************/  
-let activeSessions: Record<string, Session> = {};
+let activeSessions: Record<string, ActiveSession> = {};
 let activeSessionsInitialized = false;
 
 // Load active sessions from storage
-export async function getActiveSessionsFromLocalStorage(): Promise<Record<string, Session>> {
+export async function getActiveSessionsFromLocalStorage(): Promise<Record<string, ActiveSession>> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get('activeSessions', (result) => {
       if (chrome.runtime.lastError) {
@@ -62,7 +55,15 @@ export async function initializeSessionManager() {
   console.log('Session manager initialized.');
 }
 
-function getActiveSession(sessionKey: string): Session | undefined {
+export function getActiveSessions(): Record<string, ActiveSession> | undefined {
+  if (!activeSessionsInitialized) {
+    console.warn('Attempted to access activeSessions before initialization.');
+    return undefined; // Indicate that `activeSessions` is not ready
+  }
+  return activeSessions;
+}
+
+function getActiveSession(sessionKey: string): ActiveSession | undefined {
   if (!activeSessionsInitialized) {
     console.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
     return undefined; // Indicate that `activeSessions` is not ready
@@ -81,7 +82,7 @@ function createNewSession(
     return null;
   }
 
-  const newSession: Session = {
+  const newSession: ActiveSession = {
     domain,
     userId,
     orgId,
@@ -124,12 +125,13 @@ async function terminateSession(sessionKey: string) {
 
   const endTime = session.lastActivityTime || new Date();
   const duration = endTime.getTime() - session.startTime.getTime();
-  
-  logEvent(
+  const username = `${session.userId}@${session.orgId}`;
+  logSessionEvent(
     session.domain,
     'session_ended',
     endTime,
-    session.userId,
+    endTime,
+    username,
     duration // Calculated duration
   );
 
@@ -143,20 +145,26 @@ async function terminateSession(sessionKey: string) {
 }
 
   
-export async function logEvent(
+export async function logSessionEvent(
   domain: string,
-  event: 'session_started' | 'session_ended',
-  timestamp: Date,
-  userId: string,
+  event: 'session_started' | 'session_ended' | 'session_onging',
+  eventTime: Date,
+  logTime: Date,
+  username: string,
   duration: number = 0, // Default to 0 for session_started
   extraData?: Record<string, any>
 ) {
+
+  const sessionEvent: SessionLogEvent = {
+      domain: domain, 
+      event: event, 
+      eventTime: eventTime.toISOString(), 
+      logTime: logTime.toISOString(),
+      username, duration
+    } 
+
   const eventLog = {
-    domain,
-    event,
-    timestamp: timestamp.toISOString(),
-    userId,
-    duration,
+    ...sessionEvent,
     ...extraData, // Auxiliary metadata
   };
 
@@ -192,6 +200,19 @@ async function saveSessionLogs(logs: any[]): Promise<void> {
     chrome.storage.local.set({ session_logs: logs }, () => {
       if (chrome.runtime.lastError) {
         console.error('Failed to save session logs to local storage:', chrome.runtime.lastError);
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+export async function clearSessionLogs(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove('session_logs', () => {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to clear session logs from local storage:', chrome.runtime.lastError);
         reject(chrome.runtime.lastError);
       } else {
         resolve();
@@ -259,7 +280,9 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
   if (!session.userActivitySeen) {
     // mark first activity time - we log the session start only once there is activity otherwise the session is not considered started
     session.userActivitySeen = true;
-    logEvent(session.domain, 'session_started', session.startTime, session.userId || '');
+    const username = `${session.userId}@${session.orgId}`;
+    const now = new Date();
+    logSessionEvent(session.domain, 'session_started', session.startTime, now, username);
   }
   session.lastActivityTime = timestamp; // Update in memory
   // Debounce the persistence

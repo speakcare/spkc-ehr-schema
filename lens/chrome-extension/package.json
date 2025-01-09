@@ -5,8 +5,13 @@
   "main": "index.js",
   "author": "Ori Finkelman",
   "license": "MIT",
-  "sideEffects": ["src/background/background.ts"],
+  "sideEffects": [
+    "src/background/background.ts"
+  ],
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^6.3.1",
     "@types/chrome": "^0.0.287",
     "css-loader": "^7.1.2",
     "react": "^18.3.1",
