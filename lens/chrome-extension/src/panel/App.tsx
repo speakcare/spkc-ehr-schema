@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SessionLogEvent, ActiveSession } from '../types';
-import { getSessionLogs, getActiveSessions, clearSessionLogs } from '../background/session_manager';
+import { getSessionLogs, getAllActiveSessions, clearSessionLogs } from '../background/session_manager';
 import {
   AppBar,
   Toolbar,
@@ -41,7 +41,7 @@ const App: React.FC = () => {
     };
 
     const fetchActiveSessions = async () => {
-      const activeSessions = await getActiveSessions();
+      const activeSessions = await getAllActiveSessions();
       setActiveSessions(activeSessions ? Object.values(activeSessions) : []);
     };
 

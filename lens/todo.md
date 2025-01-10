@@ -13,10 +13,12 @@
 - [ ] Remove redundant message sent string
 - [ ] Filter hosts by pcc subdomains (e.g. filter login out)
 ### Side panel
-- [ ] Show session logs in a table
-- [ ] Session log filtering
+- [ ] Refresh logs and sessions
+- [ ] Fix filtering on user and org
+- [X] Show session logs in a table
+- [X] Session log filtering
 - [ ] Write logs to Google spreadsheet and allow setting its
-- [ ] Session log clear
+- [X] Session log clear
 - [ ] Allow granular deletion (low priority)
 
 ### General

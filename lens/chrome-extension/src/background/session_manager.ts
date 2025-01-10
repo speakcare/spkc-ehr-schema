@@ -55,7 +55,7 @@ export async function initializeSessionManager() {
   console.log('Session manager initialized.');
 }
 
-export function getActiveSessions(): Record<string, ActiveSession> | undefined {
+export function getAllActiveSessions(): Record<string, ActiveSession> | undefined {
   if (!activeSessionsInitialized) {
     console.warn('Attempted to access activeSessions before initialization.');
     return undefined; // Indicate that `activeSessions` is not ready
@@ -427,6 +427,7 @@ const tabSessionKey: Record<number, string> = {}; // Maps tabId to domain
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   console.log(`Tab closed: ${tabId}`);
 
+  // TODO check if I can filter by URL here?
   const sessionKey = tabSessionKey[tabId];
   if (sessionKey) {
     await flushPendingUpdate(sessionKey);
@@ -487,9 +488,9 @@ chrome.runtime.onMessage.addListener((
   console.log('Received message from content script:', message);
 
   // Check for valid message type
-  if (message.type !== 'user_input' || message.type !== 'page_load') {
+  if (message.type !== 'user_input' && message.type !== 'page_loaded') {
     console.warn(`Invalid message type: ${message.type}`);
-    sendResponse({ success: false, error: 'Invalid message type' });
+    sendResponse({ success: false, error: 'Session manager received invalid message type' });
     return;
   }
 

