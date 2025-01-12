@@ -1,4 +1,4 @@
-import { isTabUrlPermitted  } from '../utils/hosts';
+import { isTabUrlPermitted  } from '../utils/url_utills';
 import { Tab } from '../types/index.d';
 
 interface SidePanelOptions {
@@ -33,7 +33,6 @@ export async function initializePanelManager() {
 }
 
 async function updateSidePanelForTab(tab: Tab): Promise<void> {
-  // console.log(`SpeakCare Lens side panel: updateSidePanelForTab called for tab`, tab);
   const tabId = tab.id;
   console.log(`SpeakCare Lens side panel: updateSidePanelForTab tab.id ${tabId}`);
   const isValid = isTabUrlPermitted(tab);

@@ -1,8 +1,10 @@
-import { initializeSessionManager } from './session_manager';
+import { initializeSessionManager, handleUserInput, handlePageLoad, handleActiveSessionsGet } from './session_manager';
+import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
+import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
-// For now not executing on existing tabs. we can uncomment this later if needed.
+// TBD - Inject content script into matching tabs
 
 // chrome.runtime.onInstalled.addListener(() => {
 //   console.log('SpeakCare Lens Extension installed or updated. Injecting scripts into matching tabs...');
@@ -22,17 +24,53 @@ import { initializePanelManager } from './panel_manager';
 //   });
 // });
 
-
-console.log('Background script loaded at', new Date().toISOString());
 self.addEventListener('activate', () => {
   console.log('Background script activated at', new Date().toISOString());
 });
 self.addEventListener('message', (event) => {
   console.log('Message received in background script:', event.data);
 });
+console.log('Background script loaded at', new Date().toISOString());
+
 
 // Initialize the panel manager and session manager
 await initializePanelManager();
 await initializeSessionManager();
 console.log('Background script sesssion manager initialized at', new Date().toISOString());
+
+chrome.runtime.onMessage.addListener(
+  (
+    message: BackgroundMessage, // The message object
+    sender: chrome.runtime.MessageSender, // Sender details
+    sendResponse: (response: BackgroundResponse) => void // Response callback
+  ): boolean | void => {
+    console.debug('Message received in background script:', message);
+    switch (message.type) {
+      case 'page_load':
+        handlePageLoad(message, sender, sendResponse);
+        return true;
+
+      case 'user_input':
+        handleUserInput(message, sender, sendResponse);
+        return true;
+
+      case 'active_sessions_get':
+        handleActiveSessionsGet(message, sendResponse);
+        return true;
+
+      case 'session_logs_get':
+        handleSessionsLogsGet(message, sendResponse);
+        return true;
+
+      case 'session_logs_clear':
+        handleSessionsLogsClear(message, sendResponse);
+        return true;
+
+      default:
+        console.warn('Unknown message type:', message);
+    }
+  }
+);
+
+
 

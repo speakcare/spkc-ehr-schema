@@ -1,23 +1,24 @@
 
-let lastMessageSentTime: number = Date.now();
-async function sendMessageToBackground(message: any) {
-  try {
+import { BackgroundMessage, BackgroundResponse, PageLoadMessage, UserInputMessage, PageLoadResponse, UserInputResponse } from "../types";
 
+let lastMessageSentTime: number = Date.now();
+
+async function sendMessageToBackground(message: BackgroundMessage) {
+  try {
     // Send the message to the background script
-    chrome.runtime.sendMessage(message, (response) => {
+    chrome.runtime.sendMessage(message, (response: BackgroundResponse) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending message:', chrome.runtime.lastError.message);
       } else if (response?.success) {
         // Update the last message sent time
         lastMessageSentTime = Date.now();
-        console.log(`Message sent successfully:`, response.message);
+        console.log(`Message sent successfully for username:`, response);
       } else {
         console.warn('Failed to send message:', response?.error);
       }
     });
-
   } catch (err) {
-    console.error('Exceptiom: message failed:', err);
+    console.error('Exception: message failed:', err);
   }
 }
 
@@ -48,14 +49,43 @@ const inputHandler = (event: Event) => {
   if (!pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
 
   debounceAndThrottle(() => {
-    sendMessageToBackground({
+    const userInputMessage: UserInputMessage = {
       type: 'user_input',
-      timestamp: new Date().toISOString(),
-      username: getUsername(),
+      input: target.value,
       inputType: target instanceof HTMLTextAreaElement ? 'textarea' : 'text',
-      value: target.value,
-      pageLoadTime: pageLoadTime,
-    });
+      username: getUsername() || '',
+      timestamp: new Date().toISOString(),
+      pageStartTime: pageLoadTime,
+    };
+    sendMessageToBackground(userInputMessage);
+  }, 300, 5000);
+};
+
+// Add click event listener for buttons
+const clickHandler = (event: Event) => {
+  const target = event.target as HTMLElement;
+  if (!target) return;
+  if (!pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
+
+  const username = getUsername() || '';
+  const userInputMessage: UserInputMessage = {
+    type: 'user_input',
+    input: '',
+    inputType: 'button',
+    username: username,
+    timestamp: new Date().toISOString(),
+    pageStartTime: pageLoadTime,
+  };
+
+  debounceAndThrottle(() => {
+    
+    if (target instanceof HTMLButtonElement || 
+        (target instanceof HTMLInputElement && (target.type === 'button' || target.type === 'submit' || target.type === 'reset'))) 
+    { //only catch button clicks
+      userInputMessage.input = target.innerText || target.value;
+      userInputMessage.inputType = 'button';
+      sendMessageToBackground(userInputMessage);
+    }
   }, 300, 5000);
 };
 
@@ -66,57 +96,51 @@ const changeHandler = (event: Event) => {
   if (!target) return;
   if (!pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
 
-  const username = getUsername();
-  const userInputMessage = {
+  const username = getUsername() || '';
+  const userInputMessage: UserInputMessage = {
     type: 'user_input',
-    timestamp: new Date().toISOString(),
+    input: '',
+    inputType: 'other',
     username: username,
-    pageLoadTime: pageLoadTime,
+    timestamp: new Date().toISOString(),
+    pageStartTime: pageLoadTime,
   };
 
   debounceAndThrottle(() => {
     if (target instanceof HTMLInputElement) {
       if (target.type === 'checkbox') {
-        const checkboxMessage = {
-          ...userInputMessage,
-          inputType: 'checkbox',
-          value: target.checked,
-        };
-        sendMessageToBackground(checkboxMessage);
-        // sendMessageWithTimestamp({
-        //   type: 'user_input',
-        //   timestamp: new Date().toISOString(),
-        //   inputType: 'checkbox',
-        //   value: target.checked,
-        // });
+        userInputMessage.input = target.checked.toString();
+        userInputMessage.inputType = 'checkbox';
       } else if (target.type === 'radio') {
-        const radioMessage = {
-          ...userInputMessage,
-          inputType: 'radio',
-          value: target.value,
-        };
-        sendMessageToBackground(radioMessage);
-        // sendMessageWithTimestamp({
-        //   type: 'user_input',
-        //   timestamp: new Date().toISOString(),
-        //   inputType: 'radio',
-        //   value: target.value,
-        // });
+        userInputMessage.input = target.value;
+        userInputMessage.inputType = 'radio';
+      } else {
+        userInputMessage.input = target.value;
+        userInputMessage.inputType = 'text';
       }
     } else if (target instanceof HTMLSelectElement) {
-      const dropdownMessage = {
-        ...userInputMessage,
-        inputType: 'dropdown',
-        value: target.value,
-      };
-      sendMessageToBackground(dropdownMessage);
-      // sendMessageWithTimestamp({
-      //   type: 'user_input',
-      //   timestamp: new Date().toISOString(),
-      //   inputType: 'dropdown',
-      //   value: target.value,
-      // });
+      if (target.multiple) {
+        const selectedOptions = Array.from(target.selectedOptions).map(option => option.value);
+        userInputMessage.input = selectedOptions.join(', ');
+        userInputMessage.inputType = 'multiselect';
+      } else {
+        userInputMessage.input = target.value;
+        userInputMessage.inputType = 'dropdown';
+      }
+    } else if (target instanceof HTMLTextAreaElement) {
+      userInputMessage.input = target.value;
+      userInputMessage.inputType = 'textarea';
+    } else {
+      // Handle other cases safely
+      if ('value' in target) {
+        userInputMessage.input = (target as HTMLInputElement).value;
+      } else {
+        userInputMessage.input = '';
+      }
+      userInputMessage.inputType = 'other';
     }
+
+    sendMessageToBackground(userInputMessage);
   }, 300, 5000);
 };
 
@@ -128,38 +152,35 @@ function getUsername(): string | null {
   return userLabelElement ? userLabelElement.textContent?.trim() || null : null;
 }
 
-// Notify the background script when the page is loaded
+
 function notifyPageLoaded() {
   const username = getUsername();
   if (username) {
     let currentTime = new Date().toISOString();
-    chrome.runtime.sendMessage({ type: 'page_loaded', username, currentTime });
+    const pageLoadMessage: PageLoadMessage = { type: 'page_load', username, pageStartTime: currentTime };
+    console.log('sending pageLoadMessage:', pageLoadMessage);
+    sendMessageToBackground(pageLoadMessage);
     pageLoadTime = currentTime;
-    console.log(`Page loaded message sent with username: ${username}`);
   } else {
     console.warn('Username not found in the DOM during page load.');
   }
 }
+
 function setupUserActivityTracking() {
     // Remmove existing event listeners in case they were added by previous loading of the script
   document.removeEventListener('input', inputHandler);
   document.removeEventListener('change', changeHandler);
+  document.removeEventListener('change', clickHandler);
 
   // Attach new event listeners
   document.addEventListener('input', inputHandler);
   document.addEventListener('change', changeHandler);
+  document.addEventListener('click', clickHandler);
 }
 
 
 notifyPageLoaded();
 setupUserActivityTracking();
 
-// // Remmove existing event listeners in case they were added by previous loading of the script
-// document.removeEventListener('input', inputHandler);
-// document.removeEventListener('change', changeHandler);
-
-// // Attach new event listeners
-// document.addEventListener('input', inputHandler);
-// document.addEventListener('change', changeHandler);
 
 console.log('Content script initialized or re-initialized');
