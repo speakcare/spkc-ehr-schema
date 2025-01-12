@@ -17,6 +17,7 @@
     startTime: Date; // the actual start time when the session was created
     userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
     lastActivityTime: Date | null;
+    _expirationTimer?: NodeJS.Timeout; // Non-enumerable property for the timer
 }
 
   export interface Tab {

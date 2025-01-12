@@ -33,6 +33,14 @@ export async function getActiveSessionsFromLocalStorage(): Promise<Record<string
             if (session.lastActivityTime) {
               session.lastActivityTime = new Date(session.lastActivityTime);
             }
+            // Make the _timer property non-enumerable
+            Object.defineProperty(session, '_expirationTimer', {
+              enumerable: false,
+              configurable: true,
+              writable: true,
+              value: undefined // Initialize with undefined
+            });
+            setSessionExpirationTimer(key, 30); // Set the session timer
           }
         }
         resolve(activeSessions);
@@ -128,6 +136,13 @@ function createNewSession(
     userActivitySeen: false,
     lastActivityTime: null,
   };
+
+  // Make the _timer property non-enumerable
+  Object.defineProperty(newSession, '_expirationTimer', {
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
   const sessionKey = calcSessionKey(userId, orgId);
   activeSessions[sessionKey] = newSession;
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
@@ -219,6 +234,23 @@ async function handleNewSession(
   }    
 }
 
+function setSessionExpirationTimer(sessionKey: string, expirationTimeout: number = 180) {
+  // Clear any existing timer for the session
+  const session = getActiveSession(sessionKey);
+  if (!session) {
+    console.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
+    return;
+  }
+  if (session._expirationTimer) {
+    clearTimeout(session._expirationTimer);
+  }
+
+  // Set a new timer to terminate the session after 5 minutes
+  session._expirationTimer = setTimeout(() => {
+    console.log(`Session expired for sessionKey: ${sessionKey}`);
+    terminateSession(sessionKey);
+  }, expirationTimeout * 1000);
+}
 
 
 const debouncedUpdates: Record<string, NodeJS.Timeout> = {};
@@ -239,6 +271,7 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
     logSessionEvent(session.domain, 'session_started', session.startTime, now, username);
   }
   session.lastActivityTime = timestamp; // Update in memory
+  setSessionExpirationTimer(sessionKey, 30); // Reset the session timer
   // Debounce the persistence
   if (debouncedUpdates[sessionKey]) {
     clearTimeout(debouncedUpdates[sessionKey]);
@@ -331,6 +364,7 @@ async function findOrCreateSession(
     const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId, pageStartTime);
     if (newSessionKey) {
       sessionKey = newSessionKey;
+      setSessionExpirationTimer(sessionKey, 30);
     } else { 
       console.error('chrome.runtime.onMessage: Failed to create a new session.');
       sendResponse({ success: false, error: 'Failed to create a new session' });
