@@ -1,4 +1,4 @@
-import { initializeSessionManager, handleUserInput, handlePageLoad, handleActiveSessionsGet } from './session_manager';
+import { initializeSessionManager, handleUserInput, handlePageLoad, handleActiveSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
 import { BackgroundMessage, BackgroundResponse } from '../types';
@@ -64,6 +64,14 @@ chrome.runtime.onMessage.addListener(
 
       case 'session_logs_clear':
         handleSessionsLogsClear(message, sendResponse);
+        return true;
+
+      case 'session_timeout_get':
+        handleSessionTimeoutGet(message, sendResponse);
+        return true;
+      
+      case 'session_timeout_set':
+        handleSessionTimeoutSet(message, sendResponse);
         return true;
 
       default:

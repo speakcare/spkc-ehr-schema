@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SessionLogEvent, ActiveSession, ActiveSessionsResponse, SessionsLogsGetResponse, SessionsLogsClearResponse  } from '../types';
+import { SessionLogEvent, ActiveSession, ActiveSessionsResponse, SessionsLogsGetResponse, 
+         SessionsLogsClearResponse, SessionTimeoutGetResponse, SessionTimeoutSetResponse  } from '../types';
 import {
   AppBar,
   Toolbar,
@@ -16,14 +17,21 @@ import {
   Select,
   MenuItem,
   Paper,
-  Tabs,
-  Tab,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  IconButton,
 } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 const App: React.FC = () => {
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
+  const [sessionTimeout, setSessionTimeout] = useState<number>(180); // Default to 3 minutes
+  const [candidateSessionTimeout, setCandidateSessionTimeout] = useState<number>(180); // Local state for new timeout
   const [filters, setFilters] = useState({
     username: '',
     orgId: '',
@@ -31,6 +39,8 @@ const App: React.FC = () => {
     dateTo: '',
     eventType: '',
   });
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Fetch logs and active sessions
   const fetchLogs = async () => {
@@ -84,11 +94,64 @@ const App: React.FC = () => {
     }
   };
 
+  // Function to get session timeout
+  const fetchSessionTimeout = async () => {
+    try {
+      const response = await new Promise<SessionTimeoutGetResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'session_timeout_get' }, (response: SessionTimeoutGetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+
+      if (response.success) {
+        if (response.timeout) {
+          setSessionTimeout(response.timeout);
+          setCandidateSessionTimeout(response.timeout); // Initialize local state
+        }
+        else {
+          console.error('Failed to fetch session timeout. Got null response: ', response.error);
+        }
+      } else {
+        console.error('Failed to fetch session timeout:', response.error);
+      }
+    } catch (error) {
+      console.error('Error fetching session timeout:', error);
+    }
+  };
+
+  // Function to set session timeout
+  const updateSessionTimeout = async (timeout: number) => {
+    try {
+      const response = await new Promise<SessionTimeoutSetResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'session_timeout_set', timeout }, (response: SessionTimeoutSetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+
+      if (response.success) {
+        setSessionTimeout(timeout);
+      } else {
+        console.error('Failed to set session timeout:', response.error);
+      }
+    } catch (error) {
+      console.error('Error setting session timeout:', error);
+    }
+  };
+
 
   // Fetch data on mount
   useEffect(() => {
     fetchLogs();
     fetchActiveSessions();
+    fetchSessionTimeout();
 
     const interval = setInterval(() => {
       fetchLogs();
@@ -97,6 +160,26 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval); // Cleanup interval on component unmount
   }, []);
+
+   // Handle settings dialog open/close
+   const handleSettingsOpen = () => {
+    setSettingsOpen(true);
+  };
+
+  const handleSettingsClose = () => {
+    setSettingsOpen(false);
+    updateSessionTimeout(candidateSessionTimeout); // Update session timeout when dialog is closed
+  };
+
+  // Handle session timeout change
+  const handleSessionTimeoutChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newTimeout = parseInt(event.target.value, 10);
+    if (!isNaN(newTimeout)) {
+      setCandidateSessionTimeout(newTimeout); // Update the state immediately
+    } else {
+      setCandidateSessionTimeout(0); // Optionally handle invalid input gracefully
+    }
+  };
 
   // Filter logs
   const filteredLogs = logs.filter(log => {
@@ -149,8 +232,35 @@ const App: React.FC = () => {
             <MenuItem value="session_log">Session Log</MenuItem>
             <MenuItem value="active_sessions">Active Sessions</MenuItem>
           </Select>
+          <IconButton color="inherit" onClick={handleSettingsOpen}>
+            <SettingsIcon />
+          </IconButton>
         </Toolbar>
       </AppBar>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onClose={handleSettingsClose}>
+        <DialogTitle>Settings</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Set the session timeout (in seconds):
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Session Timeout"
+            type="number"
+            fullWidth
+            value={candidateSessionTimeout || ''}
+            onChange={handleSessionTimeoutChange}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleSettingsClose} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Main Content */}
       <Box p={3}>

@@ -25,7 +25,7 @@
     url?: string;
   }
 
-interface BackgroundResponse {
+interface BasicResponse {
     success: boolean;
     error?: string;
 }
@@ -37,7 +37,7 @@ interface PageLoadMessage {
   pageStartTime: string;
 }
 
-interface PageLoadResponse extends BackgroundResponse {
+interface PageLoadResponse extends BasicResponse {
   type: 'page_load_response';
 }
 
@@ -50,7 +50,7 @@ interface UserInputMessage {
   pageStartTime: string;
 }
 
-interface UserInputResponse extends BackgroundResponse {
+interface UserInputResponse extends BasicResponse {
   type: 'user_input_response';
 }
 
@@ -58,7 +58,7 @@ interface ActiveSessionsGetMessage {
   type: 'active_sessions_get';
 }
 
-interface ActiveSessionsResponse extends BackgroundResponse {
+interface ActiveSessionsResponse extends BasicResponse {
   type: 'active_sessions_get_response';
   activeSessions: ActiveSession[];
 }
@@ -67,7 +67,7 @@ interface SessionsLogsGetMessage {
   type: 'session_logs_get';
 }
 
-interface SessionsLogsGetResponse extends BackgroundResponse {
+interface SessionsLogsGetResponse extends BasicResponse {
   type: 'session_logs_get_response';
   sessionLogs: SessionLogEvent[];
 }
@@ -76,10 +76,31 @@ interface SessionsLogsClearMessage {
   type: 'session_logs_clear';
 }
 
-interface SessionsLogsClearResponse extends BackgroundResponse {
+interface SessionsLogsClearResponse extends BasicResponse {
   type: 'session_logs_clear_response';
 }
 
+// Message interfaces for session timeout
+interface SessionTimeoutSetMessage {
+  type: 'session_timeout_set';
+  timeout: number;
+}
 
-type BackgroundMessage = PageLoadMessage | UserInputMessage | ActiveSessionsGetMessage | SessionsLogsGetMessage | SessionsLogsClearMessage;
-type BackgroundResponse =  PageLoadResponse | UserInputResponse | ActiveSessionsResponse | SessionsLogsGetResponse | SessionsLogsClearResponse;
+interface SessionTimeoutSetResponse extends BasicResponse {
+  type: 'session_timeout_set_response';
+}
+
+interface SessionTimeoutGetMessage {
+  type: 'session_timeout_get';
+}
+
+interface SessionTimeoutGetResponse extends BasicResponse {
+  type: 'session_timeout_get_response';
+  timeout: number | null;
+}
+
+
+type BackgroundMessage = PageLoadMessage | UserInputMessage | ActiveSessionsGetMessage | SessionsLogsGetMessage | 
+                         SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
+type BackgroundResponse =  PageLoadResponse | UserInputResponse | ActiveSessionsResponse | SessionsLogsGetResponse | 
+                           SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;

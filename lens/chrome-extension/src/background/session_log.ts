@@ -1,4 +1,4 @@
-import { SessionLogEvent, BackgroundResponse, SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from '../types/index.d';
+import { SessionLogEvent, SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from '../types/index.d';
 
 export async function logSessionEvent(
   domain: string,

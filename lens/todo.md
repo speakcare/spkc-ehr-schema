@@ -1,9 +1,9 @@
 # Lens To-Do List
 
 ### Session management
-- [ ] Handle new session through tab updates and not just in cookie change
-- [ ] Handle session termination
-- [ ] Handle session cookie change for the same domain by checking if the domain is the active session table
+- [X] Handle new session through tab updates and not just in cookie change
+- [X] Handle session termination
+- [ ] Add tab tracking and log durating in each chart separately
 
 ### Utilities
 - [ ] Improve the logging to be more strucutred and support levels
@@ -13,7 +13,8 @@
 - [ ] Remove redundant message sent string
 - [X] Filter hosts by pcc subdomains (e.g. filter login out)
 ### Side panel
-- [ ] Refresh logs and sessions
+- [X] Refresh logs and sessions
+- [ ] Fix the session logs to show only seconds
 - [ ] Fix filtering on user and org
 - [X] Show session logs in a table
 - [X] Session log filtering
