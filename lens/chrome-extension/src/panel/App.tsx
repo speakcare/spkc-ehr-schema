@@ -25,8 +25,18 @@ import {
   IconButton,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
+import { makeStyles } from '@mui/styles';
+
+const useStyles = makeStyles({
+  tableContainer: {
+    maxHeight: 'calc(100vh - 280px)', // Default height
+    overflow: 'auto',
+  },
+});
+
 
 const App: React.FC = () => {
+  const classes = useStyles();
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
@@ -327,14 +337,15 @@ const App: React.FC = () => {
             </Box>
 
             {/* Session Log Table */}
-            <TableContainer component={Paper}>
-              <Table>
+            {/* <TableContainer component={Paper} sx={{ maxHeight: 800, overflow: 'auto' }}> */}
+            <TableContainer component={Paper} className={classes.tableContainer}>
+              <Table stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>Timestamp</TableCell>
                     <TableCell>Event</TableCell>
                     <TableCell>Username</TableCell>
-                    <TableCell>Duration</TableCell>
+                    <TableCell>Duration (seconds)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -343,7 +354,7 @@ const App: React.FC = () => {
                       <TableCell>{new Date(log.eventTime).toLocaleString()}</TableCell>
                       <TableCell>{log.event}</TableCell>
                       <TableCell>{log.username}</TableCell>
-                      <TableCell>{log.duration ? `${(log.duration / 1000).toFixed(2)} seconds` : 'In Progress'}</TableCell>
+                      <TableCell>{log.duration ? `${(log.duration / 1000).toFixed(0)}` : ''}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -358,8 +369,9 @@ const App: React.FC = () => {
               Active Sessions
             </Typography>
             {/* Active Sessions Table */}
-            <TableContainer component={Paper}>
-              <Table>
+            {/* <TableContainer component={Paper} sx={{ maxHeight: 800, overflow: 'auto' }}> */}
+            <TableContainer component={Paper} className={classes.tableContainer}>
+              <Table stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>Start Time</TableCell>

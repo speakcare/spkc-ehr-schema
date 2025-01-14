@@ -22,6 +22,7 @@ let activeSessionsInitialized = false;
 // configrations
 const defaultSessionTimeout = 180; // 3 minutes
 let sessionTimeoutConfig = defaultSessionTimeout; // 3 minutes
+const minSessionDuration = 1000 // 1 second
 
 // Set session timeout and store it in local storage
 export async function setSessionTimeout(timeout: number): Promise<void> {
@@ -268,7 +269,8 @@ async function terminateSession(sessionKey: string) {
   if (session.lastActivityTime != null) {
     // session has started and was reported so we report session end
     const endTime = session.lastActivityTime || new Date();
-    const duration = endTime.getTime() - session.startTime.getTime();
+    const sessionDuration = endTime.getTime() - session.startTime.getTime();
+    const duration = sessionDuration? sessionDuration : minSessionDuration; 
     const username = `${session.userId}@${session.orgId}`;
     logSessionEvent(
       session.domain,
@@ -276,7 +278,7 @@ async function terminateSession(sessionKey: string) {
       endTime,
       endTime,
       username,
-      duration // Calculated duration
+      duration
     );
   }
 

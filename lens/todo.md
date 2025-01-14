@@ -12,9 +12,11 @@
 ### Content script
 - [ ] Remove redundant message sent string
 - [X] Filter hosts by pcc subdomains (e.g. filter login out)
+- [ ] Programatically inject the content script into existing tabs on installation (low priority)
+
 ### Side panel
 - [X] Refresh logs and sessions
-- [ ] Fix the session logs to show only seconds
+- [X] Fix the session logs to show only seconds
 - [ ] Fix filtering on user and org
 - [X] Show session logs in a table
 - [X] Session log filtering
