@@ -446,7 +446,7 @@ async function findOrCreateSession(
   tabId: number,
   sender: chrome.runtime.MessageSender,
   userId: string,
-  pageStartTime: Date,
+  startTime: Date,
   sendResponse: (response?: any) => void
 
 ): Promise<string | null> {
@@ -468,7 +468,7 @@ async function findOrCreateSession(
     // no session yet, create a new one
     console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
                 user input message for a non existing session. Creating a new session.`);
-    const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId, pageStartTime);
+    const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId, startTime);
     if (newSessionKey) {
       sessionKey = newSessionKey;
       setSessionExpirationTimer(sessionKey, getSessionTimeout());
@@ -537,7 +537,7 @@ export async function handleUserInput(
 
     try {
       // Fallback: Retrieve sessionId asynchronously
-      const sessionKey = await findOrCreateSession(tabId, sender, message.username, new Date(message.pageStartTime), sendResponse);
+      const sessionKey = await findOrCreateSession(tabId, sender, message.username, new Date(message.timestamp), sendResponse);
       if (sessionKey) {
         tabIdToSessionKeyMap[tabId] = sessionKey;
         processUserInputMessage(message, sessionKey, sendResponse);

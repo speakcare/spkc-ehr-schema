@@ -41,24 +41,26 @@ function debounceAndThrottle(callback: () => void, debounceDelay: number, thrott
   debounceTimer = setTimeout(callback, debounceDelay);
 }
 
+function debounceAndThrottleMessage(message: any, debounceDelay: number, throttleDelay: number) {
+  debounceAndThrottle(() => {
+    sendMessageToBackground(message);
+  }, debounceDelay, throttleDelay);
+}
+
  // let pageLoadTime = new Date().toISOString();
 let pageLoadTime = '' // empty unil the page load message is sent
 const inputHandler = (event: Event) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement;
   if (!target) return;
   if (!pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
-
-  debounceAndThrottle(() => {
-    const userInputMessage: UserInputMessage = {
-      type: 'user_input',
-      input: target.value,
-      inputType: target instanceof HTMLTextAreaElement ? 'textarea' : 'text',
-      username: getUsername() || '',
-      timestamp: new Date().toISOString(),
-      pageStartTime: pageLoadTime,
-    };
-    sendMessageToBackground(userInputMessage);
-  }, 300, 5000);
+  const userInputMessage: UserInputMessage = {
+    type: 'user_input',
+    input: target.value,
+    inputType: target instanceof HTMLTextAreaElement ? 'textarea' : 'text',
+    username: getUsername() || '',
+    timestamp: new Date().toISOString(),
+  };
+  debounceAndThrottleMessage(userInputMessage, 300, 5000);
 };
 
 // Add click event listener for buttons
@@ -67,26 +69,21 @@ const clickHandler = (event: Event) => {
   if (!target) return;
   if (!pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
 
-  const username = getUsername() || '';
-  const userInputMessage: UserInputMessage = {
-    type: 'user_input',
-    input: '',
-    inputType: 'button',
-    username: username,
-    timestamp: new Date().toISOString(),
-    pageStartTime: pageLoadTime,
-  };
+  if (target instanceof HTMLButtonElement || 
+    (target instanceof HTMLInputElement && (target.type === 'button' || target.type === 'submit' || target.type === 'reset'))) 
+  { //only catch button clicks
 
-  debounceAndThrottle(() => {
-    
-    if (target instanceof HTMLButtonElement || 
-        (target instanceof HTMLInputElement && (target.type === 'button' || target.type === 'submit' || target.type === 'reset'))) 
-    { //only catch button clicks
-      userInputMessage.input = target.innerText || target.value;
-      userInputMessage.inputType = 'button';
-      sendMessageToBackground(userInputMessage);
-    }
-  }, 300, 5000);
+    const username = getUsername() || '';
+    const userInputMessage: UserInputMessage = {
+      type: 'user_input',
+      input: target.innerText || target.value,
+      inputType: 'button',
+      username: username,
+      timestamp: new Date().toISOString(),
+    };  
+    debounceAndThrottleMessage(userInputMessage, 300, 5000);
+  }
+
 };
 
 
@@ -103,47 +100,42 @@ const changeHandler = (event: Event) => {
     inputType: 'other',
     username: username,
     timestamp: new Date().toISOString(),
-    pageStartTime: pageLoadTime,
   };
-
-  debounceAndThrottle(() => {
-    if (target instanceof HTMLInputElement) {
-      if (target.type === 'checkbox') {
-        userInputMessage.input = target.checked.toString();
-        userInputMessage.inputType = 'checkbox';
-      } else if (target.type === 'radio') {
-        userInputMessage.input = target.value;
-        userInputMessage.inputType = 'radio';
-      } else {
-        userInputMessage.input = target.value;
-        userInputMessage.inputType = 'text';
-      }
-    } else if (target instanceof HTMLSelectElement) {
-      if (target.multiple) {
-        const selectedOptions = Array.from(target.selectedOptions).map(option => option.value);
-        userInputMessage.input = selectedOptions.join(', ');
-        userInputMessage.inputType = 'multiselect';
-      } else {
-        userInputMessage.input = target.value;
-        userInputMessage.inputType = 'dropdown';
-      }
-    } else if (target instanceof HTMLTextAreaElement) {
+  if (target instanceof HTMLInputElement) {
+    if (target.type === 'checkbox') {
+      userInputMessage.input = target.checked.toString();
+      userInputMessage.inputType = 'checkbox';
+    } else if (target.type === 'radio') {
       userInputMessage.input = target.value;
-      userInputMessage.inputType = 'textarea';
+      userInputMessage.inputType = 'radio';
     } else {
-      // Handle other cases safely
-      if ('value' in target) {
-        userInputMessage.input = (target as HTMLInputElement).value;
-      } else {
-        userInputMessage.input = '';
-      }
-      userInputMessage.inputType = 'other';
+      userInputMessage.input = target.value;
+      userInputMessage.inputType = 'text';
     }
+  } else if (target instanceof HTMLSelectElement) {
+    if (target.multiple) {
+      const selectedOptions = Array.from(target.selectedOptions).map(option => option.value);
+      userInputMessage.input = selectedOptions.join(', ');
+      userInputMessage.inputType = 'multiselect';
+    } else {
+      userInputMessage.input = target.value;
+      userInputMessage.inputType = 'dropdown';
+    }
+  } else if (target instanceof HTMLTextAreaElement) {
+    userInputMessage.input = target.value;
+    userInputMessage.inputType = 'textarea';
+  } else {
+    // Handle other cases safely
+    if ('value' in target) {
+      userInputMessage.input = (target as HTMLInputElement).value;
+    } else {
+      userInputMessage.input = '';
+    }
+    userInputMessage.inputType = 'other';
+  }
+  debounceAndThrottleMessage(userInputMessage, 300, 5000);
 
-    sendMessageToBackground(userInputMessage);
-  }, 300, 5000);
 };
-
 
 // Utility to extract the username from the DOM
 function getUsername(): string | null {

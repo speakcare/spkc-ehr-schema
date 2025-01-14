@@ -47,7 +47,6 @@ interface UserInputMessage {
   inputType: 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'other';
   username: string;
   timestamp: string;
-  pageStartTime: string;
 }
 
 interface UserInputResponse extends BasicResponse {
