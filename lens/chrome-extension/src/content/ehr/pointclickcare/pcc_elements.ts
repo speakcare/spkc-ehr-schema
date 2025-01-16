@@ -16,30 +16,70 @@ export function getPagePath(): string {
 type ChartNameExtractor = () => string | null;
 
 // Define a map that associates paths with chart types and extraction functions
-const pathToChartTypeMap: { [key: string]: { chartType: string, extractor: ChartNameExtractor } } = {
+const pathToChartTypeMap: { [key: string]: { formType: string, extractor: ChartNameExtractor } } = {
   '/care/chart/mds/mds.jsp': {
-    chartType: 'Assessment',
+    formType: 'Assessment',
     extractor: extractAssessmentChartName,
   },
   '/care/chart/mds/mdssection.jsp': {
-    chartType: 'Assessment-Section',
+    formType: 'Assessment-Section',
     extractor: extractAssessmentSectionName,
   },
   '/clinical/meddiag/medDiagChart.xhtml': {
-    chartType: 'MedDiags',
+    formType: 'Med Diags',
     extractor: extractMedDiagChartName,
   },
   '/care/chart/cp/clientdiag.jsp': {
-    chartType: 'ClientDiags',
+    formType: 'PatientDiags',
     extractor: extractClientDiagName,
   },
   '/care/chart/cp/clientdiagsheet.jsp': {
-    chartType: 'ClientDiagSheet',
+    formType: 'PatientDiagSheet',
     extractor: extractClientDiagSheetName,
   },
   '/care/chart/mds/mdsdiagwizardrerank.jsp': {
-    chartType: 'MedDiagRanking',
+    formType: 'MedDiagRanking',
     extractor: extractMedDiagRankingName,
+  },
+  '/clinical/allergy/pop_up/allergyEdit.xhtml': {
+    formType: 'Allergy',
+    extractor: extractAllergyName,
+  },
+  '/clinical/lab/popup/newLabReport.xhtml': {
+    formType: 'Lab Report',
+    extractor: extractLabReportName,
+  },
+  '/care/chart/ipn/newipn.jsp': {
+    formType: 'Progress Note',
+    extractor: extractProgressNoteName,
+  },
+  '/clinical/mds3/sectionlisting.xhtml': {
+    formType: 'MDS Summary',
+    extractor: extractMDSSummaryName,
+  },
+  '/clinical/mds3/section.xhtml': { 
+    formType: 'MDS Section',
+    extractor: extractMDSSectionName,
+  },
+  '/care/chart/cp/careplandetail_rev.jsp': {
+    formType: 'Care Plan',
+    extractor: staticCarePlanName,
+  },
+  '/care/chart/cp/needwizard_rev.jsp': {
+    formType: 'Care Plan Focus',
+    extractor: staticCarePlanName,
+  },
+  '/care/chart/cp/neededitcust_rev.jsp': {
+    formType: 'Care Plan Custom Focus',
+    extractor: staticCarePlanName,
+  },
+  '/clinical/pho/popup/enhancedOrderEntry/newOrder.xhtml': {
+    formType: 'Order New',
+    extractor: extractOrderName,
+  },
+  '/clinical/pho/popup/enhancedOrderEntry/loadOrder.xhtml': {
+    formType: 'Order Update',
+    extractor: extractOrderName,
   },
   // Add more mappings as needed
 };
@@ -49,40 +89,74 @@ const pathToChartTypeMap: { [key: string]: { chartType: string, extractor: Chart
 function extractAssessmentChartName(): string | null {
     const element = document.querySelector('.pageTitle');
     return element ? element.textContent?.trim() || null : null;
-  }
+}
 
 
 function extractAssessmentSectionName(): string | null {
     return document.title || null;
-  }
+}
 
 function extractClientDiagName(): string | null {
     const element = document.querySelector('#sectiontitle');
     return element ? element.textContent?.trim() || null : null;
-  }
+}
 
 function extractMedDiagChartName(): string | null {
     const element = Array.from(document.querySelectorAll('.pccModuleHeader'))
       .find(el => el.textContent?.includes('Medical Diagnosis'));
     return element ? element.textContent?.trim() || null : null;
-  }
+}
 
 function extractClientDiagSheetName(): string | null {
     const element = Array.from(document.querySelectorAll('.pccModuleHeader'))
       .find(el => el.textContent?.includes('Edit Diagnosis Sheet'));
     return element ? element.textContent?.trim() || null : null;
-  }
+}
 
 function extractMedDiagRankingName(): string | null {
     const element = Array.from(document.querySelectorAll('.pccModuleHeader'))
       .find(el => el.textContent?.includes('Medical Diagnosis Ranking'));
     return element ? element.textContent?.trim() || null : null;
-  }
+}
   
+  function extractAllergyName(): string | null {
+    const element = document.querySelector('#sectiontitle');
+    return element ? element.textContent?.trim() || null : null;
+}
   
+function extractLabReportName(): string | null {
+  const element = document.querySelector('#sectiontitle');
+  return element ? element.textContent?.trim() || null : null;
+}
+
+function extractProgressNoteName(): string | null {
+  const element = document.querySelector('.pccModuleHeader');
+  return element ? element.textContent?.trim() || null : null;
+}
+
+function extractMDSSummaryName(): string | null {
+  const element = document.querySelector('#pagetitle');
+  return element ? element.textContent?.trim() || null : null;
+}
+
+function extractMDSSectionName(): string | null {
+  const element = document.querySelector('#pagetitle');
+  return element ? element.textContent?.trim() || null : null;
+}
+
+function staticCarePlanName(): string | null {
+  return 'Care Plan';
+}
+
+function extractOrderName(): string | null {
+  const selectElement = document.querySelector('#orderCategoryId');
+  const selectedOption = selectElement ? selectElement.querySelector('option[selected]') : null;
+  return selectedOption ? selectedOption.textContent?.trim() || null : null;
+}
+
 
 // Function to get the chart type and extractor based on the current page path
-export function getChartInfo(): { chartType: string, extractor: ChartNameExtractor } | undefined {
+export function getChartInfo(): { formType: string, extractor: ChartNameExtractor } | undefined {
   const path = getPagePath();
   return pathToChartTypeMap[path];
 }
@@ -90,8 +164,8 @@ export function getChartInfo(): { chartType: string, extractor: ChartNameExtract
 // Example usage
 const chartInfo = getChartInfo();
 if (chartInfo) {
-  const { chartType, extractor } = chartInfo;
-  console.log('Current chart type:', chartType);
+  const { formType, extractor } = chartInfo;
+  console.log('Current chart type:', formType);
   const chartName = extractor();
   console.log('Extracted chart name:', chartName);
 } else {
