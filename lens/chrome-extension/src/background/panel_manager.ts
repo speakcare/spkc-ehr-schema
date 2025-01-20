@@ -2,7 +2,7 @@ import { isTabUrlPermitted  } from '../utils/url_utills';
 import { Tab } from '../types/index.d';
 
 interface SidePanelOptions {
-    tabId: number;
+    tabId?: number;
     path?: string;
     enabled: boolean;
   }
@@ -15,6 +15,16 @@ export async function initializePanelManager() {
         .catch((error) => console.error("Error linking action button to side panel:", error));
 
     console.log('Initializing panel manager...');
+
+    console.log(`SpeakCare Lens side panel starting disabled by default`);
+    
+    const options: chrome.sidePanel.PanelOptions = { 
+      enabled: false,
+    }
+
+    await chrome.sidePanel.setOptions(options);
+    await chrome.action.setTitle({ title: "SpeakCare Lens panel not activated"});
+
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
         chrome.tabs.get(activeInfo.tabId, async (tab) => {
             if (tab.id !== undefined) {
@@ -37,7 +47,7 @@ async function updateSidePanelForTab(tab: Tab): Promise<void> {
   console.log(`SpeakCare Lens side panel: updateSidePanelForTab tab.id ${tabId}`);
   const isValid = isTabUrlPermitted(tab);
   if (isValid) {
-    const options: SidePanelOptions = {
+    const options: chrome.sidePanel.PanelOptions = {
       tabId,
       path: 'panel.html',
       enabled: true
