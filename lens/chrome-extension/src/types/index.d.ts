@@ -31,9 +31,16 @@ interface BasicResponse {
 }
   
   // Define all message types
-interface PageLoadMessage {
-  type: 'page_load';
+interface PageEventMessage {
   username: string;
+  orgCode: string;
+  timestamp: string;
+  chartType: string;
+  chartName: string;
+}
+
+interface PageLoadMessage extends PageEventMessage {
+  type: 'page_load';
   pageStartTime: string;
 }
 
@@ -41,12 +48,10 @@ interface PageLoadResponse extends BasicResponse {
   type: 'page_load_response';
 }
 
-interface UserInputMessage {
+interface UserInputMessage extends PageEventMessage {
   type: 'user_input';
   input: string;
   inputType: 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'other';
-  username: string;
-  timestamp: string;
 }
 
 interface UserInputResponse extends BasicResponse {
