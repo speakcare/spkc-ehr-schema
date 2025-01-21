@@ -2,7 +2,6 @@
 
 
   export type SessionLogEvent = {
-    domain: string
     event : 'session_started' | 'session_ended' | 'session_onging',
     eventTime: string,
     logTime: string,
@@ -11,7 +10,6 @@
   }
 
   export interface ActiveSession {
-    domain: string;
     userId: string;
     orgId: string;
     startTime: Date; // the actual start time when the session was created

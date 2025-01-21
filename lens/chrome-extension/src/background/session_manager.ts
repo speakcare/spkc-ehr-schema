@@ -208,7 +208,6 @@ export async function handleActiveSessionsGet(message: ActiveSessionsGetMessage,
 }
 
 function createNewSession(
-  domain: string,
   orgId: string = '',
   userId: string = '',
   startTime: Date | undefined,
@@ -219,7 +218,6 @@ function createNewSession(
   }
 
   const newSession: ActiveSession = {
-    domain,
     userId,
     orgId,
     startTime: startTime ?? new Date(),
@@ -273,7 +271,6 @@ async function terminateSession(sessionKey: string) {
     const duration = sessionDuration? sessionDuration : minSessionDuration; 
     const username = `${session.userId}@${session.orgId}`;
     logSessionEvent(
-      session.domain,
       'session_ended',
       endTime,
       endTime,
@@ -310,14 +307,13 @@ async function terminateSession(sessionKey: string) {
   
 
 async function handleNewSession(
-  domain: string, 
   orgId: string, 
   userId: string,
   startTime: Date | undefined,
 ): Promise<string | null> {
 
-  if (!domain || !userId || !orgId) {
-    console.warn(`handleNewSession called with no domain ${domain}, userId ${userId}, or orgId ${orgId}`);
+  if (!userId || !orgId) {
+    console.warn(`handleNewSession called with no userId ${userId}, or orgId ${orgId}`);
     return null;
   }
 
@@ -328,7 +324,7 @@ async function handleNewSession(
     console.log(`Session already exists for sessionKey: ${sessionKey}.`);
     return sessionKey;
   }
-  const newSessionKey = createNewSession(domain, orgId, userId, startTime);
+  const newSessionKey = createNewSession(orgId, userId, startTime);
   if (!newSessionKey) {
     console.error('Failed to create a new session.');
     return null;
@@ -378,7 +374,7 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
     const username = `${session.userId}@${session.orgId}`;
     const now = new Date();
     console.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
-    logSessionEvent(session.domain, 'session_started', session.startTime, now, username);
+    logSessionEvent('session_started', session.startTime, now, username);
   }
   session.lastActivityTime = timestamp; // Update in memory
   setSessionExpirationTimer(sessionKey, getSessionTimeout()); // Reset the session timer
@@ -427,7 +423,7 @@ export async function persistLastActivity(sessionKey: string, timestamp: Date) {
 // Event Listeners & Handlers
 /**************************/
 
-const tabIdToSessionKeyMap: Record<number, string> = {}; // Maps tabId to domain
+const tabIdToSessionKeyMap: Record<number, string> = {}; // Maps tabId to session key
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   console.log(`Tab closed: ${tabId}`);
@@ -470,7 +466,7 @@ async function findOrCreateSession(
     // no session yet, create a new one
     console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
                 user input message for a non existing session. Creating a new session.`);
-    const newSessionKey = await handleNewSession(domain, orgIdFromCookie, userId, startTime);
+    const newSessionKey = await handleNewSession(orgIdFromCookie, userId, startTime);
     if (newSessionKey) {
       sessionKey = newSessionKey;
       setSessionExpirationTimer(sessionKey, getSessionTimeout());

@@ -1,7 +1,6 @@
 import { SessionLogEvent, SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from '../types/index.d';
 
 export async function logSessionEvent(
-  domain: string,
   event: 'session_started' | 'session_ended' | 'session_onging',
   eventTime: Date,
   logTime: Date,
@@ -11,7 +10,6 @@ export async function logSessionEvent(
 ) {
 
   const sessionEvent: SessionLogEvent = {
-      domain: domain, 
       event: event, 
       eventTime: eventTime.toISOString(), 
       logTime: logTime.toISOString(),
