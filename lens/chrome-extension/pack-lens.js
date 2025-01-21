@@ -7,7 +7,7 @@ const execSync = require('child_process').execSync;
 const packageJsonPath = path.join(__dirname, 'package.json');
 const manifestJsonPath = path.join(__dirname, 'public', 'manifest.json');
 
-function updateVersion(filePath) {
+function incrementVersion(filePath) {
   const fileContent = fs.readFileSync(filePath, 'utf8');
   const jsonContent = JSON.parse(fileContent);
 
@@ -24,11 +24,22 @@ function updateVersion(filePath) {
   }
 }
 
-console.log('Updating version in package.json...');
-const newVersion = updateVersion(packageJsonPath);
+function updateVersion(jsonFilePath, versionString) {
+  const fileContent = fs.readFileSync(jsonFilePath, 'utf8');
+  const jsonContent = JSON.parse(fileContent);
 
-console.log('Updating version in manifest.json...');
-updateVersion(manifestJsonPath);
+  jsonContent.version = versionString;
+
+  fs.writeFileSync(jsonFilePath, JSON.stringify(jsonContent, null, 2), 'utf8');
+  return versionString;
+}
+
+console.log('Incrementing version in package.json...');
+const newVersion = incrementVersion(packageJsonPath);
+console.log(`New version: ${newVersion}`);
+
+console.log(`Updating version ${newVersion} in manifest.json...`);
+updateVersion(manifestJsonPath, newVersion);
 
 // Step 2: Run yarn build:extension
 console.log('Building the extension...');
