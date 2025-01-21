@@ -1,9 +1,9 @@
-//import { isTabUrlPermitted, isUrlPermitted } from '../utils/hosts';
-import { ActiveSession, PageLoadMessage, PageLoadResponse, UserInputMessage, 
-        UserInputResponse, ActiveSessionsGetMessage, ActiveSessionsResponse,
+import { UserSession, PageLoadMessage, PageLoadResponse, UserInputMessage, 
+        UserInputResponse, UserSessionsGetMessage, UserSessionsResponse,
         SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse  } from '../types/index.d';
 import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';
+import { updateUserDaily } from './daily_usage';
     
 function calcSessionKey(userId: string, orgId: string): string {
   return `${userId}@${orgId}`;
@@ -15,7 +15,7 @@ function calcSessionKey(userId: string, orgId: string): string {
 // All other functions should access the activeSessions 
 // table through these functions
 //*****************************************************/  
-let activeSessions: Record<string, ActiveSession> = {};
+let userSessions: Record<string, UserSession> = {};
 let activeSessionsInitialized = false;
 
 
@@ -97,7 +97,7 @@ export async function initializeSessionTimeout(): Promise<void> {
 }
 
 
-export async function getActiveSessionsFromLocalStorage(): Promise<Record<string, ActiveSession>> {
+export async function getUserSessionsFromLocalStorage(): Promise<Record<string, UserSession>> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get('activeSessions', (result) => {
       if (chrome.runtime.lastError) {
@@ -132,7 +132,7 @@ export async function getActiveSessionsFromLocalStorage(): Promise<Record<string
 export async function saveActiveSessionsToLocalStorage(): Promise<void> {
   return new Promise((resolve, reject) => {
     const sessionsToSave = Object.fromEntries(
-      Object.entries(activeSessions).map(([key, session]) => [
+      Object.entries(userSessions).map(([key, session]) => [
         key,
         {
           ...session,
@@ -153,15 +153,15 @@ export async function saveActiveSessionsToLocalStorage(): Promise<void> {
 }
   // Load active sessions from local storage
 async function loadActiveSessions(): Promise<void> {
-  activeSessions = await getActiveSessionsFromLocalStorage();
-  console.log('Loaded active sessions:', activeSessions);
+  userSessions = await getUserSessionsFromLocalStorage();
+  console.log('Loaded active sessions:', userSessions);
 }
 
 export async function initializeSessionManager() {
   console.log('Initializing session manager...');
   await loadActiveSessions();
   activeSessionsInitialized = true;
-  const sessions = getAllActiveSessions(1); // Load active sessions into memory
+  const sessions = getAllUserSessions(); // Load active sessions into memory
   // terminate all sessions on startup
   // we do this to enusre all sessions had session_ended event logged for the previous session
   for (const key in sessions) {
@@ -175,39 +175,39 @@ export async function initializeSessionManager() {
   console.log('Session manager initialized.');
 }
 
-export function getAllActiveSessions(index: number): Record<string, ActiveSession> | undefined {
+export function getAllUserSessions(): Record<string, UserSession> | undefined {
   if (!activeSessionsInitialized) {
-    console.warn(`Attempted to access activeSessions before initialization ${index}.`);
+    console.warn(`Attempted to access activeSessions before initialization.`);
     return undefined; // Indicate that `activeSessions` is not ready
   }
-  return activeSessions;
+  return userSessions;
 }
 
-function getActiveSession(sessionKey: string): ActiveSession | undefined {
+function getUserSession(sessionKey: string): UserSession | undefined {
   if (!activeSessionsInitialized) {
     console.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
     return undefined; // Indicate that `activeSessions` is not ready
   }
-  return activeSessions[sessionKey];
+  return userSessions[sessionKey];
 }
 
-export async function handleActiveSessionsGet(message: ActiveSessionsGetMessage, sendResponse: (response: ActiveSessionsResponse) => void): Promise<void> {
+export async function handleUserSessionsGet(message: UserSessionsGetMessage, sendResponse: (response: UserSessionsResponse) => void): Promise<void> {
   try {
-    const activeSessionsRecord = getAllActiveSessions(2);
+    const activeSessionsRecord = getAllUserSessions();
     if (activeSessionsRecord) {
-      const activeSessions: ActiveSession[] = Object.values(activeSessionsRecord);      
-      sendResponse({ type: 'active_sessions_get_response', success: true, activeSessions });
+      const activeSessions: UserSession[] = Object.values(activeSessionsRecord);      
+      sendResponse({ type: 'user_sessions_get_response', success: true, activeSessions });
     } else {
       console.warn('handleActiveSessionsGet: Active sessions are not initialized.');
-      sendResponse({ type: 'active_sessions_get_response', success: false, error: 'Active sessions are not initialized', activeSessions: [] });
+      sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Active sessions are not initialized', activeSessions: [] });
     }
   } catch (error) {
     console.error('handleActiveSessionsGet: Unexpected error:', error);
-    sendResponse({ type: 'active_sessions_get_response', success: false, error: 'Failed to retrieve active sessions', activeSessions: [] });
+    sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Failed to retrieve active sessions', activeSessions: [] });
   }
 }
 
-function createNewSession(
+function createNewUserSession(
   orgId: string = '',
   userId: string = '',
   startTime: Date | undefined,
@@ -217,7 +217,7 @@ function createNewSession(
     return null;
   }
 
-  const newSession: ActiveSession = {
+  const newSession: UserSession = {
     userId,
     orgId,
     startTime: startTime ?? new Date(),
@@ -232,7 +232,8 @@ function createNewSession(
     writable: true,
   });
   const sessionKey = calcSessionKey(userId, orgId);
-  activeSessions[sessionKey] = newSession;
+  userSessions[sessionKey] = newSession;
+  updateUserDaily(newSession)
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
   return sessionKey;
@@ -245,19 +246,19 @@ function deleteActiveSession(sessionKey: string): boolean {
     return false;
   }
 
-  if (!activeSessions[sessionKey]) {
+  if (!userSessions[sessionKey]) {
     console.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
     return false;
   }
 
-  delete activeSessions[sessionKey];
+  delete userSessions[sessionKey];
   console.log(`Session deleted for sessionKey: ${sessionKey}`);
   return true;
 }
   
 
 async function terminateSession(sessionKey: string) {
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
 
   if (!session) {
     console.warn(`No active session found for sessionKey: ${sessionKey}`);
@@ -319,17 +320,17 @@ async function handleNewSession(
 
   // If the session already exists, update the userId if provided
   const sessionKey = calcSessionKey(userId, orgId);
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
   if (session) {
     console.log(`Session already exists for sessionKey: ${sessionKey}.`);
     return sessionKey;
   }
-  const newSessionKey = createNewSession(orgId, userId, startTime);
+  const newSessionKey = createNewUserSession(orgId, userId, startTime);
   if (!newSessionKey) {
     console.error('Failed to create a new session.');
     return null;
   }
-  const newSession = getActiveSession(newSessionKey);
+  const newSession = getUserSession(newSessionKey);
   if (newSession) {
     console.log('Session successfully created:', newSession);
     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
@@ -342,7 +343,7 @@ async function handleNewSession(
 
 function setSessionExpirationTimer(sessionKey: string, expirationTimeout: number = 180) {
   // Clear any existing timer for the session
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
   if (!session) {
     console.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
     return;
@@ -363,7 +364,7 @@ const debouncedUpdates: Record<string, NodeJS.Timeout> = {};
 export function updateLastActivity(sessionKey: string, timestamp: Date) {
   console.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
 
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
   if (!session) {
     console.warn(`No active session found for sessionKey: ${sessionKey}`);
     return;
@@ -377,6 +378,7 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
     logSessionEvent('session_started', session.startTime, now, username);
   }
   session.lastActivityTime = timestamp; // Update in memory
+  updateUserDaily(session);
   setSessionExpirationTimer(sessionKey, getSessionTimeout()); // Reset the session timer
   // Debounce the persistence
   if (debouncedUpdates[sessionKey]) {
@@ -395,7 +397,7 @@ async function flushPendingUpdate(sessionKey: string) {
     clearTimeout(debouncedUpdates[sessionKey]);
     delete debouncedUpdates[sessionKey];
   }
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
   if (session && session.lastActivityTime) {
     await persistLastActivity(sessionKey, session.lastActivityTime); // Persist latest in-memory state
     console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
@@ -406,7 +408,7 @@ async function flushPendingUpdate(sessionKey: string) {
 
 
 export async function persistLastActivity(sessionKey: string, timestamp: Date) {
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
 
   if (session) {
     session.lastActivityTime = timestamp;
@@ -461,7 +463,7 @@ async function findOrCreateSession(
 
   console.log(`Got orgId ${orgIdFromCookie} from cookie for tabId ${tabId}`);
   let sessionKey = calcSessionKey(userId, orgIdFromCookie);
-  const session = getActiveSession(sessionKey);
+  const session = getUserSession(sessionKey);
   if (!session) {
     // no session yet, create a new one
     console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
@@ -578,4 +580,4 @@ function processUserInputMessage(
 
 // Exported functions to globnal scope
 // Attach the function to the global scope
-(globalThis as any).getAllActiveSessions = getAllActiveSessions;
+(globalThis as any).getAllActiveSessions = getAllUserSessions;

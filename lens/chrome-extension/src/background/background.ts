@@ -1,4 +1,4 @@
-import { initializeSessionManager, handleUserInput, handlePageLoad, handleActiveSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
+import { initializeSessionManager, handleUserInput, handlePageLoad, handleUserSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
 import { BackgroundMessage, BackgroundResponse } from '../types';
@@ -54,8 +54,8 @@ chrome.runtime.onMessage.addListener(
         handleUserInput(message, sender, sendResponse);
         return true;
 
-      case 'active_sessions_get':
-        handleActiveSessionsGet(message, sendResponse);
+      case 'user_sessions_get':
+        handleUserSessionsGet(message, sendResponse);
         return true;
 
       case 'session_logs_get':

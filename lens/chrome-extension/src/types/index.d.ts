@@ -18,10 +18,34 @@
     _expirationTimer?: NodeJS.Timeout; // Non-enumerable property for the timer
 }
 
-  export interface Tab {
-    id: number;
-    url?: string;
-  }
+export interface UserSession extends ActiveSession {
+}
+
+export interface ChartSession extends ActiveSession {
+    chartType: string;
+    chartName: string;    
+}
+
+export interface DailyUsage {
+    date: string;
+    userId: string;
+    orgId: string; 
+    currentSessionStartTime: Date;
+    lastActivityTime: Date | null;
+    totalDuration: number;
+}
+
+export interface UserDailyUsage extends DailyUsage{}
+export interface ChartDailyUsage extends DailyUsage{
+    chartType: string;
+    chartName: string;
+}
+
+
+export interface Tab {
+  id: number;
+  url?: string;
+}
 
 interface BasicResponse {
     success: boolean;
@@ -56,13 +80,13 @@ interface UserInputResponse extends BasicResponse {
   type: 'user_input_response';
 }
 
-interface ActiveSessionsGetMessage {
-  type: 'active_sessions_get';
+interface UserSessionsGetMessage {
+  type: 'user_sessions_get';
 }
 
-interface ActiveSessionsResponse extends BasicResponse {
-  type: 'active_sessions_get_response';
-  activeSessions: ActiveSession[];
+interface UserSessionsResponse extends BasicResponse {
+  type: 'user_sessions_get_response';
+  activeSessions: UserSession[];
 }
 
 interface SessionsLogsGetMessage {
@@ -102,7 +126,7 @@ interface SessionTimeoutGetResponse extends BasicResponse {
 }
 
 
-type BackgroundMessage = PageLoadMessage | UserInputMessage | ActiveSessionsGetMessage | SessionsLogsGetMessage | 
+type BackgroundMessage = PageLoadMessage | UserInputMessage | UserSessionsGetMessage | SessionsLogsGetMessage | 
                          SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
-type BackgroundResponse =  PageLoadResponse | UserInputResponse | ActiveSessionsResponse | SessionsLogsGetResponse | 
+type BackgroundResponse =  PageLoadResponse | UserInputResponse | UserSessionsResponse | SessionsLogsGetResponse | 
                            SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;

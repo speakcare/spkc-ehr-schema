@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SessionLogEvent, ActiveSession, ActiveSessionsResponse, SessionsLogsGetResponse, 
+import { SessionLogEvent, UserSession, UserSessionsResponse, SessionsLogsGetResponse, 
          SessionsLogsClearResponse, SessionTimeoutGetResponse, SessionTimeoutSetResponse  } from '../types';
 import {
   AppBar,
@@ -38,7 +38,7 @@ const useStyles = makeStyles({
 const App: React.FC = () => {
   const classes = useStyles();
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
-  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [activeSessions, setActiveSessions] = useState<UserSession[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
   const [sessionTimeout, setSessionTimeout] = useState<number>(180); // Default to 3 minutes
   const [candidateSessionTimeout, setCandidateSessionTimeout] = useState<number>(180); // Local state for new timeout
@@ -78,9 +78,9 @@ const App: React.FC = () => {
 
   const fetchActiveSessions = async () => {
     try {
-      const response = await new Promise<ActiveSessionsResponse>((resolve, reject) => {
-        console.debug('Sending active_sessions_get message');
-        chrome.runtime.sendMessage({ type: 'active_sessions_get' }, (response: ActiveSessionsResponse) => {
+      const response = await new Promise<UserSessionsResponse>((resolve, reject) => {
+        console.debug('Sending user_sessions_get message');
+        chrome.runtime.sendMessage({ type: 'user_sessions_get' }, (response: UserSessionsResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
