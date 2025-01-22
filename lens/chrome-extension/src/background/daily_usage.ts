@@ -1,16 +1,127 @@
-import { UserDailyUsage, UserSession } from "../types";
+import { create } from '@mui/material/styles/createTransitions';
+import { ActiveSession, ChartSession, UserSession } from './sessions'
 
-let dailyUsages: Record<string, UserDailyUsage> = {};
+
+// export function updateUserDaily(session: UserSession, sessionClose: boolean= false): void {
+//     return
+// }
+// import { UserSession } from './session_manager';
 
 function getDateString(date: Date): string {
     return date.toISOString().split('T')[0];
 }
 
-function calcUserDailyKey(userId: string, orgId: string, startTime: Date): string {
-    // get the date part of the startDate string
-    let date = getDateString(startTime)
-    return `${date}:${userId}@${orgId}`;
+export abstract class DailyUsage {
+    date: string;
+    userId: string;
+    orgId: string; 
+    currentSessionDuration: number
+    totalDuration: number;
+
+    constructor(
+        session: ActiveSession
+    ) {
+        this.date = getDateString(session.startTime)
+        this.userId = session.userId;
+        this.orgId = session.orgId;
+        this.currentSessionDuration = session.duration();
+        this.totalDuration = 0;
+    }
+
+    static calcKey(sessionKey: string, date: string) {
+        return `${date}:${sessionKey}`;
+      }
+    
+    abstract getKey(): string;
+    
+    static getDailyUsage(key: string): DailyUsage | null {
+        return dailyUsages[key] || null;
+    }
+    static addDailyUsage(dailyUsage: DailyUsage): void {
+        dailyUsages[dailyUsage.getKey()] = dailyUsage;
+    }
+
+    static isUserSession(session: ActiveSession): session is UserSession {
+        return (session as UserSession).getSessionKey !== undefined;
+    }
+      
+    static isChartSession(session: ActiveSession): session is ChartSession {
+        return (session as ChartSession).chartType !== undefined && (session as ChartSession).chartName !== undefined;
+    }
+
+    static createDailyUsage(session: ActiveSession): DailyUsage {
+        if (DailyUsage.isUserSession(session)) {
+          return new UserDailyUsage(session);
+        } else if (DailyUsage.isChartSession(session)) {
+          return new ChartDailyUsage(session);
+        } else {
+          throw new Error('Unknown session type');
+        }
+    }
+
+    updateCurrentSession(session: ActiveSession): void {
+        this.currentSessionDuration = session.duration();
+    }
+
+    static openSession(session: ActiveSession): void {
+        const key = DailyUsage.calcKey(session.getSessionKey(), getDateString(session.startTime));
+        let dailyUsage = DailyUsage.getDailyUsage(key);
+        if (dailyUsage) {
+            dailyUsage.updateCurrentSession(session);
+        }
+        else { // no daily yet
+            dailyUsage = DailyUsage.createDailyUsage(session);
+            DailyUsage.addDailyUsage(dailyUsage);
+        }
+        return;
+    }
 }
+
+export class UserDailyUsage extends DailyUsage {
+    constructor(session: UserSession) {
+        super(session)
+    }
+    getKey(): string {
+        return DailyUsage.calcKey(UserSession.calcSessionKey(
+                                    this.userId, 
+                                    this.orgId) , 
+                                this.date);
+    }
+}
+export class ChartDailyUsage extends DailyUsage {
+    chartType: string;
+    chartName: string;
+
+    constructor(session: ChartSession
+    ) {
+        super(session)
+        this.chartType = session.chartType;
+        this.chartName = session.chartName;
+    }
+
+    getKey(): string {
+        return DailyUsage.calcKey(ChartSession.calcSessionKey(
+                                    this.userId, 
+                                    this.orgId, 
+                                    this.chartType, 
+                                    this.chartName), 
+                                  this.date);
+    }
+
+}
+
+//type Usage = UserDailyUsage | ChartDailyUsage;
+let dailyUsages: Record<string, DailyUsage> = {};
+
+// let userDailies: Record<string, UserDailyUsage> = {};
+// let chartDailies: Record<string, ChartDailyUsage> = {};
+
+
+// function calcUserDailyKey(userId: string, orgId: string, startTime: Date): string {
+//     // get the date part of the startDate string
+//     let date = getDateString(startTime)
+//     return `${date}:${userId}@${orgId}`;
+// }
 
 export function updateUserDaily(session: UserSession, sessionClose: boolean= false): void {
 
@@ -55,8 +166,8 @@ function getAllUserDaily(): Record<string, UserDailyUsage> {
     return dailyUsages;
 }
 
-export function printUserDaylies(): void {
+export function printUserDailies(): void {
     console.log('User daylies:', dailyUsages);
 }
 
-(globalThis as any).printUserDaylies = printUserDaylies;
+(globalThis as any).printUserDailies = printUserDailies;

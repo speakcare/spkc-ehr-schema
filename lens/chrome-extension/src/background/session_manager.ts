@@ -1,15 +1,15 @@
-import { UserSession, PageLoadMessage, PageLoadResponse, UserInputMessage, 
-        UserInputResponse, UserSessionsGetMessage, UserSessionsResponse,
-        SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse  } from '../types/index.d';
+import { BasicResponse } from '../types/index.d';
+import { UserSession, UserSessionDTO } from './sessions';
 import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';
 import { updateUserDaily } from './daily_usage';
     
-function calcSessionKey(userId: string, orgId: string): string {
-  return `${userId}@${orgId}`;
-}
+// function calcSessionKey(userId: string, orgId: string): string {
+//   return `${userId}@${orgId}`;
+// }
 
-  
+
+
 //*****************************************************/
 // Session Management Functions
 // All other functions should access the activeSessions 
@@ -193,45 +193,43 @@ function getUserSession(sessionKey: string): UserSession | undefined {
 
 export async function handleUserSessionsGet(message: UserSessionsGetMessage, sendResponse: (response: UserSessionsResponse) => void): Promise<void> {
   try {
-    const activeSessionsRecord = getAllUserSessions();
-    if (activeSessionsRecord) {
-      const activeSessions: UserSession[] = Object.values(activeSessionsRecord);      
-      sendResponse({ type: 'user_sessions_get_response', success: true, activeSessions });
+    const userSessionsRecord = getAllUserSessions();
+    if (userSessionsRecord) {
+      const userSessionsArray: UserSession[] = Object.values(userSessionsRecord); 
+      const userSessionsDTO = userSessionsArray.map(UserSession.serialize);     
+      sendResponse({ type: 'user_sessions_get_response', success: true, userSessions: userSessionsDTO });
     } else {
       console.warn('handleActiveSessionsGet: Active sessions are not initialized.');
-      sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Active sessions are not initialized', activeSessions: [] });
+      sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Active sessions are not initialized', userSessions: [] });
     }
   } catch (error) {
     console.error('handleActiveSessionsGet: Unexpected error:', error);
-    sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Failed to retrieve active sessions', activeSessions: [] });
+    sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Failed to retrieve active sessions', userSessions: [] });
   }
 }
 
 function createNewUserSession(
   orgId: string = '',
   userId: string = '',
-  startTime: Date | undefined,
+  startTime: Date,
 ): string | null {
   if (!activeSessionsInitialized) {
     console.warn('Attempted to create a new session before activeSessions initialization.');
     return null;
   }
 
-  const newSession: UserSession = {
-    userId,
-    orgId,
-    startTime: startTime ?? new Date(),
-    userActivitySeen: false,
-    lastActivityTime: null,
-  };
-
+  const newSession = new UserSession(
+    userId, /* userId,*/
+    orgId, /*: orgId,*/
+    startTime/*: startTime ?? new Date(),*/
+  );
   // Make the _timer property non-enumerable
   Object.defineProperty(newSession, '_expirationTimer', {
     enumerable: false,
     configurable: true,
     writable: true,
   });
-  const sessionKey = calcSessionKey(userId, orgId);
+  const sessionKey = newSession.getSessionKey() // UserSession.calcSessionKey(userId, orgId);
   userSessions[sessionKey] = newSession;
   updateUserDaily(newSession)
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
@@ -303,14 +301,12 @@ async function terminateSession(sessionKey: string) {
   } else {
     console.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
   }
-}
-
-  
+}  
 
 async function handleNewSession(
   orgId: string, 
   userId: string,
-  startTime: Date | undefined,
+  startTime: Date,
 ): Promise<string | null> {
 
   if (!userId || !orgId) {
@@ -319,7 +315,7 @@ async function handleNewSession(
   }
 
   // If the session already exists, update the userId if provided
-  const sessionKey = calcSessionKey(userId, orgId);
+  const sessionKey = UserSession.calcSessionKey(userId, orgId);
   const session = getUserSession(sessionKey);
   if (session) {
     console.log(`Session already exists for sessionKey: ${sessionKey}.`);
@@ -462,7 +458,7 @@ async function findOrCreateSession(
   }
 
   console.log(`Got orgId ${orgIdFromCookie} from cookie for tabId ${tabId}`);
-  let sessionKey = calcSessionKey(userId, orgIdFromCookie);
+  let sessionKey = UserSession.calcSessionKey(userId, orgIdFromCookie);
   const session = getUserSession(sessionKey);
   if (!session) {
     // no session yet, create a new one
@@ -577,6 +573,66 @@ function processUserInputMessage(
   sendResponse({ success: true, message });
 }
 
+
+//*****************************************************/
+// Session maanger messages and responses
+//*****************************************************/
+// Define all message types
+export interface PageEventMessage {
+  username: string;
+  orgCode: string;
+  timestamp: string;
+  chartType: string;
+  chartName: string;
+}
+
+export interface PageLoadMessage extends PageEventMessage {
+  type: 'page_load';
+  pageStartTime: string;
+}
+
+export interface PageLoadResponse extends BasicResponse {
+  type: 'page_load_response';
+}
+
+export interface UserInputMessage extends PageEventMessage {
+  type: 'user_input';
+  input: string;
+  inputType: 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'other';
+}
+
+export interface UserInputResponse extends BasicResponse {
+  type: 'user_input_response';
+}
+
+export interface UserSessionsGetMessage {
+  type: 'user_sessions_get';
+}
+
+export interface UserSessionsResponse extends BasicResponse {
+  type: 'user_sessions_get_response';
+  userSessions: UserSessionDTO[];
+}
+
+
+// Message interfaces for session timeout
+export interface SessionTimeoutSetMessage {
+  type: 'session_timeout_set';
+  timeout: number;
+}
+
+export interface SessionTimeoutSetResponse extends BasicResponse {
+  type: 'session_timeout_set_response';
+}
+
+export interface SessionTimeoutGetMessage {
+  type: 'session_timeout_get';
+}
+
+export interface SessionTimeoutGetResponse extends BasicResponse {
+  type: 'session_timeout_get_response';
+  timeout: number | null;
+}
 
 // Exported functions to globnal scope
 // Attach the function to the global scope

@@ -1,7 +1,14 @@
-import { initializeSessionManager, handleUserInput, handlePageLoad, handleUserSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
+import { initializeSessionManager, handleUserInput, handlePageLoad, 
+        handleUserSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
+import {  PageLoadMessage, PageLoadResponse, UserInputMessage, 
+          UserInputResponse, UserSessionsGetMessage, UserSessionsResponse,
+          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from './session_manager'
+import { UserSessionDTO } from './sessions'
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
-import { BackgroundMessage, BackgroundResponse } from '../types';
+import { BasicResponse } from '../types';
+import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from './session_log';
+//import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
 // TBD - Inject content script into matching tabs
@@ -23,6 +30,14 @@ import { BackgroundMessage, BackgroundResponse } from '../types';
 //     });
 //   });
 // });
+
+
+export type BackgroundMessage = PageLoadMessage | UserInputMessage | UserSessionsGetMessage | SessionsLogsGetMessage | 
+                       SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
+export type BackgroundResponse =  PageLoadResponse | UserInputResponse | UserSessionsResponse | SessionsLogsGetResponse | 
+                         SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;
+
+
 
 self.addEventListener('activate', () => {
   console.log('Background script activated at', new Date().toISOString());

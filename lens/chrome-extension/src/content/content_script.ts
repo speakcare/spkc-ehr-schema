@@ -1,5 +1,6 @@
 
-import { BackgroundMessage, BackgroundResponse, PageLoadMessage, UserInputMessage, PageLoadResponse, UserInputResponse, PageEventMessage } from "../types";
+import { BackgroundMessage, BackgroundResponse } from '../background/background' 
+import { PageLoadMessage, UserInputMessage, PageEventMessage } from "../background/session_manager";
 import { parseChart, ChartInfo, getPagePath, getPageUrl } from "./ehr/pointclickcare/pcc_chart_parser";
 
 const pageInfo = {

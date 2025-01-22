@@ -1,4 +1,14 @@
-import { SessionLogEvent, SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from '../types/index.d';
+import { BasicResponse } from '../types/index.d';
+
+
+
+export type SessionLogEvent = {
+  event : 'session_started' | 'session_ended' | 'session_onging',
+  eventTime: string,
+  logTime: string,
+  username: string,
+  duration: number,
+}
 
 export async function logSessionEvent(
   event: 'session_started' | 'session_ended' | 'session_onging',
@@ -93,6 +103,28 @@ export async function handleSessionsLogsClear(message: SessionsLogsClearMessage,
       console.error('handleSessionsLogsClear: Unexpected error:', error);
       sendResponse({ type: 'session_logs_clear_response', success: false, error: 'Failed to clear session logs' });
     }
-  }
-  
+}
+
+
+/***********************************
+ * Session log messages
+ **********************************/
+export interface SessionsLogsGetMessage {
+  type: 'session_logs_get';
+}
+
+export interface SessionsLogsGetResponse extends BasicResponse {
+  type: 'session_logs_get_response';
+  sessionLogs: SessionLogEvent[];
+}
+
+export interface SessionsLogsClearMessage {
+  type: 'session_logs_clear';
+}
+
+export interface SessionsLogsClearResponse extends BasicResponse {
+  type: 'session_logs_clear_response';
+}
+
+
 

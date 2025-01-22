@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { SessionLogEvent, UserSession, UserSessionsResponse, SessionsLogsGetResponse, 
-         SessionsLogsClearResponse, SessionTimeoutGetResponse, SessionTimeoutSetResponse  } from '../types';
+import { UserSessionDTO } from '../background/sessions';
+import { UserSessionsResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../background/session_manager'
+import {  SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
 import {
   AppBar,
   Toolbar,
@@ -38,7 +39,7 @@ const useStyles = makeStyles({
 const App: React.FC = () => {
   const classes = useStyles();
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
-  const [activeSessions, setActiveSessions] = useState<UserSession[]>([]);
+  const [userSessions, setUserSessions] = useState<UserSessionDTO[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
   const [sessionTimeout, setSessionTimeout] = useState<number>(180); // Default to 3 minutes
   const [candidateSessionTimeout, setCandidateSessionTimeout] = useState<number>(180); // Local state for new timeout
@@ -76,7 +77,7 @@ const App: React.FC = () => {
   };
 
 
-  const fetchActiveSessions = async () => {
+  const fetchUserSessions = async () => {
     try {
       const response = await new Promise<UserSessionsResponse>((resolve, reject) => {
         console.debug('Sending user_sessions_get message');
@@ -90,12 +91,12 @@ const App: React.FC = () => {
         });
       });
       if (response.success) {
-        const activeSessions = response.activeSessions.map(session => ({
+        const userSessions = response.userSessions.map(session => ({
           ...session,
           startTime: new Date(session.startTime),
           lastActivityTime: session.lastActivityTime ? new Date(session.lastActivityTime) : null,
         }));
-        setActiveSessions(activeSessions);
+        setUserSessions(userSessions);
       } else {
         console.error('Failed to fetch active sessions:', response.error);
       }  
@@ -160,12 +161,12 @@ const App: React.FC = () => {
   // Fetch data on mount
   useEffect(() => {
     fetchLogs();
-    fetchActiveSessions();
+    fetchUserSessions();
     fetchSessionTimeout();
 
     const interval = setInterval(() => {
       fetchLogs();
-      fetchActiveSessions();
+      fetchUserSessions();
     }, 3000);
 
     return () => clearInterval(interval); // Cleanup interval on component unmount
@@ -380,7 +381,7 @@ const App: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {activeSessions.map((session, index) => (
+                  {userSessions.map((session, index) => (
                     <TableRow key={index}>
                       <TableCell>{new Date(session.startTime).toLocaleString()}</TableCell>
                       <TableCell>{`${session.userId}@${session.orgId}`}</TableCell>
