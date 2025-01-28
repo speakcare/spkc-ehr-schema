@@ -53,6 +53,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - **Temporary Storage**: Enhanced audio is stored in an object store for downstream processing.  
 - **Technologies:**  
    - Audio Processing: SoX, WebRTC Noise Reduction, PyDub.  
+   - Voice embeddings: voice encoders into vector embeddings (number of speakers per customer is small << 1000) 
    - Storage: AWS S3-compatible object store.
 
 ---
@@ -66,6 +67,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Outputs raw text with timestamps and speaker labels.  
 - **Technologies:**  
    - Python with STT services like OpenAI Whisper, Google STT, or Azure Speech-to-Text.  
+   - Diarization using vector embeddings (vector database)
    - Deployment: Docker/Kubernetes for scalability.  
 
 ---
