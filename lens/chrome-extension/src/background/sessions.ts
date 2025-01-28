@@ -1,10 +1,15 @@
+export enum SessionType {
+  UserSession = 'UserSession',
+  ChartSession = 'ChartSession',
+}
+
 export abstract class ActiveSession {
-  userId: string;
-  orgId: string;
-  startTime: Date; // the actual start time when the session was created
-  userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
-  lastActivityTime: Date | null;
-  _expirationTimer?: NodeJS.Timeout; // Non-enumerable property for the timer
+  protected userId: string;
+  protected orgId: string;
+  protected startTime: Date; // the actual start time when the session was created
+  protected userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
+  protected lastActivityTime: Date | null;
+  private _expirationTimer?: NodeJS.Timeout; // Non-enumerable property for the timer
 
   constructor(
     userId: string,
@@ -23,7 +28,46 @@ export abstract class ActiveSession {
   duration(): number {
     return this.lastActivityTime ? (this.lastActivityTime.getTime() - this.startTime.getTime())/1000 : 0;
   }
+
+  // Getters and setters
+  getUserId(): string {
+    return this.userId;
+  }
+  getOrgId(): string {
+    return this.orgId;
+  }
+  getStartTime(): Date {
+    return this.startTime;
+  }
+  getUserActivitySeen(): boolean {
+    return this.userActivitySeen;
+  }
+  setUserActivitySeen(userActivitySeen: boolean): void {
+    this.userActivitySeen = userActivitySeen;
+  }
+  
+  getLastActivityTime(): Date | null {
+    return this.lastActivityTime;
+  }
+  setLastActivityTime(lastActivityTime: Date): void {
+    this.lastActivityTime = lastActivityTime;
+  }
+  setExpirationTimer(timer: NodeJS.Timeout): void {
+    this.clearExpirationTimer();
+    this._expirationTimer = timer;
+  }
+  clearExpirationTimer(): void {
+    if (this._expirationTimer) {
+      clearTimeout(this._expirationTimer);
+      delete this._expirationTimer;
+      this._expirationTimer = undefined;
+    }
+  }
+
+
   abstract getSessionKey(): string;
+  abstract getIdentifierFields(): { [key: string]: any };
+  abstract getType(): SessionType;
 }
 
 
@@ -53,6 +97,15 @@ export class UserSession extends ActiveSession {
   }
   getSessionKey(): string {
     return UserSession.calcSessionKey(this.userId, this.orgId);
+  }
+  getIdentifierFields(): { [key: string]: any } {
+    return {
+      userId: this.userId,
+      orgId: this.orgId,
+    };
+  }
+  getType(): SessionType {
+    return SessionType.UserSession;
   }
 
   static serialize(session: UserSession): UserSessionDTO {
@@ -89,6 +142,18 @@ export class ChartSession extends ActiveSession {
   }
   getSessionKey(): string {
     return ChartSession.calcSessionKey(this.userId, this.orgId, this.chartType, this.chartName);
+  }
+
+  getIdentifierFields(): { [key: string]: any } {
+    return {
+      userId: this.userId,
+      orgId: this.orgId,
+      chartType: this.chartType,
+      chartName: this.chartName,
+    };
+  }
+  getType(): SessionType {
+    return SessionType.ChartSession;
   }
 
   static serialize(session: ChartSession): ChartSessionDTO {

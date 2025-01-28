@@ -2,13 +2,8 @@ import { BasicResponse } from '../types/index.d';
 import { UserSession, UserSessionDTO } from './sessions';
 import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';
-import { updateUserDaily } from './daily_usage';
+import { DailyUsage } from './daily_usage';
     
-// function calcSessionKey(userId: string, orgId: string): string {
-//   return `${userId}@${orgId}`;
-// }
-
-
 
 //*****************************************************/
 // Session Management Functions
@@ -136,8 +131,8 @@ export async function saveActiveSessionsToLocalStorage(): Promise<void> {
         key,
         {
           ...session,
-          startTime: session.startTime.toISOString(),
-          lastActivityTime: session.lastActivityTime ? session.lastActivityTime.toISOString() : null,
+          startTime: session.getStartTime().toISOString(),
+          lastActivityTime: session.getLastActivityTime()?.toISOString() || null,
         },
       ])
     );
@@ -219,8 +214,8 @@ function createNewUserSession(
   }
 
   const newSession = new UserSession(
-    userId, /* userId,*/
-    orgId, /*: orgId,*/
+    userId, 
+    orgId,
     startTime/*: startTime ?? new Date(),*/
   );
   // Make the _timer property non-enumerable
@@ -231,7 +226,7 @@ function createNewUserSession(
   });
   const sessionKey = newSession.getSessionKey() // UserSession.calcSessionKey(userId, orgId);
   userSessions[sessionKey] = newSession;
-  updateUserDaily(newSession)
+  DailyUsage.updateSession(newSession);
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
   return sessionKey;
@@ -263,12 +258,12 @@ async function terminateSession(sessionKey: string) {
     return;
   }
 
-  if (session.lastActivityTime != null) {
+  if (session.getLastActivityTime() != null) {
     // session has started and was reported so we report session end
-    const endTime = session.lastActivityTime || new Date();
-    const sessionDuration = endTime.getTime() - session.startTime.getTime();
+    const endTime = session.getLastActivityTime() || new Date();
+    const sessionDuration = endTime.getTime() - session.getStartTime().getTime();
     const duration = sessionDuration? sessionDuration : minSessionDuration; 
-    const username = `${session.userId}@${session.orgId}`;
+    const username = `${session.getUserId()}@${session.getOrgId()}`;
     logSessionEvent(
       'session_ended',
       endTime,
@@ -277,11 +272,10 @@ async function terminateSession(sessionKey: string) {
       duration
     );
   }
+  session.clearExpirationTimer(); // Clear the session timer
 
-  if (session._expirationTimer) {
-    clearTimeout(session._expirationTimer);
-    delete session._expirationTimer;
-  }
+  // update the daily usage
+  DailyUsage.closeSession(session);
 
   // Traverse all the tabId keys in tabIdToSessionKeyMap
   for (const tabId in tabIdToSessionKeyMap) {
@@ -344,15 +338,14 @@ function setSessionExpirationTimer(sessionKey: string, expirationTimeout: number
     console.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
     return;
   }
-  if (session._expirationTimer) {
-    clearTimeout(session._expirationTimer);
-  }
-
-  // Set a new timer to terminate the session after 5 minutes
-  session._expirationTimer = setTimeout(() => {
+ 
+  // Set a new timer to terminate the session after expirationTimeout 
+  const expirationTimer = setTimeout(() => {
     console.log(`Session expired for sessionKey: ${sessionKey}`);
     terminateSession(sessionKey);
   }, expirationTimeout * 1000);
+
+  session.setExpirationTimer(expirationTimer);
 }
 
 
@@ -365,16 +358,16 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
     console.warn(`No active session found for sessionKey: ${sessionKey}`);
     return;
   }
-  if (!session.userActivitySeen) {
+  if (!session.getUserActivitySeen()) {
     // mark first activity time - we log the session start only once there is activity otherwise the session is not considered started
-    session.userActivitySeen = true;
-    const username = `${session.userId}@${session.orgId}`;
+    session.setUserActivitySeen(true);
+    const username = `${session.getUserId()}@${session.getOrgId()}`;
     const now = new Date();
     console.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
-    logSessionEvent('session_started', session.startTime, now, username);
+    logSessionEvent('session_started', session.getStartTime(), now, username);
   }
-  session.lastActivityTime = timestamp; // Update in memory
-  updateUserDaily(session);
+  session.setLastActivityTime(timestamp); 
+  DailyUsage.updateSession(session)
   setSessionExpirationTimer(sessionKey, getSessionTimeout()); // Reset the session timer
   // Debounce the persistence
   if (debouncedUpdates[sessionKey]) {
@@ -394,8 +387,9 @@ async function flushPendingUpdate(sessionKey: string) {
     delete debouncedUpdates[sessionKey];
   }
   const session = getUserSession(sessionKey);
-  if (session && session.lastActivityTime) {
-    await persistLastActivity(sessionKey, session.lastActivityTime); // Persist latest in-memory state
+  const lastActivityTime = session?.getLastActivityTime();
+  if (session && lastActivityTime) {
+    await persistLastActivity(sessionKey, lastActivityTime); // Persist latest in-memory state
     console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
   } else {
     console.warn(`No active session found for sessionKey: ${sessionKey}`);
@@ -407,7 +401,7 @@ export async function persistLastActivity(sessionKey: string, timestamp: Date) {
   const session = getUserSession(sessionKey);
 
   if (session) {
-    session.lastActivityTime = timestamp;
+    session.setLastActivityTime(timestamp);
     await saveActiveSessionsToLocalStorage(); // Persist updated table
     console.log(`Persisted last activity time for sessionKey ${sessionKey}: ${timestamp}`);
   } else {

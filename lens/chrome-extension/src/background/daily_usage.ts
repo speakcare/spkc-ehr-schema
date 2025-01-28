@@ -1,71 +1,62 @@
 import { create } from '@mui/material/styles/createTransitions';
-import { ActiveSession, ChartSession, UserSession } from './sessions'
+import { ActiveSession, ChartSession, UserSession, SessionType } from './sessions'
 
 
-// export function updateUserDaily(session: UserSession, sessionClose: boolean= false): void {
-//     return
-// }
-// import { UserSession } from './session_manager';
 
 function getDateString(date: Date): string {
     return date.toISOString().split('T')[0];
 }
 
-export abstract class DailyUsage {
-    date: string;
-    userId: string;
-    orgId: string; 
-    currentSessionDuration: number
-    totalDuration: number;
-
+/**
+ * DailyUsage class
+ * This class is both an abstract class of different types of daily reports that has different properties
+ */
+export class DailyUsage {
+    private date: string;
+    private type: SessionType;
+    private fields: { [key: string]: any };
+    private currentSessionDuration: number
+    private totalDuration: number;
+    private static dailyUsages: Record<string, DailyUsage> = {};
     constructor(
         session: ActiveSession
     ) {
-        this.date = getDateString(session.startTime)
-        this.userId = session.userId;
-        this.orgId = session.orgId;
+        this.date = getDateString(session.getStartTime());
+        this.fields = session.getIdentifierFields();
+        this.type = session.getType();
         this.currentSessionDuration = session.duration();
         this.totalDuration = 0;
     }
 
-    static calcKey(sessionKey: string, date: string) {
-        return `${date}:${sessionKey}`;
-      }
-    
-    abstract getKey(): string;
-    
-    static getDailyUsage(key: string): DailyUsage | null {
-        return dailyUsages[key] || null;
-    }
-    static addDailyUsage(dailyUsage: DailyUsage): void {
-        dailyUsages[dailyUsage.getKey()] = dailyUsage;
+    // Object methods
+    getKey(): string {
+        return DailyUsage.calculateKey(this.date, this.fields);
     }
 
-    static isUserSession(session: ActiveSession): session is UserSession {
-        return (session as UserSession).getSessionKey !== undefined;
-    }
-      
-    static isChartSession(session: ActiveSession): session is ChartSession {
-        return (session as ChartSession).chartType !== undefined && (session as ChartSession).chartName !== undefined;
-    }
-
-    static createDailyUsage(session: ActiveSession): DailyUsage {
-        if (DailyUsage.isUserSession(session)) {
-          return new UserDailyUsage(session);
-        } else if (DailyUsage.isChartSession(session)) {
-          return new ChartDailyUsage(session);
-        } else {
-          throw new Error('Unknown session type');
-        }
-    }
-
-    updateCurrentSession(session: ActiveSession): void {
+    // private object methods
+    private updateCurrentSession(session: ActiveSession): void {
         this.currentSessionDuration = session.duration();
     }
 
-    static openSession(session: ActiveSession): void {
-        const key = DailyUsage.calcKey(session.getSessionKey(), getDateString(session.startTime));
-        let dailyUsage = DailyUsage.getDailyUsage(key);
+    // Static functions to manage daily usage objects
+    static calculateKey(date: string, fields: { [key: string]: any }): string {
+        return `${date}:${Object.values(fields).join('_')}`
+    }
+
+    static calcKeyFromSession(session: ActiveSession): string {
+        return DailyUsage.calculateKey(getDateString(session.getStartTime()), session.getIdentifierFields());
+    }
+    
+    static getDailyUsageByKey(key: string): DailyUsage | null {
+        return DailyUsage.dailyUsages[key] || null;
+    }
+    static getDailyUsageBySession(session: ActiveSession): DailyUsage | null {
+        return this.getDailyUsageByKey(this.calcKeyFromSession(session));
+    }
+
+    static updateSession(session: ActiveSession): void {
+        const key = DailyUsage.calcKeyFromSession(session);
+        let dailyUsage = DailyUsage.getDailyUsageByKey(key);
         if (dailyUsage) {
             dailyUsage.updateCurrentSession(session);
         }
@@ -75,99 +66,40 @@ export abstract class DailyUsage {
         }
         return;
     }
-}
 
-export class UserDailyUsage extends DailyUsage {
-    constructor(session: UserSession) {
-        super(session)
-    }
-    getKey(): string {
-        return DailyUsage.calcKey(UserSession.calcSessionKey(
-                                    this.userId, 
-                                    this.orgId) , 
-                                this.date);
-    }
-}
-export class ChartDailyUsage extends DailyUsage {
-    chartType: string;
-    chartName: string;
-
-    constructor(session: ChartSession
-    ) {
-        super(session)
-        this.chartType = session.chartType;
-        this.chartName = session.chartName;
-    }
-
-    getKey(): string {
-        return DailyUsage.calcKey(ChartSession.calcSessionKey(
-                                    this.userId, 
-                                    this.orgId, 
-                                    this.chartType, 
-                                    this.chartName), 
-                                  this.date);
-    }
-
-}
-
-//type Usage = UserDailyUsage | ChartDailyUsage;
-let dailyUsages: Record<string, DailyUsage> = {};
-
-// let userDailies: Record<string, UserDailyUsage> = {};
-// let chartDailies: Record<string, ChartDailyUsage> = {};
-
-
-// function calcUserDailyKey(userId: string, orgId: string, startTime: Date): string {
-//     // get the date part of the startDate string
-//     let date = getDateString(startTime)
-//     return `${date}:${userId}@${orgId}`;
-// }
-
-export function updateUserDaily(session: UserSession, sessionClose: boolean= false): void {
-
-    const key = calcUserDailyKey(session.userId, session.orgId, session.startTime);
-    const dailyUsage = dailyUsages[key];
-    if (dailyUsage) {
-        
-        dailyUsage.lastActivityTime = session.lastActivityTime;
-        console.log(`updateUserDaily: User ${dailyUsage.userId}@${dailyUsage.orgId} Date ${dailyUsage.date} last activity updated ${dailyUsage.lastActivityTime}`);
-        if (sessionClose && dailyUsage.lastActivityTime) {
-            // Add the last session duration to the total duration
-            dailyUsage.totalDuration += (dailyUsage.lastActivityTime.getTime() - dailyUsage.currentSessionStartTime.getTime()) / 1000;
-            console.log(`updateUserDaily closed: User ${dailyUsage.userId}@${dailyUsage.orgId} Date ${dailyUsage.date} total duration updated ${dailyUsage.totalDuration}`);
+    static closeSession(session: ActiveSession): void {
+        const key = DailyUsage.calcKeyFromSession(session);
+        let dailyUsage = DailyUsage.getDailyUsageByKey(key);
+        if (dailyUsage) {
+            dailyUsage.totalDuration += dailyUsage.currentSessionDuration;
+            dailyUsage.currentSessionDuration = 0;
         }
-        if (session.startTime > dailyUsage.currentSessionStartTime) {
-            // A new ession has started
-            // Update the current session start time to current session start time
-            dailyUsage.currentSessionStartTime = session.startTime;
-            console.log(`updateUserDaily new session: User ${dailyUsage.userId}@${dailyUsage.orgId} Date ${dailyUsage.date} current session start time updated ${dailyUsage.currentSessionStartTime}`);
-        }
-    } else {
-        const daily = {
-            date: getDateString(session.startTime),
-            userId: session.userId,
-            orgId: session.orgId,
-            currentSessionStartTime: session.startTime,
-            lastActivityTime: session.lastActivityTime,
-            totalDuration: sessionClose && session.lastActivityTime ? (session.lastActivityTime.getTime() - session.startTime.getTime()) / 1000 : 0
-
-        };
-        dailyUsages[key] = daily
-        console.log(`updateUserDaily: User ${daily.userId}@${daily.orgId} Date ${daily.date} created at ${daily.currentSessionStartTime}`);
+        return;
     }
+
+    static getAllDailyUsages(): Record<string, DailyUsage> {
+        return DailyUsage.dailyUsages;
+    }
+
+    // Private static functions
+    private static addDailyUsage(dailyUsage: DailyUsage): void {
+        DailyUsage.dailyUsages[dailyUsage.getKey()] = dailyUsage;
+    }
+
+    private static createDailyUsage(session: ActiveSession): DailyUsage {
+        return new DailyUsage(session);
+    }
+
+
 }
 
-function getUserDaily(userId: string, orgId: string, startTime: Date): UserDailyUsage | null {
-    const key = calcUserDailyKey(userId, orgId, startTime);
-    return dailyUsages[key] || null;
-}
 
-function getAllUserDaily(): Record<string, UserDailyUsage> {
-    return dailyUsages;
+function getAllDailyUsages(): Record<string, DailyUsage> {
+    return DailyUsage.getAllDailyUsages();
 }
 
 export function printUserDailies(): void {
-    console.log('User daylies:', dailyUsages);
+    console.log('User daylies:', DailyUsage.getAllDailyUsages());
 }
 
 (globalThis as any).printUserDailies = printUserDailies;
