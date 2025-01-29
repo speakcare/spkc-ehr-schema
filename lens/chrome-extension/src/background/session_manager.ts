@@ -91,7 +91,6 @@ export async function initializeSessionTimeout(): Promise<void> {
   }
 }
 
-
 export async function getUserSessionsFromLocalStorage(): Promise<Record<string, UserSession>> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get('activeSessions', (result) => {
@@ -100,24 +99,14 @@ export async function getUserSessionsFromLocalStorage(): Promise<Record<string, 
         reject(chrome.runtime.lastError);
       } else {
         const activeSessions = result.activeSessions || {};
-        // Convert date strings back to Date objects
+        const userSessions: Record<string, UserSession> = {};
         for (const key in activeSessions) {
           if (activeSessions.hasOwnProperty(key)) {
-            const session = activeSessions[key];
-            session.startTime = new Date(session.startTime);
-            if (session.lastActivityTime) {
-              session.lastActivityTime = new Date(session.lastActivityTime);
-            }
-            // Make the _timer property non-enumerable
-            Object.defineProperty(session, '_expirationTimer', {
-              enumerable: false,
-              configurable: true,
-              writable: true,
-              value: undefined // Initialize with undefined
-            });
+            const sessionDTO = activeSessions[key];
+            userSessions[key] = UserSession.deserialize(sessionDTO);
           }
         }
-        resolve(activeSessions);
+        resolve(userSessions);
       }
     });
   });
@@ -128,12 +117,7 @@ export async function saveActiveSessionsToLocalStorage(): Promise<void> {
   return new Promise((resolve, reject) => {
     const sessionsToSave = Object.fromEntries(
       Object.entries(userSessions).map(([key, session]) => [
-        key,
-        {
-          ...session,
-          startTime: session.getStartTime().toISOString(),
-          lastActivityTime: session.getLastActivityTime()?.toISOString() || null,
-        },
+        key, session.serialize(),
       ])
     );
     chrome.storage.local.set({ activeSessions: sessionsToSave }, () => {
@@ -218,12 +202,7 @@ function createNewUserSession(
     orgId,
     startTime/*: startTime ?? new Date(),*/
   );
-  // Make the _timer property non-enumerable
-  Object.defineProperty(newSession, '_expirationTimer', {
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
+  
   const sessionKey = newSession.getSessionKey() // UserSession.calcSessionKey(userId, orgId);
   userSessions[sessionKey] = newSession;
   DailyUsage.updateSession(newSession);

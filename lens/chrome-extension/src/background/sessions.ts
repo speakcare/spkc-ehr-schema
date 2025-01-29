@@ -24,6 +24,14 @@ export abstract class ActiveSession {
     this.userActivitySeen = userActivitySeen;
     this.lastActivityTime = lastActivityTime;
     this._expirationTimer = undefined;
+
+    // Define _expirationTimer as a non-enumerable property
+    Object.defineProperty(this, '_expirationTimer', {
+                    enumerable: false,
+                    configurable: true,
+                    writable: true,
+                    value: undefined // Initialize with undefined
+                  });
   }
   duration(): number {
     return this.lastActivityTime ? (this.lastActivityTime.getTime() - this.startTime.getTime())/1000 : 0;
@@ -45,7 +53,7 @@ export abstract class ActiveSession {
   setUserActivitySeen(userActivitySeen: boolean): void {
     this.userActivitySeen = userActivitySeen;
   }
-  
+
   getLastActivityTime(): Date | null {
     return this.lastActivityTime;
   }
@@ -74,9 +82,9 @@ export abstract class ActiveSession {
 export interface UserSessionDTO {
     userId: string;
     orgId: string;
-    startTime: Date; // Use string to represent date in ISO format
+    startTime: string; 
     userActivitySeen: boolean;
-    lastActivityTime: Date | null;
+    lastActivityTime: string | null;
 }
   
 export interface ChartSessionDTO {
@@ -84,7 +92,7 @@ export interface ChartSessionDTO {
     orgId: string;
     chartType: string;
     chartName: string
-    startTime: string; // Use string to represent date in ISO format
+    startTime: string; 
     userActivitySeen: boolean;
     lastActivityTime: string | null;
 }
@@ -108,14 +116,28 @@ export class UserSession extends ActiveSession {
     return SessionType.UserSession;
   }
 
-  static serialize(session: UserSession): UserSessionDTO {
+  serialize(): UserSessionDTO {
     return {
-      userId: session.userId,
-      orgId: session.orgId,
-      startTime: session.startTime,//.toISOString(),
-      userActivitySeen: session.userActivitySeen,
-      lastActivityTime: session.lastActivityTime ? session.lastActivityTime : null,// .toISOString() : null,
+      userId: this.userId,
+      orgId: this.orgId,
+      startTime: this.startTime.toISOString(),
+      userActivitySeen: this.userActivitySeen,
+      lastActivityTime: this.lastActivityTime?.toISOString() || null,// this.lastActivityTime : null,// .toISOString() : null,
     };
+  }
+
+  static serialize(session: UserSession): UserSessionDTO {
+    return session.serialize();
+  }
+  
+  static deserialize(dto: UserSessionDTO): UserSession {
+    return new UserSession(
+      dto.userId,
+      dto.orgId,
+      new Date(dto.startTime),
+      dto.userActivitySeen,
+      dto.lastActivityTime ? new Date(dto.lastActivityTime) : null
+    );
   }
 }
 
@@ -164,7 +186,7 @@ export class ChartSession extends ActiveSession {
       chartName: session.chartName,
       startTime: session.startTime.toISOString(),
       userActivitySeen: session.userActivitySeen,
-      lastActivityTime: session.lastActivityTime ? session.lastActivityTime.toISOString() : null,
+      lastActivityTime: session.lastActivityTime?.toISOString() || null,// ? session.lastActivityTime/*.toISOString()*/ : null,
     };
   }
 }  

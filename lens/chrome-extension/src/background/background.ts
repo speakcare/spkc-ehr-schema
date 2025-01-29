@@ -8,6 +8,7 @@ import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
 import { BasicResponse } from '../types';
 import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from './session_log';
+import { DailyUsage } from './daily_usage';
 //import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
@@ -51,6 +52,7 @@ console.log('Background script loaded at', new Date().toISOString());
 // Initialize the panel manager and session manager
 await initializePanelManager();
 await initializeSessionManager();
+await DailyUsage.initialize();
 console.log('Background script sesssion manager initialized at', new Date().toISOString());
 
 chrome.runtime.onMessage.addListener(

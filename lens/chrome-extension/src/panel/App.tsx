@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserSessionDTO } from '../background/sessions';
+import { UserSession, UserSessionDTO } from '../background/sessions';
 import { UserSessionsResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../background/session_manager'
 import {  SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
 import {
@@ -39,7 +39,7 @@ const useStyles = makeStyles({
 const App: React.FC = () => {
   const classes = useStyles();
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
-  const [userSessions, setUserSessions] = useState<UserSessionDTO[]>([]);
+  const [userSessions, setUserSessions] = useState<UserSession[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
   const [sessionTimeout, setSessionTimeout] = useState<number>(180); // Default to 3 minutes
   const [candidateSessionTimeout, setCandidateSessionTimeout] = useState<number>(180); // Local state for new timeout
@@ -91,12 +91,10 @@ const App: React.FC = () => {
         });
       });
       if (response.success) {
-        const userSessions = response.userSessions.map(session => ({
-          ...session,
-          startTime: new Date(session.startTime),
-          lastActivityTime: session.lastActivityTime ? new Date(session.lastActivityTime) : null,
-        }));
-        setUserSessions(userSessions);
+        const sessions: UserSession[] = response.userSessions.map((sessionDTO: UserSessionDTO) => 
+          UserSession.deserialize(sessionDTO)
+        );
+        setUserSessions(sessions);
       } else {
         console.error('Failed to fetch active sessions:', response.error);
       }  
@@ -338,7 +336,6 @@ const App: React.FC = () => {
             </Box>
 
             {/* Session Log Table */}
-            {/* <TableContainer component={Paper} sx={{ maxHeight: 800, overflow: 'auto' }}> */}
             <TableContainer component={Paper} className={classes.tableContainer}>
               <Table stickyHeader>
                 <TableHead>
@@ -383,12 +380,10 @@ const App: React.FC = () => {
                 <TableBody>
                   {userSessions.map((session, index) => (
                     <TableRow key={index}>
-                      <TableCell>{new Date(session.startTime).toLocaleString()}</TableCell>
-                      <TableCell>{`${session.userId}@${session.orgId}`}</TableCell>
+                      <TableCell>{session.getStartTime().toLocaleString()}</TableCell>
+                      <TableCell>{`${session.getUserId()}@${session.getOrgId()}`}</TableCell>
                       <TableCell>
-                        {session.lastActivityTime
-                          ? new Date(session.lastActivityTime).toLocaleString()
-                          : 'N/A'}
+                        {session.getLastActivityTime()?.toLocaleString() || 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))}
