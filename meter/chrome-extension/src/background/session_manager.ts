@@ -1,4 +1,4 @@
-import { BasicResponse } from '../types/index.d';
+import { BasicResponse } from '../types';
 import { UserSession, UserSessionDTO } from './sessions';
 import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';

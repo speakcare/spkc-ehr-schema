@@ -1,5 +1,5 @@
 import { isTabUrlPermitted  } from '../utils/url_utills';
-import { Tab } from '../types/index.d';
+import { Tab } from '../types';
 
 interface SidePanelOptions {
     tabId?: number;

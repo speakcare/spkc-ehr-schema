@@ -1,4 +1,4 @@
-import { BasicResponse } from '../types/index.d';
+import { BasicResponse } from '../types';
 
 
 
