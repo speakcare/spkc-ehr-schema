@@ -2,7 +2,7 @@
 
 ## **Overview**
 
-SpeakCare is an ambient listening system for nurses that captures audio conversations, processes them, and generates structured clinical documentation ready for submission to Electronic Health Records (EHR) systems. 
+SpeakCare is an AI assistant for nurses. The MVP is an ambient listening system that captures nurses' conversations, processes them, and generates structured clinical documentation ready for submission to Electronic Health Records (EHR) systems. 
 The microphone escorts the nurse during the whole shift, and any conversation can potentially be used to create and improve documentation.  
 
 The architecture ensures scalability, fault tolerance, and compliance with HIPAA.
@@ -24,7 +24,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
      - Task management and smart reminders.  
   - **Security**: OAuth 2.0 (3-legged authentication) for secure login.  
 - **Technologies:**  
-   - Browser: React.js/Vue.js with API integration.  
+   - Browser: React.js with API integration.  
    - Mobile: Flutter/React Native for cross-platform support.
 
 ---
@@ -36,8 +36,11 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Trigger and monitor:  
      - **Audio Ingestion → STT → Text Sanitization → Patient Attribution → Patient Data Sanitization → Sentiment Analysis → EHR Integration → Knowledge Base → Documentation Preparation → Rule-Based Processing → Compliance Framework**.  
    - Ensure retries, fault tolerance, and step recovery.  
+- **Considerations:**
+   - Scheduled workflows for components running as containers
+   - Event driven for serverless componenets
 - **Technologies:**  
-   - Apache Airflow, Temporal, or Step Functions.
+   - Apache Airflow (possibly managed, such as MWAA), Temporal, or Step Functions.
 
 ---
 
@@ -55,6 +58,12 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Audio Processing: SoX, WebRTC Noise Reduction, PyDub.  
    - Voice embeddings: voice encoders into vector embeddings (number of speakers per customer is small << 1000) 
    - Storage: AWS S3-compatible object store.
+- **Deployment considerations:**
+   - Serverless
+   - Cotainerized (e.g. Fargate) for long-running jobs (e.g., speaker recognition, audio enhancement).
+   - Serverless funcstions (e.g. Lambda) for lightweight pre-processing.
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -68,7 +77,11 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Technologies:**  
    - Python with STT services like OpenAI Whisper, Google STT, or Azure Speech-to-Text.  
    - Diarization using vector embeddings (vector database)
-   - Deployment: Docker/Kubernetes for scalability.  
+- **Deployment considerations:**
+   - Docker/Kubernetes for heavyweight tasks such as custom STT models
+   - Serverless functions for extertnal API calls for STT services
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -81,7 +94,10 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Outputs sanitized text to the NoSQL Document Database for Patient Attribution.  
 - **Technologies:**  
    - Python with NLP-based filtering pipelines.  
-   - Deployment: Docker/Kubernetes for scalability.
+- **Deployment considerations:**
+   - Serverless functions.
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -98,6 +114,13 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
        - Uses semantic similarity analysis with transformer models (e.g., BERT) to link segments.  
 - **Technologies:**  
    - Python with NLP libraries (SpaCy, Hugging Face Transformers).  
+- **Deployment considerations:**
+   - Heavy workload
+   - Run as containers (e.g. ECS or Kubernetes)
+- **Scheduling considerations:**
+   - Event driven
+
+
 
 ---
 
@@ -110,6 +133,9 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Updates sanitized text back to the NoSQL Database.  
 - **Technologies:**  
    - Python-based pipeline with rule-based sanitization.  
+- **Scheduling considerations:**
+   - Event driven
+
 
 ---
 
@@ -121,6 +147,13 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - **Text Sentiment Analysis**: Extract complaints and pain descriptions from text.  
 - **Technologies:**  
    - Python with pre-trained transformer models (e.g., BERT, OpenAI).
+- **Deployment considerations:**
+   - Depending on implementation. If only calling API of managed services then we can run as Serverless function.
+   - If managing our own models, then containers (ECS or Kubernetes)
+- **Scheduling considerations:**
+   - Event driven
+
+
 
 ---
 
@@ -133,6 +166,11 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Secure integration using OAuth 2.0 for authentication.  
 - **Technologies:**  
    - Python with EHR APIs/SDKs.
+- **Deployment considerations:**
+   - Containers, due to requirements on persistence, state management, user credentials (session tokens)
+   - Review this if can be simplified and run as serverless function.
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -146,6 +184,12 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Technologies:**  
    - Vector Database: Pinecone or FAISS.  
    - Graph Database: Neo4j.
+   - Consider using AWS Bedrock Knowledge Base as a managed solution
+- **Deployment considerations:**
+   - Depending on implemenation. If using a managed service like Bedrock Knoweldge base then we can probably run as serverless function.
+   - If managging our own Knowledge base then probabaly Containers or a Kubernetes cluster.
+- **Scheduling considerations:**
+   - Scheduled jobs for periodic updates
 
 ---
 
@@ -158,7 +202,12 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Enforces JSON schema validation for structured outputs.  
 - **Technologies:**  
    - OpenAI GPT API or equivalent LLM.  
-   - JSON schema validation for output safety.  
+   - JSON schema validation for output safety. 
+- **Deployment considerations:**
+   - Depending on the implementation, if this is API calls to managed LLM services, then we can be serverless. 
+   - If we deploy our own models than it will be running as a Kubernetes cluster.
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -178,6 +227,8 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Technologies:**  
    - NLP libraries (spaCy) for rule implementation and validation.  
    - Custom rule-based systems for tenant-specific policies and templates.  
+- **Scheduling considerations:**
+   - Event driven
 
 ---
 
@@ -187,6 +238,12 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Features:**  
    - Fetch task schedules from EHR.  
    - Generate notifications for overdue or high-priority tasks.  
+- **Deployment considerations:**
+   - Serverless functions.
+- **Scheduling considerations:**
+   - Event driven
+
+
 
 ---
 
@@ -196,6 +253,10 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Features:**  
    - Detect and replace PII in free-text data.  
    - Maintain audit logs for compliance tracking.
+- **Deployment considerations:**
+   - Containers as we need persistent storage
+- **Scheduling considerations:**
+   - Scheduled jobs for periodic scanning and database updates
 
 ---
 
@@ -208,6 +269,9 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Handles authentication and session management.  
 - **Technologies:**  
    - Django/Flask API framework.
+- **Deployment considerations:**
+   - Containers managed or Kubernetes cluster
+
 
 ---
 
@@ -215,6 +279,11 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Purpose:** Provides real-time monitoring, logging, and HIPAA audit trails.  
 - **Technologies:**  
    - DataDog, ELK Stack (Elasticsearch, Logstash, Kibana), or AWS CloudWatch.  
+- **Deployment considerations:**
+   - Containers as we need persistent storage
+- **Scheduling considerations:**
+   - Scheduled jobs for monitoring
+   - Event driven for logging
 
 ---
 
@@ -260,6 +329,8 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
        - Tracks all human interventions to ensure regulatory compliance and traceability.  
    - **Multi-Tenant Support**:
        - Segregates HITL operations for different organizations and users to maintain data privacy and compliance.
+- **Deployment considerations:**
+   - Containers for persistency and reliable reponse time.
 ---
 
 ### **1.21 Event Queue Management**
@@ -366,6 +437,7 @@ The **Human-in-the-Loop Service** integrates seamlessly with the following compo
    - Tasks are generated based on urgency, pending actions, and sentiment analysis outcomes.
 2. **Notifications**:
    - Nurses receive notifications via the Mobile App for overdue tasks, high-priority issues, or flagged items.
+
 
 ---
 
