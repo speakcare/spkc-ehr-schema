@@ -205,7 +205,7 @@ function createNewUserSession(
   
   const sessionKey = newSession.getSessionKey() // UserSession.calcSessionKey(userId, orgId);
   userSessions[sessionKey] = newSession;
-  DailyUsage.updateSession(newSession);
+  DailyUsage.reportSession(newSession);
   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
   return sessionKey;
@@ -346,7 +346,7 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
     logSessionEvent('session_started', session.getStartTime(), now, username);
   }
   session.setLastActivityTime(timestamp); 
-  DailyUsage.updateSession(session)
+  DailyUsage.reportSession(session)
   setSessionExpirationTimer(sessionKey, getSessionTimeout()); // Reset the session timer
   // Debounce the persistence
   if (debouncedUpdates[sessionKey]) {

@@ -51,8 +51,9 @@ console.log('Background script loaded at', new Date().toISOString());
 
 // Initialize the panel manager and session manager
 await initializePanelManager();
-await initializeSessionManager();
 await DailyUsage.initialize();
+await initializeSessionManager();
+
 console.log('Background script sesssion manager initialized at', new Date().toISOString());
 
 chrome.runtime.onMessage.addListener(

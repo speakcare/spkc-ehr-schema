@@ -95,7 +95,7 @@ export class DailyUsage {
         return this.getDailyUsageByKey(this.calcKeyFromSession(session));
     }
 
-    static updateSession(session: ActiveSession): void {
+    static reportSession(session: ActiveSession): void {
         if (!DailyUsage.dailyUsagesLoaded) {
             throw new Error('updateSession: Daily usages not loaded yet');
         }
@@ -108,6 +108,7 @@ export class DailyUsage {
             dailyUsage = DailyUsage.createDailyUsage(session);
             DailyUsage.addDailyUsage(dailyUsage);
         }
+        DailyUsage.saveDailyUsagesToLocalStorage();
         return;
     }
 
@@ -121,6 +122,7 @@ export class DailyUsage {
             dailyUsage.totalDuration += dailyUsage.currentSessionDuration;
             dailyUsage.currentSessionDuration = 0;
         }
+        DailyUsage.saveDailyUsagesToLocalStorage();
         return;
     }
 
