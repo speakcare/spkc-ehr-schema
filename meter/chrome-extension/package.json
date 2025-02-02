@@ -1,5 +1,5 @@
 {
-  "name": "speakcare-pcc-session-lens",
+  "name": "speakcare-pcc-usage-meter",
   "version": "0.1.5",
   "private": true,
   "main": "index.js",
