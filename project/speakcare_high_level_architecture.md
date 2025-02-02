@@ -60,8 +60,8 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Storage: AWS S3-compatible object store.
 - **Deployment considerations:**
    - Serverless
-   - Cotainerized (e.g. Fargate) for long-running jobs (e.g., speaker recognition, audio enhancement).
-   - Serverless funcstions (e.g. Lambda) for lightweight pre-processing.
+   - Containerized (e.g. Fargate) for long-running jobs (e.g., speaker recognition, audio enhancement).
+   - Serverless functions (e.g. Lambda) for lightweight pre-processing.
 - **Scheduling considerations:**
    - Event driven
 
@@ -79,7 +79,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Diarization using vector embeddings (vector database)
 - **Deployment considerations:**
    - Docker/Kubernetes for heavyweight tasks such as custom STT models
-   - Serverless functions for extertnal API calls for STT services
+   - Serverless functions for external API calls for STT services
 - **Scheduling considerations:**
    - Event driven
 
@@ -148,7 +148,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Technologies:**  
    - Python with pre-trained transformer models (e.g., BERT, OpenAI).
 - **Deployment considerations:**
-   - Depending on implementation. If only calling API of managed services then we can run as Serverless function.
+   - Depending on implementation. If we only call the API of managed services then we can run as a Serverless function.
    - If managing our own models, then containers (ECS or Kubernetes)
 - **Scheduling considerations:**
    - Event driven
@@ -168,7 +168,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Python with EHR APIs/SDKs.
 - **Deployment considerations:**
    - Containers, due to requirements on persistence, state management, user credentials (session tokens)
-   - Review this if can be simplified and run as serverless function.
+   - Review this if it can be simplified and run as a serverless function.
 - **Scheduling considerations:**
    - Event driven
 
@@ -186,8 +186,8 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - Graph Database: Neo4j.
    - Consider using AWS Bedrock Knowledge Base as a managed solution
 - **Deployment considerations:**
-   - Depending on implemenation. If using a managed service like Bedrock Knoweldge base then we can probably run as serverless function.
-   - If managging our own Knowledge base then probabaly Containers or a Kubernetes cluster.
+   - Depending on implementation. If using a managed service like Bedrock Knowledge Base then we can probably run as a serverless function.
+   - If managing our own Knowledge base then probably Containers or a Kubernetes cluster.
 - **Scheduling considerations:**
    - Scheduled jobs for periodic updates
 
@@ -251,7 +251,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
 - **Type:** Framework.  
 - **Purpose:** Replace PII with placeholders and ensure audit logging.  
 - **Features:**  
-   - Detect and replace PII in free-text data.  
+   - Detects and replaces PII in free-text data.  
    - Maintain audit logs for compliance tracking.
 - **Deployment considerations:**
    - Containers as we need persistent storage
@@ -330,7 +330,7 @@ The architecture ensures scalability, fault tolerance, and compliance with HIPAA
    - **Multi-Tenant Support**:
        - Segregates HITL operations for different organizations and users to maintain data privacy and compliance.
 - **Deployment considerations:**
-   - Containers for persistency and reliable reponse time.
+   - Containers for persistence and reliable response time.
 ---
 
 ### **1.21 Event Queue Management**
