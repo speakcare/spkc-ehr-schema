@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserSession, UserSessionDTO } from '../background/sessions';
-import { UserSessionsResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../background/session_manager'
+import { SessionsResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../types/messages'  
 import {  SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
 import {
   AppBar,
@@ -79,27 +79,27 @@ const App: React.FC = () => {
 
   const fetchUserSessions = async () => {
     try {
-      const response = await new Promise<UserSessionsResponse>((resolve, reject) => {
+      const response = await new Promise<SessionsResponse>((resolve, reject) => {
         console.debug('Sending user_sessions_get message');
-        chrome.runtime.sendMessage({ type: 'user_sessions_get' }, (response: UserSessionsResponse) => {
+        chrome.runtime.sendMessage({ type: 'sessions_get' }, (response: SessionsResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            console.debug('Received active_sessions_response:', response);
+            console.debug('Received user_sessions_response:', response);
             resolve(response);
           }
         });
       });
       if (response.success) {
-        const sessions: UserSession[] = response.userSessions.map((sessionDTO: UserSessionDTO) => 
+        const sessions: UserSession[] = response.sessions.map((sessionDTO: UserSessionDTO) => 
           UserSession.deserialize(sessionDTO)
         );
         setUserSessions(sessions);
       } else {
-        console.error('Failed to fetch active sessions:', response.error);
+        console.error('Failed to fetch user sessions:', response.error);
       }  
     } catch (error) {
-      console.error('Error fetching active sessions:', error);
+      console.error('Error fetching user sessions:', error);
     }
   };
 

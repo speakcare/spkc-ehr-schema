@@ -1,8 +1,8 @@
 import { initializeSessionManager, handleUserInput, handlePageLoad, 
-        handleUserSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
+        handleUserSessionsGet, handleUserSessionTimeoutGet, handleUserSessionTimeoutSet } from './session_manager';
 import {  PageLoadMessage, PageLoadResponse, UserInputMessage, 
-          UserInputResponse, UserSessionsGetMessage, UserSessionsResponse,
-          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from './session_manager'
+          UserInputResponse, SessionsGetMessage, SessionsResponse,
+          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from '../types/messages';
 import { UserSessionDTO } from './sessions'
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
@@ -33,9 +33,9 @@ import { DailyUsage } from './daily_usage';
 // });
 
 
-export type BackgroundMessage = PageLoadMessage | UserInputMessage | UserSessionsGetMessage | SessionsLogsGetMessage | 
+export type BackgroundMessage = PageLoadMessage | UserInputMessage | SessionsGetMessage | SessionsLogsGetMessage | 
                        SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
-export type BackgroundResponse =  PageLoadResponse | UserInputResponse | UserSessionsResponse | SessionsLogsGetResponse | 
+export type BackgroundResponse =  PageLoadResponse | UserInputResponse | SessionsResponse | SessionsLogsGetResponse | 
                          SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;
 
 
@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener(
         handleUserInput(message, sender, sendResponse);
         return true;
 
-      case 'user_sessions_get':
+      case 'sessions_get':
         handleUserSessionsGet(message, sendResponse);
         return true;
 
@@ -85,11 +85,11 @@ chrome.runtime.onMessage.addListener(
         return true;
 
       case 'session_timeout_get':
-        handleSessionTimeoutGet(message, sendResponse);
+        handleUserSessionTimeoutGet(message, sendResponse);
         return true;
       
       case 'session_timeout_set':
-        handleSessionTimeoutSet(message, sendResponse);
+        handleUserSessionTimeoutSet(message, sendResponse);
         return true;
 
       default:

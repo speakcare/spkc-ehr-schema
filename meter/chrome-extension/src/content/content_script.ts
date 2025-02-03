@@ -1,7 +1,7 @@
 
 import { BackgroundMessage, BackgroundResponse } from '../background/background' 
-import { PageLoadMessage, UserInputMessage, PageEventMessage } from "../background/session_manager";
-import { parseChart, ChartInfo, getPagePath, getPageUrl } from "./ehr/pointclickcare/pcc_chart_parser";
+import { PageLoadMessage, UserInputMessage, PageEventMessage } from '../types/messages'
+import { parseChart, ChartInfo, getPagePath, getPageUrl } from './ehr/pointclickcare/pcc_chart_parser'
 import { DebounceThrottle } from '../utils/debounce';
 
 const debounceDelay = 300; 

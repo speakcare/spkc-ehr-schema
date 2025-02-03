@@ -7,7 +7,7 @@ export abstract class ActiveSession {
   protected userId: string;
   protected orgId: string;
   protected startTime: Date; // the actual start time when the session was created
-  protected userActivitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
+  protected activitySeen: boolean; // Flag to indicate if user activity has been seen - used to determine session start
   protected lastActivityTime: Date | null;
   private _expirationTimer?: NodeJS.Timeout; // Non-enumerable property for the timer
 
@@ -21,7 +21,7 @@ export abstract class ActiveSession {
     this.userId = userId;
     this.orgId = orgId;
     this.startTime = startTime;
-    this.userActivitySeen = userActivitySeen;
+    this.activitySeen = userActivitySeen;
     this.lastActivityTime = lastActivityTime;
     this._expirationTimer = undefined;
 
@@ -47,11 +47,11 @@ export abstract class ActiveSession {
   getStartTime(): Date {
     return this.startTime;
   }
-  getUserActivitySeen(): boolean {
-    return this.userActivitySeen;
+  getActivitySeen(): boolean {
+    return this.activitySeen;
   }
-  setUserActivitySeen(userActivitySeen: boolean): void {
-    this.userActivitySeen = userActivitySeen;
+  setActivitySeen(userActivitySeen: boolean): void {
+    this.activitySeen = userActivitySeen;
   }
 
   getLastActivityTime(): Date | null {
@@ -76,6 +76,7 @@ export abstract class ActiveSession {
   abstract getSessionKey(): string;
   abstract getIdentifierFields(): { [key: string]: any };
   abstract getType(): SessionType;
+  abstract serialize(): any;
 }
 
 
@@ -100,7 +101,8 @@ export interface ChartSessionDTO {
 
 export class UserSession extends ActiveSession {
 
-  static calcSessionKey(userId: string, orgId: string): string {
+  static calcSessionKey(userId: string, orgId: string, additionalParams: any = {}): string {
+    // we don't use the additionalParams here but they are required for generic function signature
     return `${userId}@${orgId}`;
   }
   getSessionKey(): string {
@@ -116,12 +118,12 @@ export class UserSession extends ActiveSession {
     return SessionType.UserSession;
   }
 
-  serialize(): UserSessionDTO {
+  serialize(): any {
     return {
       userId: this.userId,
       orgId: this.orgId,
       startTime: this.startTime.toISOString(),
-      userActivitySeen: this.userActivitySeen,
+      userActivitySeen: this.activitySeen,
       lastActivityTime: this.lastActivityTime?.toISOString() || null,// this.lastActivityTime : null,// .toISOString() : null,
     };
   }
@@ -159,11 +161,17 @@ export class ChartSession extends ActiveSession {
     this.chartName = chartName;
   }
 
-  static calcSessionKey(userId: string, orgId: string, chartType: string, chartName: string): string {
+  static calcSessionKey(userId: string, orgId: string, additionalParams: any = {}): string {
+    const { chartType, chartName } = additionalParams;
     return `${userId}@${orgId}-${chartType}-${chartName}`;
   }
+  
+  // static calcSessionKey(userId: string, orgId: string, chartType: string, chartName: string): string {
+  //   return `${userId}@${orgId}-${chartType}-${chartName}`;
+  // }
   getSessionKey(): string {
-    return ChartSession.calcSessionKey(this.userId, this.orgId, this.chartType, this.chartName);
+    return ChartSession.calcSessionKey(this.userId, this.orgId, 
+                                      {chartType: this.chartType, chartName: this.chartName});
   }
 
   getIdentifierFields(): { [key: string]: any } {
@@ -178,15 +186,19 @@ export class ChartSession extends ActiveSession {
     return SessionType.ChartSession;
   }
 
-  static serialize(session: ChartSession): ChartSessionDTO {
+  serialize(): any {
     return {
-      userId: session.userId,
-      orgId: session.orgId,
-      chartType: session.chartType,
-      chartName: session.chartName,
-      startTime: session.startTime.toISOString(),
-      userActivitySeen: session.userActivitySeen,
-      lastActivityTime: session.lastActivityTime?.toISOString() || null,// ? session.lastActivityTime/*.toISOString()*/ : null,
+      userId: this.userId,
+      orgId: this.orgId,
+      startTime: this.startTime.toISOString(),
+      chartType: this.chartType,
+      chartName: this.chartName,
+      userActivitySeen: this.activitySeen,
+      lastActivityTime: this.lastActivityTime ? this.lastActivityTime.toISOString() : null,
     };
+  }
+
+  static serialize(session: ChartSession): ChartSessionDTO {
+    return session.serialize();
   }
 }  
