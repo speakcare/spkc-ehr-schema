@@ -3,6 +3,7 @@ import { UserSession, UserSessionDTO } from './sessions';
 import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';
 import { DailyUsage } from './daily_usage';
+import { DebounceThrottle } from '../utils/debounce';
     
 
 //*****************************************************/
@@ -56,7 +57,10 @@ export async function loadSessionTimeout(): Promise<number> {
 
 
 // Handle message request for timeout change
-export async function handleSessionTimeoutSet(message: SessionTimeoutSetMessage, sendResponse: (response: SessionTimeoutSetResponse) => void): Promise<void> {
+export async function handleSessionTimeoutSet(
+  message: SessionTimeoutSetMessage, 
+  sendResponse: (response: SessionTimeoutSetResponse) => void): Promise<void> 
+{
   try {
     console.log('Setting session timeout:', message.timeout);
     await setSessionTimeout(message.timeout);
@@ -69,7 +73,10 @@ export async function handleSessionTimeoutSet(message: SessionTimeoutSetMessage,
 }
 
 // Handle message get request for timeout
-export async function handleSessionTimeoutGet(message: SessionTimeoutGetMessage, sendResponse: (response: SessionTimeoutGetResponse) => void): Promise<void> {
+export async function handleSessionTimeoutGet(
+  message: SessionTimeoutGetMessage, 
+  sendResponse: (response: SessionTimeoutGetResponse) => void): Promise<void> 
+{
   try {
     const timeout = await getSessionTimeout();
     console.log('Getting session timeout:', timeout);
@@ -170,7 +177,10 @@ function getUserSession(sessionKey: string): UserSession | undefined {
   return userSessions[sessionKey];
 }
 
-export async function handleUserSessionsGet(message: UserSessionsGetMessage, sendResponse: (response: UserSessionsResponse) => void): Promise<void> {
+export async function handleUserSessionsGet(
+  message: UserSessionsGetMessage, 
+  sendResponse: (response: UserSessionsResponse) => void): Promise<void> 
+{
   try {
     const userSessionsRecord = getAllUserSessions();
     if (userSessionsRecord) {
@@ -328,7 +338,7 @@ function setSessionExpirationTimer(sessionKey: string, expirationTimeout: number
 }
 
 
-const debouncedUpdates: Record<string, NodeJS.Timeout> = {};
+const debouncedUpdates = new DebounceThrottle(3000, 10000);
 export function updateLastActivity(sessionKey: string, timestamp: Date) {
   console.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
 
@@ -348,27 +358,19 @@ export function updateLastActivity(sessionKey: string, timestamp: Date) {
   session.setLastActivityTime(timestamp); 
   DailyUsage.reportSession(session)
   setSessionExpirationTimer(sessionKey, getSessionTimeout()); // Reset the session timer
-  // Debounce the persistence
-  if (debouncedUpdates[sessionKey]) {
-    clearTimeout(debouncedUpdates[sessionKey]);
-  }
-
-  debouncedUpdates[sessionKey] = setTimeout(() => {
-    persistLastActivity(sessionKey, timestamp);
-  }, 3000); // Delay of 3 seconds
+  debouncedUpdates.debounce(() => {
+    persistLastActivity(sessionKey);
+  });
 }
+
 
   
 // Immediately flush updates for a specific sessionKey
 async function flushPendingUpdate(sessionKey: string) {
-  if (debouncedUpdates[sessionKey]) {
-    clearTimeout(debouncedUpdates[sessionKey]);
-    delete debouncedUpdates[sessionKey];
-  }
   const session = getUserSession(sessionKey);
   const lastActivityTime = session?.getLastActivityTime();
   if (session && lastActivityTime) {
-    await persistLastActivity(sessionKey, lastActivityTime); // Persist latest in-memory state
+    await persistLastActivity(sessionKey); // Persist latest in-memory state
     console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
   } else {
     console.warn(`No active session found for sessionKey: ${sessionKey}`);
@@ -376,13 +378,12 @@ async function flushPendingUpdate(sessionKey: string) {
 }
 
 
-export async function persistLastActivity(sessionKey: string, timestamp: Date) {
+export async function persistLastActivity(sessionKey: string) {
   const session = getUserSession(sessionKey);
 
   if (session) {
-    session.setLastActivityTime(timestamp);
     await saveActiveSessionsToLocalStorage(); // Persist updated table
-    console.log(`Persisted last activity time for sessionKey ${sessionKey}: ${timestamp}`);
+    console.log(`Persisted last activity time for sessionKey ${sessionKey}`);
   } else {
     console.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
   }
@@ -415,6 +416,7 @@ async function findOrCreateSession(
   tabId: number,
   sender: chrome.runtime.MessageSender,
   userId: string,
+  orgCode: string,
   startTime: Date,
   sendResponse: (response?: any) => void
 
@@ -422,22 +424,14 @@ async function findOrCreateSession(
   const senderTabUrl = sender.tab?.url || '';
   const url = new URL(senderTabUrl);
   const domain = url.hostname;
-  const orgIdFromCookie = await getCookieValueFromUrl('last_org', senderTabUrl);
-
-  if (!orgIdFromCookie) {
-    console.warn('Failed to recover orgId from cookie.');
-    sendResponse({ success: false, error: 'orgId not found' });
-    return null;
-  }
-
-  console.log(`Got orgId ${orgIdFromCookie} from cookie for tabId ${tabId}`);
-  let sessionKey = UserSession.calcSessionKey(userId, orgIdFromCookie);
+ 
+  let sessionKey = UserSession.calcSessionKey(userId, orgCode);
   const session = getUserSession(sessionKey);
   if (!session) {
     // no session yet, create a new one
     console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
                 user input message for a non existing session. Creating a new session.`);
-    const newSessionKey = await handleNewSession(orgIdFromCookie, userId, startTime);
+    const newSessionKey = await handleNewSession(orgCode, userId, startTime);
     if (newSessionKey) {
       sessionKey = newSessionKey;
       setSessionExpirationTimer(sessionKey, getSessionTimeout());
@@ -465,7 +459,7 @@ export async function handlePageLoad(
   }
 
   try {
-    const sessionKey = await findOrCreateSession(tabId, sender, username, new Date(pageStartTime), sendResponse);
+    const sessionKey = await findOrCreateSession(tabId, sender, message.username, message.orgCode, new Date(pageStartTime), sendResponse);
 
     if (sessionKey) {
       tabIdToSessionKeyMap[tabId] = sessionKey;
@@ -506,7 +500,7 @@ export async function handleUserInput(
 
     try {
       // Fallback: Retrieve sessionId asynchronously
-      const sessionKey = await findOrCreateSession(tabId, sender, message.username, new Date(message.timestamp), sendResponse);
+      const sessionKey = await findOrCreateSession(tabId, sender, message.username, message.orgCode, new Date(message.timestamp), sendResponse);
       if (sessionKey) {
         tabIdToSessionKeyMap[tabId] = sessionKey;
         processUserInputMessage(message, sessionKey, sendResponse);

@@ -2,13 +2,20 @@
 import { BackgroundMessage, BackgroundResponse } from '../background/background' 
 import { PageLoadMessage, UserInputMessage, PageEventMessage } from "../background/session_manager";
 import { parseChart, ChartInfo, getPagePath, getPageUrl } from "./ehr/pointclickcare/pcc_chart_parser";
+import { DebounceThrottle } from '../utils/debounce';
+
+const debounceDelay = 300; 
+const throttleDelay = 5000; 
+
+const debounceThrottleInstance = new DebounceThrottle(debounceDelay, throttleDelay);
+
 
 const pageInfo = {
   lastMessageSentTime: Date.now(),
-  debounceTimer: null as NodeJS.Timeout | null,
   pageLoadTime: '',
   chartInfo: null as ChartInfo | null,
   initialized: false,
+  debouncer: null as DebounceThrottle | null,
 }
 
 function initPageInfo() {
@@ -20,7 +27,7 @@ function initPageInfo() {
   }
   pageInfo.lastMessageSentTime = Date.now();
   pageInfo.pageLoadTime = '';
-  pageInfo.debounceTimer = null;
+  pageInfo.debouncer = new DebounceThrottle(debounceDelay, throttleDelay);
   pageInfo.initialized = true;
 }
 
@@ -61,29 +68,14 @@ async function sendMessageToBackground(message: BackgroundMessage) {
   }
 }
 
-
-// let debounceTimer: NodeJS.Timeout | null = null;
-function debounceAndThrottle(callback: () => void, debounceDelay: number, throttleDelay: number) {
-  const now = Date.now();
-
-  if (pageInfo.debounceTimer) {
-    clearTimeout(pageInfo.debounceTimer);
-    pageInfo.debounceTimer = null;
-  }
-  
-  // Throttle: Send an event if `throttleDelay` has passed since the last event
-  if (now - pageInfo.lastMessageSentTime >= throttleDelay) {
-    callback();
+function debounceAndThrottleMessage(message: any) {
+  if (!pageInfo.debouncer) {
+    console.warn('debounceAndThrottleMessage: debouncer not initialized');
     return;
   }
-  // Debounce: Delay execution until user stops interacting
-  pageInfo.debounceTimer = setTimeout(callback, debounceDelay);
-}
-
-function debounceAndThrottleMessage(message: any, debounceDelay: number, throttleDelay: number) {
-  debounceAndThrottle(() => {
+  pageInfo.debouncer.debounce(() => {
     sendMessageToBackground(message);
-  }, debounceDelay, throttleDelay);
+  });
 }
 
 function createPageEventMessage(): PageEventMessage | null {
@@ -143,7 +135,7 @@ const inputHandler = (event: Event) => {
 
   const userInputMessage = createUserInputMessage(target.value, target instanceof HTMLTextAreaElement ? 'textarea' : 'text');
   if (userInputMessage) {
-    debounceAndThrottleMessage(userInputMessage, 300, 5000);
+    debounceAndThrottleMessage(userInputMessage);
   }
 };
 
@@ -163,7 +155,7 @@ const clickHandler = (event: Event) => {
 
     const userInputMessage = createUserInputMessage(target.innerText || target.value, 'button');
     if (userInputMessage) {
-      debounceAndThrottleMessage(userInputMessage, 300, 5000);
+      debounceAndThrottleMessage(userInputMessage);
     }
   }
 };
@@ -216,7 +208,7 @@ const changeHandler = (event: Event) => {
     }
     userInputMessage.inputType = 'other';
   }
-  debounceAndThrottleMessage(userInputMessage, 300, 5000);
+  debounceAndThrottleMessage(userInputMessage);
 
 };
 
