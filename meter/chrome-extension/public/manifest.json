@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "PCC Usage Meter",
+  "description": "Tracks user session duration and activity on PointClickCare domains.",
+  "version": "0.1.5",
+  "icons": {
+    "16": "icons/lens-icon-16.png",
+    "48": "icons/lens-icon-48.png",
+    "128": "icons/lens-icon-128.png"
+  },
+  "permissions": [
+    "sidePanel",
+    "scripting",
+    "cookies",
+    "storage",
+    "webRequest",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.pointclickcare.com/*"
+  ],
+  "background": {
+    "service_worker": "background.bundle.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.pointclickcare.com/*"
+      ],
+      "include_globs": [
+        "https://usnpint.pointclickcare.com/*",
+        "https://www??.pointclickcare.com/*"
+      ],
+      "js": [
+        "content.bundle.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/lens-icon-16.png",
+      "48": "icons/lens-icon-48.png",
+      "128": "icons/lens-icon-128.png"
+    },
+    "default_title": "Click to open SpeakCare session lens panel"
+  }
+}
