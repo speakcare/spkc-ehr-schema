@@ -1,5 +1,6 @@
 import { isTabUrlPermitted  } from '../utils/url_utills';
 import { Tab } from '../types';
+import { Logger } from '../utils/logger';
 
 interface SidePanelOptions {
     tabId?: number;
@@ -8,15 +9,16 @@ interface SidePanelOptions {
   }
   
 
+const logger = new Logger('PanelManager');
 export async function initializePanelManager() {
-    console.log('Setting up side panel behavior...');
+    logger.log('Setting up side panel behavior...');
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-        .then(() => console.log("Toolbar action button linked to side panel."))
-        .catch((error) => console.error("Error linking action button to side panel:", error));
+        .then(() => logger.log("Toolbar action button linked to side panel."))
+        .catch((error) => logger.error("Error linking action button to side panel:", error));
 
-    console.log('Initializing panel manager...');
+    logger.log('Initializing panel manager...');
 
-    console.log(`SpeakCare Meter side panel starting disabled by default`);
+    logger.debug(`Meter side panel starting disabled by default`);
     
     const options: chrome.sidePanel.PanelOptions = { 
       enabled: false,
@@ -29,22 +31,22 @@ export async function initializePanelManager() {
         chrome.tabs.get(activeInfo.tabId, async (tab) => {
             if (tab.id !== undefined) {
                 const tabId = tab.id;
-                console.debug(`SpeakCare Meter side panel: tabs.onActivated tab.id ${tabId}`);
+                logger.debug(`tabs.onActivated tab.id ${tabId}`);
                 await updateSidePanelForTab({ id: tabId, url: tab.url });
             }
         });
     });
     chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
         if (!tab.url || tab.id === undefined) return;
-        console.debug(`SpeakCare side panel: tabs.onUpdated tab.id ${tabId}`);
+        logger.debug(`tabs.onUpdated tab.id ${tabId}`);
         await updateSidePanelForTab({ id: tab.id, url: tab.url });
     });
-    console.log('Panel manager initialized.');
+    logger.log('Panel manager initialized.');
 }
 
 async function updateSidePanelForTab(tab: Tab): Promise<void> {
   const tabId = tab.id;
-  console.debug(`SpeakCare Meter side panel: updateSidePanelForTab tab.id ${tabId}`);
+  logger.debug(`updateSidePanelForTab tab.id ${tabId}`);
   const isValid = isTabUrlPermitted(tab);
   if (isValid) {
     const options: chrome.sidePanel.PanelOptions = {
@@ -53,15 +55,15 @@ async function updateSidePanelForTab(tab: Tab): Promise<void> {
       enabled: true
     };
     await chrome.sidePanel.setOptions(options);
-    console.debug(`SpeakCare Meter side panel: side panel enabled for tab.id ${tabId} url ${tab.url}`);
+    logger.debug(`side panel enabled for tab.id ${tabId} url ${tab.url}`);
   } else {
-    console.debug(`SpeakCare Meter side panel: disabling side panel for tab.id ${tabId} url ${tab.url}`);
+    logger.debug(`disabling side panel for tab.id ${tabId} url ${tab.url}`);
     const options: SidePanelOptions = {
       tabId,
       enabled: false
     };
     await chrome.sidePanel.setOptions(options);
-    await chrome.action.setTitle({ title: "SpeakCare Meter panel not active on this tab", tabId: tabId });
-    console.debug(`SpeakCare Meter side panel: side panel disabled for tab.id ${tabId}`);
+    await chrome.action.setTitle({ title: "not active on this tab", tabId: tabId });
+    logger.debug(`side panel disabled for tab.id ${tabId}`);
   }
 }

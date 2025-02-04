@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { makeStyles } from '@mui/styles';
+import { Logger } from '../utils/logger';
 
 const useStyles = makeStyles({
   tableContainer: {
@@ -35,6 +36,7 @@ const useStyles = makeStyles({
   },
 });
 
+const appLogger = new Logger('Meter');
 
 const App: React.FC = () => {
   const classes = useStyles();
@@ -69,10 +71,10 @@ const App: React.FC = () => {
       if (response.success) {
         setLogs(response.sessionLogs);
       } else {
-        console.error('Failed to fetch session logs:', response.error);
+        appLogger.error('Failed to fetch session logs:', response.error);
       }
     } catch (error) {
-      console.error('Error fetching session logs:', error);
+      appLogger.error('Error fetching session logs:', error);
     }
   };
 
@@ -80,12 +82,12 @@ const App: React.FC = () => {
   const fetchUserSessions = async () => {
     try {
       const response = await new Promise<SessionsResponse>((resolve, reject) => {
-        console.debug('Sending user_sessions_get message');
+        appLogger.debug('Sending user_sessions_get message');
         chrome.runtime.sendMessage({ type: 'sessions_get' }, (response: SessionsResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
-            console.debug('Received user_sessions_response:', response);
+            appLogger.debug('Received user_sessions_response:', response);
             resolve(response);
           }
         });
@@ -96,10 +98,10 @@ const App: React.FC = () => {
         );
         setUserSessions(sessions);
       } else {
-        console.error('Failed to fetch user sessions:', response.error);
+        appLogger.error('Failed to fetch user sessions:', response.error);
       }  
     } catch (error) {
-      console.error('Error fetching user sessions:', error);
+      appLogger.error('Error fetching user sessions:', error);
     }
   };
 
@@ -122,13 +124,13 @@ const App: React.FC = () => {
           setCandidateSessionTimeout(response.timeout); // Initialize local state
         }
         else {
-          console.error('Failed to fetch session timeout. Got null response: ', response.error);
+          appLogger.error('Failed to fetch session timeout. Got null response: ', response.error);
         }
       } else {
-        console.error('Failed to fetch session timeout:', response.error);
+        appLogger.error('Failed to fetch session timeout:', response.error);
       }
     } catch (error) {
-      console.error('Error fetching session timeout:', error);
+      appLogger.error('Error fetching session timeout:', error);
     }
   };
 
@@ -148,10 +150,10 @@ const App: React.FC = () => {
       if (response.success) {
         setSessionTimeout(timeout);
       } else {
-        console.error('Failed to set session timeout:', response.error);
+        appLogger.error('Failed to set session timeout:', response.error);
       }
     } catch (error) {
-      console.error('Error setting session timeout:', error);
+      appLogger.error('Error setting session timeout:', error);
     }
   };
 
@@ -217,10 +219,10 @@ const App: React.FC = () => {
       if (response.success) {
         setLogs([]);
       } else {
-        console.error('Failed to clear session logs:', response.error);
+        appLogger.error('Failed to clear session logs:', response.error);
       }
     } catch (error) {
-      console.error('Error clearing session logs:', error);
+      appLogger.error('Error clearing session logs:', error);
     }
   };
 

@@ -1,9 +1,10 @@
 import { BasicResponse } from '../types';
 //import { UserSession, UserSessionDTO } from './sessions';
-import { logSessionEvent } from './session_log';
+//import { logSessionEvent } from './session_log';
 import { getCookieValueFromUrl } from '../utils/url_utills';
 import { DailyUsage } from './daily_usage';
 import { DebounceThrottle } from '../utils/debounce';
+import { Logger } from '../utils/logger';
     
 
 import { PageLoadMessage, PageLoadResponse, UserInputMessage, UserInputResponse, 
@@ -26,17 +27,27 @@ export class SessionManager {
   private sessions: Record<string, ActiveSession> = {};
   private tabIdToSessionKeyMap: Record<number, string> = {}; //
   private sessionsLoaded = false;
-  private debouncedUpdates = new DebounceThrottle(3000, 10000);
+  private debouncedUpdates: DebounceThrottle;// = new DebounceThrottle(3000, 10000);
   private sessionTimeoutConfig = 180; // Default to 3 minutes
   private readonly minSessionDuration = 1000; // 1 second
+  private logger: Logger;
 
-  constructor(sessionStrategy: SessionStrategy, managerName: string) {
+  constructor(
+    sessionStrategy: SessionStrategy, 
+    managerName: string,
+    debounceDelay: number = 3000,
+    debounceMaxDelay: number = 10000,
+    sessionTimeout: number = 180
+  ) {
     this.managerName = managerName;
     const localStorageKey = managerName+':local_storage';
     this.sessionFactory = new SessionFactory();
     this.sessionsLocalStorage = new LocalStorage(localStorageKey);
     this.sessionTimeoutLocalStorage = new LocalStorage(localStorageKey+':session_timeout');
     this.sessionStrategy = sessionStrategy;
+    this.debouncedUpdates = new DebounceThrottle(debounceDelay, debounceMaxDelay);
+    this.sessionTimeoutConfig = sessionTimeout;
+    this.logger = new Logger(managerName);
   }
 
   // Private Methods
@@ -61,10 +72,10 @@ export class SessionManager {
   private async initializeSessionTimeout(): Promise<void> {
     try {
       this.sessionTimeoutConfig = await this.loadSessionTimeout();
-      console.log('Session timeout initialized:', this.sessionTimeoutConfig);
+      this.logger.log('Session timeout initialized:', this.sessionTimeoutConfig);
     } catch (error) {
       this.sessionTimeoutConfig = 180; // Default to 3 minutes
-      console.error('Failed to initialize session timeout:', error);
+      this.logger.error('Failed to initialize session timeout:', error);
     }
   }
 
@@ -90,13 +101,13 @@ export class SessionManager {
 
   private async loadActiveSessions(): Promise<void> {
     this.sessions = await this.getSessionsFromLocalStorage();
-    console.log('Loaded active sessions:', this.sessions);
+    this.logger.log('Loaded active sessions:', this.sessions);
   }
 
   // Session Operations
-  private getAllSessions(): Record<string, ActiveSession> | undefined {
+  public getAllSessions(): Record<string, ActiveSession> | undefined {
     if (!this.sessionsLoaded) {
-      console.warn('Attempted to access activeSessions before initialization.');
+      this.logger.warn('Attempted to access activeSessions before initialization.');
       return undefined;
     }
     return this.sessions;
@@ -105,7 +116,7 @@ export class SessionManager {
 
   private getSession(sessionKey: string): ActiveSession | undefined {
     if (!this.sessionsLoaded) {
-      console.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
+      this.logger.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
       return undefined;
     }
     return this.sessions[sessionKey];
@@ -113,7 +124,7 @@ export class SessionManager {
 
   private createSession(orgId: string = '', userId: string = '', startTime: Date, additionalParams: any = {}): string | null {
     if (!this.sessionsLoaded) {
-      console.warn('Attempted to create a new session before activeSessions initialization.');
+      this.logger.warn('Attempted to create a new session before activeSessions initialization.');
       return null;
     }
 
@@ -127,32 +138,43 @@ export class SessionManager {
     const sessionKey = newSession.getSessionKey();
     this.sessions[sessionKey] = newSession;
     DailyUsage.reportSession(newSession);
-    console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
+    this.logger.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
     return sessionKey;
   }
 
   private deleteActiveSession(sessionKey: string): boolean {
     if (!this.sessionsLoaded) {
-      console.warn('Attempted to delete a session before activeSessions initialization.');
+      this.logger.warn('Attempted to delete a session before activeSessions initialization.');
       return false;
     }
 
     if (!this.sessions[sessionKey]) {
-      console.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
+      this.logger.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
       return false;
     }
 
     delete this.sessions[sessionKey];
-    console.log(`Session deleted for sessionKey: ${sessionKey}`);
+    this.logger.log(`Session deleted for sessionKey: ${sessionKey}`);
     return true;
+  }
+
+  private async reportToSessionLog(
+    event: 'session_started' | 'session_ended' | 'session_onging', 
+    eventTime: Date,
+    logTime: Date,
+    username: string,
+    duration: number = 0, // Default to 0 for session_started
+    extraData?: Record<string, any> 
+  ) {
+    this.sessionStrategy.reportToSessionLog(event, eventTime, logTime, username, duration, extraData);
   }
 
   private async terminateSession(sessionKey: string) {
     const session = this.getSession(sessionKey);
 
     if (!session) {
-      console.warn(`No active session found for sessionKey: ${sessionKey}`);
+      this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
       return;
     }
 
@@ -161,7 +183,8 @@ export class SessionManager {
       const sessionDuration = endTime.getTime() - session.getStartTime().getTime();
       const duration = sessionDuration ? sessionDuration : this.minSessionDuration;
       const username = `${session.getUserId()}@${session.getOrgId()}`;
-      logSessionEvent('session_ended', endTime, endTime, username, duration);
+      this.reportToSessionLog('session_ended',endTime, endTime, username, duration);
+      //logSessionEvent('session_ended', endTime, endTime, username, duration);
     }
     session.clearExpirationTimer();
     DailyUsage.closeSession(session);
@@ -177,17 +200,17 @@ export class SessionManager {
     const success = this.deleteActiveSession(sessionKey);
 
     if (success) {
-      console.log(`Session successfully deleted for sessionKey: ${sessionKey}`);
+      this.logger.log(`Session successfully deleted for sessionKey: ${sessionKey}`);
       await this.saveSessionsToLocalStorage();
     } else {
-      console.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
+      this.logger.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
     }
   }
 
   // This should be stragegy specific
   private async handleNewSession(orgId: string, userId: string, startTime: Date, additionalParams: any = {}): Promise<string | null> {
     if (!userId || !orgId) {
-      console.warn(`handleNewSession called with no userId ${userId}, or orgId ${orgId}`);
+      this.logger.warn(`handleNewSession called with no userId ${userId}, or orgId ${orgId}`);
       return null;
     }
 
@@ -195,21 +218,21 @@ export class SessionManager {
     //const sessionKey = UserSession.calcSessionKey(userId, orgId);
     const session = this.getSession(sessionKey);
     if (session) {
-      console.log(`Session already exists for sessionKey: ${sessionKey}.`);
+      this.logger.log(`Session already exists for sessionKey: ${sessionKey}.`);
       return sessionKey;
     }
     const newSessionKey = this.createSession(orgId, userId, startTime, additionalParams);
     if (!newSessionKey) {
-      console.error('Failed to create a new session.');
+      this.logger.error('Failed to create a new session.');
       return null;
     }
     const newSession = this.getSession(newSessionKey);
     if (newSession) {
-      console.log('Session successfully created:', newSession);
+      this.logger.log('Session successfully created:', newSession);
       await this.saveSessionsToLocalStorage();
       return newSessionKey;
     } else {
-      console.error('Failed to create a new session.');
+      this.logger.error('Failed to create a new session.');
       return null;
     }
   }
@@ -217,12 +240,12 @@ export class SessionManager {
   private setSessionExpirationTimer(sessionKey: string, expirationTimeout: number = 180) {
     const session = this.getSession(sessionKey);
     if (!session) {
-      console.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
+      this.logger.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
       return;
     }
 
     const expirationTimer = setTimeout(() => {
-      console.log(`Session expired for sessionKey: ${sessionKey}`);
+      this.logger.log(`Session expired for sessionKey: ${sessionKey}`);
       this.terminateSession(sessionKey);
     }, expirationTimeout * 1000);
 
@@ -231,19 +254,20 @@ export class SessionManager {
 
   // Activity Updates
   private updateLastActivity(sessionKey: string, timestamp: Date) {
-    console.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
+    this.logger.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
 
     const session = this.getSession(sessionKey);
     if (!session) {
-      console.warn(`No active session found for sessionKey: ${sessionKey}`);
+      this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
       return;
     }
     if (!session.getActivitySeen()) {
       session.setActivitySeen(true);
       const username = `${session.getUserId()}@${session.getOrgId()}`;
       const now = new Date();
-      console.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
-      logSessionEvent('session_started', session.getStartTime(), now, username);
+      this.logger.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
+      this.reportToSessionLog('session_started', session.getStartTime(), now, username);
+      //logSessionEvent('session_started', session.getStartTime(), now, username);
     }
     session.setLastActivityTime(timestamp);
     DailyUsage.reportSession(session);
@@ -258,9 +282,9 @@ export class SessionManager {
     const lastActivityTime = session?.getLastActivityTime();
     if (session && lastActivityTime) {
       await this.persistLastActivity(sessionKey);
-      console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
+      this.logger.log(`Flushed last activity time for sessionKey ${sessionKey}`);
     } else {
-      console.warn(`No active session found for sessionKey: ${sessionKey}`);
+      this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
     }
   }
 
@@ -269,9 +293,9 @@ export class SessionManager {
 
     if (session) {
       await this.saveSessionsToLocalStorage();
-      console.log(`Persisted last activity time for sessionKey ${sessionKey}`);
+      this.logger.log(`Persisted last activity time for sessionKey ${sessionKey}`);
     } else {
-      console.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
+      this.logger.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
     }
   }
 
@@ -291,7 +315,7 @@ export class SessionManager {
     const domain = url.hostname;
    
     if (!userId || !orgCode) {
-      console.warn(`findOrCreateSession called with no userId ${userId}, or orgCode ${orgCode}`);
+      this.logger.warn(`findOrCreateSession called with no userId ${userId}, or orgCode ${orgCode}`);
       sendResponse({ success: false, error: 'No userId or orgCode provided' });
       return null;
     }
@@ -301,14 +325,13 @@ export class SessionManager {
     const session = this.getSession(sessionKey);
     if (!session) {
       // no session yet, create a new one
-      console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
-                  user input message for a non existing session. Creating a new session.`);
-      const newSessionKey = await this.handleNewSession(orgCode, userId, startTime);
+      this.logger.log(`findOrCreateSession did not find sesssion for key ${sessionKey}. Creating a new session.`);
+      const newSessionKey = await this.handleNewSession(orgCode, userId, startTime, additionalParams);
       if (newSessionKey) {
         sessionKey = newSessionKey;
         this.setSessionExpirationTimer(sessionKey, this.getSessionTimeout());
       } else { 
-        console.error('chrome.runtime.onMessage: Failed to create a new session.');
+        this.logger.error('chrome.runtime.onMessage: Failed to create a new session.');
         sendResponse({ success: false, error: 'Failed to create a new session' });
         return null;
       }
@@ -323,11 +346,11 @@ export class SessionManager {
   ) {
     // Check for valid message type
     if (message.type !== 'user_input') {
-      console.warn(`processUserInputMessage called with invalid message type: ${message.type}`);
+      this.logger.warn(`processUserInputMessage called with invalid message type: ${message.type}`);
       sendResponse({ success: false, error: 'Invalid message type' });
       return;
     }
-    console.log(`User activity detected on ${sessionKey} at ${message.timestamp}`);
+    this.logger.log(`User activity detected on ${sessionKey} at ${message.timestamp}`);
     this.updateLastActivity(sessionKey, new Date(message.timestamp));
   
     // Explicitly respond to the message
@@ -338,7 +361,7 @@ export class SessionManager {
   * public functions
   */
   public async initializeSessionManager(): Promise<void> {
-    console.log('Initializing session manager...');
+    this.logger.log('Initializing session manager...');
     await this.loadActiveSessions();
     this.sessionsLoaded = true;
     const sessions = this.getAllSessions();
@@ -349,7 +372,7 @@ export class SessionManager {
       }
     }
     await this.initializeSessionTimeout();
-    console.log('Session manager initialized.');
+    this.logger.log('Session manager initialized.');
   }
 
 
@@ -357,14 +380,15 @@ export class SessionManager {
   * Event Handlers
   */
   public async onTabRemove(tabId: number) {
-    console.log(`${this.managerName}: Tab ${tabId} closed`);
+    this.logger.log(`${this.managerName}: Tab ${tabId} closed`);
     const sessionKey = this.tabIdToSessionKeyMap[tabId];
     if (sessionKey) {
       await this.flushPendingUpdate(sessionKey);
-      console.log(`Flushed pending updates for sessionKey: ${sessionKey} on tab close.`);
+      this.logger.log(`Flushed pending updates for sessionKey: ${sessionKey} on tab close.`);
       delete this.tabIdToSessionKeyMap[tabId];
     } else {
-      console.warn(`No sessionKey found for tabId: ${tabId}`);
+      // not a registered tab
+      this.logger.debug(`No sessionKey found for tabId: ${tabId}`);
     }
   }
 
@@ -373,12 +397,12 @@ export class SessionManager {
     sendResponse: (response: SessionTimeoutSetResponse) => void): Promise<void> 
   {
     try {
-      console.log('Setting session timeout:', message.timeout);
+      this.logger.log('Setting session timeout:', message.timeout);
       await this.setSessionTimeout(message.timeout);
       sendResponse({ type: 'session_timeout_set_response', success: true });
-      console.log('Session timeout set successfully to:.', message.timeout);
+      this.logger.log('Session timeout set successfully to:.', message.timeout);
     } catch (error) {
-      console.error('Failed to set session timeout:', error);
+      this.logger.error('Failed to set session timeout:', error);
       sendResponse({ type: 'session_timeout_set_response', success: false, error: 'Failed to set session timeout' });
     }
   }
@@ -389,10 +413,10 @@ export class SessionManager {
   {
     try {
       const timeout = await this.getSessionTimeout();
-      console.log('Getting session timeout:', timeout);
+      this.logger.log('Getting session timeout:', timeout);
       sendResponse({ type: 'session_timeout_get_response', success: true, timeout });
     } catch (error) {
-      console.error('Failed to get session timeout:', error);
+      this.logger.error('Failed to get session timeout:', error);
       sendResponse({ type: 'session_timeout_get_response', success: false, timeout: null, error: 'Failed to get session timeout' });
     }
   }
@@ -410,11 +434,11 @@ export class SessionManager {
         //const sessionsDTO = sessionsArray.map(UserSession.serialize);     
         sendResponse({ type: 'sessions_get_response', success: true, sessions: sessionsDTO });
       } else {
-        console.warn('handleActiveSessionsGet: Active sessions are not initialized.');
+        this.logger.warn('handleActiveSessionsGet: Active sessions are not initialized.');
         sendResponse({ type: 'sessions_get_response', success: false, error: 'Active sessions are not initialized', sessions: [] });
       }
     } catch (error) {
-      console.error('handleActiveSessionsGet: Unexpected error:', error);
+      this.logger.error('handleActiveSessionsGet: Unexpected error:', error);
       sendResponse({ type: 'sessions_get_response', success: false, error: 'Failed to retrieve active sessions', sessions: [] });
     }
   }
@@ -428,7 +452,7 @@ export class SessionManager {
     const tabId = sender.tab?.id;
   
     if (tabId === undefined) {
-      console.error('handlePageLoad: tabId is undefined.');
+      this.logger.error('handlePageLoad: tabId is undefined.');
       sendResponse({ type: 'page_load_response', success: false, error: 'tabId is undefined' });
       return;
     }
@@ -443,14 +467,14 @@ export class SessionManager {
         this.tabIdToSessionKeyMap[tabId] = sessionKey;
         sendResponse({ type: 'page_load_response', success: true });
       } else {
-        console.error(`handlePageLoad: Failed to find or create session for username ${username}.`);
+        this.logger.error(`handlePageLoad: Failed to find or create session for username ${username}.`);
         if (this.tabIdToSessionKeyMap[tabId]) {
           delete this.tabIdToSessionKeyMap[tabId]; // Remove invalid session
         }
         sendResponse({ type: 'page_load_response', success: false, error: 'Failed to create a new session' });
       }
     } catch (error) {
-      console.error(`handlePageLoad: Unexpected error for tabId ${tabId}:`, error);
+      this.logger.error(`handlePageLoad: Unexpected error for tabId ${tabId}:`, error);
       sendResponse({ type: 'page_load_response', success: false, error: 'An unexpected error occurred' });
     }
   }
@@ -463,7 +487,7 @@ export class SessionManager {
   
     const tabId = sender.tab?.id;
     if (tabId === undefined) {
-      console.error('handleUserInput: tabId is undefined.');
+      this.logger.error('handleUserInput: tabId is undefined.');
       sendResponse({ type: 'user_input_response', success: false, error: 'tabId is undefined' });
       return false;
     }
@@ -474,7 +498,7 @@ export class SessionManager {
       this.processUserInputMessage(message, sessionKeyFromTab, sendResponse);
       return false; // No need to keep the message channel open
     } else {
-      console.log(`No sessionKey found for tabId: ${tabId}. Searching for it in session table.`);
+      this.logger.log(`No sessionKey found for tabId: ${tabId}. Searching for it in session table.`);
   
       try {
         // Fallback: Retrieve sessionId asynchronously
@@ -485,11 +509,11 @@ export class SessionManager {
           this.tabIdToSessionKeyMap[tabId] = sessionKey;
           this.processUserInputMessage(message, sessionKey, sendResponse);
         } else {
-          console.error(`handleUserInput: Failed to find or create session for username ${message.username}.`);
+          this.logger.error(`handleUserInput: Failed to find or create session for username ${message.username}.`);
           sendResponse({ type: 'user_input_response', success: false, error: 'Failed to create a new session' });
         }
       } catch (error) {
-        console.error(`handleUserInput: Unexpected error for tabId ${tabId}:`, error);
+        this.logger.error(`handleUserInput: Unexpected error for tabId ${tabId}:`, error);
         sendResponse({ type: 'user_input_response', success: false, error: 'An unexpected error occurred' });
       }
   
@@ -501,7 +525,7 @@ export class SessionManager {
 
  
 
-  // place reserved for strategy specific methods
+  // place reserved for strategy specific handlkers methods
 
   // async handlePageLoad(message: PageLoadMessage, sender: chrome.runtime.MessageSender, sendResponse: (response: PageLoadResponse) => void): Promise<void> {
   //   await this.sessionStrategy.handlePageLoad(message, sender, sendResponse);
@@ -515,8 +539,8 @@ export class SessionManager {
 // const userSessionManager = SessionManagerFactory.createSessionManager(SessionType.UserSession, 'userSessions');
 // const chartSessionManager = SessionManagerFactory.createSessionManager(SessionType.ChartSession, 'chartSessions');
 
-const userSessionManager = new SessionManager(new UserSessionStrategy(), 'user_sessions');
-const chartSessionManager = new SessionManager(new ChartSessionStrategy(), 'chart_sessions');
+const userSessionManager = new SessionManager(new UserSessionStrategy(), 'user_sessions', 3000, 10000, 180);
+const chartSessionManager = new SessionManager(new ChartSessionStrategy(), 'chart_sessions', 3000, 10000, 60);
 
 export async function initializeSessionManager() {
   await userSessionManager.initializeSessionManager();
@@ -532,7 +556,7 @@ export async function handlePageLoad(
   sendResponse: (response: PageLoadResponse) => void): Promise<void> 
 {
   await userSessionManager.handlePageLoad(message, sender, sendResponse);
-  // await chartSessionManager.handlePageLoad(message, sender, sendResponse);
+  await chartSessionManager.handlePageLoad(message, sender, sendResponse);
 }
 export async function handleUserInput(
   message: UserInputMessage, 
@@ -540,7 +564,7 @@ export async function handleUserInput(
   sendResponse: (response: UserInputResponse) => void): Promise<void> 
 {
   await userSessionManager.handleUserInput(message, sender, sendResponse);
-  //await chartSessionManager.handleUserInput(message, sender, sendResponse);
+  await chartSessionManager.handleUserInput(message, sender, sendResponse);
 }
 
 // Configuration requests - must be per type of session maanger
@@ -568,16 +592,25 @@ export async function handleUserSessionsGet(
   userSessionManager.handleSessionsGet(message, sendResponse);
 }
 
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  userSessionManager.onTabRemove(tabId);  
-});
+export async function handleTabRemove(tabId: number) {
+  userSessionManager.onTabRemove(tabId);
+  chartSessionManager.onTabRemove(tabId);
+}
+
 
 //*****************************************************/
-// Session Management Functions
-// All other functions should access the activeSessions 
-// table through these functions
+// Debug functions
 //*****************************************************/  
+export function getAllUserSessions(): Record<string, ActiveSession> | undefined {
+  return userSessionManager.getAllSessions();
+}
 
+export function getAllChartSessions(): Record<string, ActiveSession> | undefined {
+  return chartSessionManager.getAllSessions();
+}
+
+(globalThis as any).getAllUserSessions = getAllUserSessions;
+(globalThis as any).getAllChartSessions = getAllChartSessions;
 
 
 
@@ -596,7 +629,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   return new Promise((resolve, reject) => {
 //     chrome.storage.local.set({ sessionTimeout: sessionTimeoutConfig }, () => {
 //       if (chrome.runtime.lastError) {
-//         console.error('Failed to save session timeout to local storage:', chrome.runtime.lastError);
+//         this.logger.error('Failed to save session timeout to local storage:', chrome.runtime.lastError);
 //         reject(chrome.runtime.lastError);
 //       } else {
 //         resolve();
@@ -615,10 +648,10 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   return new Promise((resolve, reject) => {
 //     chrome.storage.local.get('sessionTimeout', (result) => {
 //       if (chrome.runtime.lastError) {
-//         console.error('Failed to load session timeout from local storage:', chrome.runtime.lastError);
+//         this.logger.error('Failed to load session timeout from local storage:', chrome.runtime.lastError);
 //         reject(chrome.runtime.lastError);
 //       } else {
-//         console.log('Loaded session timeout from local storage:', result.sessionTimeout || sessionTimeoutConfig);
+//         this.logger.log('Loaded session timeout from local storage:', result.sessionTimeout || sessionTimeoutConfig);
 //         resolve(result.sessionTimeout || sessionTimeoutConfig);
 //       }
 //     });
@@ -628,12 +661,12 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 
 
 //   try {
-//     console.log('Setting session timeout:', message.timeout);
+//     this.logger.log('Setting session timeout:', message.timeout);
 //     await setSessionTimeout(message.timeout);
 //     sendResponse({ type: 'session_timeout_set_response', success: true });
-//     console.log('Session timeout set successfully to:.', message.timeout);
+//     this.logger.log('Session timeout set successfully to:.', message.timeout);
 //   } catch (error) {
-//     console.error('Failed to set session timeout:', error);
+//     this.logger.error('Failed to set session timeout:', error);
 //     sendResponse({ type: 'session_timeout_set_response', success: false, error: 'Failed to set session timeout' });
 //   }
 // }
@@ -644,10 +677,10 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 // export async function initializeSessionTimeout(): Promise<void> {
 //   try {
 //     sessionTimeoutConfig = await loadSessionTimeout();
-//     console.log('Session timeout initialized:', sessionTimeoutConfig);
+//     this.logger.log('Session timeout initialized:', sessionTimeoutConfig);
 //   } catch (error) {
 //     sessionTimeoutConfig = defaultSessionTimeout;
-//     console.error('Failed to initialize session timeout:', error);
+//     this.logger.error('Failed to initialize session timeout:', error);
 //   }
 // }
 
@@ -655,7 +688,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   return new Promise((resolve, reject) => {
 //     chrome.storage.local.get('activeSessions', (result) => {
 //       if (chrome.runtime.lastError) {
-//         console.error('Failed to load active sessions from local storage:', chrome.runtime.lastError);
+//         this.logger.error('Failed to load active sessions from local storage:', chrome.runtime.lastError);
 //         reject(chrome.runtime.lastError);
 //       } else {
 //         const activeSessions = result.activeSessions || {};
@@ -682,7 +715,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //     );
 //     chrome.storage.local.set({ activeSessions: sessionsToSave }, () => {
 //       if (chrome.runtime.lastError) {
-//         console.error('Failed to save active sessions to local storage:', chrome.runtime.lastError);
+//         this.logger.error('Failed to save active sessions to local storage:', chrome.runtime.lastError);
 //         reject(chrome.runtime.lastError);
 //       } else {
 //         resolve();
@@ -693,11 +726,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   // Load active sessions from local storage
 // async function loadActiveSessions(): Promise<void> {
 //   userSessions = await getUserSessionsFromLocalStorage();
-//   console.log('Loaded active sessions:', userSessions);
+//   this.logger.log('Loaded active sessions:', userSessions);
 // }
 
 // export async function initializeSessionManager() {
-//   console.log('Initializing session manager...');
+//   this.logger.log('Initializing session manager...');
 //   await loadActiveSessions();
 //   activeSessionsInitialized = true;
 //   const sessions = getAllUserSessions(); // Load active sessions into memory
@@ -711,20 +744,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   }
 //   initializeSessionTimeout(); // Load session timeout from local storage
 
-//   console.log('Session manager initialized.');
+//   this.logger.log('Session manager initialized.');
 // }
 
-// export function getAllUserSessions(): Record<string, UserSession> | undefined {
-//   if (!activeSessionsInitialized) {
-//     console.warn(`Attempted to access activeSessions before initialization.`);
-//     return undefined; // Indicate that `activeSessions` is not ready
-//   }
-//   return userSessions;
-// }
+
 
 // function getUserSession(sessionKey: string): UserSession | undefined {
 //   if (!activeSessionsInitialized) {
-//     console.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
+//     this.logger.warn(`Attempted to access activeSessions before initialization. sessionKey: ${sessionKey}`);
 //     return undefined; // Indicate that `activeSessions` is not ready
 //   }
 //   return userSessions[sessionKey];
@@ -738,11 +765,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //       const userSessionsDTO = userSessionsArray.map(UserSession.serialize);     
 //       sendResponse({ type: 'user_sessions_get_response', success: true, userSessions: userSessionsDTO });
 //     } else {
-//       console.warn('handleActiveSessionsGet: Active sessions are not initialized.');
+//       this.logger.warn('handleActiveSessionsGet: Active sessions are not initialized.');
 //       sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Active sessions are not initialized', userSessions: [] });
 //     }
 //   } catch (error) {
-//     console.error('handleActiveSessionsGet: Unexpected error:', error);
+//     this.logger.error('handleActiveSessionsGet: Unexpected error:', error);
 //     sendResponse({ type: 'user_sessions_get_response', success: false, error: 'Failed to retrieve active sessions', userSessions: [] });
 //   }
 // }
@@ -753,7 +780,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   startTime: Date,
 // ): string | null {
 //   if (!activeSessionsInitialized) {
-//     console.warn('Attempted to create a new session before activeSessions initialization.');
+//     this.logger.warn('Attempted to create a new session before activeSessions initialization.');
 //     return null;
 //   }
 
@@ -766,7 +793,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const sessionKey = newSession.getSessionKey() // UserSession.calcSessionKey(userId, orgId);
 //   userSessions[sessionKey] = newSession;
 //   DailyUsage.reportSession(newSession);
-//   console.log(`New session created for sessionKey: ${sessionKey}`, newSession);
+//   this.logger.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
 //   return sessionKey;
 // }
@@ -774,17 +801,17 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   
 // function deleteActiveSession(sessionKey: string): boolean {
 //   if (!activeSessionsInitialized) {
-//     console.warn('Attempted to delete a session before activeSessions initialization.');
+//     this.logger.warn('Attempted to delete a session before activeSessions initialization.');
 //     return false;
 //   }
 
 //   if (!userSessions[sessionKey]) {
-//     console.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
+//     this.logger.warn(`No session found for sessionKey: ${sessionKey}. Deletion skipped.`);
 //     return false;
 //   }
 
 //   delete userSessions[sessionKey];
-//   console.log(`Session deleted for sessionKey: ${sessionKey}`);
+//   this.logger.log(`Session deleted for sessionKey: ${sessionKey}`);
 //   return true;
 // }
   
@@ -793,7 +820,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const session = getUserSession(sessionKey);
 
 //   if (!session) {
-//     console.warn(`No active session found for sessionKey: ${sessionKey}`);
+//     this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
 //     return;
 //   }
 
@@ -829,10 +856,10 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const success = deleteActiveSession(sessionKey);
 
 //   if (success) {
-//     console.log(`Session successfully deleted for sessionKey: ${sessionKey}`);
+//     this.logger.log(`Session successfully deleted for sessionKey: ${sessionKey}`);
 //     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
 //   } else {
-//     console.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
+//     this.logger.warn(`Failed to delete session for sessionKey: ${sessionKey}`);
 //   }
 // }  
 
@@ -843,7 +870,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 // ): Promise<string | null> {
 
 //   if (!userId || !orgId) {
-//     console.warn(`handleNewSession called with no userId ${userId}, or orgId ${orgId}`);
+//     this.logger.warn(`handleNewSession called with no userId ${userId}, or orgId ${orgId}`);
 //     return null;
 //   }
 
@@ -851,21 +878,21 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const sessionKey = UserSession.calcSessionKey(userId, orgId);
 //   const session = getUserSession(sessionKey);
 //   if (session) {
-//     console.log(`Session already exists for sessionKey: ${sessionKey}.`);
+//     this.logger.log(`Session already exists for sessionKey: ${sessionKey}.`);
 //     return sessionKey;
 //   }
 //   const newSessionKey = createNewUserSession(orgId, userId, startTime);
 //   if (!newSessionKey) {
-//     console.error('Failed to create a new session.');
+//     this.logger.error('Failed to create a new session.');
 //     return null;
 //   }
 //   const newSession = getUserSession(newSessionKey);
 //   if (newSession) {
-//     console.log('Session successfully created:', newSession);
+//     this.logger.log('Session successfully created:', newSession);
 //     await saveActiveSessionsToLocalStorage(); // Persist the updated sessions
 //     return newSessionKey; 
 //   } else {
-//     console.error('Failed to create a new session.');
+//     this.logger.error('Failed to create a new session.');
 //     return null;
 //   }    
 // }
@@ -874,13 +901,13 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   // Clear any existing timer for the session
 //   const session = getUserSession(sessionKey);
 //   if (!session) {
-//     console.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
+//     this.logger.warn(`setSessionTimer - No active session found for sessionKey: ${sessionKey}`);
 //     return;
 //   }
  
 //   // Set a new timer to terminate the session after expirationTimeout 
 //   const expirationTimer = setTimeout(() => {
-//     console.log(`Session expired for sessionKey: ${sessionKey}`);
+//     this.logger.log(`Session expired for sessionKey: ${sessionKey}`);
 //     terminateSession(sessionKey);
 //   }, expirationTimeout * 1000);
 
@@ -890,11 +917,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 
 // const debouncedUpdates = new DebounceThrottle(3000, 10000);
 // export function updateLastActivity(sessionKey: string, timestamp: Date) {
-//   console.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
+//   this.logger.log(`Updating last activity for sessionKey: ${sessionKey} at ${timestamp}`);
 
 //   const session = getUserSession(sessionKey);
 //   if (!session) {
-//     console.warn(`No active session found for sessionKey: ${sessionKey}`);
+//     this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
 //     return;
 //   }
 //   if (!session.getUserActivitySeen()) {
@@ -902,7 +929,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //     session.setUserActivitySeen(true);
 //     const username = `${session.getUserId()}@${session.getOrgId()}`;
 //     const now = new Date();
-//     console.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
+//     this.logger.log(`Initial user activity detected on ${sessionKey} at ${timestamp}. Logging session start.`);
 //     logSessionEvent('session_started', session.getStartTime(), now, username);
 //   }
 //   session.setLastActivityTime(timestamp); 
@@ -921,9 +948,9 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const lastActivityTime = session?.getLastActivityTime();
 //   if (session && lastActivityTime) {
 //     await persistLastActivity(sessionKey); // Persist latest in-memory state
-//     console.log(`Flushed last activity time for sessionKey ${sessionKey}`);
+//     this.logger.log(`Flushed last activity time for sessionKey ${sessionKey}`);
 //   } else {
-//     console.warn(`No active session found for sessionKey: ${sessionKey}`);
+//     this.logger.warn(`No active session found for sessionKey: ${sessionKey}`);
 //   }
 // }
 
@@ -933,9 +960,9 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 
 //   if (session) {
 //     await saveActiveSessionsToLocalStorage(); // Persist updated table
-//     console.log(`Persisted last activity time for sessionKey ${sessionKey}`);
+//     this.logger.log(`Persisted last activity time for sessionKey ${sessionKey}`);
 //   } else {
-//     console.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
+//     this.logger.warn(`Session not found for sessionKey ${sessionKey}. Unable to persist last activity.`);
 //   }
 // }
 
@@ -966,14 +993,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const session = getUserSession(sessionKey);
 //   if (!session) {
 //     // no session yet, create a new one
-//     console.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
+//     this.logger.log(`findOrCreateSession did not find sesssion for key ${sessionKey} 
 //                 user input message for a non existing session. Creating a new session.`);
 //     const newSessionKey = await handleNewSession(orgCode, userId, startTime);
 //     if (newSessionKey) {
 //       sessionKey = newSessionKey;
 //       setSessionExpirationTimer(sessionKey, getSessionTimeout());
 //     } else { 
-//       console.error('chrome.runtime.onMessage: Failed to create a new session.');
+//       this.logger.error('chrome.runtime.onMessage: Failed to create a new session.');
 //       sendResponse({ success: false, error: 'Failed to create a new session' });
 //       return null;
 //     }
@@ -990,7 +1017,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //   const tabId = sender.tab?.id;
 
 //   if (tabId === undefined) {
-//     console.error('handlePageLoad: tabId is undefined.');
+//     this.logger.error('handlePageLoad: tabId is undefined.');
 //     sendResponse({ type: 'page_load_response', success: false, error: 'tabId is undefined' });
 //     return;
 //   }
@@ -1002,14 +1029,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 //       tabIdToSessionKeyMap[tabId] = sessionKey;
 //       sendResponse({ type: 'page_load_response', success: true });
 //     } else {
-//       console.error(`handlePageLoad: Failed to find or create session for username ${username}.`);
+//       this.logger.error(`handlePageLoad: Failed to find or create session for username ${username}.`);
 //       if (tabIdToSessionKeyMap[tabId]) {
 //         delete tabIdToSessionKeyMap[tabId]; // Remove invalid session
 //       }
 //       sendResponse({ type: 'page_load_response', success: false, error: 'Failed to create a new session' });
 //     }
 //   } catch (error) {
-//     console.error(`handlePageLoad: Unexpected error for tabId ${tabId}:`, error);
+//     this.logger.error(`handlePageLoad: Unexpected error for tabId ${tabId}:`, error);
 //     sendResponse({ type: 'page_load_response', success: false, error: 'An unexpected error occurred' });
 //   }
 // }

@@ -1,19 +1,5 @@
 import { ActiveSession, UserSession, ChartSession, SessionType } from './sessions';
 
-
-// export class SessionFactory1 {
-//   createSession(type: SessionType, params: any): ActiveSession {
-//     switch (type) {
-//       case SessionType.UserSession:
-//         return new UserSession(params);
-//       case SessionType.ChartSession:
-//         return new ChartSession(params);
-//       default:
-//         throw new Error('Unknown session type');
-//     }
-//   }
-// }
-
 export class SessionFactory {
     createSession(type: SessionType, params: any): ActiveSession {
       const { userId, orgId, startTime, userActivitySeen, lastActivityTime, chartType, chartName } = params;

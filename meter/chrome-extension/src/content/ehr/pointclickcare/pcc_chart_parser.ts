@@ -1,15 +1,15 @@
 // Thiis running in the context of the page (content script) and is responsible for mapping the chart on the page to a chart name 
 // used by the exentension.
 
+import { getPagePath } from '../../../utils/url_utills';
 
-// export async function mapChart(tab: Tab): Promise<void> {
-export function getPageUrl(): string {
-  return window.location.href;
-}
+// export function getPageUrl(): string {
+//   return window.location.href;
+// }
 
-export function getPagePath(): string {
-    return window.location.pathname;
-}
+// export function getPagePath(): string {
+//     return window.location.pathname;
+// }
 
 // Define a type for the chart extraction function
 type ChartNameExtractor = () => string | null;
@@ -66,9 +66,13 @@ export function parseChart(): ChartInfo | null {
     return null;
   }
 
+  const sanitizedChartType = parser.chartType.replace(/\s+/g, '_');
+  const sanitizedChartName = chartName.replace(/\s+/g, '_');
+
+
   return {
-    chartType: parser.chartType,
-    chartName,
+    chartType: sanitizedChartType,
+    chartName: sanitizedChartName,
     username,
     orgCode,
   };

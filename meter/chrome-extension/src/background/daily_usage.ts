@@ -1,4 +1,5 @@
 import { ActiveSession, ChartSession, UserSession, SessionType } from './sessions'
+import { Logger } from '../utils/logger';
 
 
 
@@ -32,6 +33,7 @@ export class DailyUsage {
 
     private static dailyUsages: Record<string, DailyUsage> = {};
     private static dailyUsagesLoaded: boolean = false;
+    private static logger = new Logger('DailyUsage');
 
      // Overloaded constructor signatures
     constructor(session: ActiveSession);
@@ -133,6 +135,16 @@ export class DailyUsage {
         return DailyUsage.dailyUsages;
     }
 
+    static getDailyUsagesByType(type: SessionType): Record<string, DailyUsage> {
+      if (!DailyUsage.dailyUsagesLoaded) {
+        throw new Error('updateSession: Daily usages not loaded yet');
+      }
+  
+      return Object.fromEntries(
+        Object.entries(DailyUsage.dailyUsages).filter(([key, usage]) => usage.type === type)
+      );
+    }
+
     // Private static functions
     private static addDailyUsage(dailyUsage: DailyUsage): void {
         DailyUsage.dailyUsages[dailyUsage.getKey()] = dailyUsage;
@@ -146,7 +158,7 @@ export class DailyUsage {
         return new Promise((resolve, reject) => {
           chrome.storage.local.get('dailyUsages', (result) => {
             if (chrome.runtime.lastError) {
-              console.error('Failed to load daily usages from local storage:', chrome.runtime.lastError);
+              DailyUsage.logger.error('Failed to load daily usages from local storage:', chrome.runtime.lastError);
               reject(chrome.runtime.lastError);
             } else {
               const dailyUsages = result.dailyUsages || {};
@@ -172,7 +184,7 @@ export class DailyUsage {
           );
           chrome.storage.local.set({ dailyUsages: usagesToSave }, () => {
             if (chrome.runtime.lastError) {
-              console.error('Failed to save daily usages to local storage:', chrome.runtime.lastError);
+              DailyUsage.logger.error('Failed to save daily usages to local storage:', chrome.runtime.lastError);
               reject(chrome.runtime.lastError);
             } else {
               resolve();
@@ -185,22 +197,40 @@ export class DailyUsage {
       static async loadDailyUsages(): Promise<void> {
         DailyUsage.dailyUsages = await DailyUsage.getDailyUsagesFromLocalStorage();
         DailyUsage.dailyUsagesLoaded = true;
-        console.log('Loaded daily usages:', DailyUsage.dailyUsages);
+        DailyUsage.logger.log('Loaded daily usages:', DailyUsage.dailyUsages);
       }
 
       static async initialize(): Promise<void> {
-        console.log('Initializing daily usages...');
+        DailyUsage.logger.log('Initializing daily usages...');
         await DailyUsage.loadDailyUsages();
       }
 }
 
-
-function getAllDailyUsages(): Record<string, DailyUsage> {
+// Debug functions
+export function getAllDailies(): Record<string, DailyUsage> {
     return DailyUsage.getAllDailyUsages();
 }
-
+export function getUserDailies(): Record<string, DailyUsage> {
+    return DailyUsage.getDailyUsagesByType(SessionType.UserSession);
+}
+export function getChartDailies(): Record<string, DailyUsage> {
+    return DailyUsage.getDailyUsagesByType(SessionType.ChartSession);
+}
+export function prinallDailies(): void {
+    console.log('Daily usages:', DailyUsage.getAllDailyUsages());
+}
 export function printUserDailies(): void {
-    console.log('User daylies:', DailyUsage.getAllDailyUsages());
+    console.log('User dailies:', DailyUsage.getDailyUsagesByType(SessionType.UserSession));
+}
+export function printChartDailies(): void {
+    console.log('Chart dailies:', DailyUsage.getDailyUsagesByType(SessionType.ChartSession));
 }
 
+(globalThis as any).getAllDailies = getAllDailies;
+(globalThis as any).getUserDailies = getUserDailies;
+(globalThis as any).getChartDailies = getChartDailies;
+(globalThis as any).prinallDailies = prinallDailies;
 (globalThis as any).printUserDailies = printUserDailies;
+(globalThis as any).printChartDailies = printChartDailies;
+
+

@@ -1,5 +1,6 @@
 import { initializeSessionManager, handleUserInput, handlePageLoad, 
-        handleUserSessionsGet, handleUserSessionTimeoutGet, handleUserSessionTimeoutSet } from './session_manager';
+        handleUserSessionsGet, handleUserSessionTimeoutGet, 
+        handleUserSessionTimeoutSet, handleTabRemove } from './session_manager';
 import {  PageLoadMessage, PageLoadResponse, UserInputMessage, 
           UserInputResponse, SessionsGetMessage, SessionsResponse,
           SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from '../types/messages';
@@ -9,13 +10,14 @@ import { initializePanelManager } from './panel_manager';
 import { BasicResponse } from '../types';
 import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from './session_log';
 import { DailyUsage } from './daily_usage';
+import { Logger } from '../utils/logger';
 //import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
 // TBD - Inject content script into matching tabs
 
 // chrome.runtime.onInstalled.addListener(() => {
-//   console.log('SpeakCare Lens Extension installed or updated. Injecting scripts into matching tabs...');
+//   logger.log('SpeakCare Lens Extension installed or updated. Injecting scripts into matching tabs...');
 //   chrome.tabs.query({ url: '*://*.pointclickcare.com/*' }, (tabs) => {
 //     tabs.forEach((tab) => {
 //       chrome.scripting.executeScript({
@@ -23,15 +25,16 @@ import { DailyUsage } from './daily_usage';
 //         files: ['content.bundle.js'],
 //       }, () => {
 //         if (chrome.runtime.lastError) {
-//           console.error(`Failed to inject script into tab ${tab.id}: ${chrome.runtime.lastError.message}`);
+//           logger.error(`Failed to inject script into tab ${tab.id}: ${chrome.runtime.lastError.message}`);
 //         } else {
-//           console.log(`Content script injected into tab ${tab.id}`);
+//           logger.log(`Content script injected into tab ${tab.id}`);
 //         }
 //       });
 //     });
 //   });
 // });
 
+const logger = new Logger('Background script');
 
 export type BackgroundMessage = PageLoadMessage | UserInputMessage | SessionsGetMessage | SessionsLogsGetMessage | 
                        SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
@@ -41,12 +44,12 @@ export type BackgroundResponse =  PageLoadResponse | UserInputResponse | Session
 
 
 self.addEventListener('activate', () => {
-  console.log('Background script activated at', new Date().toISOString());
+  logger.log('activated at', new Date().toISOString());
 });
 self.addEventListener('message', (event) => {
-  console.log('Message received in background script:', event.data);
+  logger.log('message received in background script:', event.data);
 });
-console.log('Background script loaded at', new Date().toISOString());
+logger.log('loaded at', new Date().toISOString());
 
 
 // Initialize the panel manager and session manager
@@ -54,7 +57,7 @@ await initializePanelManager();
 await DailyUsage.initialize();
 await initializeSessionManager();
 
-console.log('Background script sesssion manager initialized at', new Date().toISOString());
+logger.log('sesssion manager initialized at', new Date().toISOString());
 
 chrome.runtime.onMessage.addListener(
   (
@@ -62,7 +65,7 @@ chrome.runtime.onMessage.addListener(
     sender: chrome.runtime.MessageSender, // Sender details
     sendResponse: (response: BackgroundResponse) => void // Response callback
   ): boolean | void => {
-    console.debug('Message received in background script:', message);
+    logger.debug('Message received in background script:', message);
     switch (message.type) {
       case 'page_load':
         handlePageLoad(message, sender, sendResponse);
@@ -93,10 +96,14 @@ chrome.runtime.onMessage.addListener(
         return true;
 
       default:
-        console.warn('Unknown message type:', message);
+        logger.warn('Unknown message type:', message);
     }
   }
 );
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  handleTabRemove(tabId);  
+});
 
 
 
