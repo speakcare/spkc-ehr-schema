@@ -33,7 +33,7 @@ export interface DailyUsageDTO {
  */
 export class DailyUsage {
     private date: string;
-    private startTime: string;
+    private startTime: Date;
     private type: SessionType;
     private fields: { [key: string]: any };
     private currentSessionDuration: number
@@ -51,7 +51,7 @@ export class DailyUsage {
     constructor(arg: ActiveSession | DailyUsageDTO) {
         if (arg instanceof ActiveSession) {
             this.date = getDateString(arg.getStartTime());
-            this.startTime = getTimeString(arg.getStartTime());
+            this.startTime = new Date(arg.getStartTime());
             this.fields = arg.getIdentifierFields();
             this.type = arg.getType();
             this.currentSessionDuration = arg.duration();
@@ -59,7 +59,7 @@ export class DailyUsage {
         }
         else {
             this.date = arg.date;
-            this.startTime = arg.startTime;
+            this.startTime = new Date(arg.startTime);
             this.type = arg.type;
             this.fields = arg.fields;
             this.currentSessionDuration = arg.currentSessionDuration;
@@ -70,7 +70,7 @@ export class DailyUsage {
     serialize(): DailyUsageDTO {
         return {
             date: this.date,
-            startTime: this.startTime,
+            startTime: this.startTime.toISOString(),
             type: this.type,
             fields: this.fields,
             currentSessionDuration: this.currentSessionDuration,
@@ -98,7 +98,7 @@ export class DailyUsage {
     public getDate(): string {
         return this.date;
     }
-    public getStartTime(): string {
+    public getStartTime(): Date {
         return this.startTime;
     }
     public getType(): SessionType {

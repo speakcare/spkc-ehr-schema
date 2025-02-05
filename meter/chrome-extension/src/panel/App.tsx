@@ -386,19 +386,32 @@ const App: React.FC = () => {
 
   interface Sortable {
     getDate: () => string;
-    getStartTime: () => string;
+    getStartTime: () => Date;
   }
 
-  const sortByDateAndStartTime = (a: Sortable, b: Sortable): number => {
-    const dateA = a.getDate() ? new Date(a.getDate()) : new Date(0); // Use epoch time for empty dates
-    const dateB = b.getDate() ? new Date(b.getDate()) : new Date(0); // Use epoch time for empty dates
-    if (dateA < dateB) return -1;
-    if (dateA > dateB) return 1;
-    const startTimeA = a.getStartTime() ? new Date(a.getStartTime()) : new Date(0); // Use epoch time for empty start times
-    const startTimeB = b.getStartTime() ? new Date(b.getStartTime()) : new Date(0); // Use epoch time for empty start times
+  const sortByStartTime = (a: Sortable, b: Sortable): number => {
+    const startTimeA = a.getStartTime() || new Date(0); // Use epoch time for empty start times
+    const startTimeB = b.getStartTime() || new Date(0); // Use epoch time for empty start times
     if (startTimeA < startTimeB) return -1;
     if (startTimeA > startTimeB) return 1;
     return 0;  
+  };
+
+  const formatDuration = (seconds: number): string => {
+    seconds = Math.floor(seconds); // Round down to the nearest integer
+    const days = Math.floor(seconds / (24 * 3600));
+    seconds %= 24 * 3600;
+    const hours = Math.floor(seconds / 3600);
+    seconds %= 3600;
+    const minutes = Math.floor(seconds / 60);
+    seconds %= 60;
+  
+    const daysStr = days > 0 ? `${days}d ` : '';
+    const hoursStr = hours > 0 ? `${hours.toString().padStart(2, '0')}:` : '00:';
+    const minutesStr = minutes > 0 ? `${minutes.toString().padStart(2, '0')}:` : '00:';
+    const secondsStr = seconds > 0 ? `${seconds.toString().padStart(2, '0')}` : '00';
+  
+    return `${daysStr}${hoursStr}${minutesStr}${secondsStr}`;
   };
 
   return (
@@ -519,10 +532,10 @@ const App: React.FC = () => {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Timestamp</TableCell>
-                    <TableCell>Event</TableCell>
-                    <TableCell>Username</TableCell>
-                    <TableCell>Duration (seconds)</TableCell>
+                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Timestamp</TableCell>
+                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Event</TableCell>
+                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Username</TableCell>
+                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Duration</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -531,7 +544,7 @@ const App: React.FC = () => {
                       <TableCell>{new Date(log.eventTime).toLocaleString()}</TableCell>
                       <TableCell>{log.event}</TableCell>
                       <TableCell>{log.username}</TableCell>
-                      <TableCell>{log.duration ? `${(log.duration / 1000).toFixed(0)}` : ''}</TableCell>
+                      <TableCell>{log.duration ? formatDuration((log.duration / 1000)) : ''}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -581,9 +594,9 @@ const App: React.FC = () => {
                     <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Start Time</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Last Activity Time</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Type</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Name</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Last Activity Time</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -591,9 +604,9 @@ const App: React.FC = () => {
                       <TableRow key={index}>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{session.getStartTime().toLocaleString()}</TableCell>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{session.getUsername()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getLastActivityTime()?.toLocaleString() || 'N/A'}</TableCell>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartType()}</TableCell>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartName()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getLastActivityTime()?.toLocaleString() || 'N/A'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -619,7 +632,7 @@ const App: React.FC = () => {
               <TextField
                 label="To Date"
                 type="date"
-                value={sessionLogfilters.toDate}
+                value={dailyUsagefilters.toDate}
                 onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, toDate: e.target.value })}
                 size="small"
                 sx={{ marginRight: 2 }}
@@ -627,7 +640,7 @@ const App: React.FC = () => {
               />
               <TextField
                 label="Username"
-                value={sessionLogfilters.username}
+                value={dailyUsagefilters.username}
                 onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, username: e.target.value })}
                 size="small"
                 sx={{ marginRight: 2 }}
@@ -651,22 +664,22 @@ const App: React.FC = () => {
               <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
                 <TableHead>
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>Date</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>Username</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>Start Time</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem' }}>Duration</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Date</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Username</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Duration</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredDaily
                     .filter(usage => usage.getType() === 'UserSession')
-                    .sort(sortByDateAndStartTime)
+                    .sort(sortByStartTime)
                     .map((usage, index) => (
                       <TableRow key={index}>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
                         <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDuration().toFixed(0)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{formatDuration(usage.getDuration())}</TableCell>
                       </TableRow>
                     ))}
                 </TableBody>
@@ -682,26 +695,26 @@ const App: React.FC = () => {
                 <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Date</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Start Time</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Duration</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Chart Type</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem' }}>Chart Name</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Date</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Username</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Type</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Name</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Duration</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredDaily
                       .filter(usage => usage.getType() === 'ChartSession')
-                      .sort(sortByDateAndStartTime)
+                      .sort(sortByStartTime)
                       .map((usage, index) => (
                         <TableRow key={index}>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime()}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDuration().toFixed(0)}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartType}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartName}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{formatDuration(usage.getDuration())}</TableCell>
                         </TableRow>
                       ))}
                   </TableBody>
