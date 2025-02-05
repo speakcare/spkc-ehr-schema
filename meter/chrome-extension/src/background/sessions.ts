@@ -44,6 +44,14 @@ export abstract class ActiveSession {
   getOrgId(): string {
     return this.orgId;
   }
+
+  static getUsername(userId: string, orgId: string): string {
+    return `${userId}@${orgId}`;
+  }
+  
+  getUsername(): string {
+    return ActiveSession.getUsername(this.userId, this.orgId);
+  }
   getStartTime(): Date {
     return this.startTime;
   }
@@ -150,9 +158,9 @@ export class ChartSession extends ActiveSession {
   constructor(
     userId: string,
     orgId: string,
-    startTime: Date,
     chartType: string,
     chartName: string,
+    startTime: Date,
     userActivitySeen: boolean = false,
     lastActivityTime: Date | null = null,
   ) {
@@ -161,6 +169,14 @@ export class ChartSession extends ActiveSession {
     this.chartName = chartName;
   }
 
+  getChartType(): string {
+    return this.chartType;
+  }
+
+  getChartName(): string {
+    return this.chartName;
+  }
+  
   static calcSessionKey(userId: string, orgId: string, additionalParams: any = {}): string {
     const { chartType, chartName } = additionalParams;
     return `${userId}@${orgId}-${chartType}-${chartName}`;
@@ -200,5 +216,17 @@ export class ChartSession extends ActiveSession {
 
   static serialize(session: ChartSession): ChartSessionDTO {
     return session.serialize();
+  }
+
+  static deserialize(dto: ChartSessionDTO): ChartSession {
+    return new ChartSession(
+      dto.userId,
+      dto.orgId,
+      dto.chartType,
+      dto.chartName,
+      new Date(dto.startTime),
+      dto.userActivitySeen,
+      dto.lastActivityTime ? new Date(dto.lastActivityTime) : null
+    );
   }
 }  

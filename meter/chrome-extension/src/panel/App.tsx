@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserSession, UserSessionDTO } from '../background/sessions';
-import { SessionsResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../types/messages'  
-import {  SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
+import { ActiveSession, ChartSession, UserSession, UserSessionDTO, ChartSessionDTO } from '../background/sessions';
+import { SessionsGetResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../background/session_messages'  
+import { SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
 import {
   AppBar,
   Toolbar,
@@ -28,6 +28,8 @@ import {
 import SettingsIcon from '@mui/icons-material/Settings';
 import { makeStyles } from '@mui/styles';
 import { Logger } from '../utils/logger';
+import { DailyUsage, DailyUsageGetMessage, DailyUsageGetResponse, 
+         DailyUsageClearMessage, DailyUsageClearResponse, DailyUsageDTO } from '../background/daily_usage';
 
 const useStyles = makeStyles({
   tableContainer: {
@@ -36,21 +38,29 @@ const useStyles = makeStyles({
   },
 });
 
-const appLogger = new Logger('Meter');
+const appLogger = new Logger('Meter panel');
 
 const App: React.FC = () => {
   const classes = useStyles();
   const [logs, setLogs] = useState<SessionLogEvent[]>([]);
   const [userSessions, setUserSessions] = useState<UserSession[]>([]);
-  const [view, setView] = useState<'session_log' | 'active_sessions'>('session_log');
-  const [sessionTimeout, setSessionTimeout] = useState<number>(180); // Default to 3 minutes
-  const [candidateSessionTimeout, setCandidateSessionTimeout] = useState<number>(180); // Local state for new timeout
-  const [filters, setFilters] = useState({
+  const [chartSessions, setChartSessions] = useState<ChartSession[]>([]);
+  const [dailyUsages, setDailyUsages] = useState<DailyUsage[]>([]);
+  const [view, setView] = useState<'session_log' | 'active_sessions' | 'daily_usage'>('session_log');
+  const [userSessionTimeout, setUserSessionTimeout] = useState<number>(180); // Default to 3 minutes
+  const [candidateUserSessionTimeout, setCandidateUserSessionTimeout] = useState<number>(180); // Local state for new timeout
+  const [chartSessionTimeout, setChartSessionTimeout] = useState<number>(180); // Default to 3 minutes
+  const [candidateChartSessionTimeout, setCandidateChartSessionTimeout] = useState<number>(180); // Local state for new timeout
+  const [sessionLogfilters, setSessionLogFilters] = useState({
     username: '',
-    orgId: '',
-    dateFrom: '',
-    dateTo: '',
+    fromDate: '',
+    toDate: '',
     eventType: '',
+  });
+  const [dailyUsagefilters, setDailyUsageFilters] = useState({
+    username: '',
+    fromDate: '',
+    toDate: '',
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -81,9 +91,9 @@ const App: React.FC = () => {
 
   const fetchUserSessions = async () => {
     try {
-      const response = await new Promise<SessionsResponse>((resolve, reject) => {
+      const response = await new Promise<SessionsGetResponse>((resolve, reject) => {
         appLogger.debug('Sending user_sessions_get message');
-        chrome.runtime.sendMessage({ type: 'sessions_get' }, (response: SessionsResponse) => {
+        chrome.runtime.sendMessage({ type: 'user_sessions_get' }, (response: SessionsGetResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
@@ -105,11 +115,37 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchChartSessions = async () => {
+    try {
+      const response = await new Promise<SessionsGetResponse>((resolve, reject) => {
+        appLogger.debug('Sending chart_sessions_get message');
+        chrome.runtime.sendMessage({ type: 'chart_sessions_get' }, (response: SessionsGetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            appLogger.debug('Received chart_sessions_response:', response);
+            resolve(response);
+          }
+        });
+      });
+      if (response.success) {
+        const sessions: ChartSession[] = response.sessions.map((sessionDTO: ChartSessionDTO) => 
+          ChartSession.deserialize(sessionDTO)
+        );
+        setChartSessions(sessions);
+      } else {
+        appLogger.error('Failed to fetch chart sessions:', response.error);
+      }  
+    } catch (error) {
+      appLogger.error('Error fetching chart sessions:', error);
+    }
+  };
+
   // Function to get session timeout
-  const fetchSessionTimeout = async () => {
+  const fetchUserSessionTimeout = async () => {
     try {
       const response = await new Promise<SessionTimeoutGetResponse>((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: 'session_timeout_get' }, (response: SessionTimeoutGetResponse) => {
+        chrome.runtime.sendMessage({ type: 'user_session_timeout_get' }, (response: SessionTimeoutGetResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
@@ -120,25 +156,24 @@ const App: React.FC = () => {
 
       if (response.success) {
         if (response.timeout) {
-          setSessionTimeout(response.timeout);
-          setCandidateSessionTimeout(response.timeout); // Initialize local state
+          setUserSessionTimeout(response.timeout);
+          setCandidateUserSessionTimeout(response.timeout); // Initialize local state
         }
         else {
-          appLogger.error('Failed to fetch session timeout. Got null response: ', response.error);
+          appLogger.error('Failed to fetch user session timeout. Got null response: ', response.error);
         }
       } else {
-        appLogger.error('Failed to fetch session timeout:', response.error);
+        appLogger.error('Failed to fetch user session timeout:', response.error);
       }
     } catch (error) {
-      appLogger.error('Error fetching session timeout:', error);
+      appLogger.error('Error fetching user session timeout:', error);
     }
   };
 
-  // Function to set session timeout
-  const updateSessionTimeout = async (timeout: number) => {
+  const fetchChartSessionTimeout = async () => {
     try {
-      const response = await new Promise<SessionTimeoutSetResponse>((resolve, reject) => {
-        chrome.runtime.sendMessage({ type: 'session_timeout_set', timeout }, (response: SessionTimeoutSetResponse) => {
+      const response = await new Promise<SessionTimeoutGetResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'chart_session_timeout_get' }, (response: SessionTimeoutGetResponse) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);
           } else {
@@ -148,7 +183,36 @@ const App: React.FC = () => {
       });
 
       if (response.success) {
-        setSessionTimeout(timeout);
+        if (response.timeout) {
+          setChartSessionTimeout(response.timeout);
+          setCandidateChartSessionTimeout(response.timeout); // Initialize local state
+        }
+        else {
+          appLogger.error('Failed to fetch chart session timeout. Got null response: ', response.error);
+        }
+      } else {
+        appLogger.error('Failed to fetch chart session timeout:', response.error);
+      }
+    } catch (error) {
+      appLogger.error('Error fetching chart session timeout:', error);
+    }
+  };
+
+  // Function to set session timeout
+  const updateUserSessionTimeout = async (timeout: number) => {
+    try {
+      const response = await new Promise<SessionTimeoutSetResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'user_session_timeout_set', timeout }, (response: SessionTimeoutSetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+
+      if (response.success) {
+        setUserSessionTimeout(timeout);
       } else {
         appLogger.error('Failed to set session timeout:', response.error);
       }
@@ -157,16 +221,69 @@ const App: React.FC = () => {
     }
   };
 
+  const updateChartSessionTimeout = async (timeout: number) => {
+    try {
+      const response = await new Promise<SessionTimeoutSetResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'chart_session_timeout_set', timeout }, (response: SessionTimeoutSetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+
+      if (response.success) {
+        setChartSessionTimeout(timeout);
+      } else {
+        appLogger.error('Failed to set chart session timeout:', response.error);
+      }
+    } catch (error) {
+      appLogger.error('Error setting chart session timeout:', error);
+    }
+  };
+
+  const fetchDailyUsages = async () => {
+    try {
+      const response = await new Promise<DailyUsageGetResponse>((resolve, reject) => {
+        appLogger.debug('Sendin daily_usage_get message');
+        chrome.runtime.sendMessage({ type: 'daily_usage_get' }, (response: DailyUsageGetResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            appLogger.debug('Received daily_usage_get_responset:', response);
+            resolve(response);
+          }
+        });
+      });
+      if (response.success) {
+        const dailyUsages: DailyUsage[] = response.dailyUsages.map((dto: DailyUsageDTO) => 
+          DailyUsage.deserialize(dto)
+        );
+        setDailyUsages(dailyUsages);
+      } else {
+        appLogger.error('Failed to fetch daily usages:', response.error);
+      }  
+    } catch (error) {
+      appLogger.error('Error fetching daily usages:', error);
+    }
+  };
+
 
   // Fetch data on mount
   useEffect(() => {
     fetchLogs();
     fetchUserSessions();
-    fetchSessionTimeout();
-
+    fetchChartSessions();
+    fetchUserSessionTimeout();
+    fetchChartSessionTimeout();
+    fetchDailyUsages();
+  
     const interval = setInterval(() => {
       fetchLogs();
       fetchUserSessions();
+      fetchChartSessions();
+      fetchDailyUsages();
     }, 3000);
 
     return () => clearInterval(interval); // Cleanup interval on component unmount
@@ -179,28 +296,46 @@ const App: React.FC = () => {
 
   const handleSettingsClose = () => {
     setSettingsOpen(false);
-    updateSessionTimeout(candidateSessionTimeout); // Update session timeout when dialog is closed
+    updateUserSessionTimeout(candidateUserSessionTimeout); // Update session timeout when dialog is closed
+    updateChartSessionTimeout(candidateChartSessionTimeout);
   };
 
   // Handle session timeout change
-  const handleSessionTimeoutChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUserSessionTimeoutChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newTimeout = parseInt(event.target.value, 10);
     if (!isNaN(newTimeout)) {
-      setCandidateSessionTimeout(newTimeout); // Update the state immediately
+      setCandidateUserSessionTimeout(newTimeout); // Update the state immediately
     } else {
-      setCandidateSessionTimeout(0); // Optionally handle invalid input gracefully
+      setCandidateUserSessionTimeout(0); // Optionally handle invalid input gracefully
     }
   };
 
+  const handleChartSessionTimeoutChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newTimeout = parseInt(event.target.value, 10);
+    if (!isNaN(newTimeout)) {
+      setCandidateChartSessionTimeout(newTimeout); // Update the state immediately
+    } else {
+      setCandidateChartSessionTimeout(0); // Optionally handle invalid input gracefully
+    }
+  };
+
+
   // Filter logs
   const filteredLogs = logs.filter(log => {
-    const { username, orgId, dateFrom, dateTo, eventType } = filters;
+    const { username, fromDate: dateFrom, toDate: dateTo, eventType } = sessionLogfilters;
     const matchesUsername = !username || log.username?.includes(username);
-    const matchesOrgId = !orgId || log.username?.includes(orgId);
     const matchesEventType = !eventType || log.event === eventType;
     const matchesDateFrom = !dateFrom || new Date(log.eventTime) >= new Date(dateFrom);
     const matchesDateTo = !dateTo || new Date(log.eventTime) <= new Date(dateTo);
-    return matchesUsername && matchesOrgId && matchesEventType && matchesDateFrom && matchesDateTo;
+    return matchesUsername && matchesEventType && matchesDateFrom && matchesDateTo;
+  });
+
+  const filteredDaily = dailyUsages.filter(usage => {
+    const { username, fromDate: dateFrom, toDate: dateTo} = dailyUsagefilters;
+    const matchesUsername = !username || usage.getUsername()?.includes(username);
+    const matchesDateFrom = !dateFrom || new Date(usage.getDate()) >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || new Date(usage.getDate()) <= new Date(dateTo);
+    return matchesUsername && matchesDateFrom && matchesDateTo;
   });
 
   // Clear logs
@@ -226,6 +361,45 @@ const App: React.FC = () => {
     }
   };
 
+  // Clear daily usages
+  const handleClearDailyUsage = async () => {
+    try {
+      const response = await new Promise<DailyUsageClearResponse>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: 'daily_usage_clear' }, (response: DailyUsageClearResponse) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+  
+      if (response.success) {
+        setDailyUsages([]);
+      } else {
+        appLogger.error('Failed to clear daily usages:', response.error);
+      }
+    } catch (error) {
+      appLogger.error('Error clearing daily usages:', error);
+    }
+  };
+
+  interface Sortable {
+    getDate: () => string;
+    getStartTime: () => string;
+  }
+
+  const sortByDateAndStartTime = (a: Sortable, b: Sortable): number => {
+    const dateA = a.getDate() ? new Date(a.getDate()) : new Date(0); // Use epoch time for empty dates
+    const dateB = b.getDate() ? new Date(b.getDate()) : new Date(0); // Use epoch time for empty dates
+    if (dateA < dateB) return -1;
+    if (dateA > dateB) return 1;
+    const startTimeA = a.getStartTime() ? new Date(a.getStartTime()) : new Date(0); // Use epoch time for empty start times
+    const startTimeB = b.getStartTime() ? new Date(b.getStartTime()) : new Date(0); // Use epoch time for empty start times
+    if (startTimeA < startTimeB) return -1;
+    if (startTimeA > startTimeB) return 1;
+    return 0;  
+  };
 
   return (
     <Box>
@@ -242,6 +416,7 @@ const App: React.FC = () => {
           >
             <MenuItem value="session_log">Session Log</MenuItem>
             <MenuItem value="active_sessions">Active Sessions</MenuItem>
+            <MenuItem value="daily_usage">Daily Usage</MenuItem>
           </Select>
           <IconButton color="inherit" onClick={handleSettingsOpen}>
             <SettingsIcon />
@@ -259,11 +434,20 @@ const App: React.FC = () => {
           <TextField
             autoFocus
             margin="dense"
-            label="Session Timeout"
+            label="User Session Timeout"
             type="number"
             fullWidth
-            value={candidateSessionTimeout || ''}
-            onChange={handleSessionTimeoutChange}
+            value={candidateUserSessionTimeout || ''}
+            onChange={handleUserSessionTimeoutChange}
+          />
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Chart Session Timeout"
+            type="number"
+            fullWidth
+            value={candidateChartSessionTimeout || ''}
+            onChange={handleChartSessionTimeoutChange}
           />
         </DialogContent>
         <DialogActions>
@@ -277,7 +461,7 @@ const App: React.FC = () => {
       <Box p={3}>
         {view === 'session_log' && (
           <Box>
-            <Typography variant="h5" gutterBottom>
+            <Typography variant="h6" gutterBottom>
               Session Log
             </Typography>
             {/* Filters */}
@@ -286,8 +470,8 @@ const App: React.FC = () => {
                 label="From"
                 type="date"
                 InputLabelProps={{ shrink: true }}
-                value={filters.dateFrom}
-                onChange={e => setFilters({ ...filters, dateFrom: e.target.value })}
+                value={sessionLogfilters.fromDate}
+                onChange={e => setSessionLogFilters({ ...sessionLogfilters, fromDate: e.target.value })}
                 size="small"
                 sx={{ minWidth: 100 }}
               />
@@ -295,28 +479,21 @@ const App: React.FC = () => {
                 label="To"
                 type="date"
                 InputLabelProps={{ shrink: true }}
-                value={filters.dateTo}
-                onChange={e => setFilters({ ...filters, dateTo: e.target.value })}
+                value={sessionLogfilters.toDate}
+                onChange={e => setSessionLogFilters({ ...sessionLogfilters, toDate: e.target.value })}
                 size="small"
                 sx={{ minWidth: 100 }}
               />
               <TextField
                 label="Username"
-                value={filters.username}
-                onChange={e => setFilters({ ...filters, username: e.target.value })}
-                size="small"
-                sx={{ minWidth: 100 }}
-              />
-              <TextField
-                label="Org ID"
-                value={filters.orgId}
-                onChange={e => setFilters({ ...filters, orgId: e.target.value })}
+                value={sessionLogfilters.username}
+                onChange={e => setSessionLogFilters({ ...sessionLogfilters, username: e.target.value })}
                 size="small"
                 sx={{ minWidth: 100 }}
               />
               <Select
-                value={filters.eventType}
-                onChange={e => setFilters({ ...filters, eventType: e.target.value })}
+                value={sessionLogfilters.eventType}
+                onChange={e => setSessionLogFilters({ ...sessionLogfilters, eventType: e.target.value })}
                 displayEmpty
                 size="small"
                 sx={{ minWidth: 100 }}
@@ -365,33 +542,172 @@ const App: React.FC = () => {
 
         {view === 'active_sessions' && (
           <Box>
-            <Typography variant="h5" gutterBottom>
-              Active Sessions
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                User Sessions
+              </Typography>
+              {/* Active Sessions Table */}
+              <TableContainer component={Paper} className={classes.tableContainer}>
+                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Start Time</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Username</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Last Activity Time</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {userSessions.map((session, index) => (
+                      <TableRow key={index}>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getStartTime().toLocaleString()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getUsername()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>
+                          {session.getLastActivityTime()?.toLocaleString() || 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+
+            <Box mt={4}>
+              <Typography variant="h6" gutterBottom>
+                Chart Sessions
+              </Typography>
+              <TableContainer component={Paper} className={classes.tableContainer}>
+                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Start Time</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Username</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Last Activity Time</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Type</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Name</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {chartSessions.map((session, index) => (
+                      <TableRow key={index}>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getStartTime().toLocaleString()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getUsername()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getLastActivityTime()?.toLocaleString() || 'N/A'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartType()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartName()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>            
+          </Box>
+        )}
+
+        {view === 'daily_usage' && (
+          <Box>
+            {/* Filters */}
+            <Box mb={2}>
+              <TextField
+                label="From Date"
+                type="date"
+                value={dailyUsagefilters.fromDate}
+                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, fromDate: e.target.value })}
+                size="small"
+                sx={{ marginRight: 2 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="To Date"
+                type="date"
+                value={sessionLogfilters.toDate}
+                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, toDate: e.target.value })}
+                size="small"
+                sx={{ marginRight: 2 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Username"
+                value={sessionLogfilters.username}
+                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, username: e.target.value })}
+                size="small"
+                sx={{ marginRight: 2 }}
+              />
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={handleClearDailyUsage}
+                size="small"
+                sx={{ padding: '4px 8px', minWidth: '80px' }}
+              >
+                Clear Daily Report
+              </Button>
+            </Box>
+
+            {/* User Daily Usage Table */}
+            <Typography variant="h6" gutterBottom>
+              User Daily Usage
             </Typography>
-            {/* Active Sessions Table */}
-            {/* <TableContainer component={Paper} sx={{ maxHeight: 800, overflow: 'auto' }}> */}
             <TableContainer component={Paper} className={classes.tableContainer}>
-              <Table stickyHeader>
+              <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
                 <TableHead>
-                  <TableRow>
-                    <TableCell>Start Time</TableCell>
-                    <TableCell>Username</TableCell>
-                    <TableCell>Last Activity Time</TableCell>
+                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                    <TableCell sx={{ fontSize: '0.875rem' }}>Date</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem' }}>Username</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem' }}>Start Time</TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem' }}>Duration</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {userSessions.map((session, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{session.getStartTime().toLocaleString()}</TableCell>
-                      <TableCell>{`${session.getUserId()}@${session.getOrgId()}`}</TableCell>
-                      <TableCell>
-                        {session.getLastActivityTime()?.toLocaleString() || 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredDaily
+                    .filter(usage => usage.getType() === 'UserSession')
+                    .sort(sortByDateAndStartTime)
+                    .map((usage, index) => (
+                      <TableRow key={index}>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime()}</TableCell>
+                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDuration().toFixed(0)}</TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </TableContainer>
+
+            {/* Chart Daily Usage Table */}
+            <Box mt={4}>
+              <Typography variant="h6" gutterBottom>
+                Chart Daily Usage
+              </Typography>
+              <TableContainer component={Paper} className={classes.tableContainer}>
+                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Date</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Username</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Start Time</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Duration</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Chart Type</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>Chart Name</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredDaily
+                      .filter(usage => usage.getType() === 'ChartSession')
+                      .sort(sortByDateAndStartTime)
+                      .map((usage, index) => (
+                        <TableRow key={index}>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime()}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDuration().toFixed(0)}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartType}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartName}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
           </Box>
         )}
       </Box>

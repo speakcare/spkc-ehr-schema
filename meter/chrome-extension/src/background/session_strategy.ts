@@ -1,4 +1,4 @@
-import { PageLoadMessage, PageLoadResponse, UserInputMessage, UserInputResponse } from '../types/messages';
+import { PageLoadMessage, PageLoadResponse, UserInputMessage, UserInputResponse } from './session_messages';
 import { ActiveSession, ChartSession, UserSession, SessionType } from './sessions';
 import { logSessionEvent } from './session_log';
 import { Logger } from '../utils/logger';

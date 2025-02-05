@@ -1,15 +1,16 @@
 import { initializeSessionManager, handleUserInput, handlePageLoad, 
-        handleUserSessionsGet, handleUserSessionTimeoutGet, 
-        handleUserSessionTimeoutSet, handleTabRemove } from './session_manager';
+        handleUserSessionsGet, handleChartSessionsGet, 
+        handleUserSessionTimeoutGet, handleUserSessionTimeoutSet,
+        handleChartSessionTimeoutGet, handleChartSessionTimeoutSet,
+        handleTabRemove } from './session_manager';
 import {  PageLoadMessage, PageLoadResponse, UserInputMessage, 
-          UserInputResponse, SessionsGetMessage, SessionsResponse,
-          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from '../types/messages';
-import { UserSessionDTO } from './sessions'
+          UserInputResponse, SessionsGetMessage, SessionsGetResponse,
+          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from './session_messages';
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
-import { BasicResponse } from '../types';
 import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from './session_log';
-import { DailyUsage } from './daily_usage';
+import { DailyUsage, handleDailyUsageGet, handleDailyUsageClear, DailyUsageGetMessage, DailyUsageClearMessage, 
+         DailyUsageGetResponse, DailyUsageClearResponse} from './daily_usage';
 import { Logger } from '../utils/logger';
 //import { BackgroundMessage, BackgroundResponse } from '../types';
 
@@ -37,9 +38,11 @@ import { Logger } from '../utils/logger';
 const logger = new Logger('Background script');
 
 export type BackgroundMessage = PageLoadMessage | UserInputMessage | SessionsGetMessage | SessionsLogsGetMessage | 
-                       SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
-export type BackgroundResponse =  PageLoadResponse | UserInputResponse | SessionsResponse | SessionsLogsGetResponse | 
-                         SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;
+                                SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage |
+                                DailyUsageGetMessage | DailyUsageClearMessage;
+export type BackgroundResponse =  PageLoadResponse | UserInputResponse | SessionsGetResponse | SessionsLogsGetResponse | 
+                                  SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse |
+                                  DailyUsageGetResponse | DailyUsageClearResponse;
 
 
 
@@ -67,6 +70,7 @@ chrome.runtime.onMessage.addListener(
   ): boolean | void => {
     logger.debug('Message received in background script:', message);
     switch (message.type) {
+      // Sesseion manager user activity messages
       case 'page_load':
         handlePageLoad(message, sender, sendResponse);
         return true;
@@ -75,10 +79,33 @@ chrome.runtime.onMessage.addListener(
         handleUserInput(message, sender, sendResponse);
         return true;
 
-      case 'sessions_get':
+      // Session manager sessions messages
+      case 'user_sessions_get':
         handleUserSessionsGet(message, sendResponse);
         return true;
+      
+      case 'chart_sessions_get':
+        handleChartSessionsGet(message, sendResponse);
+        return true;
 
+      // Session manager session timeout messages
+      case 'user_session_timeout_get':
+        handleUserSessionTimeoutGet(message, sendResponse);
+        return true;
+      
+      case 'user_session_timeout_set':
+        handleUserSessionTimeoutSet(message, sendResponse);
+        return true;
+
+      case 'chart_session_timeout_get':
+        handleChartSessionTimeoutGet(message, sendResponse);
+        return true;
+      
+      case 'chart_session_timeout_set':
+        handleChartSessionTimeoutSet(message, sendResponse);
+        return true;
+  
+      // Sessions logs messages
       case 'session_logs_get':
         handleSessionsLogsGet(message, sendResponse);
         return true;
@@ -87,14 +114,15 @@ chrome.runtime.onMessage.addListener(
         handleSessionsLogsClear(message, sendResponse);
         return true;
 
-      case 'session_timeout_get':
-        handleUserSessionTimeoutGet(message, sendResponse);
+      // Daily usage messages
+      case 'daily_usage_get':
+        handleDailyUsageGet(message, sendResponse);
         return true;
       
-      case 'session_timeout_set':
-        handleUserSessionTimeoutSet(message, sendResponse);
+      case 'daily_usage_clear':
+        handleDailyUsageClear(message, sendResponse);
         return true;
-
+        
       default:
         logger.warn('Unknown message type:', message);
     }

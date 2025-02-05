@@ -1,6 +1,6 @@
 
 import { BackgroundMessage, BackgroundResponse } from '../background/background' 
-import { PageLoadMessage, UserInputMessage, PageEventMessage } from '../types/messages'
+import { PageLoadMessage, UserInputMessage, PageEventMessage } from '../background/session_messages'
 import { parseChart, ChartInfo } from './ehr/pointclickcare/pcc_chart_parser'
 import { DebounceThrottle } from '../utils/debounce';
 import { Logger } from '../utils/logger';

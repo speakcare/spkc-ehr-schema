@@ -7,7 +7,7 @@ export class SessionFactory {
         case SessionType.UserSession:
           return new UserSession(userId, orgId, new Date(startTime), userActivitySeen, lastActivityTime ? new Date(lastActivityTime) : null);
         case SessionType.ChartSession:
-          return new ChartSession(userId, orgId, new Date(startTime), chartType, chartName, userActivitySeen, lastActivityTime ? new Date(lastActivityTime) : null);
+          return new ChartSession(userId, orgId, chartType, chartName, new Date(startTime), userActivitySeen, lastActivityTime ? new Date(lastActivityTime) : null);
         default:
           throw new Error('Unknown session type');
       }
