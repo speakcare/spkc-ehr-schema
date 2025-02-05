@@ -14,7 +14,7 @@
 
 ### Content script
 - [X] Remove redundant message sent string
-- [ ] Review on click, we might avoid it
+- [X] Review on click, we might avoid it
 - [X] Filter hosts by pcc subdomains (e.g. filter login out)
 - [ ] Programatically inject the content script into existing tabs on installation (low priority)
 - [ ] Support Admin charts (currently only clinical)

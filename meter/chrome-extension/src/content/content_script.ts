@@ -220,12 +220,13 @@ function setupUserActivityTracking() {
     // Remmove existing event listeners in case they were added by previous loading of the script
   document.removeEventListener('input', inputHandler);
   document.removeEventListener('change', changeHandler);
-  document.removeEventListener('click', clickHandler);
+  // document.removeEventListener('click', clickHandler);
 
   // Attach new event listeners
   document.addEventListener('input', inputHandler);
   document.addEventListener('change', changeHandler);
-  document.addEventListener('click', clickHandler);
+  // Removed click handler as it was reporting activity on some button clicks that are not user input (e.g. cancel, close, etc.)
+  // document.addEventListener('click', clickHandler);
 }
 
 initPageInfo();

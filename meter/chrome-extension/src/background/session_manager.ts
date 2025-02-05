@@ -137,7 +137,8 @@ export class SessionManager {
 
     const sessionKey = newSession.getSessionKey();
     this.sessions[sessionKey] = newSession;
-    DailyUsage.reportSession(newSession);
+    // Removed as we want to log session start only when user activity is detected
+    // DailyUsage.reportSession(newSession);
     this.logger.log(`New session created for sessionKey: ${sessionKey}`, newSession);
 
     return sessionKey;
@@ -184,7 +185,6 @@ export class SessionManager {
       const duration = sessionDuration ? sessionDuration : this.minSessionDuration;
       const username = `${session.getUserId()}@${session.getOrgId()}`;
       this.reportToSessionLog('session_ended',endTime, endTime, username, duration);
-      //logSessionEvent('session_ended', endTime, endTime, username, duration);
     }
     session.clearExpirationTimer();
     DailyUsage.closeSession(session);
