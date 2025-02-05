@@ -1,21 +1,24 @@
 import { initializeSessionManager, handleUserInput, handlePageLoad, 
-        handleUserSessionsGet, handleSessionTimeoutGet, handleSessionTimeoutSet } from './session_manager';
+        handleUserSessionsGet, handleChartSessionsGet, 
+        handleUserSessionTimeoutGet, handleUserSessionTimeoutSet,
+        handleChartSessionTimeoutGet, handleChartSessionTimeoutSet,
+        handleTabRemove } from './session_manager';
 import {  PageLoadMessage, PageLoadResponse, UserInputMessage, 
-          UserInputResponse, UserSessionsGetMessage, UserSessionsResponse,
-          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from './session_manager'
-import { UserSessionDTO } from './sessions'
+          UserInputResponse, SessionsGetMessage, SessionsGetResponse,
+          SessionTimeoutGetMessage, SessionTimeoutGetResponse, SessionTimeoutSetMessage, SessionTimeoutSetResponse } from './session_messages';
 import { handleSessionsLogsGet, handleSessionsLogsClear } from './session_log';
 import { initializePanelManager } from './panel_manager';
-import { BasicResponse } from '../types';
 import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessage, SessionsLogsClearResponse } from './session_log';
-import { DailyUsage } from './daily_usage';
+import { DailyUsage, handleDailyUsageGet, handleDailyUsageClear, DailyUsageGetMessage, DailyUsageClearMessage, 
+         DailyUsageGetResponse, DailyUsageClearResponse} from './daily_usage';
+import { Logger } from '../utils/logger';
 //import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
 // TBD - Inject content script into matching tabs
 
 // chrome.runtime.onInstalled.addListener(() => {
-//   console.log('SpeakCare Lens Extension installed or updated. Injecting scripts into matching tabs...');
+//   logger.log('SpeakCare Lens Extension installed or updated. Injecting scripts into matching tabs...');
 //   chrome.tabs.query({ url: '*://*.pointclickcare.com/*' }, (tabs) => {
 //     tabs.forEach((tab) => {
 //       chrome.scripting.executeScript({
@@ -23,30 +26,33 @@ import { DailyUsage } from './daily_usage';
 //         files: ['content.bundle.js'],
 //       }, () => {
 //         if (chrome.runtime.lastError) {
-//           console.error(`Failed to inject script into tab ${tab.id}: ${chrome.runtime.lastError.message}`);
+//           logger.error(`Failed to inject script into tab ${tab.id}: ${chrome.runtime.lastError.message}`);
 //         } else {
-//           console.log(`Content script injected into tab ${tab.id}`);
+//           logger.log(`Content script injected into tab ${tab.id}`);
 //         }
 //       });
 //     });
 //   });
 // });
 
+const logger = new Logger('Background script');
 
-export type BackgroundMessage = PageLoadMessage | UserInputMessage | UserSessionsGetMessage | SessionsLogsGetMessage | 
-                       SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage;
-export type BackgroundResponse =  PageLoadResponse | UserInputResponse | UserSessionsResponse | SessionsLogsGetResponse | 
-                         SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse;
+export type BackgroundMessage = PageLoadMessage | UserInputMessage | SessionsGetMessage | SessionsLogsGetMessage | 
+                                SessionsLogsClearMessage | SessionTimeoutSetMessage | SessionTimeoutGetMessage |
+                                DailyUsageGetMessage | DailyUsageClearMessage;
+export type BackgroundResponse =  PageLoadResponse | UserInputResponse | SessionsGetResponse | SessionsLogsGetResponse | 
+                                  SessionsLogsClearResponse | SessionTimeoutSetResponse | SessionTimeoutGetResponse |
+                                  DailyUsageGetResponse | DailyUsageClearResponse;
 
 
 
 self.addEventListener('activate', () => {
-  console.log('Background script activated at', new Date().toISOString());
+  logger.log('activated at', new Date().toISOString());
 });
 self.addEventListener('message', (event) => {
-  console.log('Message received in background script:', event.data);
+  logger.log('message received in background script:', event.data);
 });
-console.log('Background script loaded at', new Date().toISOString());
+logger.log('loaded at', new Date().toISOString());
 
 
 // Initialize the panel manager and session manager
@@ -54,7 +60,7 @@ await initializePanelManager();
 await DailyUsage.initialize();
 await initializeSessionManager();
 
-console.log('Background script sesssion manager initialized at', new Date().toISOString());
+logger.log('sesssion manager initialized at', new Date().toISOString());
 
 chrome.runtime.onMessage.addListener(
   (
@@ -62,8 +68,9 @@ chrome.runtime.onMessage.addListener(
     sender: chrome.runtime.MessageSender, // Sender details
     sendResponse: (response: BackgroundResponse) => void // Response callback
   ): boolean | void => {
-    console.debug('Message received in background script:', message);
+    logger.debug('Message received in background script:', message);
     switch (message.type) {
+      // Sesseion manager user activity messages
       case 'page_load':
         handlePageLoad(message, sender, sendResponse);
         return true;
@@ -72,10 +79,33 @@ chrome.runtime.onMessage.addListener(
         handleUserInput(message, sender, sendResponse);
         return true;
 
+      // Session manager sessions messages
       case 'user_sessions_get':
         handleUserSessionsGet(message, sendResponse);
         return true;
+      
+      case 'chart_sessions_get':
+        handleChartSessionsGet(message, sendResponse);
+        return true;
 
+      // Session manager session timeout messages
+      case 'user_session_timeout_get':
+        handleUserSessionTimeoutGet(message, sendResponse);
+        return true;
+      
+      case 'user_session_timeout_set':
+        handleUserSessionTimeoutSet(message, sendResponse);
+        return true;
+
+      case 'chart_session_timeout_get':
+        handleChartSessionTimeoutGet(message, sendResponse);
+        return true;
+      
+      case 'chart_session_timeout_set':
+        handleChartSessionTimeoutSet(message, sendResponse);
+        return true;
+  
+      // Sessions logs messages
       case 'session_logs_get':
         handleSessionsLogsGet(message, sendResponse);
         return true;
@@ -84,19 +114,24 @@ chrome.runtime.onMessage.addListener(
         handleSessionsLogsClear(message, sendResponse);
         return true;
 
-      case 'session_timeout_get':
-        handleSessionTimeoutGet(message, sendResponse);
+      // Daily usage messages
+      case 'daily_usage_get':
+        handleDailyUsageGet(message, sendResponse);
         return true;
       
-      case 'session_timeout_set':
-        handleSessionTimeoutSet(message, sendResponse);
+      case 'daily_usage_clear':
+        handleDailyUsageClear(message, sendResponse);
         return true;
-
+        
       default:
-        console.warn('Unknown message type:', message);
+        logger.warn('Unknown message type:', message);
     }
   }
 );
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  handleTabRemove(tabId);  
+});
 
 
 

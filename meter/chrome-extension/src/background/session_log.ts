@@ -1,5 +1,5 @@
 import { BasicResponse } from '../types';
-
+import { Logger } from '../utils/logger';
 
 
 export type SessionLogEvent = {
@@ -9,6 +9,8 @@ export type SessionLogEvent = {
   username: string,
   duration: number,
 }
+
+const consoleLogger = new Logger('SessionLog');
 
 export async function logSessionEvent(
   event: 'session_started' | 'session_ended' | 'session_onging',
@@ -35,9 +37,9 @@ export async function logSessionEvent(
     const logs = await getSessionLogs();
     logs.push(eventLog); // Append the new log event
     await saveSessionLogs(logs);
-    console.log('Event logged:', eventLog);
+    consoleLogger.log('Event logged:', eventLog);
   } catch (error) {
-    console.error('Failed to log event:', error);
+    consoleLogger.error('Failed to log event:', error);
   }
 }
 
@@ -47,7 +49,7 @@ export async function getSessionLogs(): Promise<any[]> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get('session_logs', (result) => {
       if (chrome.runtime.lastError) {
-        console.error('Failed to get session logs from local storage', chrome.runtime.lastError);
+        consoleLogger.error('Failed to get session logs from local storage', chrome.runtime.lastError);
         reject(chrome.runtime.lastError);
       } else {
         resolve(result.session_logs || []);
@@ -62,7 +64,7 @@ async function saveSessionLogs(logs: any[]): Promise<void> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.set({ session_logs: logs }, () => {
       if (chrome.runtime.lastError) {
-        console.error('Failed to save session logs to local storage:', chrome.runtime.lastError);
+        consoleLogger.error('Failed to save session logs to local storage:', chrome.runtime.lastError);
         reject(chrome.runtime.lastError);
       } else {
         resolve();
@@ -75,7 +77,7 @@ export async function clearSessionLogs(): Promise<void> {
   return new Promise((resolve, reject) => {
     chrome.storage.local.remove('session_logs', () => {
       if (chrome.runtime.lastError) {
-        console.error('Failed to clear session logs from local storage:', chrome.runtime.lastError);
+        consoleLogger.error('Failed to clear session logs from local storage:', chrome.runtime.lastError);
         reject(chrome.runtime.lastError);
       } else {
         resolve();
@@ -90,7 +92,7 @@ export async function handleSessionsLogsGet(message: SessionsLogsGetMessage, sen
     const sessionLogs = await getSessionLogs();
     sendResponse({ type: 'session_logs_get_response', success: true, sessionLogs });
   } catch (error) {
-    console.error('handleActiveSessionsGet: Unexpected error:', error);
+    consoleLogger.error('handleActiveSessionsGet: Unexpected error:', error);
     sendResponse({ type: 'session_logs_get_response', success: false, error: 'Failed to retrieve session logs', sessionLogs: [] });
   }
 }
@@ -100,7 +102,7 @@ export async function handleSessionsLogsClear(message: SessionsLogsClearMessage,
       await clearSessionLogs();
       sendResponse({ type: 'session_logs_clear_response', success: true });
     } catch (error) {
-      console.error('handleSessionsLogsClear: Unexpected error:', error);
+      consoleLogger.error('handleSessionsLogsClear: Unexpected error:', error);
       sendResponse({ type: 'session_logs_clear_response', success: false, error: 'Failed to clear session logs' });
     }
 }

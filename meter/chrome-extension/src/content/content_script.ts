@@ -1,14 +1,17 @@
 
 import { BackgroundMessage, BackgroundResponse } from '../background/background' 
-import { PageLoadMessage, UserInputMessage, PageEventMessage } from "../background/session_manager";
-import { parseChart, ChartInfo, getPagePath, getPageUrl } from "./ehr/pointclickcare/pcc_chart_parser";
+import { PageLoadMessage, UserInputMessage, PageEventMessage } from '../background/session_messages'
+import { parseChart, ChartInfo } from './ehr/pointclickcare/pcc_chart_parser'
 import { DebounceThrottle } from '../utils/debounce';
+import { Logger } from '../utils/logger';
+import { getPagePath, getPageUrl } from '../utils/url_utills';
 
 const debounceDelay = 300; 
 const throttleDelay = 5000; 
 
 const debounceThrottleInstance = new DebounceThrottle(debounceDelay, throttleDelay);
 
+const logger = new Logger('Content script');
 
 const pageInfo = {
   lastMessageSentTime: Date.now(),
@@ -21,7 +24,7 @@ const pageInfo = {
 function initPageInfo() {
   pageInfo.chartInfo = parseChart();
   if (!pageInfo.chartInfo) {
-    console.debug('initPageInfo: chart parser not supported for url', getPageUrl());
+    logger.debug('initPageInfo: chart parser not supported for url', getPageUrl());
     pageInfo.initialized = false;
     return;
   }
@@ -33,7 +36,7 @@ function initPageInfo() {
 
 function notifyPageLoaded() {
   if (!pageInfo.initialized) {
-    console.debug('notifyPageLoaded: pageInfo not initialized. url', getPageUrl());
+    logger.debug('notifyPageLoaded: pageInfo not initialized. url', getPageUrl());
     return;
   }
   const pageLoadMessage = createPageLoadMessage();
@@ -42,7 +45,7 @@ function notifyPageLoaded() {
     pageInfo.pageLoadTime = pageLoadMessage.pageStartTime;
   }
   else {
-    console.log('notifyPageLoaded: page event message not created for path:', getPagePath());
+    logger.log('notifyPageLoaded: page event message not created for path:', getPagePath());
   }
 }
 
@@ -51,26 +54,26 @@ function notifyPageLoaded() {
 async function sendMessageToBackground(message: BackgroundMessage) {
   try {
     // Send the message to the background script
-    console.log('Sending message:', message);
+    logger.log('Sending message:', message);
     chrome.runtime.sendMessage(message, (response: BackgroundResponse) => {
       if (chrome.runtime.lastError) {
-        console.error('Error sending message:', chrome.runtime.lastError.message);
+        logger.error('Error sending message:', chrome.runtime.lastError.message);
       } else if (response?.success) {
         // Update the last message sent time
         pageInfo.lastMessageSentTime = Date.now();
-        console.log(`Message sent successfully for username:`, response);
+        logger.log(`Message sent successfully for username:`, response);
       } else {
-        console.warn('Reciever responded with error:', message, response?.error);
+        logger.warn('Reciever responded with error:', message, response?.error);
       }
     });
   } catch (err) {
-    console.error('Exception: message failed:', message, err);
+    logger.error('Exception: message failed:', message, err);
   }
 }
 
 function debounceAndThrottleMessage(message: any) {
   if (!pageInfo.debouncer) {
-    console.warn('debounceAndThrottleMessage: debouncer not initialized');
+    logger.warn('debounceAndThrottleMessage: debouncer not initialized');
     return;
   }
   pageInfo.debouncer.debounce(() => {
@@ -80,7 +83,7 @@ function debounceAndThrottleMessage(message: any) {
 
 function createPageEventMessage(): PageEventMessage | null {
   if (!pageInfo.chartInfo) {
-    console.warn('createPageEventMessage: pageInfo.chartInfo is null');
+    logger.warn('createPageEventMessage: pageInfo.chartInfo is null');
     return null;
   }
   return {
@@ -99,7 +102,7 @@ function createUserInputMessage(
 
   const userInputMessage = createPageEventMessage();
   if (!userInputMessage) {
-    console.log('createUserInputMessage: page event message not created for path:', getPagePath());
+    logger.log('createUserInputMessage: page event message not created for path:', getPagePath());
     return null;
   }
 
@@ -114,7 +117,7 @@ function createUserInputMessage(
 function createPageLoadMessage(): PageLoadMessage | null{
   const pageLoadMessage = createPageEventMessage();
   if (!pageLoadMessage) {
-    console.log('createPageLoadMessage: page event message not created for path:', getPagePath());
+    logger.log('createPageLoadMessage: page event message not created for path:', getPagePath());
     return null;
   }
   return {
@@ -126,7 +129,7 @@ function createPageLoadMessage(): PageLoadMessage | null{
 
 const inputHandler = (event: Event) => {
   if (!pageInfo.initialized) {
-    console.debug('inputHandler: pageInfo not initialized. url', getPageUrl());
+    logger.debug('inputHandler: pageInfo not initialized. url', getPageUrl());
     return;
   }
   const target = event.target as HTMLInputElement | HTMLTextAreaElement;
@@ -142,7 +145,7 @@ const inputHandler = (event: Event) => {
 // Add click event listener for buttons
 const clickHandler = (event: Event) => {
   if (!pageInfo.initialized) {
-    console.debug('clickHandler: pageInfo not initialized. url', getPageUrl());
+    logger.debug('clickHandler: pageInfo not initialized. url', getPageUrl());
     return;
   }
   const target = event.target as HTMLElement;
@@ -164,7 +167,7 @@ const clickHandler = (event: Event) => {
 // Add change event listener
 const changeHandler = (event: Event) => {
   if (!pageInfo.initialized) {
-    console.debug('changeHandler: pageInfo not initialized. url', getPageUrl());
+    logger.debug('changeHandler: pageInfo not initialized. url', getPageUrl());
     return;
   }
   const target = event.target as HTMLElement;
@@ -173,7 +176,7 @@ const changeHandler = (event: Event) => {
 
   const userInputMessage = createUserInputMessage('', 'other');
   if (!userInputMessage) {
-    console.log('changeHandler: page event message not created for path:', getPagePath());
+    logger.log('changeHandler: page event message not created for path:', getPagePath());
     return;
   }
   if (target instanceof HTMLInputElement) {
@@ -217,12 +220,13 @@ function setupUserActivityTracking() {
     // Remmove existing event listeners in case they were added by previous loading of the script
   document.removeEventListener('input', inputHandler);
   document.removeEventListener('change', changeHandler);
-  document.removeEventListener('click', clickHandler);
+  // document.removeEventListener('click', clickHandler);
 
   // Attach new event listeners
   document.addEventListener('input', inputHandler);
   document.addEventListener('change', changeHandler);
-  document.addEventListener('click', clickHandler);
+  // Removed click handler as it was reporting activity on some button clicks that are not user input (e.g. cancel, close, etc.)
+  // document.addEventListener('click', clickHandler);
 }
 
 initPageInfo();
@@ -230,4 +234,4 @@ notifyPageLoaded();
 setupUserActivityTracking();
 
 
-console.log('Content script initialized or re-initialized');
+logger.log('initialized or re-initialized');
