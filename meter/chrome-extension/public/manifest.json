@@ -14,8 +14,13 @@
     "cookies",
     "storage",
     "webRequest",
-    "tabs"
+    "tabs",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "289656832978-c3bu3104fjasceu6utpihs065tdig833.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/spreadsheets"]
+  },
   "host_permissions": [
     "https://*.pointclickcare.com/*"
   ],
@@ -46,6 +51,7 @@
       "48": "icons/lens-icon-48.png",
       "128": "icons/lens-icon-128.png"
     },
-    "default_title": "Click to open SpeakCare session lens panel"
-  }
+    "default_title": "Click to open SpeakCare session meter panel"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArjvQctkQxHffCqkqdSg3KPgFzsO0FEjpbqCfvUszc+3NxXBrwNcUdT1HLHAOdeSUstllGPhPd/d79iWEgeJ3QNY2EKYDBJfUiFXDNc/LWOmDIowzujptl/Yn6PfIN7STAmt3AV5X0n3Qny2qiAEkuaAPRhp4PufvPHh1SvbuYnjL/TrFp0RIi5TtBliabdWr6ykXJWgl+XQVX0qU+6MJ5lNbr9GxCeo0hcjbEAF7HdtBWf/0qx9wok+6rDPM4ZPF2E9qnZekZmD+iyDCJ14QCi9dzSxfeM+GaSKbl9fKinVsYjlo7FPhFSlw4iFwVDzZ4PTwdQRicc7bf2kI+QlZ+wIDAQAB"
 }
