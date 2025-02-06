@@ -1,35 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveSession, ChartSession, UserSession, UserSessionDTO, ChartSessionDTO } from '../background/sessions';
+import { ChartSession, UserSession, UserSessionDTO, ChartSessionDTO } from '../background/sessions';
 import { SessionsGetResponse,  SessionTimeoutGetResponse, SessionTimeoutSetResponse } from '../background/session_messages'  
 import { SessionLogEvent,  SessionsLogsGetResponse, SessionsLogsClearResponse, } from '../background/session_log';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Select,
-  MenuItem,
-  Paper,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  IconButton,
-} from '@mui/material';
+import { DailyUsage, DailyUsageGetResponse, DailyUsageClearResponse, DailyUsageDTO } from '../background/daily_usage';
+import { AppBar, Toolbar, Typography, Button, Box, Table, TableBody, TableCell, 
+         TableContainer, TableHead, TableRow, TextField, Select, MenuItem,
+         Paper, Dialog, DialogActions, DialogContent, DialogContentText, 
+         DialogTitle, IconButton } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { makeStyles } from '@mui/styles';
 import { Logger } from '../utils/logger';
-import { DailyUsage, DailyUsageGetMessage, DailyUsageGetResponse, 
-         DailyUsageClearMessage, DailyUsageClearResponse, DailyUsageDTO } from '../background/daily_usage';
+
+import SessionLogView from './components/session_log_view';
+import ActiveSessionsView  from './components/active_sessions_view';
+import DailyUsageView from './components/daily_usage_view';
+import SettingsDialog from './components/settings_dialog';
+
 
 const useStyles = makeStyles({
   tableContainer: {
@@ -330,6 +316,7 @@ const App: React.FC = () => {
     return matchesUsername && matchesEventType && matchesDateFrom && matchesDateTo;
   });
 
+  // Filter daily usages
   const filteredDaily = dailyUsages.filter(usage => {
     const { username, fromDate: dateFrom, toDate: dateTo} = dailyUsagefilters;
     const matchesUsername = !username || usage.getUsername()?.includes(username);
@@ -384,36 +371,6 @@ const App: React.FC = () => {
     }
   };
 
-  interface Sortable {
-    getDate: () => string;
-    getStartTime: () => Date;
-  }
-
-  const sortByStartTime = (a: Sortable, b: Sortable): number => {
-    const startTimeA = a.getStartTime() || new Date(0); // Use epoch time for empty start times
-    const startTimeB = b.getStartTime() || new Date(0); // Use epoch time for empty start times
-    if (startTimeA < startTimeB) return -1;
-    if (startTimeA > startTimeB) return 1;
-    return 0;  
-  };
-
-  const formatDuration = (seconds: number): string => {
-    seconds = Math.floor(seconds); // Round down to the nearest integer
-    const days = Math.floor(seconds / (24 * 3600));
-    seconds %= 24 * 3600;
-    const hours = Math.floor(seconds / 3600);
-    seconds %= 3600;
-    const minutes = Math.floor(seconds / 60);
-    seconds %= 60;
-  
-    const daysStr = days > 0 ? `${days}d ` : '';
-    const hoursStr = hours > 0 ? `${hours.toString().padStart(2, '0')}:` : '00:';
-    const minutesStr = minutes > 0 ? `${minutes.toString().padStart(2, '0')}:` : '00:';
-    const secondsStr = seconds > 0 ? `${seconds.toString().padStart(2, '0')}` : '00';
-  
-    return `${daysStr}${hoursStr}${minutesStr}${secondsStr}`;
-  };
-
   return (
     <Box>
       <AppBar position="static">
@@ -438,291 +395,40 @@ const App: React.FC = () => {
       </AppBar>
 
       {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onClose={handleSettingsClose}>
-        <DialogTitle>Settings</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Set the session timeout (in seconds):
-          </DialogContentText>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="User Session Timeout"
-            type="number"
-            fullWidth
-            value={candidateUserSessionTimeout || ''}
-            onChange={handleUserSessionTimeoutChange}
-          />
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Chart Session Timeout"
-            type="number"
-            fullWidth
-            value={candidateChartSessionTimeout || ''}
-            onChange={handleChartSessionTimeoutChange}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleSettingsClose} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={handleSettingsClose}
+        userSessionTimeout={candidateUserSessionTimeout}
+        chartSessionTimeout={candidateChartSessionTimeout}
+        onUserSessionTimeoutChange={handleUserSessionTimeoutChange}
+        onChartSessionTimeoutChange={handleChartSessionTimeoutChange}
+      />
       {/* Main Content */}
       <Box p={3}>
         {view === 'session_log' && (
-          <Box>
-            <Typography variant="h6" gutterBottom>
-              Session Log
-            </Typography>
-            {/* Filters */}
-            <Box display="flex" gap={0.5} flexWrap="wrap" mb={2}>
-              <TextField
-                label="From"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={sessionLogfilters.fromDate}
-                onChange={e => setSessionLogFilters({ ...sessionLogfilters, fromDate: e.target.value })}
-                size="small"
-                sx={{ minWidth: 100 }}
-              />
-              <TextField
-                label="To"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={sessionLogfilters.toDate}
-                onChange={e => setSessionLogFilters({ ...sessionLogfilters, toDate: e.target.value })}
-                size="small"
-                sx={{ minWidth: 100 }}
-              />
-              <TextField
-                label="Username"
-                value={sessionLogfilters.username}
-                onChange={e => setSessionLogFilters({ ...sessionLogfilters, username: e.target.value })}
-                size="small"
-                sx={{ minWidth: 100 }}
-              />
-              <Select
-                value={sessionLogfilters.eventType}
-                onChange={e => setSessionLogFilters({ ...sessionLogfilters, eventType: e.target.value })}
-                displayEmpty
-                size="small"
-                sx={{ minWidth: 100 }}
-              >
-                <MenuItem value="">All Events</MenuItem>
-                <MenuItem value="session_started">Session Started</MenuItem>
-                <MenuItem value="session_ended">Session Ended</MenuItem>
-                <MenuItem value="session_ongoing">Session Ongoing</MenuItem>
-              </Select>
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={handleClearLogs}
-                size="small"
-                sx={{ padding: '4px 8px', minWidth: '80px' }}
-              >
-                Clear Logs
-              </Button>
-            </Box>
-
-            {/* Session Log Table */}
-            <TableContainer component={Paper} className={classes.tableContainer}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Timestamp</TableCell>
-                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Event</TableCell>
-                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Username</TableCell>
-                    <TableCell sx={{ backgroundColor: '#f5f5f5'  }}>Duration</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredLogs.map((log, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{new Date(log.eventTime).toLocaleString()}</TableCell>
-                      <TableCell>{log.event}</TableCell>
-                      <TableCell>{log.username}</TableCell>
-                      <TableCell>{log.duration ? formatDuration((log.duration / 1000)) : ''}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
+          <SessionLogView
+            sessionLogfilters={sessionLogfilters}
+            setSessionLogFilters={setSessionLogFilters}
+            filteredLogs={filteredLogs}
+            handleClearLogs={handleClearLogs}
+          />
         )}
-
         {view === 'active_sessions' && (
-          <Box>
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                User Sessions
-              </Typography>
-              {/* Active Sessions Table */}
-              <TableContainer component={Paper} className={classes.tableContainer}>
-                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Start Time</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'  }}>Last Activity Time</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {userSessions.map((session, index) => (
-                      <TableRow key={index}>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getStartTime().toLocaleString()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getUsername()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>
-                          {session.getLastActivityTime()?.toLocaleString() || 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-
-            <Box mt={4}>
-              <Typography variant="h6" gutterBottom>
-                Chart Sessions
-              </Typography>
-              <TableContainer component={Paper} className={classes.tableContainer}>
-                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Start Time</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Type</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Chart Name</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5'   }}>Last Activity Time</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {chartSessions.map((session, index) => (
-                      <TableRow key={index}>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getStartTime().toLocaleString()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getUsername()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartType()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getChartName()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{session.getLastActivityTime()?.toLocaleString() || 'N/A'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>            
-          </Box>
+          <ActiveSessionsView
+            userSessions={userSessions}
+            chartSessions={chartSessions}
+            classes={classes}
+          />
         )}
-
         {view === 'daily_usage' && (
-          <Box>
-            {/* Filters */}
-            <Box mb={2}>
-              <TextField
-                label="From Date"
-                type="date"
-                value={dailyUsagefilters.fromDate}
-                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, fromDate: e.target.value })}
-                size="small"
-                sx={{ marginRight: 2 }}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                value={dailyUsagefilters.toDate}
-                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, toDate: e.target.value })}
-                size="small"
-                sx={{ marginRight: 2 }}
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                label="Username"
-                value={dailyUsagefilters.username}
-                onChange={e => setDailyUsageFilters({ ...dailyUsagefilters, username: e.target.value })}
-                size="small"
-                sx={{ marginRight: 2 }}
-              />
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={handleClearDailyUsage}
-                size="small"
-                sx={{ padding: '4px 8px', minWidth: '80px' }}
-              >
-                Clear Daily Report
-              </Button>
-            </Box>
-
-            {/* User Daily Usage Table */}
-            <Typography variant="h6" gutterBottom>
-              User Daily Usage
-            </Typography>
-            <TableContainer component={Paper} className={classes.tableContainer}>
-              <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Date</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Username</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
-                    <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Duration</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredDaily
-                    .filter(usage => usage.getType() === 'UserSession')
-                    .sort(sortByStartTime)
-                    .map((usage, index) => (
-                      <TableRow key={index}>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
-                        <TableCell sx={{ fontSize: '0.875rem' }}>{formatDuration(usage.getDuration())}</TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            {/* Chart Daily Usage Table */}
-            <Box mt={4}>
-              <Typography variant="h6" gutterBottom>
-                Chart Daily Usage
-              </Typography>
-              <TableContainer component={Paper} className={classes.tableContainer}>
-                <Table stickyHeader sx={{ fontSize: '0.875rem' }}>
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Date</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Type</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Name</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Duration</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredDaily
-                      .filter(usage => usage.getType() === 'ChartSession')
-                      .sort(sortByStartTime)
-                      .map((usage, index) => (
-                        <TableRow key={index}>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartType}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartName}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{formatDuration(usage.getDuration())}</TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          </Box>
-        )}
+          <DailyUsageView
+            dailyUsagefilters={dailyUsagefilters}
+            setDailyUsageFilters={setDailyUsageFilters}
+            filteredDaily={filteredDaily}
+            handleClearDailyUsage={handleClearDailyUsage}
+            classes={classes}
+          />
+        )} 
       </Box>
     </Box>
   );
