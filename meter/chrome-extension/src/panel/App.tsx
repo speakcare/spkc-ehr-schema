@@ -419,7 +419,7 @@ const App: React.FC = () => {
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Session Tracker
+            EHR Usage Meter
           </Typography>
           {/* Dropdown for View Selection */}
           <Select
@@ -697,9 +697,9 @@ const App: React.FC = () => {
                     <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Date</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Username</TableCell>
-                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Type</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Chart Name</TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Start Time</TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', backgroundColor: '#f5f5f5' }}>Duration</TableCell>
                     </TableRow>
                   </TableHead>
@@ -711,9 +711,9 @@ const App: React.FC = () => {
                         <TableRow key={index}>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getDate()}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{ActiveSession.getUsername(usage.getFields().userId, usage.getFields().orgId)}</TableCell>
-                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartType}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getFields().chartName}</TableCell>
+                          <TableCell sx={{ fontSize: '0.875rem' }}>{usage.getStartTime().toLocaleTimeString()}</TableCell>
                           <TableCell sx={{ fontSize: '0.875rem' }}>{formatDuration(usage.getDuration())}</TableCell>
                         </TableRow>
                       ))}

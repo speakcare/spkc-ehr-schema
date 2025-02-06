@@ -170,13 +170,13 @@ function extractOrgCodeFromDSIFeedback(): string | null {
 // Define a map that associates paths with chart types and extraction functions
 const pathToChartTypeMap: { [key: string]: { chartType: string, chartNameExtractor: ChartNameExtractor, usernameExtractor: UsernameExtractor, orgCodeExtractor: OrgnameExtractor } } = {
   '/care/chart/mds/mds.jsp': {
-    chartType: 'Assessment',
+    chartType: 'Clinical Assessment',
     chartNameExtractor: extractAssessmentChartName,
     usernameExtractor: extractUsernameFromLabel,
     orgCodeExtractor: extractOrgCodeFromDSIFeedback,
   },
   '/care/chart/mds/mdssection.jsp': {
-    chartType: 'Assessment Section',
+    chartType: 'Clinical Assessment',
     chartNameExtractor: extractAssessmentSectionName,
     usernameExtractor: extractUsernameFromLabel,
     orgCodeExtractor: extractOrgCodeFromDSIFeedback,

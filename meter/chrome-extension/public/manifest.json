@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "PCC Usage Meter",
-  "description": "Tracks user session duration and activity on PointClickCare domains.",
+  "name": "SpeakCare",
+  "description": "Tracks user session duration and activity on EHR applicatiobns.",
   "version": "0.1.5",
   "icons": {
     "16": "icons/lens-icon-16.png",
