@@ -5,6 +5,7 @@
 # build output
 /dist
 dist.crx
+/pack
 
 # Extension packing key
 
