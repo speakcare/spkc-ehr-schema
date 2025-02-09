@@ -1,6 +1,6 @@
 {
   "name": "speakcare-pcc-usage-meter",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "main": "index.js",
   "author": "Ori Finkelman",
@@ -35,6 +35,6 @@
     "start": "webpack serve --mode development",
     "build": "rm -rf dist && webpack --mode production",
     "clean": "rm -rf dist",
-    "pack-extension": "node pack-lens.js"
+    "pack-extension": "node pack-meter.js"
   }
 }
