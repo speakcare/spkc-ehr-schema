@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SpeakCare",
   "description": "Tracks user session duration and activity on EHR applicatiobns.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "icons": {
     "16": "icons/lens-icon-16.png",
     "48": "icons/lens-icon-48.png",
@@ -19,7 +19,9 @@
   ],
   "oauth2": {
     "client_id": "289656832978-c3bu3104fjasceu6utpihs065tdig833.apps.googleusercontent.com",
-    "scopes": ["https://www.googleapis.com/auth/spreadsheets"]
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ]
   },
   "host_permissions": [
     "https://*.pointclickcare.com/*"
