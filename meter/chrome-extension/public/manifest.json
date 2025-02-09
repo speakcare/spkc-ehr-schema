@@ -11,9 +11,7 @@
   "permissions": [
     "sidePanel",
     "scripting",
-    "cookies",
     "storage",
-    "webRequest",
     "tabs",
     "identity"
   ],
