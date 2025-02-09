@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SpeakCare",
   "description": "Tracks user session duration and activity on EHR applicatiobns.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "icons": {
     "16": "icons/lens-icon-16.png",
     "48": "icons/lens-icon-48.png",
