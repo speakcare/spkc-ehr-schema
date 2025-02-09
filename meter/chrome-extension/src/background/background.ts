@@ -12,8 +12,7 @@ import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessa
 import { DailyUsage, handleDailyUsageGet, handleDailyUsageClear, DailyUsageGetMessage, DailyUsageClearMessage, 
          DailyUsageGetResponse, DailyUsageClearResponse} from './daily_usage';
 import { Logger } from '../utils/logger';
-//import { BackgroundMessage, BackgroundResponse } from '../types';
-
+import { testGoogleSheets } from '../panel/export/google_sheets';
 
 // TBD - Inject content script into matching tabs
 
@@ -133,5 +132,9 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   handleTabRemove(tabId);  
 });
 
+export async function tryGoogleSheets() {
+  testGoogleSheets();
+}
+(globalThis as any).tryGoogleSheets = tryGoogleSheets;
 
 
