@@ -8,6 +8,8 @@ import { AppBar, Toolbar, Typography, Button, Box, Table, TableBody, TableCell,
          Paper, Dialog, DialogActions, DialogContent, DialogContentText, 
          DialogTitle, IconButton } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
+import GoogleSheetsIcon from '@mui/icons-material/Google';
+import ExportIcon from '@mui/icons-material/SaveAlt';
 import { makeStyles } from '@mui/styles';
 import { Logger } from '../utils/logger';
 
@@ -15,7 +17,9 @@ import SessionLogView from './components/session_log_view';
 import ActiveSessionsView  from './components/active_sessions_view';
 import DailyUsageView from './components/daily_usage_view';
 import SettingsDialog from './components/settings_dialog';
+import GoogleSheetsExport from './components/google_sheets_export';
 
+const OAuthClientId = '289656832978-c3bu3104fjasceu6utpihs065tdig833';
 
 const useStyles = makeStyles({
   tableContainer: {
@@ -33,9 +37,7 @@ const App: React.FC = () => {
   const [chartSessions, setChartSessions] = useState<ChartSession[]>([]);
   const [dailyUsages, setDailyUsages] = useState<DailyUsage[]>([]);
   const [view, setView] = useState<'session_log' | 'active_sessions' | 'daily_usage'>('session_log');
-  const [userSessionTimeout, setUserSessionTimeout] = useState<number>(180); // Default to 3 minutes
   const [candidateUserSessionTimeout, setCandidateUserSessionTimeout] = useState<number>(180); // Local state for new timeout
-  const [chartSessionTimeout, setChartSessionTimeout] = useState<number>(180); // Default to 3 minutes
   const [candidateChartSessionTimeout, setCandidateChartSessionTimeout] = useState<number>(180); // Local state for new timeout
   const [sessionLogfilters, setSessionLogFilters] = useState({
     username: '',
@@ -50,6 +52,58 @@ const App: React.FC = () => {
   });
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  const prepareExportData = () => {
+    const now = new Date().toISOString(); // Current time in GMT ISO representation
+
+    const sessionLogSheetName = `Session log ${now}`;
+    const dailyUsageSheetName = `Daily usage ${now}`;
+    const chartUsageSheetName = `Chart usage ${now}`;
+
+    const sessionLogData = [
+      ['Timestamp', 'Event', 'Username', 'Duration (seconds)'], // Column names
+      ...logs.map(log => [
+        log.eventTime,
+        log.event,
+        log.username,
+        Math.floor(log.duration/1000),
+        // Add other fields as needed
+      ])
+    ];
+
+    const dailyUsageData = [
+      ['Date', 'Username', 'Start Time', 'Duration (seconds)'], // Column names
+      ...dailyUsages
+        .filter(usage => usage.getType() === 'UserSession')
+        .map(usage => [
+          usage.getDate(),
+          usage.getUsername(),
+          usage.getStartTime().toISOString(),
+          Math.floor(usage.getDuration()),
+        ])
+    ];
+
+    const chartUsageData = [
+      ['Date', 'Username', 'Chart Type', 'Chart Name', 'Start Time', 'Duration (seconds)'], // Column names
+      ...dailyUsages
+        .filter(usage => usage.getType() === 'ChartSession')
+        .map(usage => [
+          usage.getDate(),
+          usage.getUsername(),
+          usage.getFields().chartType,
+          usage.getFields().chartName,
+          usage.getStartTime().toISOString(),
+          Math.floor(usage.getDuration()),
+        ])
+    ];
+
+    return [
+      { sheetName: sessionLogSheetName, data: sessionLogData },
+      { sheetName: dailyUsageSheetName, data: dailyUsageData },
+      { sheetName: chartUsageSheetName, data: chartUsageData },
+    ];
+  };
 
   // Fetch logs and active sessions
   const fetchLogs = async () => {
@@ -142,7 +196,6 @@ const App: React.FC = () => {
 
       if (response.success) {
         if (response.timeout) {
-          setUserSessionTimeout(response.timeout);
           setCandidateUserSessionTimeout(response.timeout); // Initialize local state
         }
         else {
@@ -170,7 +223,6 @@ const App: React.FC = () => {
 
       if (response.success) {
         if (response.timeout) {
-          setChartSessionTimeout(response.timeout);
           setCandidateChartSessionTimeout(response.timeout); // Initialize local state
         }
         else {
@@ -198,7 +250,7 @@ const App: React.FC = () => {
       });
 
       if (response.success) {
-        setUserSessionTimeout(timeout);
+        appLogger.info('User session timeout set successfully:', timeout);
       } else {
         appLogger.error('Failed to set session timeout:', response.error);
       }
@@ -220,7 +272,7 @@ const App: React.FC = () => {
       });
 
       if (response.success) {
-        setChartSessionTimeout(timeout);
+        appLogger.info('Chart session timeout set successfully:', timeout);
       } else {
         appLogger.error('Failed to set chart session timeout:', response.error);
       }
@@ -388,6 +440,9 @@ const App: React.FC = () => {
             <MenuItem value="active_sessions">Active Sessions</MenuItem>
             <MenuItem value="daily_usage">Daily Usage</MenuItem>
           </Select>
+          <IconButton color="inherit" onClick={() => setExportDialogOpen(true)}>
+            <ExportIcon />
+          </IconButton>
           <IconButton color="inherit" onClick={handleSettingsOpen}>
             <SettingsIcon />
           </IconButton>
@@ -402,6 +457,13 @@ const App: React.FC = () => {
         chartSessionTimeout={candidateChartSessionTimeout}
         onUserSessionTimeoutChange={handleUserSessionTimeoutChange}
         onChartSessionTimeoutChange={handleChartSessionTimeoutChange}
+      />
+       {/* Google Sheets Export Dialog */}
+       <GoogleSheetsExport
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        OAuthClientId={OAuthClientId}
+        sheetsData={prepareExportData()}
       />
       {/* Main Content */}
       <Box p={3}>

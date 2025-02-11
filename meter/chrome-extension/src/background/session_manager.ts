@@ -9,7 +9,7 @@ import { PageLoadMessage, PageLoadResponse, UserInputMessage, UserInputResponse,
         SessionTimeoutSetMessage, SessionTimeoutSetResponse, 
         SessionTimeoutGetMessage, SessionTimeoutGetResponse } from './session_messages';
 import { SessionStrategy, UserSessionStrategy, ChartSessionStrategy } from './session_strategy';
-import { LocalStorage } from '../utils/local_stroage'; //'../utils/local_storage';
+import { LocalStorage } from '../utils/local_storage'; //'../utils/local_storage';
 import { SessionFactory } from './session_factory'; //'./session_factory';
 import { ActiveSession } from './sessions';
 import { SessionType } from './sessions';
@@ -52,7 +52,7 @@ export class SessionManager {
   // Session Timeout Management
   private async setSessionTimeout(timeout: number): Promise<void> {
     this.sessionTimeoutConfig = timeout;
-    await this.sessionTimeoutLocalStorage.setItem(timeout);
+    await this.sessionTimeoutLocalStorage.setSingleItem(timeout);
   }
 
 
@@ -61,7 +61,7 @@ export class SessionManager {
   }
 
   private async loadSessionTimeout(): Promise<number> {
-    const timeout = await this.sessionTimeoutLocalStorage.getItem();
+    const timeout = await this.sessionTimeoutLocalStorage.getSingleItem();
     this.sessionTimeoutConfig = timeout || this.sessionTimeoutConfig;
     return this.sessionTimeoutConfig;
   }
@@ -78,7 +78,7 @@ export class SessionManager {
 
   // Active Session Management
   private async getSessionsFromLocalStorage(): Promise<Record<string, ActiveSession>> {
-    const activeSessions = await this.sessionsLocalStorage.getItem();
+    const activeSessions = await this.sessionsLocalStorage.getSingleItem();
     const sessions: Record<string, ActiveSession> = {};
     for (const key in activeSessions) {
       if (activeSessions.hasOwnProperty(key)) {
@@ -93,7 +93,7 @@ export class SessionManager {
     const sessionsToSave = Object.fromEntries(
       Object.entries(this.sessions).map(([key, session]) => [key, session.serialize()])
     );
-    await this.sessionsLocalStorage.setItem(sessionsToSave);
+    await this.sessionsLocalStorage.setSingleItem(sessionsToSave);
   }
 
   private async loadActiveSessions(): Promise<void> {
