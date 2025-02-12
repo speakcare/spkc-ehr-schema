@@ -20,7 +20,11 @@ export class GoogleOAuth {
         this.clientId = `${clientId}.apps.googleusercontent.com`
         this.redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
         this.scopes = scopes;
-        this.authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${this.clientId}&redirect_uri=${this.redirectUri}&response_type=token&scope=${this.scopes}&prompt=login`;;
+        this.authUrl = `https://accounts.google.com/o/oauth2/v2/auth`+
+                       `?client_id=${this.clientId}`+
+                       `&redirect_uri=${this.redirectUri}`+
+                       `&response_type=token&scope=${this.scopes}`+
+                       `&prompt=select_account&hd=speakcare.ai`;
         this.localStorage = new LocalStorage(`GoogleOAuth:${app}`);
         this.logger = new Logger(`GoogleOAuth:${app}`);
         this.accessToken = '';

@@ -13,12 +13,10 @@ export class GoogleSheetsWriter {
     private googleAuth: GoogleOAuth | null;
     private googleSheets: GoogleSheetsAPI | null;
     private logger: Logger;
-    //private localStorage: LocalStorage;
     private clientId: string;
     private spreadsheetId: string;
 
     constructor(clientId: string, spreadsheetId: string) {
-        //this.localStorage = new LocalStorage('Export');
         this.logger = new Logger('Export');
         this.googleAuth = null; // new GoogleOAuth(clientId, 'https://www.googleapis.com/auth/spreadsheets','Export');
         this.spreadsheetId = spreadsheetId;
@@ -86,28 +84,32 @@ interface GoogleSheetsExportProps {
     onClose: () => void;
     OAuthClientId: string;
     sheetsData: SheetData[];
+    spreadsheetId: string;
+    onSpreadsheetIdChange: (newSpreadsheetId: string) => void;  
   }
   
-  const GoogleSheetsExport: React.FC<GoogleSheetsExportProps> = ({ open, onClose, OAuthClientId, sheetsData }) => {
+  const GoogleSheetsExport: React.FC<GoogleSheetsExportProps> = ({ 
+    open, 
+    onClose, 
+    OAuthClientId, 
+    sheetsData,
+    spreadsheetId,
+    onSpreadsheetIdChange
+   }) => {
     const [candidateSpreadsheetId, setCandidateSpreadsheetId] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [isSpreadsheetIdInvalid, setIsSpreadsheetIdInvalid] = useState<boolean>(false);
-    const localStorage = new LocalStorage('googleSheetsSpreadsheetId');
     const logger = new Logger('GoogleSheetsExport');
   
     useEffect(() => {
-      const fetchSpreadsheetId = async () => {
-        const storedSpreadsheetId = await localStorage.getSingleItem();
-        if (storedSpreadsheetId) {
-          setCandidateSpreadsheetId(storedSpreadsheetId);
-        }
-      };
-      fetchSpreadsheetId();
-    }, []);
+      setCandidateSpreadsheetId(spreadsheetId);
+    }, [spreadsheetId]);
   
     const handleClose = async () => {
-      await localStorage.setSingleItem(candidateSpreadsheetId);
+      if (candidateSpreadsheetId !== spreadsheetId) {
+        onSpreadsheetIdChange(candidateSpreadsheetId);
+      }
       onClose();
     };
   

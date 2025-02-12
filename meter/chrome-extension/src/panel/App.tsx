@@ -12,6 +12,7 @@ import GoogleSheetsIcon from '@mui/icons-material/Google';
 import ExportIcon from '@mui/icons-material/SaveAlt';
 import { makeStyles } from '@mui/styles';
 import { Logger } from '../utils/logger';
+import { LocalStorage } from '../utils/local_storage';
 
 import SessionLogView from './components/session_log_view';
 import ActiveSessionsView  from './components/active_sessions_view';
@@ -20,6 +21,7 @@ import SettingsDialog from './components/settings_dialog';
 import GoogleSheetsExport from './components/google_sheets_export';
 
 const OAuthClientId = '289656832978-c3bu3104fjasceu6utpihs065tdig833';
+const defaultSpreadsheetId = '1KHjVFQ-sQmyfI3GM4W5jdmu0k4tAXeQ2EpIcLMMLlY4'
 
 const useStyles = makeStyles({
   tableContainer: {
@@ -53,6 +55,27 @@ const App: React.FC = () => {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [spreadsheetId, setSpreadsheetId] = useState<string>('');
+  const localStorage = new LocalStorage('MeterPanel');
+
+  useEffect(() => {
+    const fetchSpreadsheetId = async () => {
+      const items = await localStorage.getItems(['spreadsheetId']);
+      if (items.storedSpreadsheetId) {
+        appLogger.info('Spreadsheet ID found in local storage:', items.storedSpreadsheetId);
+        setSpreadsheetId(items.storedSpreadsheetId);
+      }
+      else {
+        setSpreadsheetId(defaultSpreadsheetId);
+      }
+    };
+    fetchSpreadsheetId();
+  }, []);
+
+  const handleSpreadsheetIdChange = async (newSpreadsheetId: string) => {
+    setSpreadsheetId(newSpreadsheetId);
+    await localStorage.setItems( {spreadsheetId: newSpreadsheetId} );
+  };
 
   const prepareExportData = () => {
     const now = new Date().toISOString(); // Current time in GMT ISO representation
@@ -464,6 +487,8 @@ const App: React.FC = () => {
         onClose={() => setExportDialogOpen(false)}
         OAuthClientId={OAuthClientId}
         sheetsData={prepareExportData()}
+        spreadsheetId={spreadsheetId}
+        onSpreadsheetIdChange={handleSpreadsheetIdChange}
       />
       {/* Main Content */}
       <Box p={3}>

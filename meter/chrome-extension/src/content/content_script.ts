@@ -1,6 +1,6 @@
 
 import { BackgroundMessage, BackgroundResponse } from '../background/background' 
-import { PageLoadMessage, UserInputMessage, PageEventMessage } from '../background/session_messages'
+import { PageLoadMessage, InputType, UserInputMessage, PageEventMessage } from '../background/session_messages'
 import { parseChart, ChartInfo } from './ehr/pointclickcare/pcc_chart_parser'
 import { DebounceThrottle } from '../utils/debounce';
 import { Logger } from '../utils/logger';
@@ -97,7 +97,7 @@ function createPageEventMessage(): PageEventMessage | null {
 
 function createUserInputMessage(
   input: string,
-  inputType: 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'other',
+  inputType: InputType,
 ): UserInputMessage | null {
 
   const userInputMessage = createPageEventMessage();
@@ -152,15 +152,57 @@ const clickHandler = (event: Event) => {
   if (!target) return;
   if (!pageInfo.pageLoadTime) return; // avoid race condition where pageLoadTime is not set yet
 
-  if (target instanceof HTMLButtonElement || 
-    (target instanceof HTMLInputElement && (target.type === 'button' || target.type === 'submit' || target.type === 'reset'))) 
-  { //only catch button clicks
+  logger.info('clickHandler event:', event);
+  let userInput: string = '';
+  let inputType: InputType = undefined;
 
-    const userInputMessage = createUserInputMessage(target.innerText || target.value, 'button');
+  const buttonElement = target.closest('button, input[type="button"], input[type="submit"], input[type="reset"]');
+  const anchorElement = target.closest('a');
+  const headingElement = target.closest('h1, h2, h3, h4, h5, h6');
+
+  if (buttonElement) {
+    userInput = (buttonElement as HTMLElement).innerText || (buttonElement as HTMLInputElement).value;
+    inputType = 'button';
+  } else if (anchorElement) {
+    userInput = anchorElement.innerText || anchorElement.getAttribute('data-value') || '';
+    inputType = 'link';
+  } else if (headingElement) {
+    userInput = (headingElement as HTMLElement).innerText;
+    inputType = 'heading';
+  } else {
+    // Traverse up the DOM tree to find the nearest ancestor that matches the desired selectors
+    let parentElement = target.parentElement;
+    while (parentElement) {
+      if (parentElement instanceof HTMLAnchorElement) {
+        userInput = parentElement.innerText || parentElement.getAttribute('data-value') || '';
+        inputType = 'link';
+        break;
+      } else if (parentElement instanceof HTMLButtonElement || 
+        (parentElement instanceof HTMLInputElement && (parentElement.type === 'button' || parentElement.type === 'submit' || parentElement.type === 'reset'))) {
+        userInput = parentElement.innerText || (parentElement as HTMLInputElement).value;
+        inputType = 'button';
+        break;
+      } else if (parentElement instanceof HTMLHeadingElement) {
+        userInput = parentElement.innerText;
+        inputType = 'heading';
+        break;
+      }
+      parentElement = parentElement.parentElement;
+    }
+
+    if (!parentElement) {
+      logger.info('clickHandler: event type:', event.type, 'target not handled:', target);
+    }
+  }
+  
+  // if it is a handled case
+  if (userInput !== '') {
+    const userInputMessage = createUserInputMessage(userInput, inputType);
     if (userInputMessage) {
       debounceAndThrottleMessage(userInputMessage);
     }
   }
+
 };
 
 
@@ -220,13 +262,13 @@ function setupUserActivityTracking() {
     // Remmove existing event listeners in case they were added by previous loading of the script
   document.removeEventListener('input', inputHandler);
   document.removeEventListener('change', changeHandler);
-  // document.removeEventListener('click', clickHandler);
+  document.removeEventListener('click', clickHandler);
 
   // Attach new event listeners
   document.addEventListener('input', inputHandler);
   document.addEventListener('change', changeHandler);
   // Removed click handler as it was reporting activity on some button clicks that are not user input (e.g. cancel, close, etc.)
-  // document.addEventListener('click', clickHandler);
+  document.addEventListener('click', clickHandler);
 }
 
 initPageInfo();
