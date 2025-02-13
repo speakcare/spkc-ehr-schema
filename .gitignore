@@ -26,3 +26,6 @@ test_db/
 
 # Ignore output dirs
 out/
+
+# ignore playground
+playground/
