@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 from typing import List
 import os
 from os_utils import ensure_directory_exists
-from speakcare_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
-from speakcare_logging import SpeakcareLogger
-from speakcare_stt import transcribe_audio
-from speakcare_transcriptions import transcription_to_emr
-from speakcare_emr import SpeakCareEmr
-from speakcare_emr_utils import EmrUtils
+from backend.spkc_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
+from backend.spkc_logging import SpeakcareLogger
+from backend.spkc_stt import transcribe_audio
+from backend.spkc_document import transcription_to_emr
+from backend.spkc_emr import SpeakCareEmr
+from backend.spkc_emr_utils import EmrUtils
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")

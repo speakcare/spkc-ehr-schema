@@ -1,13 +1,13 @@
 from datetime import datetime
-from speakcare_emr import SpeakCareEmr
+from backend.spkc_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
-from speakcare_emr import get_emr_api_instance
+from backend.spkc_emr import get_emr_api_instance
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakCareDB, init_speakcare_db
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.exc import SQLAlchemyError

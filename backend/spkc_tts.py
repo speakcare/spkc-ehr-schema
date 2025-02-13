@@ -2,7 +2,7 @@ from gtts import gTTS
 from pathlib import Path
 import argparse
 from datetime import datetime, timezone
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 from os_utils import ensure_directory_exists
 
 

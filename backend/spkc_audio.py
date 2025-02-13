@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import argparse
 import time
 import traceback
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 from os_utils import ensure_directory_exists
 
 logger= SpeakcareLogger(__name__)

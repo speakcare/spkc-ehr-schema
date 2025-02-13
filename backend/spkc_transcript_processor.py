@@ -1,7 +1,7 @@
 #This reads text sessions and converts them into structured data records.
 from models import Transcripts, MedicalRecords, TranscriptState, TranscriptsDBSession, MedicalRecordsDBSession
-from speakcare_emr_utils import EmrUtils
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_emr_utils import EmrUtils
+from backend.spkc_logging import SpeakcareLogger
 import time
 import argparse
 import signal

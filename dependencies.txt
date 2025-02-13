@@ -1,5 +1,5 @@
 # This is a list of external dependencies that are required to build the project.
 sqlite3
 portaudio #installed with homebrew or use the portaudio wheels
-
+ffmpeg
 

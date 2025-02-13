@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from speakcare_schema import AirtableSchema, AirtableFieldTypes
+from backend.spkc_schema import AirtableSchema, AirtableFieldTypes
 import json
 import copy
 from deepdiff import DeepDiff

@@ -2,7 +2,7 @@ from rapidfuzz import process, fuzz
 import fuzzy  # For Double Metaphone
 import sys
 import logging
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 
 # NameMatcher class that provides a method to find the best match for a given name
 

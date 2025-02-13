@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 import copy
 import json
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 
 
 # Logger setup

@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
 from os_utils import ensure_directory_exists
-from speakcare_audio import record_audio
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_audio import record_audio
+from backend.spkc_logging import SpeakcareLogger
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)

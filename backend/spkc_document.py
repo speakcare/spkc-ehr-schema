@@ -1,5 +1,5 @@
-from speakcare_emr_utils import EmrUtils
-from speakcare_emr import SpeakCareEmr
+from backend.spkc_emr_utils import EmrUtils
+from backend.spkc_emr import SpeakCareEmr
 import json
 import openai
 from openai import OpenAI
@@ -8,8 +8,8 @@ from os_utils import ensure_directory_exists, Timer
 from dotenv import load_dotenv
 import os
 import traceback
-from speakcare_logging import SpeakcareLogger
-from speakcare_emr_utils import EmrUtils
+from backend.spkc_logging import SpeakcareLogger
+from backend.spkc_emr_utils import EmrUtils
 from models import RecordState, TranscriptState
 import copy
 

@@ -1,5 +1,5 @@
 import os
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_logging import SpeakcareLogger
 import time
 
 

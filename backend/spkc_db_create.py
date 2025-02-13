@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
-from speakcare_emr_utils import EmrUtils
-from speakcare_logging import SpeakcareLogger
+from backend.spkc_emr_utils import EmrUtils
+from backend.spkc_logging import SpeakcareLogger
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
