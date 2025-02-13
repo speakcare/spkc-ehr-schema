@@ -1,7 +1,7 @@
 import { ActiveSession, ChartSession, UserSession, SessionType } from './sessions'
 import { BasicResponse } from '../types';
 import { Logger } from '../utils/logger';
-import { LocalStorage } from '../utils/local_stroage';
+import { LocalStorage } from '../utils/local_storage';
 
 
 
@@ -197,7 +197,7 @@ export class DailyUsage {
     }
 
     private static async getFromLocalStorage(): Promise<Record<string, DailyUsage>> {
-      const dtos = await DailyUsage.localStorage.getItem();
+      const dtos = await DailyUsage.localStorage.getSingleItem();
       const dailyUsages: Record<string, DailyUsage> = {};
       for (const key in dtos) {
         if (dtos.hasOwnProperty(key)) {
@@ -214,7 +214,7 @@ export class DailyUsage {
           key, usage.serialize(),
         ])
       );
-      await DailyUsage.localStorage.setItem(dtos);
+      await DailyUsage.localStorage.setSingleItem(dtos);
     }
             
     // Load active sessions from local storage

@@ -1,3 +1,16 @@
+export function initServiceWoker() {
+  self.addEventListener('activate', () => {
+      console.log('activated at', new Date().toISOString());
+    });
+  console.log('Activate event listener added');
+  self.addEventListener('message', (event) => {
+    console.log('message received in background script:', event.data);
+  });
+  console.log('Message event listener added');    console.log('Service workers initialized');
+}
+
+initServiceWoker();
+
 import { initializeSessionManager, handleUserInput, handlePageLoad, 
         handleUserSessionsGet, handleChartSessionsGet, 
         handleUserSessionTimeoutGet, handleUserSessionTimeoutSet,
@@ -12,7 +25,6 @@ import { SessionsLogsGetMessage, SessionsLogsGetResponse, SessionsLogsClearMessa
 import { DailyUsage, handleDailyUsageGet, handleDailyUsageClear, DailyUsageGetMessage, DailyUsageClearMessage, 
          DailyUsageGetResponse, DailyUsageClearResponse} from './daily_usage';
 import { Logger } from '../utils/logger';
-//import { BackgroundMessage, BackgroundResponse } from '../types';
 
 
 // TBD - Inject content script into matching tabs
@@ -46,12 +58,7 @@ export type BackgroundResponse =  PageLoadResponse | UserInputResponse | Session
 
 
 
-self.addEventListener('activate', () => {
-  logger.log('activated at', new Date().toISOString());
-});
-self.addEventListener('message', (event) => {
-  logger.log('message received in background script:', event.data);
-});
+
 logger.log('loaded at', new Date().toISOString());
 
 

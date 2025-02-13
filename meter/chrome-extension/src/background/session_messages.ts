@@ -23,10 +23,12 @@ export interface PageLoadResponse extends BasicResponse {
 type: 'page_load_response';
 }
 
+export type InputType = 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'link' | 'heading' | 'other' | undefined;
+
 export interface UserInputMessage extends PageEventMessage {
 type: 'user_input';
 input: string;
-inputType: 'text' | 'textarea' | 'checkbox' | 'radio' | 'dropdown' | 'multiselect' | 'button' | 'other';
+inputType: InputType;
 }
 
 export interface UserInputResponse extends BasicResponse {

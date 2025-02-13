@@ -272,7 +272,7 @@ const pathToChartTypeMap: { [key: string]: { chartType: string, chartNameExtract
     orgCodeExtractor: extractOrgCodeFromPccUsageAnalytics,
   },
   '/clinical/pho/popup/enhancedOrderEntry/newOrder.xhtml': {
-    chartType: 'New Order',
+    chartType: 'Order New',
     chartNameExtractor: extractOrderName,
     usernameExtractor: extractUsernameFromPccUsageAnalytics,
     orgCodeExtractor: extractOrgCodeFromPccUsageAnalytics,
