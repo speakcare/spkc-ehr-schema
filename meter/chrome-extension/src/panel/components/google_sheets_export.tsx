@@ -2,7 +2,7 @@ import { GoogleOAuth } from '../../auth/google_oauth';
 import { GoogleSheetsAPI } from '../../apis/google_sheets';
 import { Logger } from '../../utils/logger';
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button, Typography } from '@mui/material';
+import { Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button, Typography, CircularProgress } from '@mui/material';
 import { LocalStorage } from '../../utils/local_storage';
 
 
@@ -100,6 +100,8 @@ interface GoogleSheetsExportProps {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [isSpreadsheetIdInvalid, setIsSpreadsheetIdInvalid] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [isExporting, setIsExporting] = useState<boolean>(false);
     const logger = new Logger('GoogleSheetsExport');
   
     useEffect(() => {
@@ -107,21 +109,32 @@ interface GoogleSheetsExportProps {
     }, [spreadsheetId]);
   
     const handleClose = async () => {
-      if (candidateSpreadsheetId !== spreadsheetId) {
-        onSpreadsheetIdChange(candidateSpreadsheetId);
-      }
       onClose();
     };
   
+    const toggleSpreadsheetIdEdit = () => {
+      logger.debug('Toggle editing mode:', isEditing, 'Spreadsheet ID:', spreadsheetId.slice(-5), 'Candidate:', candidateSpreadsheetId.slice(-5));
+      if (isEditing && (candidateSpreadsheetId !== spreadsheetId)) {
+        logger.debug('Spreadsheet ID changed:', candidateSpreadsheetId.slice(-5));
+        onSpreadsheetIdChange(candidateSpreadsheetId);
+      }
+      setIsEditing(!isEditing);
+      setError(null);
+      setSuccessMessage(null);
+      setIsSpreadsheetIdInvalid(false);
+    }
+    
     const handleExport = async () => {
       setError(null);
       setSuccessMessage(null);
       setIsSpreadsheetIdInvalid(false);
+      setIsExporting(true);
   
       if (!candidateSpreadsheetId) {
         setError('Spreadsheet ID is required.');
         setIsSpreadsheetIdInvalid(true);
         logger.error('Spreadsheet ID is required.');
+        setIsExporting(false);
         return;
       }
   
@@ -143,6 +156,7 @@ interface GoogleSheetsExportProps {
             } else {
               setError(`Error exporting data to sheet ${sheet.sheetName}: ${(error as Error).message}`);
             }
+            setIsExporting(false);
             return;
           }
         }
@@ -155,8 +169,10 @@ interface GoogleSheetsExportProps {
         } else {
           setError(`Error initializing Google Sheets Writer: ${(error as Error).message}`);
         }
+        setIsExporting(false);
         return;
       }
+      setIsExporting(false);
     };
   
     return (
@@ -173,9 +189,17 @@ interface GoogleSheetsExportProps {
             onChange={(e) => setCandidateSpreadsheetId(e.target.value)}
             error={isSpreadsheetIdInvalid}
             helperText={isSpreadsheetIdInvalid ? 'Invalid Spreadsheet ID' : ''}
+            InputProps={{
+              readOnly: !isEditing,
+            }}
+            disabled={!isEditing}
           />
+          <Button onClick={() => toggleSpreadsheetIdEdit()} color="primary">
+            {isEditing ? 'Save' : 'Edit'}
+          </Button>
           {error && <Typography color="error">{error}</Typography>}
           {successMessage && <Typography color="primary">{successMessage}</Typography>}
+          {isExporting && <CircularProgress />}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose} color="primary">

@@ -61,9 +61,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchSpreadsheetId = async () => {
       const items = await localStorage.getItems(['spreadsheetId']);
-      if (items.storedSpreadsheetId) {
-        appLogger.info('Spreadsheet ID found in local storage:', items.storedSpreadsheetId);
-        setSpreadsheetId(items.storedSpreadsheetId);
+      if (items.spreadsheetId) {
+        appLogger.info('Spreadsheet ID found in local storage:', items.spreadsheetId.slice(-5));
+        setSpreadsheetId(items.spreadsheetId);
       }
       else {
         setSpreadsheetId(defaultSpreadsheetId);
@@ -76,6 +76,13 @@ const App: React.FC = () => {
     setSpreadsheetId(newSpreadsheetId);
     await localStorage.setItems( {spreadsheetId: newSpreadsheetId} );
   };
+
+  useEffect(() => {
+    if (spreadsheetId) {
+      appLogger.info('Spreadsheet ID updated:', spreadsheetId.slice(-5));
+    }
+  }, [spreadsheetId]);
+  
 
   const prepareExportData = () => {
     const now = new Date().toISOString(); // Current time in GMT ISO representation
