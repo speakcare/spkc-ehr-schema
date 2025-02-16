@@ -7,24 +7,33 @@ from dotenv import load_dotenv
 from typing import List
 import os
 from os_utils import ensure_directory_exists
-from backend.spkc_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
-from backend.spkc_logging import SpeakcareLogger
-from backend.spkc_stt import transcribe_audio
-from backend.spkc_document import transcription_to_emr
-from backend.spkc_emr import SpeakCareEmr
-from backend.spkc_emr_utils import EmrUtils
+from speakcare_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
+from speakcare_logging import SpeakcareLogger
+from speakcare_stt import transcribe_audio_whisper, transcribe_and_diarize_audio
+from speakcare_charting import create_chart
+from speakcare_emr import SpeakCareEmr
+from speakcare_emr_utils import EmrUtils
+from boto3_session import Boto3Session
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
 logger = SpeakcareLogger(__name__)
-output_root_dir = "out"
-recordings_dir = f"{output_root_dir}/recordings"
-ensure_directory_exists(recordings_dir)
-transciptions_dir = f"{output_root_dir}/transcriptions"
-ensure_directory_exists(transciptions_dir)
-jsons_dir = f"{output_root_dir}/jsons"
-ensure_directory_exists(jsons_dir)
+
+audio_dir = "audio"
+texts_dir = "texts"
+charts_dir = "charts"
+
+local_output_root_dir = "out"
+local_audio_dir = f"{local_output_root_dir}/{audio_dir}"
+ensure_directory_exists(local_audio_dir)
+local_texts_dir = f"{local_output_root_dir}/{texts_dir}"
+ensure_directory_exists(local_texts_dir)
+local_charts_dir = f"{local_output_root_dir}/{charts_dir}"
+ensure_directory_exists(local_charts_dir)
+
+s3dirs = [audio_dir, texts_dir, charts_dir]
+boto3Session = Boto3Session(s3dirs)
 
 supported_tables = EmrUtils.get_table_names()
 
@@ -36,9 +45,11 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
     # prepare file names
 
     rnd = random.randint(1000, 9999)
-    transcription_filename = f'{transciptions_dir}/{output_file_prefix}_{rnd}.txt'
-    json_filename = f'{jsons_dir}/{output_file_prefix}_{rnd}.json'
+    # transcription_filename = f'{local_texts_dir}/{output_file_prefix}_{rnd}.txt'
+    # json_filename = f'{local_charts_dir}/{output_file_prefix}_{rnd}.json'
 
+    transcription_filename = f'{texts_dir}/{output_file_prefix}_{rnd}.txt'
+    chart_filename = f'{charts_dir}/{output_file_prefix}_{rnd}.json'
 
     try:
         record_ids = []    
@@ -51,7 +62,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
             
             # Step 2: Transcribe Audio (speech to text)
             # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
-            transcript_len = transcribe_audio(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
+            # transcript_len = transcribe_audio_whisper(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
+            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
             if transcript_len == 0:
                 err = "Error occurred while transcribing audio."
                 logger.error(err)
@@ -59,8 +71,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
 
         # Step 3: Convert transcription to EMR record for all tables
         for table_name in tables:
-            record_id = transcription_to_emr(input_file=transcription_filename, output_file=json_filename, 
-                                            table_name=table_name, dryrun=dryrun)
+            record_id = create_chart(boto3Session=boto3Session, input_file=transcription_filename, output_file=chart_filename, 
+                                            emr_table_name=table_name, dryrun=dryrun)
             if not record_id:
                 err = "Error occurred while converting transcription to EMR record."
                 logger.error(err)
@@ -81,7 +93,7 @@ def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str
     Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
     """    
     # prepare file names
-    recording_filename = f'{recordings_dir}/{output_file_prefix}.wav'
+    recording_filename = f'{local_audio_dir}/{output_file_prefix}.wav'
 
     try:
         # Step 1: Record Audio
@@ -102,9 +114,10 @@ def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str
 
 def main():
     # for testing from command line
-    ensure_directory_exists(recordings_dir)
-    ensure_directory_exists(transciptions_dir)
-    ensure_directory_exists(jsons_dir)
+    # ensure_directory_exists(audio_dir)
+    # ensure_directory_exists(texts_dir)
+    # ensure_directory_exists(charts_dir)
+    
     EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=True)
 
     parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')

@@ -5,17 +5,19 @@ from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
 from os_utils import ensure_directory_exists
-from backend.spkc_audio import record_audio
-from backend.spkc_logging import SpeakcareLogger
+from speakcare_audio import record_audio
+from speakcare_logging import SpeakcareLogger
+from boto3_session import Boto3Session
+from speakcare_stt_diarize import TrabscribeAndDiarize
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)
-
+trnsAndDrz = TrabscribeAndDiarize()
 
 # Set your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def transcribe_audio(input_file="output.wav", output_file="output.txt", append=False):
+def transcribe_audio_whisper(input_file="output.wav", output_file="output.txt", append=False):
 
     transcript = None
     client = OpenAI()
@@ -35,6 +37,29 @@ def transcribe_audio(input_file="output.wav", output_file="output.txt", append=F
     transcription_length= len(transcript.text)
     logger.info(f"Transcription saved to {output_file} length: {transcription_length} characters")
     return transcription_length
+
+def transcribe_and_diarize_audio(boto3Session: Boto3Session, input_file="output.wav", output_file="output.txt", append=False):
+
+    transcipt_file_key = None
+    try:
+        # with open(input_file, "rb") as audio_file:
+        transcipt_file_key = trnsAndDrz.transcribe_and_recognize_speakers(input_file)
+            # transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+
+        if append:
+            logger.debug(f"Appending to {output_file}")
+            boto3Session.s3_append_from_key(transcipt_file_key, output_file)
+        else:
+            logger.debug(f"Copying to {output_file}")
+            boto3Session.s3_copy_from_key(transcipt_file_key, output_file)
+    except Exception as e:
+        logger.log_exception("Error transcribing audio", e)
+        return 0
+    
+    return boto3Session.s3_get_object_size(output_file)
+    
+
+
     
 
 
@@ -44,7 +69,7 @@ def record_and_transcribe():
     record_audio(duration=5, output_filename=output_filename)
 
     # Step 2: Transcribe Audio
-    transcription = transcribe_audio(output_filename)
+    transcription = transcribe_audio_whisper(output_filename)
     print("Transcription:", transcription)
 
 if __name__ == "__main__":
@@ -69,4 +94,4 @@ if __name__ == "__main__":
 
     ensure_directory_exists(output_dir) 
     logger.info(f"Transcribing audio from {input_file} into {output_filename}")
-    transcribe_audio(input_file, output_filename)
+    transcribe_audio_whisper(input_file, output_filename)

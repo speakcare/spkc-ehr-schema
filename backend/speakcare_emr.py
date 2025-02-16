@@ -6,7 +6,7 @@ import requests
 import time
 from name_matching import NameMatcher
 from dotenv import load_dotenv
-from backend.spkc_schema import AirtableSchema
+from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
 

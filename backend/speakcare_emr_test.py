@@ -1,8 +1,8 @@
 import sys
 import json
 import logging
-from backend.spkc_emr import SpeakCareEmr, get_emr_api_instance
-from backend.spkc_logging import SpeakcareLogger
+from speakcare_emr import SpeakCareEmr, get_emr_api_instance
+from speakcare_logging import SpeakcareLogger
 from config import SpeakCareEmrApiconfig
 
 APP_BASE_ID = 'appRFbM7KJ2QwCDb6'

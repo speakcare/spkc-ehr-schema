@@ -1,8 +1,8 @@
 #import speakcare_emr_utils
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
-from backend.spkc_emr_utils import EmrUtils
-from backend.spkc_emr import SpeakCareEmr
-from backend.spkc_logging import SpeakcareLogger
+from speakcare_emr_utils import EmrUtils
+from speakcare_emr import SpeakCareEmr
+from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json
 from dotenv import load_dotenv

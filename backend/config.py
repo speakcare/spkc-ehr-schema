@@ -1,6 +1,6 @@
 # put config objects here
 import logging
-from backend.spkc_logging import SpeakcareLogger
+from speakcare_logging import SpeakcareLogger
 
 
 # Logger setup

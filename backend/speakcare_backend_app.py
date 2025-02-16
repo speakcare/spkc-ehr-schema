@@ -9,10 +9,10 @@ import logging
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
 from os_utils import ensure_directory_exists
-from backend.spkc_emr_utils import EmrUtils
-from backend.spkc_audio import get_input_audio_devices
+from speakcare_emr_utils import EmrUtils
+from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_record_and_process_audio, speakcare_process_audio
-from backend.spkc_logging import SpeakcareLogger
+from speakcare_logging import SpeakcareLogger
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")

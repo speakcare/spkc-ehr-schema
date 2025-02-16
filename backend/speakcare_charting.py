@@ -1,5 +1,5 @@
-from backend.spkc_emr_utils import EmrUtils
-from backend.spkc_emr import SpeakCareEmr
+from speakcare_emr_utils import EmrUtils
+from speakcare_emr import SpeakCareEmr
 import json
 import openai
 from openai import OpenAI
@@ -8,14 +8,15 @@ from os_utils import ensure_directory_exists, Timer
 from dotenv import load_dotenv
 import os
 import traceback
-from backend.spkc_logging import SpeakcareLogger
-from backend.spkc_emr_utils import EmrUtils
+from speakcare_logging import SpeakcareLogger
+from speakcare_emr_utils import EmrUtils
 from models import RecordState, TranscriptState
 import copy
 
 import re
 import argparse
 import logging
+from boto3_session import Boto3Session
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -148,14 +149,14 @@ def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
         
     logger.debug(f"main_schema: {json.dumps(main_schema, indent=4)}")
 
-    record = __transcription_to_emr_json_schema(transcription, main_schema)
+    record = __create_chart_with_json_schema(transcription, main_schema)
     
     sections = schema.get('properties', {}).get('sections', {}).get('properties', {})
     if sections:
         record['sections'] = {}
         # iterate the sections and call the OpenAI API for each of them
         for section_name, section_schema in sections.items():
-            section = __transcription_to_emr_json_schema(transcription, section_schema)
+            section = __create_chart_with_json_schema(transcription, section_schema)
             record['sections'][section_name] = section
     
     logger.debug(f"record: {json.dumps(record, indent=4)}")
@@ -295,37 +296,7 @@ def __transcription_to_emr_schema_in_prompt(transcription: str, schema: dict) ->
         return {}
 
 
-    # if you have filled "null" to any of the required properties of a certain object, please set the encompasing object value to null.
-    # Here are some examples to show you how to assign null to a "fields" object if a required property is missing:
-    # In the following example:
-    # {admission_demographics_example}
-    # If the "Admission Date" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {admission_demographics_none}
-    # In the following example:
-    # {temperature_example}
-    # If the "Degrees" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {temperature_null}
-    # In the following example:
-    # {pulse_example}
-    # If the "Pulse" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {pulse_none}
-    # In the following example:
-    # {blood_sugar_example}
-    # If the "SugarLevel" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {blood_sugar_none}
-    # Please apply the same logic to any "fields" object in the json_schema.
-
-
-    # If you are unsure of any property value, please respond with "null" for that property.
-    # If a property in an object has the word "required" in its description, that property is required to be filled, 
-
-
-    # If the values of all the properties of a specific "fields" object were set to null, please set the entire "fields" object to null.
-
-    # If the values of all the properties of a specific "fields" object were set to null, please set the entire "fields" object to null.
-
-
-def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict:
+def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
 
     """
     Fills a schema based on the conversation transcription, returning a dictionary.
@@ -395,7 +366,7 @@ def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict
 
 
 
-def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False) -> int:
+def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False) -> int:
     """
     Create an EMR record based on the transcription and schema.
     
@@ -460,7 +431,7 @@ def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False)
     return record_id, record_state
 
 
-def transcription_to_emr(input_file: str, output_file: str, table_name: str, dryrun=False):
+def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, emr_table_name: str, dryrun=False):
     """
     Convert a transcription from a file to a JSON file.
     
@@ -472,13 +443,14 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
         
 
     try:
-        with open(input_file, "r") as file:
-            lines = file.readlines()
-
-        if not lines:
+        # with open(input_file, "r") as file:
+        #     lines = file.readlines()
+        # read input file from s3
+        transcription = boto3Session.s3_get_object_content(input_file)
+        if not transcription:
             raise ValueError("No transcription found in the input file.")
         # Join the lines to form a single string
-        transcription = " ".join(line.strip() for line in lines)
+        # transcription = " ".join(line.strip() for line in lines)
         logger.debug(f"Transcription:\n{transcription}")
         # Write the transcript to the Transcript database
         transcript_id, err = EmrUtils.add_transcript(transcription)
@@ -486,29 +458,31 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
             logger.error(f"Failed to create transcript: {err}")
             raise ValueError(err)
 
-        schema = EmrUtils.get_table_json_schema(table_name)
+        schema = EmrUtils.get_table_json_schema(emr_table_name)
         if not schema:
-            raise ValueError(f"Invalid table name: {table_name}")
+            raise ValueError(f"Invalid table name: {emr_table_name}")
         logger.debug(f"Schema: {json.dumps(schema, indent=4)}")
         
         timer = Timer()
         timer.start()
-        filled_schema_dict = __transcription_to_emr_json_schema(transcription, schema)
+        filled_schema_dict = __create_chart_with_json_schema(transcription, schema)
         timer.stop()
-        logger.info(f"Done calling __transcription_to_emr_json_schema in {timer.elapsed_time()} seconds")
+        logger.info(f"Done calling __create_chart_with_json_schema in {timer.elapsed_time()} seconds")
 
         if not filled_schema_dict:
-            err = f"Failed to fill schema of table {table_name} with transcription."
+            err = f"Failed to fill schema of table {emr_table_name} with transcription."
             logger.error(err)
             raise ValueError(err)
         
-        with open(output_file, "w") as json_file:
-            json.dump(filled_schema_dict, json_file, indent=4)
-        logger.info(f"Transcription saved to {output_file}")
+        # with open(output_file, "w") as json_file:
+        #     json.dump(filled_schema_dict, json_file, indent=4)
+        
+        boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
+        logger.info(f"Transcription uploaded to {output_file}")
 
-        record_id, record_state = create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
+        record_id, record_state = __create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
         if not record_id:
-            err = f"Failed to create EMR record for table {table_name}. from data {filled_schema_dict}"
+            err = f"Failed to create EMR record for table {emr_table_name}. from data {filled_schema_dict}"
             logger.error(err)
             raise ValueError(err)
         
@@ -554,7 +528,7 @@ def main():
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
 
     ensure_directory_exists(output_dir) 
-    transcription_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
+    create_chart(input_file=input_file, output_file=output_filename, emr_table_name=table_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":
