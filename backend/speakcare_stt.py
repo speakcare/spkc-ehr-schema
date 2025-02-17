@@ -8,7 +8,7 @@ from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
-from speakcare_stt_diarize import TrabscribeAndDiarize
+from speakcare_diarize import TrabscribeAndDiarize
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)
