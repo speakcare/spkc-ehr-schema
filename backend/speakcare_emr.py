@@ -36,6 +36,8 @@ class SpeakCareEmr:
     RESPIRATION_TABLE = 'Respiration'
     EPISODES_TABLE = 'Episodes'
     PROGRESS_NOTES_TABLE = 'Progress Notes'
+    HARMONY_VITALS = 'Harmony Vitals'
+
 
     ### Assessments ###
     # Admission
@@ -60,6 +62,7 @@ class SpeakCareEmr:
         ADMISSION_TABLE,
         FALL_RISK_SCREEN_TABLE,
         VITALS_TABLE,
+        HARMONY_VITALS,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 

@@ -8,11 +8,11 @@ from models import RecordState, RecordType, TranscriptState
 import logging
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
-from os_utils import ensure_directory_exists
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
 from speakcare import speakcare_record_and_process_audio, speakcare_process_audio
 from speakcare_logging import SpeakcareLogger
+from speakcare_env import SpeakcareEnv
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -26,6 +26,8 @@ app.logger = SpeakcareLogger(__name__)
 app.logger.setLevel('DEBUG')
 app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
+
+SpeakcareEnv.prepare_env()
 
 @app.route('/hello', methods=['GET'])
 def hello():
@@ -358,7 +360,7 @@ class RecordAndProcessAudioResource(Resource):
         audio_device = int(data.get('audio_device', None))
         dryrun = bool(data.get('dryrun', False))
         
-        app.logger.debug(f"POST: process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
+        app.logger.debug(f"POST: record-and-process-audio received: output_file_prefix={output_file_prefix}, recording_duration={recording_duration}, table_name={table_name}, audio_device={audio_device}, dryrun={dryrun}")
         record_id, err = speakcare_record_and_process_audio(output_file_prefix=output_file_prefix, recording_duration=recording_duration, table_name=table_name, audio_device=audio_device, dryrun=dryrun)
 
         if record_id:
@@ -381,7 +383,7 @@ class ProcessAudioResource(Resource):
     def post(self):
 
         # Get the file from the request
-        dirname = './out/audio'
+        dirname = SpeakcareEnv.audio_dir# './out/audio'
         args = audio_parser.parse_args()
         audio_file = args['audio_file']
         if audio_file and audio_file.filename == '':
@@ -390,7 +392,7 @@ class ProcessAudioResource(Resource):
         # Secure the filename and save the file (modify as needed)
         filename = secure_filename(audio_file.filename)
         audio_local_filename = os.path.join(dirname, filename)
-        ensure_directory_exists(dirname)
+        #ensure_directory_exists(dirname)
 
         # Get other form fields
         table_names = args['table_name']

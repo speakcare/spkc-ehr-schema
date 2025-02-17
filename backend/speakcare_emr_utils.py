@@ -3,7 +3,7 @@ from speakcare_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
 from speakcare_emr import get_emr_api_instance
-from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakCareDB, init_speakcare_db
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakcareDB, init_speakcare_db
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
@@ -29,7 +29,7 @@ if not emr_api:
 
 
 class EmrUtils:
-    db : Optional[SpeakCareDB] = None
+    db : Optional[SpeakcareDB] = None
     @staticmethod
     def init_db(db_directory = None, create_db=False):
         EmrUtils.db = init_speakcare_db(db_directory, create_db=create_db)
@@ -233,7 +233,7 @@ class EmrUtils:
         """
         Get the emr record.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             if load_transcript: #preload the transcript
                 stmt = select(MedicalRecords).options(joinedload(MedicalRecords.transcript)).where(MedicalRecords.id == record_id)
@@ -251,14 +251,14 @@ class EmrUtils:
             session.rollback()
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
     @staticmethod
     def get_all_records(state: RecordState = None, table_name: str = None):
         """
         Get the emr records.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             query = session.query(MedicalRecords)
             if state:
@@ -275,7 +275,7 @@ class EmrUtils:
             session.rollback()
             return None, {"error": err}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 
 
@@ -294,7 +294,7 @@ class EmrUtils:
 
         # Perform any additional validity checks on the data
         # Example: Check if the data dictionary contains necessary keys
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             # first check for unrecoverable errors
             
@@ -363,7 +363,7 @@ class EmrUtils:
             return None, RecordState.ERRORS, {"error": str(e)}
         
         finally:    
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
             
 
     @staticmethod
@@ -377,7 +377,7 @@ class EmrUtils:
         :param record_id: The id of the record to update.
         :return: A tuple containing the a success or error message and an HTTP status code.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             # first check for unrecoverable errors
             if not updates:
@@ -449,7 +449,7 @@ class EmrUtils:
             logger.error(f"Error updating EMR record: {e}")
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
 
     @staticmethod
@@ -459,7 +459,7 @@ class EmrUtils:
         otherwise returns ane error message and None.
         """
         # Logic to discard the record
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -476,7 +476,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def delete_record(record_id: int):
@@ -484,7 +484,7 @@ class EmrUtils:
         Returns a message and True if the record is successfully deleted, 
         otherwise returns error message and False.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -498,7 +498,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     ### EMR interaction methods ###
 
@@ -509,7 +509,7 @@ class EmrUtils:
         Returns a tuple: The record EMR id if the record is successfully committed to the EMR, the record state, and a message 
         otherwise returns ane error message and None.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         # prepare to commit the record to the EMR
         try:
             # first verify that the record is a PENDING state
@@ -605,12 +605,12 @@ class EmrUtils:
             logger.log_exception(f"Error committing record {record.id} to the EMR", e)
             return None, record.state, {"error": str(e)}          # Return error response and status code
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
 
     @staticmethod
     def sign_assessment(record_id: id):
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         record = None
         # prepare to commit the record to the EMR
         try:
@@ -642,7 +642,7 @@ class EmrUtils:
             logger.error(err)
 
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 
     @staticmethod
@@ -650,7 +650,7 @@ class EmrUtils:
         """
         Returns the EMR record for the given record id.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -668,7 +668,7 @@ class EmrUtils:
             logger.error(f"Error getting EMR record id {record_id}: {e}")
             return None, {"error": str(e)}
         finally: 
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def get_emr_record_by_emr_record_id(tableId, emr_record_id: int):
@@ -690,7 +690,7 @@ class EmrUtils:
         Create a new transcript in the database and return its id.
         Return the new transcript id, or None if it fails.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             new_transcript = Transcripts(text=transcript)
             if not new_transcript:
@@ -712,7 +712,7 @@ class EmrUtils:
             logger.error(f"Error creating transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def get_all_transcripts(text_limit: int = 200, state: TranscriptState = None):
@@ -720,7 +720,7 @@ class EmrUtils:
         Return a dictionary with all transcripts but truncate the text to first text_limit characters.
         If state is given (not None), query the database only for these transcripts that are in that state.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             query = session.query(Transcripts)
             if state:
@@ -749,14 +749,14 @@ class EmrUtils:
             logger.error(f"Error retrieving transcripts: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def get_transcript(transcript_id: int, load_medical_records: bool = False):
         """
         Get the transcript record by transcript_id and return the transcript record, or None if failed.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             if load_medical_records:
                 stmt = select(Transcripts).options(joinedload(Transcripts.medical_records)).where(Transcripts.id == transcript_id)
@@ -775,7 +775,7 @@ class EmrUtils:
             logger.error(f"Error retrieving transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def update_transcript_state(transcript_id: int, state: TranscriptState):
@@ -788,7 +788,7 @@ class EmrUtils:
             logger.error(err)
             return False, {"error": err}
         
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -804,14 +804,14 @@ class EmrUtils:
             logger.error(f"Error updating transcript state: {e}")
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def delete_transcript(transcript_id: int):
         """
         Delete the transcript by transcript_id.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -827,7 +827,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 DB_DIRECTORY = "db"
 def main():

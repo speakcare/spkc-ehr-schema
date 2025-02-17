@@ -32,7 +32,7 @@ else:
 
 s3dirs: list = ["audio", "transcriptions", "diarizations", "texts", "wavs"]
 
-class TrabscribeAndDiarize:
+class TranscribeAndDiarize:
     def __init__(self):
         self.logger = SpeakcareLogger(__name__)
         self.b3session =  Boto3Session(s3dirs)
@@ -276,6 +276,9 @@ class TrabscribeAndDiarize:
         self.logger.info(f"Uploaded text transcription to s3://{self.b3session.s3_get_bucket_name()}/{text_output_key}")
 
         return text_output_key
+    
+    def get_nurses_table_name(self):
+        return self.b3session
 
 def main():
     parser = argparse.ArgumentParser(description="Speaker Recognition Tool")
@@ -290,16 +293,16 @@ def main():
     parser.add_argument("--file", type=str, required=True, help="Path to the audio file.")
     args = parser.parse_args()
 
-    speaker_recognition = TrabscribeAndDiarize()
+    transcriber = TranscribeAndDiarize()
 
     speaker = args.speaker if args.speaker else None
 
     if args.mode == "transcribe":
-        speaker_recognition.transcribe_and_recognize_speakers(args.file)
+        transcriber.transcribe_and_recognize_speakers(args.file)
     elif args.mode == "add_patient":
-        speaker_recognition.add_voice_sample(file_path = args.file, table_name = speaker_recognition.patients_table_name, speaker_name=speaker)
+        transcriber.add_voice_sample(file_path = args.file, table_name = transcriber.b3session.dynamo_get_table_name("patients"), speaker_name=speaker)
     elif args.mode == "add_nurse":
-        speaker_recognition.add_voice_sample(file_path = args.file, table_name = speaker_recognition.nurses_table_name, speaker_name=speaker)
+        transcriber.add_voice_sample(file_path = args.file, table_name = transcriber.b3session.dynamo_get_table_name("nurses"), speaker_name=speaker)
 
 if __name__ == "__main__":
     main()

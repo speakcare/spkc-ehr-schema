@@ -4,7 +4,7 @@ import json
 import openai
 from openai import OpenAI
 from datetime import datetime, timezone
-from os_utils import ensure_directory_exists, Timer
+from os_utils import Timer
 from dotenv import load_dotenv
 import os
 import traceback
@@ -17,6 +17,7 @@ import re
 import argparse
 import logging
 from boto3_session import Boto3Session
+from speakcare_env import SpeakcareEnv
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -67,69 +68,6 @@ multupleSelectionSchemaExample = {
         }
 multupleSelectionResultExample = {"MOOD (CHECK ALL THAT APPLY)": ["Passive", "Depressed", "Elated"]}
 
-def transcription_to_emr_schema_old(transcription: str, schema: dict) -> dict:
-
-    """
-    Fills a schema based on the conversation transcription, returning a dictionary.
-    The dictionary contains field names as keys and the corresponding filled values as values,
-    with each value cast to the appropriate type based on the schema definition.
-    If the value is "no answer", the field is omitted from the final dictionary.
-    
-    Parameters:
-        transcription (str): The conversation transcription.
-        schema (JSON): The JSON schema template to fill.
-        
-    Returns:
-        dict: Dictionary of the filled schema
-    """
-    
-    prompt = f'''
-    You are given a transcription of a conversation related to a nurse's treatment of a patient. 
-    Based on the transcription, fill in the provided following fields as dictionary if you are sure of the answers.
-    If you are unsure of any field, please respond with "no answer".
-    
-    Transcription: {transcription}
-    
-    Schema template:
-    {json.dumps(schema, indent=2)}
-    
-    Return a dictionary by filling in only the fields you are sure about. 
-    Return a dictionary of field name and value, making sure the values are cast as per their correct type (number, text, etc.).
-    If uncertain, use "no answer" as the value.
-    Please return the output as a valid JSON object. 
-    Ensure all fields are filled in with the correct data types (number, text, etc.).
-    Fileds of type "singleSelect" should have a value that is one of the options in the "choices" list.
-    Fields of type 'multipleSelects' should have a value that is a JSON list with values that must be from the "choices" list.
-    For example, here is a field of type "multipleSelects". This is the example schema:
-    {json.dumps(multupleSelectionSchemaExample, indent=2)}
-    and the result should be only from the list of choices values, for example this field response can be:
-    {json.dumps(multupleSelectionResultExample, indent=2)}
-    Or, if you're unsure about a field, use "no answer" as the value. 
-    The full response must be a single valid JSON object and nothing else.
-
-    '''
-    client = OpenAI()
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.3,
-        max_tokens=4096
-    )
-    logger.debug(f"OpenAI Response: {completion}")    
-    filled_schema_str = completion.choices[0].message.content.strip()
-    logger.debug(f"filled_schema_str: {filled_schema_str}")
-    cleaned_filled_schema_str = re.sub(r'```json|```', '', filled_schema_str).strip()
-    logger.debug(f"cleaned_filled_schema_str: {cleaned_filled_schema_str}")
-
-    try:
-        filled_schema_dict = json.loads(cleaned_filled_schema_str)
-        return filled_schema_dict
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing JSON: {e}")
-        return {}
 
 def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
 
@@ -460,7 +398,9 @@ def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, 
 
         schema = EmrUtils.get_table_json_schema(emr_table_name)
         if not schema:
-            raise ValueError(f"Invalid table name: {emr_table_name}")
+            err = f'Failed to get schema for table: {emr_table_name}'
+            logger.error(err)
+            raise ValueError(err)
         logger.debug(f"Schema: {json.dumps(schema, indent=4)}")
         
         timer = Timer()
@@ -493,7 +433,8 @@ def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, 
     return record_id
 
 def main():
-    output_dir = "out/jsons"
+    SpeakcareEnv.prepare_env()
+    output_dir = SpeakcareEnv.charts_dir
     supported_tables = EmrUtils.get_table_names()
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
     
@@ -526,8 +467,7 @@ def main():
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
-
-    ensure_directory_exists(output_dir) 
+    logger.info(f"Creating EMR record from {input_file} into {output_filename}")
     create_chart(input_file=input_file, output_file=output_filename, emr_table_name=table_name, dryrun=dryrun)
 
 

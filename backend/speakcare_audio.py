@@ -10,7 +10,8 @@ import argparse
 import time
 import traceback
 from speakcare_logging import SpeakcareLogger
-from os_utils import ensure_directory_exists
+from speakcare_env import SpeakcareEnv
+import ffmpeg
 
 logger= SpeakcareLogger(__name__)
 
@@ -169,11 +170,15 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
     return recording_length
 
 
+def convert_mp4_to_wav(input_file, output_file):
+    ffmpeg.input(input_file).output(output_file, acodec="pcm_s16le", ar=44100).run()
+
 
 
 def main():
     # Parse command line arguments
-    output_dir = "out/recordings"
+    SpeakcareEnv.prepare_env()
+    output_dir = SpeakcareEnv.audio_dir
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
     list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
@@ -203,7 +208,7 @@ def main():
     duration = args.seconds
     output_filename = f'{output_dir}/{args.output}.{utc_string}.wav'
 
-    ensure_directory_exists(output_dir) 
+    #ensure_directory_exists(output_dir) 
     logger.info(f"Recording audio from device index {audio_device} for {duration} seconds into {output_filename}")
     record_audio(device_index=audio_device,  duration=duration, output_filename=output_filename)
 

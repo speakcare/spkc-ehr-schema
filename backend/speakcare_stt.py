@@ -4,15 +4,15 @@ import argparse
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
-from os_utils import ensure_directory_exists
 from speakcare_audio import record_audio
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
-from speakcare_diarize import TrabscribeAndDiarize
+from speakcare_diarize import TranscribeAndDiarize
+from speakcare_env import SpeakcareEnv
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)
-trnsAndDrz = TrabscribeAndDiarize()
+trnsAndDrz = TranscribeAndDiarize()
 
 # Set your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -74,7 +74,7 @@ def record_and_transcribe():
 
 if __name__ == "__main__":
 
-    output_dir = "out/transcriptions"
+    SpeakcareEnv.prepare_env()
     parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
@@ -90,8 +90,7 @@ if __name__ == "__main__":
     # Format the datetime as a string without microseconds and timezone
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
-    output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.txt'
+    output_filename = f'{SpeakcareEnv.texts_dir}/{output_file_prefix}.{utc_string}.txt'
 
-    ensure_directory_exists(output_dir) 
     logger.info(f"Transcribing audio from {input_file} into {output_filename}")
     transcribe_audio_whisper(input_file, output_filename)

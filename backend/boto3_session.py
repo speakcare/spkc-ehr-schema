@@ -29,18 +29,18 @@ class Boto3Session:
         self.__nurses_table_name = os.getenv("NURSES_TABLE_NAME", "Nurses")
         self.__patients_table_name = os.getenv("PATIENTS_TABLE_NAME", "Patients")
         self.__dynamodb_table_names = [self.__nurses_table_name, self.__patients_table_name] # list to iterate over table names
-        self.__running_local = os.getenv("RUNNING_LOCAL", "False").lower() == "true"
+        self.__use_localstack = os.getenv("USE_LOCALSTACK", "False").lower() == "true"
         self.__localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 
 
     def boto3_init_clients(self):
         
-        if self.__running_local:
+        if self.__use_localstack:
             self.logger.info("Initializing clients for LocalStack...")
         else:
             self.logger.info("Initializing clients for AWS...") 
         
-        endpoint_url = self.__localstack_endpoint if self.__running_local else None
+        endpoint_url = self.__localstack_endpoint if self.__use_localstack else None
         self.session = boto3.Session(profile_name=self.__profile_name)  # No profile needed for LocalStack
         self.logger.info(f"AWS region: {self.session.region_name}")
 
@@ -209,9 +209,18 @@ class Boto3Session:
 
     def dynamo_get_table(self, table_name):
         return self.__dynamodb.Table(table_name)
+    
+    def dynamo_get_table_name(self, table_name: str = '') -> str:
+        table_name = table_name.lower()
+        if table_name == 'patients':
+            return self.__patients_table_name
+        elif table_name == 'nurses':
+            return self.__nurses_table_name
+        else:
+            return None
 
     
     def get_transcribe_client(self):
-        return self.__transcribe   
+        return self.__transcribe  
     
     

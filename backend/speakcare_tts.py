@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse
 from datetime import datetime, timezone
 from speakcare_logging import SpeakcareLogger
-from os_utils import ensure_directory_exists
+from speakcare_env import SpeakcareEnv
 
 
 logger = SpeakcareLogger(__name__)
@@ -27,7 +27,8 @@ def text_file_to_speech(input_file: str, output_file: str):
 
 if __name__ == "__main__":
 
-    output_dir = "out/recordings"
+    SpeakcareEnv.prepare_env()
+    output_dir = SpeakcareEnv.audio_dir
     parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
@@ -45,6 +46,5 @@ if __name__ == "__main__":
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.mp3'
 
-    ensure_directory_exists(output_dir) 
     logger.info(f"Creating audio from {input_file} into {output_filename}")
     text_file_to_speech(input_file, output_filename)
