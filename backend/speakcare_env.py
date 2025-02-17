@@ -11,8 +11,8 @@ class SpeakcareEnv:
     texts_dir = ""
     charts_dir = ""
     local_output_root_dir = "out"
+    backwards_compatible = False
     
-
     @staticmethod
     def prepare_env(env_file: str = "./.env"):
         if not SpeakcareEnv.env_loaded:
@@ -25,12 +25,12 @@ class SpeakcareEnv:
             
     @staticmethod
     def __prepare_output_dirs():
-        outputs = os.getenv("OUTPUTS", "local")
-        if outputs == "s3":
+        SpeakcareEnv.backwards_compatible = os.getenv("BC_MODE", "false").lower()
+        if not SpeakcareEnv.backwards_compatible:
             SpeakcareEnv.audio_dir = "audio"
             SpeakcareEnv.texts_dir = "texts"
             SpeakcareEnv.charts_dir = "charts"
-        elif outputs == "local":
+        else:
             SpeakcareEnv.audio_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.audio_dir}"
             ensure_directory_exists(SpeakcareEnv.audio_dir)
             SpeakcareEnv.texts_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.texts_dir}"
