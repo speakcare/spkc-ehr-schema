@@ -286,6 +286,7 @@ class TranscribeAndDiarize:
             diarized_transcription[index] = {
                 "slot": segment["slot"], 
                 "speaker": speaker_id,
+                "role": "Patient" if speaker_id in patients_embeddings else "Nurse",
                 "text": audio_segments[index]["transcript"]
             }
             # This is ugly but for now in case the op is "created" I want to add this embedding to the patients_embeddings so that the next segment can be matched with it
@@ -307,7 +308,7 @@ class TranscribeAndDiarize:
         os.makedirs(os.path.dirname(temp_file), exist_ok=True)
         with open(temp_file, "w") as f:
             for segment in diarized_transcription.values():
-                f.write(f"{segment['speaker']}: {segment['text']}\n")
+                f.write(f"{segment['role']} {segment['speaker']}: {segment['text']}\n")
         self.b3session.s3_upload_file(file_path=temp_file, key=text_output_key)
         self.logger.info(f"Uploaded text transcription to s3://{self.b3session.s3_get_bucket_name()}/{text_output_key}")
 
