@@ -41,7 +41,8 @@ class TranscribeAndDiarize:
 
     def init_env_variables(self):
         # Configuration from environment variables
-        self.similarity_threshold = float(os.getenv("SIMILARITY_THRESHOLD", 0.7))
+        self.matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.75))
+        self.addition_similarity_threshold = float(os.getenv("ADDITION_SIMILARITY_THRESHOLD", 0.95))
 
         # Initialize Resemblyzer
     def init_encoder(self):
@@ -148,7 +149,7 @@ class TranscribeAndDiarize:
                 if np.array_equal(embedding, known_embedding):
                     self.logger.warning(f"Identical embedding found for speaker {speaker_id} and new speaker {speaker_name}. No changes made.")
                     return speaker_id, "identical"
-                elif similarity >= self.similarity_threshold and speaker_id != speaker_name:
+                elif similarity >= self.addition_similarity_threshold and speaker_id != speaker_name:
                     self.logger.warning(f"High similarity found between new speaker {speaker_name} and existing speaker {speaker_id} with similarity {similarity}")
 
         # Add the new embedding to the speaker
@@ -189,7 +190,7 @@ class TranscribeAndDiarize:
                 self.logger.debug(f"Checking specific embedding {len(known_embedding)}")
                 similarity = self.cosine_similarity(embedding, known_embedding)
                 self.logger.debug(f"cosine similarity: {similarity} with speaker {speaker_id}")
-                if similarity >= self.similarity_threshold:
+                if similarity >= self.matching_similarity_threshold:
                     self.logger.info(f"Found high similarity: {similarity} with speaker {speaker_id}")
                     if similarity > highest_similarity:
                         best_match = speaker_id
