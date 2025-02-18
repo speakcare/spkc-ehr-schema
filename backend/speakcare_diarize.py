@@ -70,6 +70,7 @@ class TranscribeAndDiarize:
 
     def wait_for_transcription_job(self, job_name):
         """Wait for transcription job to complete."""
+        waiting = 0
         while True:
             response = self.b3session.get_transcribe_client().get_transcription_job(TranscriptionJobName=job_name)
             status = response['TranscriptionJob']['TranscriptionJobStatus']
@@ -79,8 +80,8 @@ class TranscribeAndDiarize:
                 return response
             elif status == 'FAILED':
                 raise RuntimeError(f"Transcription job failed: {response}")
-            
-            self.logger.info("Waiting for transcription job to complete...")
+            waiting +=1
+            self.logger.info(f"Waiting for transcription job to complete ({waiting})...")
             time.sleep(10)
 
     def get_transcription_output(self, key):
@@ -179,10 +180,13 @@ class TranscribeAndDiarize:
         
     def match_or_create_speaker(self, embedding, known_embeddings, table_name):
         """Match or create a new speaker in a specific table."""
+        self.logger.debug(f"Matching or creating speaker embedding {len(embedding)} against known embeddings {len(known_embeddings)}")
         best_match = None
         highest_similarity = -1
         for speaker_id, embeddings in known_embeddings.items():
+            self.logger.debug(f"Checking speaker {speaker_id} embeddings {len(embeddings)}")
             for known_embedding in embeddings:
+                self.logger.debug(f"Checking specific embedding {len(known_embedding)}")
                 similarity = self.cosine_similarity(embedding, known_embedding)
                 self.logger.debug(f"cosine similarity: {similarity} with speaker {speaker_id}")
                 if similarity >= self.similarity_threshold:
@@ -195,6 +199,7 @@ class TranscribeAndDiarize:
             self.logger.info(f"Match found: {best_match} with similarity {highest_similarity}")
             return best_match, "matched"
         else:
+            self.logger.info(f"No match found. Creating new Unknown speaker")
             new_speaker_id = self.generate_unknown_speaker_id(known_embeddings)
             return self.create_speaker(embedding, known_embeddings, table_name, new_speaker_id)
 
@@ -203,17 +208,12 @@ class TranscribeAndDiarize:
         """Save speaker embedding to DynamoDB."""
         embedding_decimal = [Decimal(str(value)) for value in embedding]
         table = self.b3session.dynamo_get_table(table_name)
-
-        item = table.get_item(Key={'Name': speaker_id}).get('Item')
-        if item:
-            item['EmbeddingVectors'].append(embedding_decimal)
-        else:
-            item = {
-                "EmbeddingVectors": [embedding_decimal],
-                "Name": speaker_id,
-                "Type": table_name.rstrip('s'),
-                "Timestamp": datetime.now().isoformat()
-            }
+        item = {
+            "EmbeddingVectors": [embedding_decimal],
+            "Name": speaker_id,
+            "Type": table_name.rstrip('s'),
+            "Timestamp": datetime.now().isoformat()
+        }
         table.put_item(Item=item)
         self.logger.info(f"Saved embedding for {speaker_id} in table {table_name}")
 
@@ -274,8 +274,9 @@ class TranscribeAndDiarize:
         nurses_embeddings = self.fetch_all_embeddings("Nurses")
 
         # for segment, embedding in segment_embeddings.items():        
+        self.logger.debug(f"transcribe_and_recognize_speaker: segment_embeddings {len(segment_embeddings)}")
         for index, segment in enumerate(segment_embeddings):
-            self.logger.info(f"Processing segment {index} slot {segment['slot']}")
+            self.logger.debug(f"Processing segment {index} slot {segment['slot']}")
             speaker_id, op = self.match_or_create_speaker(
                 segment["embedding"], 
                 {**patients_embeddings, **nurses_embeddings}, 
@@ -288,11 +289,11 @@ class TranscribeAndDiarize:
             }
             # This is ugly but for now in case the op is "created" I want to add this embedding to the patients_embeddings so that the next segment can be matched with it
             if op == "created":
-                patients_embeddings[speaker_id] = segment["embedding"]
+                patients_embeddings[speaker_id] = [segment["embedding"]]
             
-            self.logger.info(f'Segment {index} slot: {segment["slot"]} {op} as {speaker_id}')
+            self.logger.debug(f'Segment {index} slot: {segment["slot"]} {op} as {speaker_id}')
         
-        self.logger.info(f"Diarized transcription: {json.dumps(diarized_transcription, indent=4)}")
+        self.logger.debug(f"Diarized transcription: {json.dumps(diarized_transcription, indent=4)}")
         # Write the diarized transcription to S3 into diariations folder
         diarization_output_key = f"diarizations/diarization-{output_time}.json"
         self.b3session.s3_put_object(key=diarization_output_key, body=json.dumps(diarized_transcription))
