@@ -112,12 +112,6 @@ class TranscribeAndDiarize:
         
         return segment_embeddings
 
-    def fetch_all_embeddings(self, table_name):
-        """Fetch all embeddings from a DynamoDB table."""
-        table = self.b3session.dynamo_get_table(table_name)
-        response = table.scan()
-        return {item['Name']: np.array(item['EmbeddingVector'], dtype=np.float32) 
-                for item in response['Items']}
     
     def generate_unknown_speaker_id(self, known_embeddings):
         """Generate a new unknown speaker ID."""
@@ -135,71 +129,111 @@ class TranscribeAndDiarize:
         """Calculate cosine similarity between two vectors."""
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
+
+    def fetch_all_embeddings(self, table_name):
+        """Fetch all embeddings from a DynamoDB table."""
+        table = self.b3session.dynamo_get_table(table_name)
+        response = table.scan()
+        return {item['Name']: [np.array(vec, dtype=np.float32) for vec in item.get('EmbeddingVectors', [])] 
+            for item in response['Items']}
+       
+    
     def create_speaker(self, embedding, known_embeddings, table_name, speaker_name):
         """Match or create a new speaker in a specific table."""
-        best_match = None
-        highest_similarity = -1
-        for speaker_id, known_embedding in known_embeddings.items():
-            similarity = self.cosine_similarity(embedding, known_embedding)
-            if (similarity > highest_similarity and similarity >= self.similarity_threshold):
-                best_match = speaker_id
-                highest_similarity = similarity
+        # Check for identical embeddings
+        for speaker_id, embeddings in known_embeddings.items():
+            for idx, known_embedding in enumerate(embeddings):
+                similarity = self.cosine_similarity(embedding, known_embedding)
+                if np.array_equal(embedding, known_embedding):
+                    self.logger.warning(f"Identical embedding found for speaker {speaker_id} and new speaker {speaker_name}. No changes made.")
+                    return speaker_id, "identical"
+                elif similarity >= self.similarity_threshold and speaker_id != speaker_name:
+                    self.logger.warning(f"High similarity found between new speaker {speaker_name} and existing speaker {speaker_id} with similarity {similarity}")
 
-        if best_match:
-            self.logger.info(f"Match found: {best_match} with similarity {similarity}")
-            self.logger.info(f"Replacing embedding for {best_match} with new {speaker_name} in table {table_name}")
-            self.delete_embedding_from_dynamodb(best_match, table_name)
-            self.save_embedding_to_dynamodb(speaker_name, embedding, table_name)
-            return speaker_name, "replaced"
+        # Add the new embedding to the speaker
+        if speaker_name in known_embeddings:
+            self.add_embedding_to_speaker(speaker_name, embedding, table_name)
+            self.logger.info(f"Added new embedding to existing speaker: {speaker_name}")
+            return speaker_name, "added"
         else:
-            self.save_embedding_to_dynamodb(speaker_name, embedding, table_name)
+            self.add_new_speaker(speaker_name, embedding, table_name)
             self.logger.info(f"New speaker created: {speaker_name}")
             return speaker_name, "created"
 
+    
+    def add_embedding_to_speaker(self, speaker_name, embedding, table_name):
+        """Add a new embedding to an existing speaker."""
+        embedding_decimal = [Decimal(str(value)) for value in embedding]
+        table = self.b3session.dynamo_get_table(table_name)
 
+        item = table.get_item(Key={'Name': speaker_name}).get('Item')
+        if item:
+            if 'EmbeddingVectors' not in item:
+                item['EmbeddingVectors'] = [embedding_decimal]
+            else:
+                item['EmbeddingVectors'].append(embedding_decimal)
+            table.put_item(Item=item)
+            self.logger.info(f"Added new embedding to speaker {speaker_name} in table {table_name}")
+        else:
+            self.logger.error(f"Speaker {speaker_name} not found in table {table_name}")
+        
     def match_or_create_speaker(self, embedding, known_embeddings, table_name):
         """Match or create a new speaker in a specific table."""
         best_match = None
         highest_similarity = -1
-        for speaker_id, known_embedding in known_embeddings.items():
-            similarity = self.cosine_similarity(embedding, known_embedding)
-            self.logger.info(f"Found similarity: {similarity} with speaker {speaker_id}")
-            if (similarity > highest_similarity and similarity >= self.similarity_threshold):
-                best_match = speaker_id
-                highest_similarity = similarity
+        for speaker_id, embeddings in known_embeddings.items():
+            for known_embedding in embeddings:
+                similarity = self.cosine_similarity(embedding, known_embedding)
+                self.logger.debug(f"cosine similarity: {similarity} with speaker {speaker_id}")
+                if similarity >= self.similarity_threshold:
+                    self.logger.info(f"Found high similarity: {similarity} with speaker {speaker_id}")
+                    if similarity > highest_similarity:
+                        best_match = speaker_id
+                        highest_similarity = similarity
 
         if best_match:
-            self.logger.info(f"Match found: {best_match} with similarity {similarity}")
+            self.logger.info(f"Match found: {best_match} with similarity {highest_similarity}")
             return best_match, "matched"
         else:
             new_speaker_id = self.generate_unknown_speaker_id(known_embeddings)
             return self.create_speaker(embedding, known_embeddings, table_name, new_speaker_id)
 
-    def save_embedding_to_dynamodb(self, speaker_id, embedding, table_name):
+
+    def add_new_speaker(self, speaker_id, embedding, table_name):
         """Save speaker embedding to DynamoDB."""
         embedding_decimal = [Decimal(str(value)) for value in embedding]
         table = self.b3session.dynamo_get_table(table_name)
 
-        item = {
-            "EmbeddingVector": embedding_decimal,
-            "Name": speaker_id,
-            "Type": table_name.rstrip('s'),
-            "Timestamp": datetime.now().isoformat()
-        }
-        
+        item = table.get_item(Key={'Name': speaker_id}).get('Item')
+        if item:
+            item['EmbeddingVectors'].append(embedding_decimal)
+        else:
+            item = {
+                "EmbeddingVectors": [embedding_decimal],
+                "Name": speaker_id,
+                "Type": table_name.rstrip('s'),
+                "Timestamp": datetime.now().isoformat()
+            }
         table.put_item(Item=item)
         self.logger.info(f"Saved embedding for {speaker_id} in table {table_name}")
 
-    def delete_embedding_from_dynamodb(self, speaker_id, table_name):
-        """Delete speaker embedding to DynamoDB."""
+
+    def delete_embedding_from_dynamodb(self, speaker_id, table_name, embedding_index=None):
+        """Delete speaker embedding from DynamoDB."""
         table = self.b3session.dynamo_get_table(table_name)
         try:
-            table.delete_item(
-                Key={
-                    'Name': speaker_id
-                }
-            )
-            self.logger.info(f"Deleted item with Name {speaker_id} from table {table_name}")
+            if embedding_index is not None:
+                item = table.get_item(Key={'Name': speaker_id}).get('Item')
+                if item and 'EmbeddingVectors' in item:
+                    del item['EmbeddingVectors'][embedding_index]
+                    if item['EmbeddingVectors']:
+                        table.put_item(Item=item)
+                    else:
+                        table.delete_item(Key={'Name': speaker_id})
+                    self.logger.info(f"Deleted embedding index {embedding_index} for speaker {speaker_id} from table {table_name}")
+            else:
+                table.delete_item(Key={'Name': speaker_id})
+                self.logger.info(f"Deleted item with Name {speaker_id} from table {table_name}")
         except ClientError as e:
             self.logger.error(f"Unable to delete item: {e.response['Error']['Message']}")
 
@@ -213,9 +247,9 @@ class TranscribeAndDiarize:
         embedding = self.encoder.embed_utterance(wav)
         
         known_embeddings = self.fetch_all_embeddings(table_name)
-        self.create_speaker(embedding, known_embeddings, table_name, speaker_name=speaker_name)
+        speaker, result = self.create_speaker(embedding, known_embeddings, table_name, speaker_name=speaker_name)
         
-        self.logger.info(f"Voice sample processed and saved to table {table_name}")
+        self.logger.info(f"add_voice_sample: create_speaker attepted to table '{table_name}' for speaker '{speaker_name}'. Result: '{result}' with speaker '{speaker}'")
 
 
 
