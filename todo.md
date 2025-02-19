@@ -33,6 +33,7 @@
 - [x] Change GPT API to use the new structured output using JSON schema
 - [ ] Voice callibration
 - [ ] Support record with all captured nurses (discuss with Gil)
+- [ ] Allow running on transcription output files instead audio
 
 ### General
 - [x] README file
