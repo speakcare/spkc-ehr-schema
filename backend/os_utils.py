@@ -6,15 +6,22 @@ import time
 logger = SpeakcareLogger(__name__)
 
 def __get_directory_path(dir_name):
-    if os.path.isabs(dir_name):
+
+    path = ""
+    # check if path of file name
+    if os.path.isdir(dir_name):
+        path = dir_name
+    else:
+        # Extract the directory path from the file path
+        path = os.path.dirname(dir_name)
+
+    # check if absolute path or local path
+    if os.path.isabs(path) or path.startswith("/"):
         # Full path (starts with / or the system's root directory)
-        return dir_name
-    elif dir_name.startswith("./"):
-        # Relative path (starts with ./)
-        return dir_name
+        return path
     else:
         # Local path (does not start with / or ./)
-        return f"./{dir_name}"
+        return f"./{path}"
 
 def ensure_directory_exists(dir_name):
     # Extract the directory path from the file path

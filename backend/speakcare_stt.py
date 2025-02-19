@@ -47,10 +47,10 @@ def transcribe_and_diarize_audio(boto3Session: Boto3Session, input_file="output.
             # transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
 
         if append:
-            logger.debug(f"Appending to {output_file}")
+            logger.info(f"Appending to {output_file}")
             boto3Session.s3_append_from_key(transcipt_file_key, output_file)
         else:
-            logger.debug(f"Copying to {output_file}")
+            logger.info(f"Copying to {output_file}")
             boto3Session.s3_copy_from_key(transcipt_file_key, output_file)
     except Exception as e:
         logger.log_exception("Error transcribing audio", e)

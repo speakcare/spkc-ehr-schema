@@ -4,6 +4,7 @@ import boto3
 from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
+from speakcare_env import SpeakcareEnv
 
 if not load_dotenv("./.env"):
     print("No .env file found")
@@ -26,9 +27,8 @@ class Boto3Session:
         # Configuration from environment variables
         self.__profile_name = os.getenv("AWS_PROFILE", "default")
         self.__s3_bucket_name = os.getenv("S3_BUKET_NAME", "speakcare-pilot")
-        self.__nurses_table_name = os.getenv("NURSES_TABLE_NAME", "Nurses")
-        self.__patients_table_name = os.getenv("PATIENTS_TABLE_NAME", "Patients")
-        self.__dynamodb_table_names = [self.__nurses_table_name, self.__patients_table_name] # list to iterate over table names
+        self.__speakers_table_name = os.getenv("DYNAMODB_SPEAKERS_TABLE_NAME", "Speakers")
+        self.__dynamodb_table_names = [self.__speakers_table_name]
         self.__use_localstack = os.getenv("USE_LOCALSTACK", "False").lower() == "true"
         self.__localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 
@@ -56,7 +56,7 @@ class Boto3Session:
     def s3_get_bucket_name(self):
         return self.__s3_bucket_name
 
-    def s3_init_bucket(self, dirs: list = ["audio", "transcriptions", "diarizations", "texts", "wavs"]):
+    def s3_init_bucket(self, dirs: list = []):
         # Create a new bucket
         # check if the bucket already exists
         bucket_exists = False
@@ -212,10 +212,8 @@ class Boto3Session:
     
     def dynamo_get_table_name(self, table_name: str = '') -> str:
         table_name = table_name.lower()
-        if table_name == 'patients':
-            return self.__patients_table_name
-        elif table_name == 'nurses':
-            return self.__nurses_table_name
+        if table_name == 'speakers':
+            return self.__speakers_table_name
         else:
             return None
 

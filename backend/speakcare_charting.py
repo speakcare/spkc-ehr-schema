@@ -23,7 +23,7 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
-logger = SpeakcareLogger('speakcare_transcriptions')
+logger = SpeakcareLogger(__name__)
 
 multupleSelectionSchemaExample = {
             "type": "multipleSelects",

@@ -25,8 +25,7 @@ logger = SpeakcareLogger(__name__)
 
 
 SpeakcareEnv.prepare_env()
-s3dirs = [SpeakcareEnv.audio_dir, SpeakcareEnv.texts_dir, SpeakcareEnv.charts_dir]
-boto3Session = Boto3Session(s3dirs)
+boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
 
 supported_tables = EmrUtils.get_table_names()
 
@@ -69,6 +68,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
 
         # Step 3: Convert transcription to EMR record for all tables
         for table_name in tables:
+            logger.info(f"Calling create_chart for table {table_name} input_file {transcription_filename} output_file {chart_filename}")
             record_id = create_chart(boto3Session=boto3Session, input_file=transcription_filename, output_file=chart_filename, 
                                             emr_table_name=table_name, dryrun=dryrun)
             if not record_id:
