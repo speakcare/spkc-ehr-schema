@@ -6,7 +6,7 @@
 - [X] Add tab tracking and log duration in each chart separately
 - [X] Finalize daily usage persistance with debouncing 
 - [X] Refactor session manager to handle both user sessions and chart sessions
-- [ ] Figure out why sum of chart usages does not accumulate to daily usage (I would expect the opposite)
+- [X] Figure out why sum of chart usages does not accumulate to daily usage (I would expect the opposite)
 - [ ] Manage chart session life cycle by tracking active tabs
  
 ### Utilities
@@ -18,7 +18,7 @@
 - [X] Review on click, we might avoid it
 - [X] Filter hosts by pcc subdomains (e.g. filter login out)
 - [ ] Handle MDS section V
-- [ ] Programatically inject the content script into existing tabs on installation (low priority)
+- [-] Programatically inject the content script into existing tabs on installation (low priority)
 - [ ] Support Admin charts (currently only clinical)
 
 ### Side panel
@@ -30,7 +30,7 @@
 - [X] Close the panel when swithcing to non permitted page
 - [X] Write logs to Google spreadsheet and allow setting its
 - [X] Session log clear
-- [ ] Protect speadsheet ID from changing my mistake
+- [X] Protect speadsheet ID from changing by mistake
 - [ ] Allow granular deletion (low priority)
 
 ### General
