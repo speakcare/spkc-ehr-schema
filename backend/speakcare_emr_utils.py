@@ -165,23 +165,54 @@ class EmrUtils:
     @staticmethod
     def add_nurse(nurse: dict):
         logger.info(f"add_nurse:\n {nurse}")
-        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse)
+        errors = []
+        nurse_name = nurse.get('Name', None)
+        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
         if isValid:
             logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
             record = emr_api.add_nurse(validNurseFields)
             if not record:
-                logger.error(f"add_nurse failed: {validNurseFields}")
-                return None
+                logger.error(f"add_nurse '{nurse_name}' failed.")
+                return None, {"error": f"Failed to add nurse '{nurse_name}'"}
             else:
-                logger.info(f"add_nurse success: {validNurseFields}")
-                return record
+                logger.info(f"add_nurse '{nurse_name}' success.")
+                return record, {"message": f"Nurse '{nurse_name}' added successfully."}
         else:
-            logger.error(f"add_nurse failed: invalid nurse fields:\n {nurse}")
-            return None
+            logger.error(f"add_nurse '{nurse_name}' failed: invalid nurse fields:\n {nurse}")
+            return None, {"error": f"Invalid nurse fields: {errors}"}
 
     @staticmethod
+    def update_nurse(nurse_id, nurse):
+        logger.info(f"update_nurse: {nurse_id}:\n {nurse}")
+        errors = []
+        isValid, validNurseFields = EmrUtils.validate_partial_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        if isValid:
+            logger.info(f"update_nurse: valid nurse fields:\n {validNurseFields}")
+            record = emr_api.update_nurse(nurse_id, validNurseFields)
+            if not record:
+                logger.error(f"update_nurse nurse id {nurse_id} failed: {validNurseFields}")
+                return None, {"error": f"Failed to update nurse id {nurse_id}"}
+            else:
+                logger.info(f"update_nurse id {nurse_id} success: {validNurseFields}")
+                return record, {"message": f"Nurse id {nurse_id} updated successfully."}
+        else:
+            logger.error(f"update_nurse failed: invalid nurse fields:\n {nurse}")
+            return None, {"error": f"Invalid nurse fields: {errors}"}
+    
+    @staticmethod    
+    def delete_nurse(nurse_id):
+        logger.info(f"delete_nurse: {nurse_id}")
+        record = emr_api.delete_nurse(nurse_id)
+        if not record:
+            logger.error(f"delete_nurse failed: {nurse_id}")
+            return None
+        else:
+            logger.info(f"delete_nurse success: {nurse_id}")
+            return record
+        
+    @staticmethod
     def get_nurses_table_schema():
-        return emr_api.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+        return EmrUtils.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
     
 
     @staticmethod

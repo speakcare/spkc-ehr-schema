@@ -22,10 +22,10 @@ class SpeakcareEnrollPerson():
     def __init__(self):
         self.logger = SpeakcareLogger(SpeakcareEnrollPerson.__name__)
         self.b3session = Boto3Session(SpeakcareEnv.get_working_dirs())
-        
-    def enroll_patient(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
 
-        # Step 1: Verify the audio file exists
+    
+    def transcribe_audio(self, audio_filename:str, output_file_prefix:str="output"):
+                # Step 1: Verify the audio file exists
         # check if in s3 or local
         file_exist = False
         is_s3_file = False
@@ -59,25 +59,20 @@ class SpeakcareEnrollPerson():
         # Step 2: Transcribe Audio (speech to text)
         transciption_output_file = f'{SpeakcareEnv.get_persons_local_dir()}/{output_file_prefix}-transcribe.txt'
         ensure_file_directory_exists(transciption_output_file)
-        self.transcribe_audio(audio_local_file, transciption_output_file)
+        self.do_transcription(audio_local_file, transciption_output_file)
         # uploade the trascript file to s3
         dest_s3_transcription_location = f'{SpeakcareEnv.get_persons_dir()}/{os.path.basename(transciption_output_file)}'
         self.b3session.s3_upload_file(transciption_output_file, dest_s3_transcription_location)
+        return transciption_output_file, is_s3_file, audio_local_file
 
-        patient_data = self.prepare_patient_data(transciption_output_file)
-        self.logger.debug(f"Patient data: {patient_data}")
-        patient_data_file = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}-patient.json'
-        patient_data_local_file = f'{SpeakcareEnv.get_persons_local_dir()}/{os.path.basename(patient_data_file)}'
-        with open(patient_data_local_file, 'w') as f:
-            f.write(json.dumps(patient_data, indent=4))
-
-        self.b3session.s3_upload_file(patient_data_local_file, patient_data_file)
-
-        if dryrun:
-            self.logger.info("Dryrun mode. EMR record will not be created.")
-            return
         
-        else:
+    def enroll_patient(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
+
+        transciption_output_file, is_s3_file, audio_local_file = self.transcribe_audio(audio_filename, output_file_prefix)
+        # Step 3: Prepare patient data
+        patient_data = self.patient_data_to_emr_schema(transciption_output_file)
+        
+        if not dryrun:
             # Step 3: Create EMR person record
             patient_fields = patient_data.get('fields', {})
             patient_name = patient_fields.get('FullName', None)
@@ -90,13 +85,43 @@ class SpeakcareEnrollPerson():
                 transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.PATIENT, speaker_name=patient_name)
             else:
                 self.logger.error("Patient name not found in transcription. Cannot create EMR record.")
-            #         
+        
+        else:
+            self.logger.info("Dryrun mode. EMR record will not be created.")
         #end enroll_patient cleanup
         if is_s3_file:
             # remove the local audio file
             os.remove(audio_local_file)
 
-    def transcribe_audio(self, audio_filename:str, transcribe_ouptut_file:str):
+    def enroll_nurse(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
+
+        transciption_output_file, is_s3_file, audio_local_file = self.transcribe_audio(audio_filename, output_file_prefix)
+        # Step 3: Prepare patient data
+        nurse_data = self.nurse_data_to_emr_schema(transciption_output_file)
+        
+        if not dryrun:
+            # Step 3: Create EMR person record
+            nurse_fields = nurse_data.get('fields', {})
+            nurse_name = nurse_fields.get('Name', None)
+            if nurse_name:
+                emr_nurse_record, message = EmrUtils.add_nurse(nurse_data.get('fields', {}))
+                if not emr_nurse_record:
+                    self.logger.error(f"Error adding nurse record: {message}")
+                # Step 4: Create the speech embeddings for this person and save to dynamodb
+                transcriber = TranscribeAndDiarize()
+                transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.NURSE, speaker_name=nurse_name)
+            else:
+                self.logger.error("Nurse name not found in transcription. Cannot create EMR record.")
+        
+        else:
+            self.logger.info("Dryrun mode. EMR record will not be created.")
+        #end enroll_patient cleanup
+        if is_s3_file:
+            # remove the local audio file
+            os.remove(audio_local_file)
+
+
+    def do_transcription(self, audio_filename:str, transcribe_ouptut_file:str):
         # if audio file is mp4, convert to wav
         is_mp4 = False
         wav_filename=""
@@ -118,7 +143,7 @@ class SpeakcareEnrollPerson():
             os.remove(wav_filename)
 
     
-    def prepare_patient_data(self, transcription_filename:str):
+    def patient_data_to_emr_schema(self, transcription_filename:str, output_file_prefix:str="output"):
         
         prompt = f'''
             You are given a transcription of a recording of a patient admitted to healthcare institution. 
@@ -139,8 +164,48 @@ class SpeakcareEnrollPerson():
         with open(transcription_filename) as f:
             transcription = f.read()
 
-        return openai_complete_schema_from_transcription(system_prompt, prompt, transcription, json_schema)
+        patient_data= openai_complete_schema_from_transcription(system_prompt, prompt, transcription, json_schema)
         
+        self.logger.debug(f"Patient data: {patient_data}")
+        patient_data_file = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}-patient.json'
+        patient_data_local_file = f'{SpeakcareEnv.get_persons_local_dir()}/{os.path.basename(patient_data_file)}'
+        with open(patient_data_local_file, 'w') as f:
+            f.write(json.dumps(patient_data, indent=4))
+
+        self.b3session.s3_upload_file(patient_data_local_file, patient_data_file)
+        return patient_data
+    
+    def nurse_data_to_emr_schema(self, transcription_filename:str, output_file_prefix:str="output"):
+        
+        prompt = f'''
+            You are given a transcription of a recording of a nurse employed by healthcare institution. 
+            The transcriptions contains the onboarding conversation in which the nurse is presenting herself.
+            Your task is to fill the nurse's information based on the transcription in the provided json_schema.
+            Based on the transcription, respond with a valid json object formatted according to the provided json_schema, and nothing else.
+            Please fill in the json properties if and only if you are sure of the answers.
+            Do not assume any values, only fill in the properties that can explicitly be dervied from he transcription.
+            In any case you cannot explicitly derive an answer from the transcription, you must set the value to null. 
+            If you are not sure or a field is not mentioned in the transcription, set the value to null.
+            If you are sure that a field is not applicable, set the value to null.
+        '''
+
+        system_prompt="You are an expert in parsing onboarding transcription and filling nurses employment forms."
+
+        json_schema = EmrUtils.get_nurses_table_schema()
+        transcription = ""
+        with open(transcription_filename) as f:
+            transcription = f.read()
+
+        nurse_data= openai_complete_schema_from_transcription(system_prompt, prompt, transcription, json_schema)
+        
+        self.logger.debug(f"Nurse data: {nurse_data}")
+        nurse_data_file = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}-nurse.json'
+        nurse_data_local_file = f'{SpeakcareEnv.get_persons_local_dir()}/{os.path.basename(nurse_data_file)}'
+        with open(nurse_data_local_file, 'w') as f:
+            f.write(json.dumps(nurse_data, indent=4))
+
+        self.b3session.s3_upload_file(nurse_data_local_file, nurse_data_file)
+        return nurse_data
 
 
     def add_nurse(audio_filename:str):
@@ -162,6 +227,8 @@ def main():
                         help='Name of input recording file for enrollment.')
     parser.add_argument('-o', '--output-prefix', type=str, default="output",
                         help='Output file prefix (default: output)')
+    parser.add_argument('-t', '--type', type=str, required=True,
+                        help="Type of person to enroll ('patient', 'nurse')")
 
     # Parse arguments
     args = parser.parse_args()
@@ -181,9 +248,13 @@ def main():
     output_file_prefix = f'{output_file_prefix}.{utc_string}_{rnd}'
 
     audio_filename = args.input_recording
+    speaker_type = args.type
     # enroll the patient
     enroller = SpeakcareEnrollPerson()
-    enroller.enroll_patient(audio_filename, output_file_prefix, dryrun)
+    if speaker_type == "patient":
+        enroller.enroll_patient(audio_filename, output_file_prefix, dryrun)
+    elif speaker_type == "nurse":
+        enroller.enroll_nurse(audio_filename, output_file_prefix, dryrun)
 
 if __name__ == "__main__":
     main()

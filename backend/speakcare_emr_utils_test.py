@@ -1105,7 +1105,6 @@ class TestPersons(unittest.TestCase):
         self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
         self.assertTrue(delete_record['deleted'], delete_record)
         self.logger.info(f"Deleted patient {emr_patient_record['id']}")
-
     
     def test_create_and_update_patient(self):
                 # Create a record example
@@ -1149,7 +1148,89 @@ class TestPersons(unittest.TestCase):
         self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
         self.assertTrue(delete_record['deleted'], delete_record)
         self.logger.info(f"Deleted patient {emr_patient_record['id']}")
-        
+
+    def test_create_nurse(self):
+                # Create a record example
+        nurse_data = {
+            "Name": "Florence Nightingale",
+            "Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Created nurse {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Florence Nightingale", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Cardiology", "Geriatrics", "Oncology"], message)
+
+        # delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
+
+    def test_create_nurse_missing_field(self):
+                # Create a record example
+        nurse_data = {
+            "Name": "Florence Nightingale",
+            #"Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        # should fail
+        self.assertIsNone(emr_nurse_record, message)
+        self.logger.info(f"Nurse creation failed. Error: {message["error"]}")
+
+        # add the missing field
+        nurse_data["Specialization"] = ["Cardiology", "Geriatrics", "Oncology"]
+        emr_nurse_record, message  = EmrUtils.add_nurse(nurse_data)
+        # should succeed    
+        self.logger.info(f"Created nurse {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Florence Nightingale", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Cardiology", "Geriatrics", "Oncology"], message)
+
+        #delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
+    
+
+    def test_create_and_update_nurse(self):
+                
+        nurse_data = {
+            "Name": "Poppy Pomfrey",
+            "Specialization": ["Pediatrics", "Orthopedics", "Dermatology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Created patient {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Poppy Pomfrey", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Pediatrics", "Orthopedics", "Dermatology"], message)
+
+
+        # update the nurse
+        update_data = {
+            "Name": "Poppy Pomfrey", # change existing field
+            "Specialization": ["Pediatrics", "Orthopedics", "Dermatology", "Neurology"], # update field
+            "Schedule": "Sunday day shift. Tuesday night shift" # add new field
+
+        }
+        emr_nurse_record, message = EmrUtils.update_nurse(emr_nurse_record['id'], update_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Updated patient {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Poppy Pomfrey", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Pediatrics", "Orthopedics", "Dermatology", "Neurology"], message)
+        self.assertEqual(emr_nurse_record['fields']['Schedule'], "Sunday day shift. Tuesday night shift", message)
+
+
+        # delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
+
+
 
 if __name__ == '__main__':
     unittest.main()
