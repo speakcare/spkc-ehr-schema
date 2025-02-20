@@ -67,7 +67,7 @@ class TranscribeAndDiarize:
             MediaFormat="wav",
             LanguageCode="en-US",
             OutputBucketName=bucket,
-            OutputKey=f"{SpeakcareEnv.transcriptions_dir}/{job_name}.json",
+            OutputKey=f"{SpeakcareEnv.get_transcriptions_dir()}/{job_name}.json",
             Settings={"ShowSpeakerLabels": True, "MaxSpeakerLabels": 10}
         )
         self.logger.info(f"Started transcription job: {job_name}")
@@ -271,7 +271,7 @@ class TranscribeAndDiarize:
 
     def transcribe_and_recognize_speakers(self, audio_file):
         """Main method to transcribe audio and recognize speakers."""
-        audio_key = f"{SpeakcareEnv.audio_dir}/{os.path.basename(audio_file)}"
+        audio_key = f"{SpeakcareEnv.get_audio_dir()}/{os.path.basename(audio_file)}"
         self.b3session.s3_upload_file(file_path=audio_file, key=audio_key)
 
         output_time = int(time.time())
@@ -279,7 +279,7 @@ class TranscribeAndDiarize:
         self.start_transcription_job(audio_key, self.b3session.s3_get_bucket_name(), transcription_job_name)
         self.wait_for_transcription_job(transcription_job_name)
 
-        transcription_output_key = f"{SpeakcareEnv.transcriptions_dir}/{transcription_job_name}.json"
+        transcription_output_key = f"{SpeakcareEnv.get_transcriptions_dir()}/{transcription_job_name}.json"
         transcription = self.get_transcription_output(transcription_output_key)
 
         diarized_transcription = {}
@@ -310,13 +310,13 @@ class TranscribeAndDiarize:
         
         self.logger.debug(f"Diarized transcription: {json.dumps(diarized_transcription, indent=4)}")
         # Write the diarized transcription to S3 into diariations folder
-        diarization_output_key = f"{SpeakcareEnv.diarizations_dir}/diarization-{output_time}.json"
+        diarization_output_key = f"{SpeakcareEnv.get_diarizations_dir()}/diarization-{output_time}.json"
         self.b3session.s3_put_object(key=diarization_output_key, body=json.dumps(diarized_transcription))
         self.logger.info(f"Uploaded diarized transcription to s3://{self.b3session.s3_get_bucket_name()}/{diarization_output_key}")
         # write the free text of the diarized transcription. Every line strats with "<Speaker label>: " and the speaker name and then the text
         # put it in s3 under the texts folder
-        text_output_key = f"{SpeakcareEnv.texts_dir}/text-{output_time}.txt"
-        temp_file = f"./tmp/{text_output_key}"
+        text_output_key = f"{SpeakcareEnv.get_texts_dir()}/text-{output_time}.txt"
+        temp_file = f"{SpeakcareEnv.get_texts_local_dir()}/{text_output_key}"
         # make sure the file dirs exist
         ensure_file_directory_exists(temp_file)
         # os.makedirs(os.path.dirname(temp_file), exist_ok=True)

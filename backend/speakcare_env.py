@@ -8,54 +8,98 @@ envInitialized = False
 logger =  SpeakcareLogger(__name__)
 
 class SpeakcareEnv:
-    env_loaded = False
-    local_output_root_dir = "out"
+    __env_loaded = False
+    __local_output_root_dir = "/tmp/speakcare"
     backwards_compatible = False
 
     # working dirs
-    audio_dir = ""
-    texts_dir = ""
-    charts_dir = ""
-    diarizations_dir = ""
-    transcriptions_dir = ""
+    __audio_dir = "audio"
+    __texts_dir = "texts"
+    __charts_dir = "charts"
+    __diarizations_dir = "diarizations"
+    __transcriptions_dir = "transcriptions"
+    __persons_dir = "persons"
+
+    @staticmethod
+    def get_audio_dir():
+        return SpeakcareEnv.__audio_dir
+    @staticmethod
+    def get_audio_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__audio_dir}'
+    
+    @staticmethod
+    def get_texts_dir():
+        return SpeakcareEnv.__texts_dir
+    @staticmethod
+    def get_texts_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__texts_dir}'
+    
+    @staticmethod
+    def get_charts_dir():
+        return SpeakcareEnv.__charts_dir
+    @staticmethod
+    def get_charts_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__charts_dir}'
+    
+    @staticmethod
+    def get_diarizations_dir():
+        return SpeakcareEnv.__diarizations_dir
+    @staticmethod
+    def get_diarizations_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__diarizations_dir}'
+    
+    @staticmethod
+    def get_transcriptions_dir():
+        return SpeakcareEnv.__transcriptions_dir
+    @staticmethod
+    def get_transcriptions_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__transcriptions_dir}'
+    
+    @staticmethod
+    def get_persons_dir():
+        return SpeakcareEnv.__persons_dir
+    @staticmethod
+    def get_persons_local_dir():
+        return f'{SpeakcareEnv.__local_output_root_dir}/{SpeakcareEnv.__persons_dir}'
+    
+    
+
+
     
     @staticmethod
     def prepare_env(env_file: str = "./.env"):
-        if SpeakcareEnv.env_loaded:
+        if SpeakcareEnv.__env_loaded:
             return
-        if not SpeakcareEnv.env_loaded:
+        if not SpeakcareEnv.__env_loaded:
             if not load_dotenv(env_file):
                 print(f"No {env_file} file found")
                 exit(1)
         SpeakcareEnv.backwards_compatible = (os.getenv("BC_MODE", "false").lower() == "true")
         SpeakcareEnv.__prepare_output_dirs()
-        SpeakcareEnv.env_loaded = True
+        SpeakcareEnv.__env_loaded = True
         
             
     @staticmethod
     def __prepare_output_dirs():
-        if SpeakcareEnv.env_loaded:
-            return
+        if SpeakcareEnv.__env_loaded:
+            return      
+        ensure_directory_exists(SpeakcareEnv.get_audio_local_dir())
+        ensure_directory_exists(SpeakcareEnv.get_texts_local_dir())
+        ensure_directory_exists(SpeakcareEnv.get_charts_local_dir())
+        ensure_directory_exists(SpeakcareEnv.get_diarizations_local_dir())
+        ensure_directory_exists(SpeakcareEnv.get_transcriptions_local_dir())
+        ensure_directory_exists(SpeakcareEnv.get_persons_local_dir())
+
+        if SpeakcareEnv.backwards_compatible:
+            # set the working directories to local directories
+            SpeakcareEnv.__audio_dir = SpeakcareEnv.get_audio_local_dir()
+            SpeakcareEnv.__texts_dir = SpeakcareEnv.get_texts_local_dir()
+            SpeakcareEnv.__charts_dir = SpeakcareEnv.get_charts_local_dir()
+            SpeakcareEnv.__diarizations_dir = SpeakcareEnv.get_diarizations_local_dir()
+            SpeakcareEnv.__transcriptions_dir = SpeakcareEnv.get_transcriptions_local_dir()
+            SpeakcareEnv.__persons_dir = SpeakcareEnv.get_persons_local_dir()
         
-        if not SpeakcareEnv.backwards_compatible:
-            SpeakcareEnv.audio_dir = "audio"
-            SpeakcareEnv.texts_dir = "texts"
-            SpeakcareEnv.charts_dir = "charts"
-            SpeakcareEnv.diarizations_dir = "diarizations"
-            SpeakcareEnv.transcriptions_dir = "transcriptions"
-        
-        else:
-            SpeakcareEnv.audio_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.audio_dir}"
-            ensure_directory_exists(SpeakcareEnv.audio_dir)
-            SpeakcareEnv.texts_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.texts_dir}"
-            ensure_directory_exists(SpeakcareEnv.texts_dir)
-            SpeakcareEnv.charts_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.charts_dir}"
-            ensure_directory_exists(SpeakcareEnv.charts_dir)
-            SpeakcareEnv.diarizations_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.diarizations_dir}"
-            ensure_directory_exists(SpeakcareEnv.diarizations_dir)
-            SpeakcareEnv.transcriptions_dir = f"{SpeakcareEnv.local_output_root_dir}/{SpeakcareEnv.transcriptions_dir}"
-            ensure_directory_exists(SpeakcareEnv.transcriptions_dir)
 
     @staticmethod
     def get_working_dirs(): 
-        return [SpeakcareEnv.audio_dir, SpeakcareEnv.texts_dir, SpeakcareEnv.charts_dir, SpeakcareEnv.diarizations_dir, SpeakcareEnv.transcriptions_dir]  
+        return [SpeakcareEnv.__audio_dir, SpeakcareEnv.__texts_dir, SpeakcareEnv.__charts_dir, SpeakcareEnv.__diarizations_dir, SpeakcareEnv.__transcriptions_dir]  

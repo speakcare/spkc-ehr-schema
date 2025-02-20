@@ -1036,41 +1036,120 @@ class TestSchema(unittest.TestCase):
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
     
 
-# class TestPersons(unittest.TestCase):
+class TestPersons(unittest.TestCase):
 
-#     def __init__(self, *args, **kwargs):
-#         super(TestPersons, self).__init__(*args, **kwargs)
-#         self.logger = SpeakcareLogger(__name__)
+    def __init__(self, *args, **kwargs):
+        super(TestPersons, self).__init__(*args, **kwargs)
+        self.logger = SpeakcareLogger(__name__)
 
-#     def setUp(self):
-#         pass
+    def setUp(self):
+        pass
 
-#     def test_create_patient(self):
-#                 # Create a record example
-#         record_data = {
-#             "type": RecordType.MEDICAL_RECORD,
-#             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-#             "patient_name": "James Brown",
-#             "nurse_name": "Sara Foster",
-#             "fields": {
-#                  "Units": "Lbs",
-#                  "Weight": 120,
-#                  "Scale": "Bath"
-#             }
-#         }
-#         record_id, state, response = EmrUtils.create_record(record_data)
-#         self.assertIsNotNone(record_id)
-#         self.assertEqual(response['message'], "EMR record created successfully")
+    def test_create_patient(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Samwise Gamgee",
+            "FirstName": "Samwise",
+            "LastName": "Gamgee",
+            "DateOfBirth": "1980-04-06",
+            "Gender": "Male",
+            "Admission Date": "2024-06-01"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Samwise Gamgee", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Samwise", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "Gamgee", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1980-04-06", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Male", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2024-06-01", message)
 
-#         record: Optional[MedicalRecords] = {}
-#         record, err = EmrUtils.get_record(record_id)
-#         self.assertIsNotNone(record)
-#         self.assertEqual(record.id, record_id)
-#         self.assertEqual(record.state, RecordState.PENDING)
-#         self.assertEqual(record.state, state)
-#         self.logger.info(f"Created record {record_id}")
+        # delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+
+    def test_create_patient_missing_field(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Frodo Baggins",
+            "FirstName": "Frodo",
+            "LastName": "Baggins",
+            #"DateOfBirth": "1968-09-22", # missing DateOfBirth
+            "Gender": "Male",
+            "Admission Date": "2024-05-01"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        # should fail
+        self.assertIsNone(emr_patient_record, message)
+        self.logger.info(f"Patient creation failed. Error: {message["error"]}")
+
+        # add the missing field
+        patient_data["DateOfBirth"] = "1968-09-22"
+        emr_patient_record, message  = EmrUtils.add_patient(patient_data)
+        # should succeed    
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Frodo Baggins", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Frodo", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "Baggins", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1968-09-22", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Male", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2024-05-01", message)
+
+        #delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+
+    
+    def test_create_and_update_patient(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Minerva McGonagall",
+            "FirstName": "Minerva",
+            "LastName": "McGonagall",
+            "DateOfBirth": "1935-10-03",
+            "Gender": "Female",
+            "Admission Date": "2020-03-31"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Minerva McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Minerva", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1935-10-03", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Female", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2020-03-31", message)
+
+        # update the patient
+        update_data = {
+            "DateOfBirth": "1935-10-04", # change existing field
+            "TreatmentPlan": "Transfiguration", # add new field
+        }
+        emr_patient_record, message = EmrUtils.update_patient(emr_patient_record['id'], update_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Updated patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Minerva McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Minerva", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1935-10-04", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Female", message)
+        self.assertEqual(emr_patient_record['fields']['TreatmentPlan'], "Transfiguration", message)
 
 
+        # delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+        
 
 if __name__ == '__main__':
     unittest.main()

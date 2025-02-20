@@ -472,9 +472,15 @@ class SpeakCareEmr:
         return None, None
 
     def add_patient(self, patient):
+        patient_name = patient.get('FullName')
+        matchedName, patientId, patientEmrId = self.lookup_patient(patient_name)
+        if matchedName:
+            self.logger.warning(f"Patient '{patient_name}' already exists. Matched patient '{matchedName}' with id {patientId}")
+            return None
         return self.patientsTable.create(patient)
 
     def update_patient(self, patient_id, patient):
+        self.logger.debug(f'Updating patient {patient_id} with {patient}')
         return self.patientsTable.update(patient_id, patient)
 
     def delete_patient(self, patient_id):
@@ -528,9 +534,15 @@ class SpeakCareEmr:
         return self.get_table_json_schema(tableName=self.NURSES_TABLE)
 
     def add_nurse(self, nurse):
+        nurse_name = nurse.get('Name')
+        matchedName, nurseId, nurseEmrId = self.lookup_nurse(nurse_name)
+        if matchedName:
+            self.logger.warning(f"Nurse '{nurse_name}' already exists. Matched nurse '{matchedName}' with id {nurseId}")
+            return None
         return self.nursesTable.create(nurse)
     
     def update_nurse(self, nurse_id, nurse):
+        self.logger.debug(f'Updating nurse {nurse_id} with {nurse}')
         return self.nursesTable.update(nurse_id, nurse)
     
     def delete_nurse(self, nurse_id):

@@ -433,10 +433,6 @@ def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, 
     return record_id
 
 def main():
-    SpeakcareEnv.prepare_env()
-    output_dir = SpeakcareEnv.charts_dir
-    supported_tables = EmrUtils.get_table_names()
-    EmrUtils.init_db(db_directory=DB_DIRECTORY)
     
     parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
@@ -445,6 +441,11 @@ def main():
     parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
 
     args = parser.parse_args()
+
+    SpeakcareEnv.prepare_env()
+    output_dir = SpeakcareEnv.get_charts_local_dir()
+    supported_tables = EmrUtils.get_table_names()
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
 
     table_name = args.table
     

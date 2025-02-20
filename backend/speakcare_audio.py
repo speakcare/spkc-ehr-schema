@@ -178,7 +178,7 @@ def convert_mp4_to_wav(input_file, output_file):
 def main():
     # Parse command line arguments
     SpeakcareEnv.prepare_env()
-    output_dir = SpeakcareEnv.audio_dir
+    output_dir = SpeakcareEnv.get_audio_local_dir()
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
     list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')

@@ -38,8 +38,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
 
     rnd = random.randint(1000, 9999)
 
-    transcription_filename = f'{SpeakcareEnv.texts_dir}/{output_file_prefix}_{rnd}.txt'
-    chart_filename = f'{SpeakcareEnv.charts_dir}/{output_file_prefix}_{rnd}.json'
+    transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{output_file_prefix}_{rnd}.txt'
+    chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{output_file_prefix}_{rnd}.json'
 
     try:
         record_ids = []    
@@ -91,7 +91,7 @@ def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str
     Full Speakcare pipeline: Record audio, transcribe audio, convert transcription to EMR record
     """    
     # prepare file names
-    recording_filename = f'{SpeakcareEnv.audio_dir}/{output_file_prefix}.wav'
+    recording_filename = f'{SpeakcareEnv.get_audio_local_dir()}/{output_file_prefix}.wav'
 
     try:
         # Step 1: Record Audio
@@ -112,10 +112,6 @@ def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str
 
 def main():
     # for testing from command line
-    
-    EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=True)
-    SpeakcareEnv.prepare_env()
-
     parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
     # Add arguments
     parser.add_argument('-l', '--list-devices', action='store_true',
@@ -135,6 +131,10 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
+
+    EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=True)
+    SpeakcareEnv.prepare_env()
+
 
     if args.list_devices:
         print_input_devices()

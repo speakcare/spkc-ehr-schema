@@ -51,7 +51,7 @@ def transcribe_and_diarize_audio(boto3Session: Boto3Session, input_file="output.
             boto3Session.s3_append_from_key(transcipt_file_key, output_file)
         else:
             logger.info(f"Copying to {output_file}")
-            boto3Session.s3_copy_from_key(transcipt_file_key, output_file)
+            boto3Session.s3_copy_object(transcipt_file_key, output_file)
     except Exception as e:
         logger.log_exception("Error transcribing audio", e)
         return 0
@@ -74,12 +74,13 @@ def record_and_transcribe():
 
 if __name__ == "__main__":
 
-    SpeakcareEnv.prepare_env()
     parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
 
     args = parser.parse_args()
+
+    SpeakcareEnv.prepare_env()
 
     input_file = args.input
     output_file_prefix = args.output
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     # Format the datetime as a string without microseconds and timezone
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
-    output_filename = f'{SpeakcareEnv.texts_dir}/{output_file_prefix}.{utc_string}.txt'
+    output_filename = f'{SpeakcareEnv.get_texts_local_dir()}/{output_file_prefix}.{utc_string}.txt'
 
     logger.info(f"Transcribing audio from {input_file} into {output_filename}")
     transcribe_audio_whisper(input_file, output_filename)

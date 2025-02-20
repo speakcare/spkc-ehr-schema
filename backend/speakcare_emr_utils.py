@@ -113,19 +113,50 @@ class EmrUtils:
     @staticmethod
     def add_patient(patient: dict):
         logger.info(f"add_patient:\n {patient}")
-        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient)
+        errors = []
+        patient_name = patient.get('FullName', None)
+        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
         if isValid:
             logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
             record = emr_api.add_patient(validPatientFields)
             if not record:
-                logger.error(f"add_patient failed: {validPatientFields}")
-                return None
+                logger.error(f"add_patient '{patient_name}' failed.")
+                return None, {"error": f"Failed to add patient '{patient_name}'"}
             else:
-                logger.info(f"add_patient success: {validPatientFields}")
-                return record
+                logger.info(f"add_patient '{patient_name}' success")
+                return record, {"message": f"Patient '{patient_name}' added successfully."}
         else:
-            logger.error(f"add_patient failed: invalid patient fields:\n {patient}")
+            logger.error(f"add_patient '{patient_name}' failed: invalid patient fields:\n {patient}")
+            return None, {"error": f"Invalid patient fields: {errors}"}
+    
+    @staticmethod
+    def update_patient(patient_id, patient):
+        logger.info(f"update_patient: {patient_id}:\n {patient}")
+        errors = []
+        isValid, validPatientFields = EmrUtils.validate_partial_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        if isValid:
+            logger.info(f"update_patient: valid patient fields:\n {validPatientFields}")
+            record = emr_api.update_patient(patient_id, validPatientFields)
+            if not record:
+                logger.error(f"update_patient patient id {patient_id} failed: {validPatientFields}")
+                return None, {"error": f"Failed to update patient id {patient_id}"}
+            else:
+                logger.info(f"update_patient id {patient_id} success: {validPatientFields}")
+                return record, {"message": f"Patient id {patient_id} updated successfully."}
+        else:
+            logger.error(f"update_patient failed: invalid patient fields:\n {patient}")
+            return None, {"error": f"Invalid patient fields: {errors}"}
+    
+    @staticmethod    
+    def delete_patient(patient_id):
+        logger.info(f"delete_patient: {patient_id}")
+        record = emr_api.delete_patient(patient_id)
+        if not record:
+            logger.error(f"delete_patient failed: {patient_id}")
             return None
+        else:
+            logger.info(f"delete_patient success: {patient_id}")
+            return record
         
     @staticmethod
     def get_patients_table_schema():
@@ -137,7 +168,7 @@ class EmrUtils:
         isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse)
         if isValid:
             logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
-            record = emr_api.add_patient(validNurseFields)
+            record = emr_api.add_nurse(validNurseFields)
             if not record:
                 logger.error(f"add_nurse failed: {validNurseFields}")
                 return None

@@ -383,7 +383,7 @@ class ProcessAudioResource(Resource):
     def post(self):
 
         # Get the file from the request
-        dirname = SpeakcareEnv.audio_dir# './out/audio'
+        dirname = SpeakcareEnv.get_audio_local_dir()# './out/audio'
         args = audio_parser.parse_args()
         audio_file = args['audio_file']
         if audio_file and audio_file.filename == '':
