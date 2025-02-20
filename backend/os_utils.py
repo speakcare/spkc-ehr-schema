@@ -7,21 +7,13 @@ logger = SpeakcareLogger(__name__)
 
 def __get_directory_path(dir_name):
 
-    path = ""
-    # check if path of file name
-    if os.path.isdir(dir_name):
-        path = dir_name
-    else:
-        # Extract the directory path from the file path
-        path = os.path.dirname(dir_name)
-
     # check if absolute path or local path
-    if os.path.isabs(path) or path.startswith("/"):
+    if os.path.isabs(dir_name) or dir_name.startswith("/"):
         # Full path (starts with / or the system's root directory)
-        return path
+        return dir_name
     else:
         # Local path (does not start with / or ./)
-        return f"./{path}"
+        return f"./{dir_name}"
 
 def ensure_directory_exists(dir_name):
     # Extract the directory path from the file path
@@ -34,6 +26,12 @@ def ensure_directory_exists(dir_name):
         logger.debug(f"Creating directory {_dir_path}")
         os.makedirs(_dir_path, exist_ok=True)
     return _dir_path
+
+
+def ensure_file_directory_exists(filename):
+    # Extract the directory path from the file
+    dir_name = os.path.dirname(filename)
+    return ensure_directory_exists(dir_name)
 
 class Timer:
     def __init__(self):

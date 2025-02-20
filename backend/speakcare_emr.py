@@ -71,6 +71,9 @@ class SpeakCareEmr:
         # O2_SATURATIONS_TABLE,
         # PULSES_TABLE,
         # RESPIRATION_TABLE
+        PATIENTS_TABLE,
+        NURSES_TABLE,
+        DOCTORS_TABLE
     ]
 
     TABLE_SECTIONS = { 
@@ -102,11 +105,11 @@ class SpeakCareEmr:
     WEB_APP_BASE_URL = 'https://airtable.com'
 
     
-    READONLY_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
+    PERSON_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
     INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor', 'SpeakCare']
     READONLY_FIELD_TYPES = ['autoNumber', 'barcode', 'button', 'collaborator', 'count', 'createdBy',  'createdTime', 
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
-                            'multipleRecordLinks', 'rollup', 'singleCollaborator']
+                            'multipleRecordLinks', 'rollup', 'singleCollaborator', 'multipleAttachments']
 
     def __init__(self, baseId: str, logger: logging.Logger):
         self.apiKey = AIRTABLE_API_KEY
@@ -188,16 +191,19 @@ class SpeakCareEmr:
                 tableName = table['name']
                 self.tables[tableName] = table
                 # Check if the table is in not in READONLY_TABLES
-                if tableName not in self.READONLY_TABLES:
-                    # Create writeable schema by copy from table
-                    writeableSchema = copy.deepcopy(table)
-                    # replace the fields with the writable fields
-                    writeableSchema['fields'] = self.__writable_fields(table)
-                    # create the EmrTableSchema object
-                    emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema)
-                    # add the EmrTableSchema to the tableWriteableSchemas dictionary
-                    self.logger.debug(f'Created writable schema for table {tableName}')
-                    self.tableEmrSchemas[tableName] = emrSchema
+                
+                is_person_table = tableName in self.PERSON_TABLES
+                # if tableName not in self.READONLY_TABLES:
+                # Create writeable schema by copy from table
+                writeableSchema = copy.deepcopy(table)
+                # replace the fields with the writable fields
+                writeableSchema['fields'] = self.__writable_fields(table)
+                # create the EmrTableSchema object
+                is_person_table = tableName in self.PERSON_TABLES
+                emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema, is_person_table=is_person_table)
+                # add the EmrTableSchema to the tableWriteableSchemas dictionary
+                self.logger.debug(f'Created writable schema for table {tableName}')
+                self.tableEmrSchemas[tableName] = emrSchema
             
             # register sections
             for tableName, sections in self.TABLE_SECTIONS.items():
@@ -259,9 +265,9 @@ class SpeakCareEmr:
                 self.logger.warning(f'get_table_writable_schema: Table {tableId} not found')
                 return None
 
-        if tableName in self.READONLY_TABLES:
-            self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
-            return None
+        # if tableName in self.READONLY_TABLES:
+        #     self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
+        #     return None
         
         tableSchema = self.tableEmrSchemas.get(tableName)
 
@@ -464,7 +470,7 @@ class SpeakCareEmr:
             if patient_id == patienId:
                 return self.patientNames[index], self.patientEmrIds[index]
         return None, None
-    
+
     def add_patient(self, patient):
         return self.patientsTable.create(patient)
 
@@ -518,6 +524,9 @@ class SpeakCareEmr:
                 return self.nurseNames[index], self.nurseEmrIds[index]
         return None, None
     
+    def get_nurses_table_json_schema(self):
+        return self.get_table_json_schema(tableName=self.NURSES_TABLE)
+
     def add_nurse(self, nurse):
         return self.nursesTable.create(nurse)
     

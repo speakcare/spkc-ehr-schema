@@ -111,13 +111,56 @@ class EmrUtils:
         return emr_api.lookup_patient(name)
     
     @staticmethod
+    def add_patient(patient: dict):
+        logger.info(f"add_patient:\n {patient}")
+        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient)
+        if isValid:
+            logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
+            record = emr_api.add_patient(validPatientFields)
+            if not record:
+                logger.error(f"add_patient failed: {validPatientFields}")
+                return None
+            else:
+                logger.info(f"add_patient success: {validPatientFields}")
+                return record
+        else:
+            logger.error(f"add_patient failed: invalid patient fields:\n {patient}")
+            return None
+        
+    @staticmethod
+    def get_patients_table_schema():
+        return EmrUtils.get_table_json_schema(SpeakCareEmr.PATIENTS_TABLE)
+     
+    @staticmethod
+    def add_nurse(nurse: dict):
+        logger.info(f"add_nurse:\n {nurse}")
+        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse)
+        if isValid:
+            logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
+            record = emr_api.add_patient(validNurseFields)
+            if not record:
+                logger.error(f"add_nurse failed: {validNurseFields}")
+                return None
+            else:
+                logger.info(f"add_nurse success: {validNurseFields}")
+                return record
+        else:
+            logger.error(f"add_nurse failed: invalid nurse fields:\n {nurse}")
+            return None
+
+    @staticmethod
+    def get_nurses_table_schema():
+        return emr_api.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+    
+
+    @staticmethod
     def __record_validation_helper(table_name: str,
                                    patient_name: str,
                                    nurse_name: str,
                                    fields: dict,
                                    sections = None,
-                                   patient_id: str = None, 
-                                   nurse_id: str = None):
+                                   patient_id: int = None, 
+                                   nurse_id: int = None):
         _errors =[]
         _state = RecordState.PENDING
         _patient_name = patient_name

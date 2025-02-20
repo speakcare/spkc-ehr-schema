@@ -17,7 +17,7 @@ import warnings
 from boto3_session import Boto3Session
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
-from os_utils import ensure_directory_exists
+from os_utils import ensure_file_directory_exists
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -318,7 +318,7 @@ class TranscribeAndDiarize:
         text_output_key = f"{SpeakcareEnv.texts_dir}/text-{output_time}.txt"
         temp_file = f"./tmp/{text_output_key}"
         # make sure the file dirs exist
-        ensure_directory_exists(temp_file)
+        ensure_file_directory_exists(temp_file)
         # os.makedirs(os.path.dirname(temp_file), exist_ok=True)
         with open(temp_file, "w") as f:
             for segment in diarized_transcription.values():

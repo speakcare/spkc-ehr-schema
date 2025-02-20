@@ -55,9 +55,9 @@ class MedicalRecords(Base):
     type = Column(Enum(RecordType), default=RecordType.MEDICAL_RECORD)  # Use Enum type for record type
     table_name = Column(String)  # Table name in the external EMR system
     patient_name = Column(String)
-    patient_id = Column(String)  # External EMR application patient ID
+    patient_id = Column(Integer)  # External EMR application patient ID
     nurse_name = Column(String)
-    nurse_id = Column(String)  # External EMR application nurse ID
+    nurse_id = Column(Integer)  # External EMR application nurse ID
     fields = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured records in JSON format
     sections = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured sections in JSON format
     errors = Column(MutableList.as_mutable(JSON), default=[])

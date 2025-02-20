@@ -31,7 +31,7 @@
 - [x] Update the transcription db and connect it to the medical reocords
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
 - [x] Change GPT API to use the new structured output using JSON schema
-- [ ] Voice callibration
+- [ ] Voice calibration
 - [ ] Support record with all captured nurses (discuss with Gil)
 - [ ] Allow running on transcription output files instead audio
 
