@@ -15,6 +15,7 @@ from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from speakcare_audio import convert_mp4_to_wav
+from os_utils import ensure_file_directory_exists
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -45,22 +46,43 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
         record_ids = []    
         for num, audio_filename in enumerate(audio_files):
             # Step 1: Verify the audio file exists
-            if not os.path.isfile(audio_filename):
+            file_exist = False
+            is_s3_file = False
+            if audio_filename.startswith("s3://"):
+                # here we need the key as the rest of the string after the s3://{bucket-name}/
+                audio_filename_key = boto3Session.s3_extract_key(audio_filename)
+                file_exist = boto3Session.s3_check_object_exists(audio_filename_key)
+                is_s3_file = True
+            else:
+                file_exist = os.path.isfile(audio_filename)
+                is_s3_file = False
+
+            # if not os.path.isfile(audio_filename):
+            if not file_exist:
                 err = f"Audio file not found or not file type: {audio_filename}"
                 logger.error(err)
                 raise Exception(err)
             
+            if is_s3_file:
+                # download the file
+                audio_local_file = f'{SpeakcareEnv.get_audio_local_dir()}/{os.path.basename(audio_filename)}'
+                ensure_file_directory_exists(audio_local_file)
+                s3_key = boto3Session.s3_extract_key(audio_filename)
+                boto3Session.s3_download_file(s3_key, audio_local_file)
+            else:
+                audio_local_file = audio_filename
+
             # if audio file is mp4, convert to wav
-            if audio_filename.endswith(".mp4"):
-                wav_filename = audio_filename.replace(".mp4", ".wav")
-                logger.info(f"Converting mp4 to wav: {audio_filename} -> {wav_filename}")
-                convert_mp4_to_wav(audio_filename, wav_filename)
-                audio_filename = wav_filename
+            if audio_local_file.endswith(".mp4"):
+                wav_filename = audio_local_file.replace(".mp4", ".wav")
+                logger.info(f"Converting mp4 to wav: {audio_local_file} -> {wav_filename}")
+                convert_mp4_to_wav(audio_local_file, wav_filename)
+                audio_local_file = wav_filename
             
             # Step 2: Transcribe Audio (speech to text)
             # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
             # transcript_len = transcribe_audio_whisper(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
-            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
+            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_local_file, output_file=transcription_filename, append= (num > 0))
             if transcript_len == 0:
                 err = "Error occurred while transcribing audio."
                 logger.error(err)
@@ -84,6 +106,12 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
         return None, {"error": str(e)}
+    
+    finally:
+        if is_s3_file:
+            # delete the local audio file
+            os.remove(audio_local_file)
+            logger.info(f"Deleted local audio file {audio_local_file}")
 
 
 def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str="output", recording_duration:int=30, audio_device:int =None, dryrun: bool=False):

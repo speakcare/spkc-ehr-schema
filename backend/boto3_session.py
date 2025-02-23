@@ -109,7 +109,7 @@ class Boto3Session:
     def s3_append_from_file(self, file_path: str, key: str):
         try:
             # Get the existing file
-            s3_file_exist = self.s3_check_file_exists(key)
+            s3_file_exist = self.s3_check_object_exists(key)
             if s3_file_exist:
                 # Download the existing file
                 self.__s3_client.download_file(self.__s3_bucket_name, key, 'temp_file.txt')
@@ -135,7 +135,7 @@ class Boto3Session:
     def s3_append_from_key(self, srcKey: str, destKey: str):
         try:
             # Get the existing file
-            dest_file_exist = self.s3_check_file_exists(destKey)
+            dest_file_exist = self.s3_check_object_exists(destKey)
             if dest_file_exist:
                 # Download the existing file
                 self.__s3_client.download_file(self.__s3_bucket_name, destKey, 'temp_dest_file.txt')
@@ -166,8 +166,9 @@ class Boto3Session:
     def s3_put_object(self, key: str, body: str):
         return self.__s3_client.put_object(Bucket=self.__s3_bucket_name, Key=key, Body=body)
 
-    def s3_check_file_exists(self, key) -> bool:
+    def s3_check_object_exists(self, key) -> bool:
         try:
+            self.__logger.debug(f"Checking if file exists: s3://{self.__s3_bucket_name}/{key}")
             self.__s3_client.head_object(Bucket=self.__s3_bucket_name, Key=key)
             return True  # File exists
         except ClientError as e:
@@ -190,6 +191,19 @@ class Boto3Session:
         except ClientError as e:
             self.__logger.error(f"Error reading content from object s3://{self.__s3_bucket_name}/{key}: {e}")
             raise
+
+    @staticmethod
+    def s3_extract_key(s3_url):
+        """Extract the path from an S3 URL."""
+        if s3_url.startswith("s3://"):
+            # Remove the 's3://' prefix
+            s3_url = s3_url[5:]
+            # Find the first '/' after the bucket name
+            key_start = s3_url.find('/')
+            if key_start != -1:
+                # Extract the path
+                return s3_url[key_start + 1:]
+        return None
 
     @staticmethod
     def __dynamodb_init_tables():

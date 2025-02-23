@@ -88,6 +88,13 @@ class EmrUtils:
         """
         # Get the main table schema
         return emr_api.get_table_json_schema(tableName=tableName)
+    
+    @staticmethod
+    def get_table_schema_fields(tableName: str):
+        """
+        get_table_schema_fields
+        """
+        return emr_api.get_table_json_schema(tableName=tableName).get("properties", {}).get("fields", {})
 
     @staticmethod
     def validate_record(table_name: str, data: dict, errors: list = []):
@@ -161,6 +168,10 @@ class EmrUtils:
     @staticmethod
     def get_patients_table_schema():
         return EmrUtils.get_table_json_schema(SpeakCareEmr.PATIENTS_TABLE)
+    
+    @staticmethod
+    def get_patients_table_fields():
+        return EmrUtils.get_table_schema_fields(SpeakCareEmr.PATIENTS_TABLE)
      
     @staticmethod
     def add_nurse(nurse: dict):
@@ -213,6 +224,10 @@ class EmrUtils:
     @staticmethod
     def get_nurses_table_schema():
         return EmrUtils.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+    
+    @staticmethod
+    def get_nurses_table_fields():
+        return EmrUtils.get_table_schema_fields(SpeakCareEmr.NURSES_TABLE)
     
 
     @staticmethod

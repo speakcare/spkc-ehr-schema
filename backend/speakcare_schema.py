@@ -117,10 +117,6 @@ class AirtableSchema:
                 "const": self.table_name,
                 "description": "The name of the Airtable table"
             },
-            # "patient_name": {
-            #     "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
-            #     "description": "The name of the patient"
-            # },
         }
         # self.json_schema['required'] = ["table_name", "patient_name"]
         self.json_schema['required'] = ["table_name"]
@@ -134,6 +130,13 @@ class AirtableSchema:
             }
             self.json_schema['required'].append('patient_name')
             # add here nurses when I am ready
+            # self.json_schema['properties']['nurses_names'] = {
+            #     "type": [JsonSchemaTypes.ARRAY.value, JsonSchemaTypes.NULL.value],
+            #     "items": {"type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value]},
+            #     "description": "Array of the names of all the nurses in the transcription that actively participated in the conversation" 
+            # }
+            # self.json_schema['required'].append('nurses_names')
+
             
         self.json_schema['additionalProperties'] = False
         # initialize the field registry
