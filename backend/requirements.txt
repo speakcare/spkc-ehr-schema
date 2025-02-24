@@ -14,6 +14,10 @@ flask-cors
 flask_restx
 fsspec
 fuzzy
+google-auth 
+google-auth-oauthlib 
+google-auth-httplib2 
+google-api-python-client
 gtts
 gunicorn
 idna

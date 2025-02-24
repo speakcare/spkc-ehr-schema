@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import get_input_audio_devices
-from speakcare import speakcare_record_and_process_audio, speakcare_process_audio
+from speakcare_process import speakcare_record_and_process_audio, speakcare_process_audio
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 

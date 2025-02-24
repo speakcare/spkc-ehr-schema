@@ -214,6 +214,7 @@ class SpeakcareEnrollPerson():
             transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.PATIENT, speaker_name=patient_name)
         else:
             self.logger.error("Patient name not found in transcription. Cannot create EMR record.")
+        return patient_name
 
 
     def __add_nurse(self, nurse_fields:dict, audio_local_file:str):
@@ -228,6 +229,7 @@ class SpeakcareEnrollPerson():
             transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.NURSE, speaker_name=nurse_name)
         else:
             self.logger.error("Nurse name not found in transcription. Cannot create EMR record.")
+        return nurse_name
 
 
 
@@ -285,7 +287,7 @@ class SpeakcareEnrollPerson():
         self.logger.info(f"Enrolling person of type {table_name}")
         if not table_name:
             self.logger.error("Table name not found in transcription. Cannot create EMR record.")
-            return
+            return None
         
         if table_name == "Patients":
             role = SpeakerType.PATIENT
@@ -293,20 +295,21 @@ class SpeakcareEnrollPerson():
             role = SpeakerType.NURSE
         else:
             self.logger.error("Inavalid table name {table_name}. Cannot create EMR record.")
-            return
+            return None
         
         # store person data in s3
         self.__upload_person_record_to_s3(SpeakerType.NURSE, person_data, output_file_prefix)
-        
+        person_name = None
+        person_role = role.value.lower()
         if not dryrun:
             if role == SpeakerType.PATIENT:
                 self.logger.info("enroll_person: Adding patient")
                 patient_fields = person_data.get('fields', {}).get('patients_fields', {})
-                self.__add_patient(patient_fields, audio_local_file)
+                person_name = self.__add_patient(patient_fields, audio_local_file)
             else:
                 self.logger.info("enroll_person: Adding nurse")
                 nurse_fields = person_data.get('fields', {}).get('nurses_fields', {})
-                self.__add_nurse(nurse_fields, audio_local_file)
+                person_name = self.__add_nurse(nurse_fields, audio_local_file)
         
         else:
             self.logger.info("Dryrun mode. EMR record will not be created.")
@@ -314,6 +317,8 @@ class SpeakcareEnrollPerson():
         if is_s3_file:
             # remove the local audio file
             os.remove(audio_local_file)
+
+        return {"person": person_name, "role": person_role}
 
 
 

@@ -192,6 +192,32 @@ class Boto3Session:
             self.__logger.error(f"Error reading content from object s3://{self.__s3_bucket_name}/{key}: {e}")
             raise
 
+    def s3_get_object_last_modified(self, key: str):
+        try:
+            response = self.__s3_client.head_object(Bucket=self.__s3_bucket_name, Key=key)
+            return response['LastModified']
+        except ClientError as e:
+            self.__logger.error(f"Error getting object last modified time: {e}")
+            raise
+
+    def s3_list_folder(self, folder_prefix: str):
+        """List all objects in a specific folder in the S3 bucket."""
+        try:
+            response = self.__s3_client.list_objects_v2(Bucket=self.__s3_bucket_name, Prefix=folder_prefix)
+            if 'Contents' in response:
+                objects = [obj['Key'] for obj in response['Contents']]
+                self.__logger.info(f"Listed {len(objects)} objects in folder s3://{self.__s3_bucket_name}/{folder_prefix}")
+                return objects
+            else:
+                self.__logger.info(f"No objects found in folder s3://{self.__s3_bucket_name}/{folder_prefix}")
+                return []
+        except ClientError as e:
+            self.__logger.error(f"Error listing objects in folder s3://{self.__s3_bucket_name}/{folder_prefix}: {e}")
+            raise
+
+    def s3_get_file_path(self, key: str):
+        return f"s3://{self.__s3_bucket_name}/{key}"
+
     @staticmethod
     def s3_extract_key(s3_url):
         """Extract the path from an S3 URL."""
@@ -204,6 +230,7 @@ class Boto3Session:
                 # Extract the path
                 return s3_url[key_start + 1:]
         return None
+
 
     @staticmethod
     def __dynamodb_init_tables():

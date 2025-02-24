@@ -28,3 +28,6 @@ test_db/
 
 # Ignore output dirs
 out/
+
+# Google auth token
+token.pickle

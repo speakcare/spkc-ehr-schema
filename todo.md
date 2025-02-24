@@ -13,6 +13,8 @@
 - [x] work on utils to finish the create record and update record
 - [x] Add support for records with sections in utils and in create records
 - [x] Add utils for transciprt handling
+- [ ] Support record with all captured nurses (discuss with Gil)
+- [ ] Auto register of EMR tables instead of hard coded
 
 ### Text processing
 - [x] Add the converter process from transcript to SpeakCareEmrApi
@@ -31,9 +33,10 @@
 - [x] Update the transcription db and connect it to the medical reocords
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
 - [x] Change GPT API to use the new structured output using JSON schema
-- [ ] Voice calibration
-- [ ] Support record with all captured nurses (discuss with Gil)
+- [x] Voice calibration
 - [ ] Allow running on transcription output files instead audio
+- [ ] Remove redundant download and upload in transcription
+- [ ] Enable re-run on already uploaded files in s3
 
 ### General
 - [x] README file

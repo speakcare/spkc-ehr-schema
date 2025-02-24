@@ -36,9 +36,7 @@ class SpeakCareEmr:
     RESPIRATION_TABLE = 'Respiration'
     EPISODES_TABLE = 'Episodes'
     PROGRESS_NOTES_TABLE = 'Progress Notes'
-    HARMONY_VITALS = 'Harmony Vitals'
-
-
+    
     ### Assessments ###
     # Admission
     ADMISSION_TABLE = 'Admission'
@@ -55,6 +53,12 @@ class SpeakCareEmr:
     FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
     FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
 
+
+    # Harmony (Holy Name) tables
+    HARMONY_VITALS_TABLE = 'Harmony Vitals'
+    HARMONY_MED_SURG_TABLE = 'Harmony Med/Surg Nursing Assessment'
+    HARMONY_CRITICAL_CARE_TABLE = 'Harmony Critical Care Nursing Assessment'
+
     # TODO: Table and sections names need to be loaded dyanically from the API
     EMR_TABLES = [
         EPISODES_TABLE, 
@@ -62,7 +66,9 @@ class SpeakCareEmr:
         ADMISSION_TABLE,
         FALL_RISK_SCREEN_TABLE,
         VITALS_TABLE,
-        HARMONY_VITALS,
+        HARMONY_VITALS_TABLE,
+        HARMONY_MED_SURG_TABLE,
+        HARMONY_CRITICAL_CARE_TABLE,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 

@@ -44,6 +44,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
 
     try:
         record_ids = []    
+        logger.info(f"Processing audio files: {audio_files}")
         for num, audio_filename in enumerate(audio_files):
             # Step 1: Verify the audio file exists
             file_exist = False
@@ -57,7 +58,6 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
                 file_exist = os.path.isfile(audio_filename)
                 is_s3_file = False
 
-            # if not os.path.isfile(audio_filename):
             if not file_exist:
                 err = f"Audio file not found or not file type: {audio_filename}"
                 logger.error(err)
@@ -101,7 +101,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
             record_ids.append(record_id)
             logger.info(f"Speakcare converted transctiption to table {table_name}. EMR record created: {record_id}")
         
-        return record_ids, ""
+        return record_ids, {"message": "Success"}
 
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
@@ -176,8 +176,6 @@ def main():
     unsupported_tables = [table for table in table_names if table not in supported_tables]
     if unsupported_tables:
         parser.error(f"Invalid table names: {unsupported_tables}. Supported tables: {supported_tables}")
-    # if table_name not in supported_tables:
-    #     parser.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
 
 
     output_file_prefix = "output"
