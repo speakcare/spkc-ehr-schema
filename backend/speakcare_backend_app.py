@@ -9,7 +9,7 @@ import logging
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
 from speakcare_emr_utils import EmrUtils
-from speakcare_audio import get_input_audio_devices
+from speakcare_audio import audio_get_input_devices
 from speakcare_process import speakcare_record_and_process_audio, speakcare_process_audio
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
@@ -331,7 +331,7 @@ class AudioDeviceResource(Resource):
     def get(self):
         
         """Get auido device information"""
-        device_info = get_input_audio_devices()
+        device_info = audio_get_input_devices()
         return device_info, 200  # Response will be formatted according to audio_devices_model
 
 

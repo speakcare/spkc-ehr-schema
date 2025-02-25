@@ -7,16 +7,12 @@ from speakcare_diarize import SpeakerType, TranscribeAndDiarize
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
-from speakcare_audio import convert_mp4_to_wav
+from speakcare_audio import audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
-from os_utils import ensure_file_directory_exists
+from os_utils import ensure_file_directory_exists, get_file_extension
 from speakcare_stt import transcribe_audio_whisper
 from speakcare_llm import openai_complete_schema_from_transcription
 
-def get_file_extension(filename):
-    """Get the file extension from a given filename or path."""
-    _, ext = os.path.splitext(filename)
-    return ext
 
 class SpeakcareEnrollPerson():
     def __init__(self):
@@ -71,14 +67,13 @@ class SpeakcareEnrollPerson():
         return transciption_output_file, is_s3_file, audio_local_file
 
     def __do_transcription(self, audio_filename:str, transcribe_ouptut_file:str):
-        # if audio file is mp4, convert to wav
-        is_mp4 = False
+        # if audio file is not wav, convert to wav
         wav_filename=""
-        if audio_filename.endswith(".mp4"):
-            is_mp4 = True
-            wav_filename = audio_filename.replace(".mp4", ".wav")
-            self.logger.info(f"Converting mp4 to wav: {audio_filename} -> {wav_filename}")
-            convert_mp4_to_wav(audio_filename, wav_filename)
+        if not audio_filename.endswith(".wav"):
+            file_ext = get_file_extension(audio_filename)
+            wav_filename = audio_filename.replace(file_ext, ".wav")
+            self.logger.info(f"Converting {file_ext} to .wav: {audio_filename} -> {wav_filename}")
+            audio_convert_to_wav(audio_filename, wav_filename)
             audio_filename = wav_filename
         
         len = transcribe_audio_whisper(audio_filename, transcribe_ouptut_file)

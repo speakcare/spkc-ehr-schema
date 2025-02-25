@@ -16,7 +16,7 @@ import ffmpeg
 logger= SpeakcareLogger(__name__)
 
 # List all available audio devices
-def get_audio_devices_string():
+def audio_get_devices_string():
     p = pyaudio.PyAudio()
     intput_device_string = ""
     for i in range(p.get_device_count()):
@@ -31,10 +31,10 @@ def get_audio_devices_string():
     return intput_device_string
 
 
-def print_audio_devices():
-    print(get_audio_devices_string())
+def audio_print_devices():
+    print(audio_get_devices_string())
 
-def get_input_audio_devices():
+def audio_get_input_devices():
     p = pyaudio.PyAudio()
     input_devices = []
     for i in range(p.get_device_count()):
@@ -45,15 +45,15 @@ def get_input_audio_devices():
     p.terminate()
     return input_devices
 
-def print_input_devices():
-    input_devices = get_input_audio_devices()
+def audio_print_input_devices():
+    input_devices = audio_get_input_devices()
     logger.debug(f"Input devices:{input_devices}")
     for device in input_devices:
         name = device['name']
         index = device['index']
         print(f"Device {index}: '{name}'")
 
-def check_input_device(device_index: int):
+def audio_check_input_device(device_index: int):
     p = pyaudio.PyAudio()
     try:
         info = p.get_device_info_by_index(device_index)
@@ -170,8 +170,8 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
     return recording_length
 
 
-def convert_mp4_to_wav(input_file, output_file):
-    ffmpeg.input(input_file).output(output_file, acodec="pcm_s16le", ar=44100).run()
+def audio_convert_to_wav(input_file, output_file):
+    ffmpeg.input(input_file).output(output_file, acodec="pcm_s16le", ar=44100).run(quiet=True, overwrite_output=True)
 
 
 
@@ -185,7 +185,7 @@ def main():
     args, remaining_args = list_parser.parse_known_args()
 
     if args.list_devices:
-        print_input_devices()
+        audio_print_input_devices()
         exit(0)
 
     full_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', parents=[list_parser])
@@ -196,8 +196,8 @@ def main():
     args = full_parser.parse_args()
     
     audio_device = args.audio_device
-    if not check_input_device(audio_device):
-        full_parser.error(f"Invalid audio device index: {audio_device} \n{get_audio_devices_string()}")
+    if not audio_check_input_device(audio_device):
+        full_parser.error(f"Invalid audio device index: {audio_device} \n{audio_get_devices_string()}")
     
     # Get the current UTC time
     utc_now = datetime.now(timezone.utc)

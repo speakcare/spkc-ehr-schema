@@ -33,6 +33,11 @@ def ensure_file_directory_exists(filename):
     dir_name = os.path.dirname(filename)
     return ensure_directory_exists(dir_name)
 
+def get_file_extension(filename):
+    """Get the file extension from a given filename or path."""
+    _, ext = os.path.splitext(filename)
+    return ext
+
 class Timer:
     def __init__(self):
         self.start_time = None

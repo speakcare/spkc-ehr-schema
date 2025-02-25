@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from typing import List
 import os
-from speakcare_audio import record_audio, check_input_device, print_input_devices, get_audio_devices_string
+from speakcare_audio import record_audio, audio_check_input_device, audio_print_input_devices, audio_get_devices_string
 from speakcare_logging import SpeakcareLogger
 from speakcare_stt import transcribe_audio_whisper, transcribe_and_diarize_audio
 from speakcare_charting import create_chart
@@ -14,8 +14,8 @@ from speakcare_emr import SpeakCareEmr
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
-from speakcare_audio import convert_mp4_to_wav
-from os_utils import ensure_file_directory_exists
+from speakcare_audio import audio_convert_to_wav
+from os_utils import ensure_file_directory_exists, get_file_extension
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -72,11 +72,12 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
             else:
                 audio_local_file = audio_filename
 
-            # if audio file is mp4, convert to wav
-            if audio_local_file.endswith(".mp4"):
-                wav_filename = audio_local_file.replace(".mp4", ".wav")
-                logger.info(f"Converting mp4 to wav: {audio_local_file} -> {wav_filename}")
-                convert_mp4_to_wav(audio_local_file, wav_filename)
+            # if audio file is not wav, convert to wav
+            if not audio_local_file.endswith(".wav"):
+                file_ext = get_file_extension(audio_local_file)
+                wav_filename = audio_local_file.replace(file_ext, ".wav")
+                logger.info(f"Converting {file_ext} to .wav: {audio_local_file} -> {wav_filename}")
+                audio_convert_to_wav(audio_local_file, wav_filename)
                 audio_local_file = wav_filename
             
             # Step 2: Transcribe Audio (speech to text)
@@ -165,7 +166,7 @@ def main():
 
 
     if args.list_devices:
-        print_input_devices()
+        audio_print_input_devices()
         exit(0)
 
     # Ensure --table is always provided if --list-devices is not used
@@ -203,8 +204,8 @@ def main():
         parser.error("--audio-device is required when recording audio")
     
     audio_device = args.audio_device
-    if not check_input_device(audio_device):
-        parser.error(f"Invalid audio device index: {audio_device}. Please provide a valid device index: \n{get_audio_devices_string()}")
+    if not audio_check_input_device(audio_device):
+        parser.error(f"Invalid audio device index: {audio_device}. Please provide a valid device index: \n{audio_get_devices_string()}")
  
     recording_duration = 30
     if args.seconds:
