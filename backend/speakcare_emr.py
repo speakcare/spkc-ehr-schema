@@ -58,7 +58,11 @@ class SpeakCareEmr:
     HARMONY_VITALS_TABLE = 'Harmony Vitals'
     HARMONY_MED_SURG_TABLE = 'Harmony Med/Surg Nursing Assessment'
     HARMONY_CRITICAL_CARE_TABLE = 'Harmony Critical Care Nursing Assessment'
-    LABOR_ADMISSION_TABLE='Labor Admission'
+    LABOR_ADMISSION_SECTION_1_TABLE='Labor Admission Section 1'
+    LABOR_ADMISSION_SECTION_2_TABLE='Labor Admission Section 2'
+    LABOR_ADMISSION_SECTION_3_TABLE='Labor Admission Section 3'
+    LABOR_ADMISSION_SECTION_4_TABLE='Labor Admission Section 4'
+    LABOR_ADMISSION_SECTION_5_TABLE='Labor Admission Section 5'
 
     # TODO: Table and sections names need to be loaded dyanically from the API
     EMR_TABLES = [
@@ -70,7 +74,11 @@ class SpeakCareEmr:
         HARMONY_VITALS_TABLE,
         HARMONY_MED_SURG_TABLE,
         HARMONY_CRITICAL_CARE_TABLE,
-        LABOR_ADMISSION_TABLE,
+        LABOR_ADMISSION_SECTION_1_TABLE,
+        LABOR_ADMISSION_SECTION_2_TABLE,
+        LABOR_ADMISSION_SECTION_3_TABLE,
+        LABOR_ADMISSION_SECTION_4_TABLE,
+        LABOR_ADMISSION_SECTION_5_TABLE,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 

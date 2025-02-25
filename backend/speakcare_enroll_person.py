@@ -60,6 +60,10 @@ class SpeakcareEnrollPerson():
         # Step 2: Transcribe Audio (speech to text)
         transciption_output_file = f'{SpeakcareEnv.get_persons_local_dir()}/{output_file_prefix}-transcribe.txt'
         ensure_file_directory_exists(transciption_output_file)
+        
+        if os.path.isfile(transciption_output_file):
+            os.remove(transciption_output_file) #TODO: temp solution for left over files.
+
         self.__do_transcription(audio_local_file, transciption_output_file)
         # uploade the trascript file to s3
         dest_s3_transcription_location = f'{SpeakcareEnv.get_persons_dir()}/{os.path.basename(transciption_output_file)}'

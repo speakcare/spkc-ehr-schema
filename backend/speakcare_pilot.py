@@ -118,7 +118,13 @@ class SpeakcarePilot:
         self.logger.info(f"Processing care sessions: {care_session_files}")
         try:
             for care_session in care_session_files:
-                record_ids, response = speakcare_process_audio([care_session], [SpeakCareEmr.HARMONY_VITALS_TABLE, SpeakCareEmr.LABOR_ADMISSION_TABLE])
+                record_ids, response = speakcare_process_audio([care_session], 
+                                                                    [ SpeakCareEmr.LABOR_ADMISSION_SECTION_1_TABLE,
+                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_2_TABLE,
+                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_3_TABLE,
+                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_4_TABLE,
+                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_5_TABLE
+                                                                    ])
                 if record_ids:
                     self.logger.info(f"Processed care session {care_session} resulting record_ids: {record_ids}. response: {response}")
                 else:
