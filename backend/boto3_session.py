@@ -80,9 +80,10 @@ class Boto3Session:
                 bucket_exists = True
                 break
         if not bucket_exists:
+            Boto3Session.__logger.info(f"Creating S3 bucket: {Boto3Session.__s3_bucket_name}")
             Boto3Session.__s3_client.create_bucket(Bucket=Boto3Session.__s3_bucket_name)
             # creat directories
-            Boto3Session.__logger.debug(f"Created S3 bucket: {Boto3Session.__s3_bucket_name}")
+            Boto3Session.__logger.info(f"Created S3 bucket: {Boto3Session.__s3_bucket_name}")
 
         for dir in dirs:
         # Check if the directory already exists

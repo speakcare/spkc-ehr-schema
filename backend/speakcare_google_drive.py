@@ -1,4 +1,5 @@
 import os
+import json
 import pickle
 import io
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -6,21 +7,33 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from os_utils import ensure_directory_exists
+from speakcare_logging import SpeakcareLogger
+from dotenv import load_dotenv
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 FOLDER_ID = "1-BBK1nZDtV_zr0VeqYRnka62x86_oy_I"
-CREDS_FILE = "~/.google/auth/credentials.json"
+CREDS_FILE = "/Users/orifinkelman/.google/auth/credentials.json"
 LOCAL_DIR = "/tmp/speakcare/temp"
 
 
+load_dotenv()
+#SCOPES = os.getenv("GDRIVE_SCOPES", "[]")
+GOOGLE_OAUTH_CREDS_FILE = os.getenv("GOOGLE_OAUTH_CREDS_FILE", "none") 
+
+scopes_str = os.getenv("GDRIVE_SCOPES", "[]")
+SCOPES = json.loads(scopes_str)
+
 class GoogleDriveAPI:
 
-    def __init__(self, scopes):
+    def __init__(self, scopes: list):
         self.scopes = scopes
         self.service = None
+        self.logger = SpeakcareLogger(GoogleDriveAPI.__name__)
+        self.logger.info(f"Google Drive API initialized with scopes: {scopes}")
 
     def authenticate(self, creds_file):
+        self.logger.info(f"Authenticating with Google Drive API using credentials file: {creds_file}")
         creds = None
         # The file token.pickle stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first time.
@@ -51,7 +64,7 @@ class GoogleDriveAPI:
             includeItemsFromAllDrives=True,
             supportsAllDrives=True
         ).execute()
-        print("Raw API response:", results)
+        self.logger.info(f"Raw API response: {results}")
         items = results.get('files', [])
         return items
 
@@ -74,11 +87,11 @@ class GoogleDriveAPI:
                 # For other Google native types, default to PDF.
                 export_mime_type = "application/pdf"
                 extension = ".pdf"
-            print(f"File '{file_name}' is a native Google file ({mime_type}). Exporting as {export_mime_type}...")
+            self.logger.info(f"File '{file_name}' is a native Google file ({mime_type}). Exporting as {export_mime_type}...")
             request = self.service.files().export_media(fileId=file_id, mimeType=export_mime_type)
             file_name += extension
         else:
-            print(f"File '{file_name}' is a binary file. Downloading directly...")
+            self.logger.info(f"File '{file_name}' is a binary file. Downloading directly...")
             request = self.service.files().get_media(fileId=file_id)
         
         fh = io.FileIO(file_name, 'wb')
@@ -87,8 +100,8 @@ class GoogleDriveAPI:
         while not done:
             status, done = downloader.next_chunk()
             if status:
-                print(f"Downloading {file_name}: {int(status.progress() * 100)}%")
-        print(f"Downloaded file: {file_name}")
+                self.logger.info(f"Downloading {file_name}: {int(status.progress() * 100)}%")
+        self.logger.info(f"Downloaded file: {file_name}")
 
 def main():
     gDriveApi = GoogleDriveAPI(SCOPES)

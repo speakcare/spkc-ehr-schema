@@ -8,11 +8,16 @@ from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from dotenv import load_dotenv
 import os
+import json
+import argparse
 
 load_dotenv()
 SpeakcareEnv.prepare_env()
 
-GDRIVE_SCOPES = os.getenv("GDRIVE_SCOPES", "none")
+# scopes is read as a string from .env and needs to be converted to a list
+GDRIVE_SCOPES_STR = os.getenv("GDRIVE_SCOPES", "[]")
+GDRIVE_SCOPES = json.loads(GDRIVE_SCOPES_STR)
+
 GDRIVE_VOICE_SAMPLES_FOLDER_ID = os.getenv("GDRIVE_VOICE_SAMPLES_FOLDER_ID", "none")
 GDRIVE_CARE_SESSIONS_FOLDER_ID = os.getenv("GDRIVE_CARE_SESSIONS_FOLDER_ID", "none")
 GOOGLE_OAUTH_CREDS_FILE = os.getenv("GOOGLE_OAUTH_CREDS_FILE", "none") 
@@ -22,10 +27,11 @@ SPEAKCARE_DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 class SpeakcarePilot:
 
     def __init__(self):
-        self.gDriveApi = GoogleDriveAPI(GDRIVE_SCOPES)
-        self.boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
-        self.gDriveApi.authenticate(GOOGLE_OAUTH_CREDS_FILE)
         self.logger = SpeakcareLogger(SpeakcarePilot.__name__)
+        self.gDriveApi = GoogleDriveAPI(GDRIVE_SCOPES)
+        self.gDriveApi.authenticate(GOOGLE_OAUTH_CREDS_FILE)
+        self.boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
+        
 
     def sync_from_gdrive_to_s3(self, gdrive_folder_id, s3_folder_key): 
         self.logger.info(f"Syncing S3 folder {s3_folder_key} with Google Drive folder {gdrive_folder_id}")
@@ -112,7 +118,7 @@ class SpeakcarePilot:
         self.logger.info(f"Processing care sessions: {care_session_files}")
         try:
             for care_session in care_session_files:
-                record_ids, response = speakcare_process_audio([care_session], [SpeakCareEmr.HARMONY_VITALS_TABLE])
+                record_ids, response = speakcare_process_audio([care_session], [SpeakCareEmr.HARMONY_VITALS_TABLE, SpeakCareEmr.LABOR_ADMISSION_TABLE])
                 if record_ids:
                     self.logger.info(f"Processed care session {care_session} resulting record_ids: {record_ids}. response: {response}")
                 else:
@@ -126,13 +132,24 @@ class SpeakcarePilot:
 TEST_FOLDER_ID = "1Gh1rI3E7O_XqBqP-VKmi2hrbkRqGC4_O"
 def main():
 
+    parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
+    # Add arguments
+    parser.add_argument('-e', '--enroll', action='store_true',
+                        help='Enroll new persons from voice samples')
+    parser.add_argument('-p', '--process', action='store_true',
+                        help='Process new care sessions')
+
     EmrUtils.init_db(db_directory=SPEAKCARE_DB_DIRECTORY, create_db=True)
     pilot = SpeakcarePilot()
-    enrolled = pilot.enroll_new_persons()
-    print(f"Enrolled {enrolled}")
 
-    pilot.process_new_care_sessions()
-
+    args = parser.parse_args()
+    if args.enroll:
+        enrolled = pilot.enroll_new_persons()
+        print(f"Enrolled {enrolled}")
+    
+    if args.process:
+        pilot.process_new_care_sessions()
+    
 if __name__ == '__main__':
     main()
         

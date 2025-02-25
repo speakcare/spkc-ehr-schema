@@ -58,6 +58,7 @@ class SpeakCareEmr:
     HARMONY_VITALS_TABLE = 'Harmony Vitals'
     HARMONY_MED_SURG_TABLE = 'Harmony Med/Surg Nursing Assessment'
     HARMONY_CRITICAL_CARE_TABLE = 'Harmony Critical Care Nursing Assessment'
+    LABOR_ADMISSION_TABLE='Labor Admission'
 
     # TODO: Table and sections names need to be loaded dyanically from the API
     EMR_TABLES = [
@@ -69,6 +70,7 @@ class SpeakCareEmr:
         HARMONY_VITALS_TABLE,
         HARMONY_MED_SURG_TABLE,
         HARMONY_CRITICAL_CARE_TABLE,
+        LABOR_ADMISSION_TABLE,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 
