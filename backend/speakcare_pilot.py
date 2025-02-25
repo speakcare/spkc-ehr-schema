@@ -113,18 +113,13 @@ class SpeakcarePilot:
             self.logger.info(f"Enrolled {len(enrolled_persons)} persons from voice samples: {persons_voice_samples}")
             return enrolled_persons
 
-    def process_new_care_sessions(self):
+    def process_new_care_sessions(self, tables: list):
         care_session_files = self.sync_care_session_files()
-        self.logger.info(f"Processing care sessions: {care_session_files}")
+        self.logger.info(f"Processing care sessions: {care_session_files} for {len(tables)} tables {tables} ")
         try:
             for care_session in care_session_files:
-                record_ids, response = speakcare_process_audio([care_session], 
-                                                                    [ SpeakCareEmr.LABOR_ADMISSION_SECTION_1_TABLE,
-                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_2_TABLE,
-                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_3_TABLE,
-                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_4_TABLE,
-                                                                    #   SpeakCareEmr.LABOR_ADMISSION_SECTION_5_TABLE
-                                                                    ])
+                record_ids, response = speakcare_process_audio([care_session], tables)
+                                                                   
                 if record_ids:
                     self.logger.info(f"Processed care session {care_session} resulting record_ids: {record_ids}. response: {response}")
                 else:
@@ -138,14 +133,19 @@ class SpeakcarePilot:
 TEST_FOLDER_ID = "1Gh1rI3E7O_XqBqP-VKmi2hrbkRqGC4_O"
 def main():
 
+    EmrUtils.init_db(db_directory=SPEAKCARE_DB_DIRECTORY, create_db=True)
+    supported_tables = EmrUtils.get_table_names()
+
     parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
     # Add arguments
     parser.add_argument('-e', '--enroll', action='store_true',
                         help='Enroll new persons from voice samples')
     parser.add_argument('-p', '--process', action='store_true',
                         help='Process new care sessions')
+    parser.add_argument('-t', '--table', type=str, nargs='+',
+                        help=f'Table names (supported tables: {supported_tables})')
 
-    EmrUtils.init_db(db_directory=SPEAKCARE_DB_DIRECTORY, create_db=True)
+    
     pilot = SpeakcarePilot()
 
     args = parser.parse_args()
@@ -154,7 +154,15 @@ def main():
         print(f"Enrolled {enrolled}")
     
     if args.process:
-        pilot.process_new_care_sessions()
+        # Ensure --table is always provided if --list-devices is not used
+        if not args.table:
+            parser.error("--table is required.")
+    
+        table_names = args.table
+        unsupported_tables = [table for table in table_names if table not in supported_tables]
+        if unsupported_tables:
+            parser.error(f"Invalid table names: {unsupported_tables}. Supported tables: {supported_tables}")
+        pilot.process_new_care_sessions(tables=table_names)
     
 if __name__ == '__main__':
     main()
