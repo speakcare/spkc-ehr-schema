@@ -86,7 +86,7 @@ class TranscribeAndDiarize:
             elif status == 'FAILED':
                 raise RuntimeError(f"Transcription job failed: {response}")
             waiting +=1
-            self.logger.info(f"Waiting for transcription job to complete ({waiting})...")
+            self.logger.debug(f"Waiting for transcription job to complete ({waiting})...")
             time.sleep(10)
 
     def get_transcription_output(self, key):
@@ -189,7 +189,7 @@ class TranscribeAndDiarize:
                         highest_similarity = similarity
 
         if best_match:
-            self.logger.info(f"Match found: {best_match['Name']} with similarity {highest_similarity}")
+            self.logger.debug(f"Match found: {best_match['Name']} with similarity {highest_similarity}")
             return best_match, "matched"
         else:
             self.logger.info(f"No match found. Creating new Unknown speaker")
