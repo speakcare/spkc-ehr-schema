@@ -40,7 +40,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -65,7 +65,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_with_extra_field(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -93,7 +93,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_update(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -133,7 +133,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_update_with_errors(self):
         # Create a record with 3 errors
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "Bruce Willis", # wrong patient name
             "nurse_name": "Sara Parker", # wrong nurse name
@@ -241,7 +241,7 @@ class TestRecords(unittest.TestCase):
     def test_record_non_existent_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -297,7 +297,7 @@ class TestRecords(unittest.TestCase):
     def test_record_wrong_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -337,7 +337,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_record(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -376,7 +376,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_blood_pressure(self):
                     # Create a record example
             record_data = {
-                "type": RecordType.MEDICAL_RECORD,
+                "type": RecordType.SIMPLE,
                 "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
                 "patient_name": "James Brown",
                 "nurse_name": "Sara Foster",
@@ -412,7 +412,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_and_fail_on_second_commit(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -449,7 +449,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_and_fail_on_update(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -485,7 +485,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_and_fail_on_discard(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -533,7 +533,7 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
         # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -583,7 +583,7 @@ class TestRecordWithSections(unittest.TestCase):
         pass
     def test_record_create_fallrisk(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -627,7 +627,7 @@ class TestRecordWithSections(unittest.TestCase):
   
     def test_record_create_fallrisk_with_wrong_section_name(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -671,7 +671,7 @@ class TestRecordWithSections(unittest.TestCase):
     def test_record_create_with_wrong_sections(self):
 
         record_data = { # this is a medical record should not have sections
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -716,7 +716,7 @@ class TestRecordWithSections(unittest.TestCase):
 
     def test_record_create_assessment_with_wrong_section_field(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -763,7 +763,7 @@ class TestRecordWithSections(unittest.TestCase):
     
     def test_record_create_assessment_commit_and_sign(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
@@ -833,7 +833,7 @@ class TestRecordWithSections(unittest.TestCase):
   
     def test_record_create_vitals_commit_and_sign(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.VITALS_TABLE,
             "patient_name": "Bob Williams",
             "nurse_name": "Sara Foster",
@@ -1034,6 +1034,27 @@ class TestSchema(unittest.TestCase):
             record_schema = EmrUtils.get_table_json_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
+
+    def test_get_sports_3_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_3_TEST
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
+
+    def test_get_sports_2_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_PERFORMANCE_ASSESSMENT_2
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
+
+    def test_get_sports_4_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_PERFORMANCE_ASSESSMENT_4
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
     
 
 class TestPersons(unittest.TestCase):

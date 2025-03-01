@@ -41,7 +41,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
 
     transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{output_file_prefix}_{rnd}.txt'
     chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{output_file_prefix}_{rnd}.json'
-
+    audio_local_file = None
+    is_s3_file = False
     try:
         record_ids = []    
         logger.info(f"Processing audio files: {audio_files}")
@@ -109,7 +110,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
         return None, {"error": str(e)}
     
     finally:
-        if is_s3_file:
+        if is_s3_file and audio_local_file:
             # delete the local audio file
             os.remove(audio_local_file)
             logger.info(f"Deleted local audio file {audio_local_file}")

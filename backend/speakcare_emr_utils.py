@@ -72,6 +72,10 @@ class EmrUtils:
     def get_table_id(tableName):
         table_id = emr_api.get_table_id(tableName)
         return table_id
+
+    @staticmethod
+    def is_table_multi_section(tableName):
+        return emr_api.is_table_multi_section(tableName)
     
     @staticmethod
     def get_record_section_names(tableName):
@@ -418,8 +422,13 @@ class EmrUtils:
         try:
             # first check for unrecoverable errors
             
-            required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'fields']
+            required_fields = ['type', 'table_name', 'patient_name', 'nurse_name']
             missing_fields = [field for field in required_fields if field not in data]
+            
+            # Check if either 'fields' or 'sections' is present
+            if 'fields' not in data and 'sections' not in data:
+                missing_fields.append('fields or sections')
+
             if missing_fields:
                 raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
@@ -658,7 +667,8 @@ class EmrUtils:
             errors = record.errors
             any_section_errors = False
 
-            if (record_type == RecordType.MEDICAL_RECORD):
+            if (record_type == RecordType.SIMPLE):
+                logger.info(f"Commiting simple record {record.id} to table '{record.table_name}'")
                 emr_record, url, err = emr_api.create_simple_record(tableName=record.table_name, record=record_fields, 
                                                                      patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                      errors=errors)
@@ -668,8 +678,9 @@ class EmrUtils:
                     # update the record with the EMR record ID and URL
                     record.emr_record_id = emr_record['id']
                     record.emr_url = url                
-            elif record_type == RecordType.ASSESSMENT:
-                emr_record, url, err = emr_api.create_complex_record(tableName=record.table_name, record=record_fields, 
+            elif record_type == RecordType.MULTI_SECTION:
+                logger.info(f"Commiting multi sections record {record.id} to table '{record.table_name}'")
+                emr_record, url, err = emr_api.create_multi_section_record(tableName=record.table_name, record=record_fields, 
                                                                  patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                  errors=errors)
                 if not emr_record:
@@ -740,7 +751,7 @@ class EmrUtils:
                 raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state in [RecordState.ERRORS, RecordState.DISCARDED]:  # Example check to ensure the record is in a valid state to be committed
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
-            elif record.type != RecordType.ASSESSMENT:
+            elif record.type != RecordType.MULTI_SECTION:
                 raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
             
             foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)

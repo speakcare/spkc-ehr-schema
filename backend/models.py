@@ -29,8 +29,8 @@ class TranscriptState(PyEnum):
     ERRORS    = 'ERRORS'         # processed transcript with errors
 
 class RecordType(PyEnum):
-    MEDICAL_RECORD = 'MEDICAL_RECORD'
-    ASSESSMENT = 'ASSESSMENT'
+    SIMPLE = 'SIMPLE'
+    MULTI_SECTION = 'MULTI_SECTION'
 
 # Define the RawTextSession model
 class Transcripts(Base):
@@ -52,7 +52,7 @@ class MedicalRecords(Base):
     id = Column(Integer, primary_key=True)
     emr_record_id = Column(String)  # Internal unique EMR record ID
     emr_url = Column(String)  # URL to the EMR record
-    type = Column(Enum(RecordType), default=RecordType.MEDICAL_RECORD)  # Use Enum type for record type
+    type = Column(Enum(RecordType), default=RecordType.SIMPLE)  # Use Enum type for record type
     table_name = Column(String)  # Table name in the external EMR system
     patient_name = Column(String)
     patient_id = Column(Integer)  # External EMR application patient ID

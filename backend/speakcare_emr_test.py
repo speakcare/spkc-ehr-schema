@@ -98,13 +98,13 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "Status": "Old"
     }
     # This should fail
-    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Correctly failed to create fall risk assessment {fallRiskRecord} error: {err}')
 
     # now set correct status name
     fallRiskRecord["Status"] = "New"
-    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Wrongly failed to create fall risk assessment {fallRiskRecord} error: {err}')
         return None

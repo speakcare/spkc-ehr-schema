@@ -18,6 +18,7 @@ import argparse
 import logging
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
+from models import RecordState, RecordType
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -338,12 +339,12 @@ def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=Fals
     # user nurse Rebecca jones as default nurse
     record['nurse_name'] = "Rebecca Jones"
     
-    # if it is a multi secrtion assessment record
-    if table_name in [SpeakCareEmr.ADMISSION_TABLE, SpeakCareEmr.FALL_RISK_SCREEN_TABLE, SpeakCareEmr.VITALS_TABLE]:
-        record['type'] = 'ASSESSMENT'
+    # if it is a multi section assessment record
+    if EmrUtils.is_table_multi_section(table_name):
+        record['type'] = RecordType.MULTI_SECTION.value
     else:
         # simple medical record
-        record['type'] = 'MEDICAL_RECORD'
+        record['type'] = RecordType.SIMPLE.value # 'MEDICAL_RECORD'
    
     logger.debug(f"Record: {json.dumps(record, indent = 4)}")
 
@@ -352,7 +353,7 @@ def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=Fals
         logger.error(f"Failed to create record {record} in EMR. Error: {json.dumps(error, indent=4)}")
         return None, record_state
     elif record_state is RecordState.ERRORS:
-        logger.warning(f"Record {record_id} created with errors: {json.dumps(error, indent=4)}.")
+        logger.error(f"Record {record_id} created with errors: {json.dumps(error, indent=4)}.")
         return record_id,record_state
 
     elif dryrun:

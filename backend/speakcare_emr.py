@@ -9,119 +9,20 @@ from dotenv import load_dotenv
 from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
+from speakcare_emr_tables import SpeakCareEmrTables
 
 # Load the .env file
 load_dotenv()
 AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
 AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 
-class SpeakCareEmr:
+class SpeakCareEmr(SpeakCareEmrTables):
 
-    # Table names
-    #TODO: load tables dynamically from the API
-    ### People ###
-    PATIENTS_TABLE = 'Patients'
-    NURSES_TABLE = 'Nurses'
-    DOCTORS_TABLE = 'Doctors'
-    
-    ### Medical Records ###
-    VITALS_TABLE = 'Vitals'
-    WEIGHTS_TABLE = 'Weights'
-    BLOOD_PRESSURES_TABLE = 'Blood Pressures'
-    BLOOD_SUGARS_TABLE = 'Blood Sugars'
-    HEIGHTS_TABLE = 'Heights'
-    TEMPERATURES_TABLE = 'Temperatures'
-    O2_SATURATIONS_TABLE = 'O2 Saturations'
-    PULSES_TABLE = 'Pulses'
-    RESPIRATION_TABLE = 'Respiration'
-    EPISODES_TABLE = 'Episodes'
-    PROGRESS_NOTES_TABLE = 'Progress Notes'
-    
-    ### Assessments ###
-    # Admission
-    ADMISSION_TABLE = 'Admission'
-    ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE   = 'Admission: SECTION 1. DEMOGRAPHICS'
-    ADMISSION_SECTION_2_VITALS_TABLE        = 'Admission: SECTION 2. VITALS-ALLERGIES'
-    ADMISSION_SECTION_3_SKIN_TABLE          = 'Admission: SECTION 3. SKIN CONDITION'
-    ADMISSION_SECTION_4_PHYSICAL_TABLE      = 'Admission: SECTION 4. PHYSICAL / ADL / COMMUNICATION STATUS'
-    ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE = 'Admission: SECTION 5. BOWEL-BLADDER EVALUATION'
-    ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE  = 'Admission: SECTION 6. PSYCHOSOCIAL ASPECTS'
-    ADMISSION_SECTION_7_DISCHARGE_TABLE     = 'Admission: SECTION 7. DISCHARGE EVALUATION'
-    ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
-
-    # Fall Risk Screen
-    FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
-    FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
-
-
-    # Harmony (Holy Name) tables
-    HARMONY_VITALS_TABLE = 'Harmony Vitals'
-    HARMONY_MED_SURG_TABLE = 'Harmony Med/Surg Nursing Assessment'
-    HARMONY_CRITICAL_CARE_TABLE = 'Harmony Critical Care Nursing Assessment'
-    LABOR_ADMISSION_SECTION_1_TABLE='Labor Admission Section 1'
-    LABOR_ADMISSION_SECTION_2_TABLE='Labor Admission Section 2'
-    LABOR_ADMISSION_SECTION_3_TABLE='Labor Admission Section 3'
-    LABOR_ADMISSION_SECTION_4_TABLE='Labor Admission Section 4'
-    LABOR_ADMISSION_SECTION_5_TABLE='Labor Admission Section 5'
-
-    # TODO: Table and sections names need to be loaded dyanically from the API
-    EMR_TABLES = [
-        EPISODES_TABLE, 
-        PROGRESS_NOTES_TABLE,
-        ADMISSION_TABLE,
-        FALL_RISK_SCREEN_TABLE,
-        VITALS_TABLE,
-        HARMONY_VITALS_TABLE,
-        HARMONY_MED_SURG_TABLE,
-        HARMONY_CRITICAL_CARE_TABLE,
-        LABOR_ADMISSION_SECTION_1_TABLE,
-        LABOR_ADMISSION_SECTION_2_TABLE,
-        LABOR_ADMISSION_SECTION_3_TABLE,
-        LABOR_ADMISSION_SECTION_4_TABLE,
-        LABOR_ADMISSION_SECTION_5_TABLE,
-        # WEIGHTS_TABLE, 
-        # BLOOD_PRESSURES_TABLE, 
-        # BLOOD_SUGARS_TABLE, 
-        # HEIGHTS_TABLE, 
-        # TEMPERATURES_TABLE,
-        # O2_SATURATIONS_TABLE,
-        # PULSES_TABLE,
-        # RESPIRATION_TABLE
-        PATIENTS_TABLE,
-        NURSES_TABLE,
-        DOCTORS_TABLE
-    ]
-
-    TABLE_SECTIONS = { 
-            ADMISSION_TABLE: [
-                ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
-                ADMISSION_SECTION_2_VITALS_TABLE, 
-                ADMISSION_SECTION_3_SKIN_TABLE, 
-                ADMISSION_SECTION_4_PHYSICAL_TABLE, 
-                ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
-                ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
-                ADMISSION_SECTION_7_DISCHARGE_TABLE,
-                ADMISSION_SECTION_8_FACILITY_TABLE
-            ],            
-            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
-            VITALS_TABLE: [
-                WEIGHTS_TABLE,
-                BLOOD_PRESSURES_TABLE,
-                BLOOD_SUGARS_TABLE,
-                HEIGHTS_TABLE,
-                TEMPERATURES_TABLE,
-                O2_SATURATIONS_TABLE,
-                PULSES_TABLE,
-                RESPIRATION_TABLE
-            ]
-    }
 
     METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
     API_BASE_URL = 'https://api.airtable.com/v0'
     WEB_APP_BASE_URL = 'https://airtable.com'
 
-    
-    PERSON_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
     INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor', 'SpeakCare']
     READONLY_FIELD_TYPES = ['autoNumber', 'barcode', 'button', 'collaborator', 'count', 'createdBy',  'createdTime', 
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
@@ -299,6 +200,9 @@ class SpeakCareEmr:
         return tableSchema.get_json_schema()
 
 
+    def is_table_multi_section(self, tableName):
+        return tableName in self.TABLE_SECTIONS
+        
     def create_record(self, tableId, record):
         self.logger.debug(f'Creating record in table {tableId} with record {record}')
         record = self.api.table(self.appBaseId, tableId).create(record)
@@ -387,7 +291,7 @@ class SpeakCareEmr:
         return record, url, None
 
 
-    def create_complex_record(self, tableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
+    def create_multi_section_record(self, tableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
         """
         Complex record has sections that are implemtedd in different tables
         """
