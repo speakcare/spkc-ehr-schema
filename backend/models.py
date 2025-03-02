@@ -7,7 +7,7 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.types import JSON
 import os
 import atexit
-from os_utils import ensure_directory_exists
+from os_utils import os_ensure_directory_exists
 from speakcare_logging import SpeakcareLogger
 
 # Define the base class for declarative models
@@ -75,7 +75,7 @@ class SpeakcareDB:
 
     def __init__(self, db_directory: str, create_db= False):
         # Create database engines
-        self.db_path = ensure_directory_exists(db_directory)
+        self.db_path = os_ensure_directory_exists(db_directory)
         speakcare_sqlite_db = f'sqlite:///{db_directory}/{SpeakcareDB.DB_FILE_NAME}'#medical_records.db'
         logger.debug(f"Creating SpeakCare database at {speakcare_sqlite_db}")
         self.speakcare_db_engine = create_engine(speakcare_sqlite_db)

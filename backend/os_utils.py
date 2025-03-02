@@ -15,7 +15,7 @@ def __get_directory_path(dir_name):
         # Local path (does not start with / or ./)
         return f"./{dir_name}"
 
-def ensure_directory_exists(dir_name):
+def os_ensure_directory_exists(dir_name):
     # Extract the directory path from the file path
     _dir_path = __get_directory_path(dir_name)
     #directory = os.path.dirname(file_path)
@@ -28,15 +28,20 @@ def ensure_directory_exists(dir_name):
     return _dir_path
 
 
-def ensure_file_directory_exists(filename):
+def os_ensure_file_directory_exists(filename):
     # Extract the directory path from the file
     dir_name = os.path.dirname(filename)
-    return ensure_directory_exists(dir_name)
+    return os_ensure_directory_exists(dir_name)
 
-def get_file_extension(filename):
+def os_get_file_extension(filename):
     """Get the file extension from a given filename or path."""
     _, ext = os.path.splitext(filename)
     return ext
+
+def os_get_filename_without_ext(filename):
+    """Get the file name from a given filename or path."""
+    name, _ = os.path.splitext(os.path.basename(filename))
+    return name
 
 class Timer:
     def __init__(self):

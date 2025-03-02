@@ -6,7 +6,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from os_utils import ensure_directory_exists
+from os_utils import os_ensure_directory_exists
 from speakcare_logging import SpeakcareLogger
 from dotenv import load_dotenv
 
@@ -115,7 +115,7 @@ def main():
         print("No files found in the folder.")
     else:
         print("Files found:")
-        ensure_directory_exists(LOCAL_DIR)
+        os_ensure_directory_exists(LOCAL_DIR)
 
         for f in files:
             mime_type = f.get('mimeType', 'unknown')

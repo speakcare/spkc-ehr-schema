@@ -22,6 +22,7 @@ from models import RecordState, RecordType
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+__client = OpenAI()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
 logger = SpeakcareLogger(__name__)
@@ -208,10 +209,9 @@ def __transcription_to_emr_schema_in_prompt(transcription: str, schema: dict) ->
     Json schema:
     {json.dumps(schema, indent=2)}      
     '''
-
-    client = OpenAI()
+    
     logger.info("Calling OpenAI API")
-    response = client.chat.completions.create(
+    response = __client.chat.completions.create(
         model="gpt-4o-mini-2024-07-18",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
@@ -278,9 +278,8 @@ def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
     #logger.debug(f"response_format: {json.dumps(response_format, indent=4)}")
     #logger.debug(f"prompt: {prompt}")
 
-    client = OpenAI()
     logger.info("Calling OpenAI API")
-    response = client.chat.completions.create(
+    response = __client.chat.completions.create(
         model="gpt-4o-mini-2024-07-18",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
@@ -370,7 +369,7 @@ def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=Fals
     return record_id, record_state
 
 
-def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, emr_table_name: str, dryrun=False):
+def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_file: str, emr_table_name: str, dryrun=False):
     """
     Convert a transcription from a file to a JSON file.
     
@@ -419,7 +418,7 @@ def create_chart(boto3Session: Boto3Session, input_file: str, output_file: str, 
         #     json.dump(filled_schema_dict, json_file, indent=4)
         
         boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
-        logger.info(f"Transcription uploaded to {output_file}")
+        logger.info(f"Chart completion uploaded to {output_file}")
 
         record_id, record_state = __create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
         if not record_id:
@@ -470,7 +469,7 @@ def main():
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
     logger.info(f"Creating EMR record from {input_file} into {output_filename}")
-    create_chart(input_file=input_file, output_file=output_filename, emr_table_name=table_name, dryrun=dryrun)
+    create_chart_completion(input_file=input_file, output_file=output_filename, emr_table_name=table_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
-from os_utils import ensure_file_directory_exists, get_file_extension
+from os_utils import os_ensure_file_directory_exists, os_get_file_extension
 from speakcare_stt import transcribe_audio_whisper
 from speakcare_llm import openai_complete_schema_from_transcription
 
@@ -26,9 +26,7 @@ class SpeakcareEnrollPerson():
         file_exist = False
         is_s3_file = False
         if audio_filename.startswith("s3://"):
-            # here we need the key as the rest of the string after the s3://{bucket-name}/
-            audio_filename_key = self.b3session.s3_extract_key(audio_filename)
-            file_exist = self.b3session.s3_check_object_exists(audio_filename_key)
+            file_exist = self.b3session.s3_uri_check_object_exists(audio_filename)
             is_s3_file = True
         else:
             file_exist = os.path.isfile(audio_filename)
@@ -39,15 +37,17 @@ class SpeakcareEnrollPerson():
             self.logger.error(err)
             raise Exception(err)
 
-        self.logger.debug(f"Preparing s3 audio location. Output prefix: {output_file_prefix}, Audio file: {audio_filename}, File extension: {get_file_extension(audio_filename)}")  
-        dest_s3_persons_location = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}{get_file_extension(audio_filename)}'
+        self.logger.debug(f"Preparing s3 audio location. Output prefix: {output_file_prefix}, Audio file: {audio_filename}, File extension: {os_get_file_extension(audio_filename)}")  
+        dest_s3_persons_location = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}{os_get_file_extension(audio_filename)}'
 
         if is_s3_file:
             # download the file
             audio_local_file = f'{SpeakcareEnv.get_persons_local_dir()}/{os.path.basename(audio_filename)}'
-            ensure_file_directory_exists(audio_local_file)
-            s3_key = self.b3session.s3_extract_key(audio_filename)
-            self.b3session.s3_download_file(s3_key, audio_local_file)
+            os_ensure_file_directory_exists(audio_local_file)
+            self.b3session.s3_uri_download_file(audio_filename, audio_local_file)
+            if audio_filename != dest_s3_persons_location:
+                # upload the file to s3 destination folder
+                self.b3session.s3_upload_file(audio_local_file, dest_s3_persons_location)
         else:
             # put the file in s3 destination folder
             self.b3session.s3_upload_file(audio_filename, dest_s3_persons_location)
@@ -55,7 +55,7 @@ class SpeakcareEnrollPerson():
 
         # Step 2: Transcribe Audio (speech to text)
         transciption_output_file = f'{SpeakcareEnv.get_persons_local_dir()}/{output_file_prefix}-transcribe.txt'
-        ensure_file_directory_exists(transciption_output_file)
+        os_ensure_file_directory_exists(transciption_output_file)
         
         if os.path.isfile(transciption_output_file):
             os.remove(transciption_output_file) #TODO: temp solution for left over files.
@@ -70,7 +70,7 @@ class SpeakcareEnrollPerson():
         # if audio file is not wav, convert to wav
         wav_filename=""
         if not audio_filename.endswith(".wav"):
-            file_ext = get_file_extension(audio_filename)
+            file_ext = os_get_file_extension(audio_filename)
             wav_filename = audio_filename.replace(file_ext, ".wav")
             self.logger.info(f"Converting {file_ext} to .wav: {audio_filename} -> {wav_filename}")
             audio_convert_to_wav(audio_filename, wav_filename)

@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from os_utils import ensure_directory_exists
+from os_utils import os_ensure_directory_exists
 import os
 from speakcare_logging import SpeakcareLogger
 
@@ -106,13 +106,13 @@ class SpeakcareEnv:
     def __prepare_output_dirs():
         if SpeakcareEnv.__env_loaded:
             return      
-        ensure_directory_exists(SpeakcareEnv.get_audio_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_texts_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_charts_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_diarizations_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_transcriptions_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_persons_local_dir())
-        ensure_directory_exists(SpeakcareEnv.get_local_downloads_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_audio_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_texts_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_charts_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_diarizations_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_transcriptions_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_persons_local_dir())
+        os_ensure_directory_exists(SpeakcareEnv.get_local_downloads_dir())
         # ensure_directory_exists(SpeakcareEnv.get_voice_samples_local_dir())
         # ensure_directory_exists(SpeakcareEnv.get_care_sessions_local_dir())
 

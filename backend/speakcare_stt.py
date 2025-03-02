@@ -9,6 +9,7 @@ from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
 from speakcare_diarize import TranscribeAndDiarize
 from speakcare_env import SpeakcareEnv
+from os_utils import os_get_filename_without_ext
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)
@@ -41,9 +42,11 @@ def transcribe_audio_whisper(input_file="output.wav", output_file="output.txt", 
 def transcribe_and_diarize_audio(boto3Session: Boto3Session, input_file="output.wav", output_file="output.txt", append=False):
 
     transcipt_file_key = None
+    output_file_prefix = os_get_filename_without_ext(output_file)
     try:
         # with open(input_file, "rb") as audio_file:
-        transcipt_file_key = trnsAndDrz.transcribe_and_recognize_speakers(input_file)
+        logger.info(f"Transcribing and diarizing audio from {input_file} into {output_file}. Output prefix: {output_file_prefix}")
+        transcipt_file_key = trnsAndDrz.transcribe_and_recognize_speakers(input_file, output_file_prefix)
             # transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
 
         if append:

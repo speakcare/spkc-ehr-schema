@@ -157,49 +157,82 @@ class Boto3Session:
             self.__logger.error(f"Error appending to file: {e}")
             raise
         
-    def s3_download_file(self, key: str, file_path: str):
-        self.__s3_client.download_file(self.__s3_bucket_name, key, file_path)
-        self.__logger.info(f"Downloaded file s3://{self.__s3_bucket_name}/{key} to '{file_path}'")
+    def s3_download_file(self, key: str, file_path: str, bucket:str = None):
+        bucket = bucket if bucket else self.__s3_bucket_name
+        self.__s3_client.download_file(bucket, key, file_path)
+        self.__logger.info(f"Downloaded file s3://{bucket}/{key} to '{file_path}'")
 
-    def s3_get_object(self, key: str):
-        return self.__s3_client.get_object(Bucket=self.__s3_bucket_name, Key=key)
+    def s3_uri_download_file(self, uri: str, file_path: str):
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        self.s3_download_file(key=key, file_path=file_path, bucket=bucket)
 
-    def s3_put_object(self, key: str, body: str):
-        return self.__s3_client.put_object(Bucket=self.__s3_bucket_name, Key=key, Body=body)
+    def s3_get_object(self, key: str, bucket:str = None):
+        bucket = bucket if bucket else self.__s3_bucket_name
+        return self.__s3_client.get_object(Bucket=bucket, Key=key)
 
-    def s3_check_object_exists(self, key) -> bool:
+    def s3_put_object(self, key: str, body: str, bucket:str = None):
+        bucket = bucket if bucket else self.__s3_bucket_name
+        return self.__s3_client.put_object(Bucket=bucket, Key=key, Body=body)
+
+    def s3_check_object_exists(self, key:str, bucket:str =None) -> bool:
         try:
-            self.__logger.debug(f"Checking if file exists: s3://{self.__s3_bucket_name}/{key}")
-            self.__s3_client.head_object(Bucket=self.__s3_bucket_name, Key=key)
+            bucket = bucket if bucket else self.__s3_bucket_name
+            self.__logger.debug(f"Checking if file exists: s3://{bucket}/{key}")
+            self.__s3_client.head_object(Bucket=bucket, Key=key)
             return True  # File exists
         except ClientError as e:
-            return False  # File does not exist
+            return False 
+             # File does not exist
     
-    def s3_get_object_size(self, key: str) -> int:
+    def s3_uri_check_object_exists(self, uri) -> bool:
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_check_object_exists(key=key, bucket=bucket)
+
+    def s3_get_object_size(self, key: str, bucket:str = None) -> int:
         try:
-            response = self.__s3_client.head_object(Bucket=self.__s3_bucket_name, Key=key)
+            bucket = bucket if bucket else self.__s3_bucket_name
+            response = self.__s3_client.head_object(Bucket=bucket, Key=key)
             return response['ContentLength']
         except ClientError as e:
             self.__logger.error(f"Error getting object size: {e}")
             raise
+    
+    def s3_uri_get_object_size(self, uri) -> int:
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_get_object_size(key=key, bucket=bucket)
 
-    def s3_get_object_content(self, key: str) -> str:
+    def s3_get_object_content(self, key: str, bucket:str = None) -> str:
         try:
-            response = self.s3_get_object(key)
+            bucket = bucket if bucket else self.__s3_bucket_name
+            response = self.s3_get_object(key=key, bucket=bucket)
             content = response['Body'].read().decode('utf-8')
-            self.__logger.info(f"Read content from object s3://{self.__s3_bucket_name}/{key}")
+            self.__logger.info(f"Read content from object s3://{bucket}/{key}")
             return content
         except ClientError as e:
-            self.__logger.error(f"Error reading content from object s3://{self.__s3_bucket_name}/{key}: {e}")
+            self.__logger.error(f"Error reading content from object s3://{bucket}/{key}: {e}")
             raise
 
-    def s3_get_object_last_modified(self, key: str):
+    def s3_uri_get_object_content(self, uri) -> str:
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_get_object_content(key=key, bucket=bucket)
+
+    def s3_get_object_last_modified(self, key: str, bucket:str = None):
+        bucket = bucket if bucket else self.__s3_bucket_name
         try:
-            response = self.__s3_client.head_object(Bucket=self.__s3_bucket_name, Key=key)
+            response = self.__s3_client.head_object(Bucket=bucket, Key=key)
             return response['LastModified']
         except ClientError as e:
             self.__logger.error(f"Error getting object last modified time: {e}")
             raise
+
+    def s3_uri_get_object_last_modified(self, uri):
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_get_object_last_modified(key=key, bucket=bucket)
 
     def s3_list_folder(self, folder_prefix: str):
         """List all objects in a specific folder in the S3 bucket."""
@@ -232,7 +265,19 @@ class Boto3Session:
                 return s3_url[key_start + 1:]
         return None
 
-
+    @staticmethod
+    def s3_extract_bucket(s3_url):
+        """Extract the bucket name from an S3 URL."""
+        if s3_url.startswith("s3://"):
+            # Remove the 's3://' prefix
+            s3_url = s3_url[5:]
+            # Find the first '/' after the bucket name
+            key_start = s3_url.find('/')
+            if key_start != -1:
+                # Extract the bucket name
+                return s3_url[:key_start]
+        return None
+    
     @staticmethod
     def __dynamodb_init_tables():
         # Create a new table
