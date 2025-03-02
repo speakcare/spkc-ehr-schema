@@ -1,6 +1,12 @@
 class SpeakCareEmrTables:
         # Table names
-    #TODO: load tables dynamically from the API
+    
+    """
+      The followoing are table names as they appear in the Airtable database 
+      Every table that should be accessed by the API should be added here
+      The table names should be exactly as they appear in the Airtable database
+      #TODO: load tables dynamically from the API
+    """
     ### People ###
     PATIENTS_TABLE = 'Patients'
     NURSES_TABLE = 'Nurses'
@@ -71,6 +77,11 @@ class SpeakCareEmrTables:
     LOCAL_ASSESSMENT_STRENGTH='LOCAL ASSESSMENT - STRENGTH'
 
     # TODO: Table and sections names need to be loaded dyanically from the API
+    """
+      The followoing are the list of tables that we are actively supporting in the API
+      In order for a table to be accessed by the API, it should be added to this list
+      # TODO: Table and sections names need to be loaded dyanically from the API
+    """
     EMR_TABLES = [
         PATIENTS_TABLE,
         NURSES_TABLE,
@@ -107,6 +118,11 @@ class SpeakCareEmrTables:
         # RESPIRATION_TABLE
     ]
 
+    """
+      The followoing are the dictionary of multi-section tables.
+      A table that has sections should be added to this dict with its sections as a list.
+      #TODO: load tables dynamically from the API
+    """
     TABLE_SECTIONS = { 
             ADMISSION_TABLE: [
                 ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
