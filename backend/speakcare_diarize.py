@@ -17,7 +17,7 @@ import warnings
 from boto3_session import Boto3Session
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
-from os_utils import os_ensure_file_directory_exists
+from os_utils import os_ensure_file_directory_exists, os_get_filename_without_ext, os_concat_current_time
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -82,7 +82,8 @@ class TranscribeAndDiarize:
             status = response['TranscriptionJob']['TranscriptionJobStatus']
             
             if status == 'COMPLETED':
-                self.logger.info("Transcription job completed.")
+                s3Uri = Boto3Session.s3_convert_https_url_to_s3_uri(response['TranscriptionJob']['Transcript']['TranscriptFileUri'])
+                self.logger.info(f"Transcription job completed. Output available in '{s3Uri}'")
                 return response
             elif status == 'FAILED':
                 raise RuntimeError(f"Transcription job failed: {response}")
@@ -90,10 +91,9 @@ class TranscribeAndDiarize:
             self.logger.debug(f"Waiting for transcription job to complete ({waiting})...")
             time.sleep(10)
 
-    def get_transcription_output(self, key):
+    def get_s3_object_body(self, key):
         """Retrieve transcription output from S3."""
-        obj = self.b3session.s3_get_object(key=key)
-        return json.loads(obj['Body'].read())
+        return self.b3session.s3_get_object_body(key)
 
     def extract_segment_embeddings(self, transcription, audio_path):
         """Extract speaker embeddings from audio."""
@@ -268,31 +268,50 @@ class TranscribeAndDiarize:
         
         self.logger.info(f"add_voice_sample: create_speaker attepted for speaker '{speaker_type.value}': '{_speaker_name}'. Result: '{result}' with speaker '{speaker['Name']}'")
 
+    @staticmethod
+    def create_output_files_keys(output_file_prefix:str):
+        """Create output file keys for transcription, diarization, and text."""                
+        transcription_output_key = f"{SpeakcareEnv.get_transcriptions_dir()}/{output_file_prefix}-transcription.json"
+        diarization_output_key = f"{SpeakcareEnv.get_diarizations_dir()}/{output_file_prefix}-diarization.json"
+        text_output_key = f"{SpeakcareEnv.get_texts_dir()}/{output_file_prefix}-text.txt"
+        
+        return transcription_output_key, diarization_output_key, text_output_key
 
 
-    def transcribe_and_recognize_speakers(self, audio_file: str, output_file_prefix: str=None):
+    def transcribe_and_recognize_speakers(self, audio_file: str, output_file_prefix: str='output'):
         """Main method to transcribe audio and recognize speakers."""
-        audio_key = f"{SpeakcareEnv.get_audio_dir()}/{os.path.basename(audio_file)}"
-        self.b3session.s3_upload_file(file_path=audio_file, key=audio_key)
+
+        transcription_output_key, diarization_output_key, text_output_key = self.create_output_files_keys(output_file_prefix)
+
+        self.transcribe(audio_file, transcription_output_key)
+        self.recognize_speakers(audio_file = audio_file, 
+                                transcription_output_key=transcription_output_key,
+                                diarization_output_key=diarization_output_key)
+        
+        return self.create_diarized_text(diarization_output_key=diarization_output_key, text_output_key=text_output_key)
+
+    
+    def transcribe(self, audio_file: str, transcription_output_key: str=None):
+        """Main method to transcribe audio and recognize speakers."""
 
         # prepare output files
         output_time = int(time.time())
         transcription_job_name = f"transcription-{output_time}"
-        if output_file_prefix:
-            transcription_output_key = f"{SpeakcareEnv.get_transcriptions_dir()}/{output_file_prefix}-transcription.json"
-            diarization_output_key = f"{SpeakcareEnv.get_diarizations_dir()}/{output_file_prefix}-diarization.json"
-            text_output_key = f"{SpeakcareEnv.get_texts_dir()}/{output_file_prefix}-diarized.txt"
-        else:
-            transcription_output_key = f"{SpeakcareEnv.get_transcriptions_dir()}/transcription.json"
-            diarization_output_key = f"{SpeakcareEnv.get_diarizations_dir()}/diarization.json"
-            text_output_key = f"{SpeakcareEnv.get_texts_dir()}/diarized.txt"
+
+        audio_key = f"{SpeakcareEnv.get_audio_dir()}/{os.path.basename(audio_file)}"
+        self.b3session.s3_upload_file(file_path=audio_file, key=audio_key)
 
         response = self.start_transcription_job(audio_key, self.b3session.s3_get_bucket_name(), transcription_job_name, transcription_output_key)
         self.logger.debug(f"Transcription start job response: {response}")
         self.wait_for_transcription_job(transcription_job_name)
 
-        transcription = self.get_transcription_output(transcription_output_key)
 
+
+
+    def recognize_speakers(self, audio_file: str, transcription_output_key: str, diarization_output_key: str):
+
+        self.logger.info(f"recognize_speakers: transcription {transcription_output_key}. audio {audio_file}")
+        transcription = self.get_s3_object_body(transcription_output_key)
         diarized_transcription = {}
         audio_segments = transcription['results']['audio_segments']
         segment_embeddings = self.extract_segment_embeddings(transcription, audio_file)
@@ -320,12 +339,18 @@ class TranscribeAndDiarize:
             self.logger.debug(f'Segment {index} slot: {segment["slot"]} {op} as {speaker}')
         
         self.logger.debug(f"Diarized transcription: {json.dumps(diarized_transcription, indent=4)}")
-        # Write the diarized transcription to S3 into diariations folder
         
+        # Write the diarized transcription to S3 into diariations folder
         self.b3session.s3_put_object(key=diarization_output_key, body=json.dumps(diarized_transcription))
-        self.logger.info(f"Uploaded diarized transcription to s3://{self.b3session.s3_get_bucket_name()}/{diarization_output_key}")
+        self.logger.info(f"Uploaded diarized transcription to 's3://{self.b3session.s3_get_bucket_name()}/{diarization_output_key}'")
+
+    
+    def create_diarized_text(self, diarization_output_key: str, text_output_key: str):
+
+        self.logger.info(f"create_diarized_text: diarization {diarization_output_key}.")
         # write the free text of the diarized transcription. Every line strats with "<Speaker label>: " and the speaker name and then the text
         # put it in s3 under the texts folder
+        diarized_transcription = self.b3session.s3_get_object_body(diarization_output_key)
        
         temp_file = f"{SpeakcareEnv.get_texts_local_dir()}/{text_output_key}"
         # make sure the file dirs exist
@@ -343,27 +368,59 @@ class TranscribeAndDiarize:
 
 def main():
     parser = argparse.ArgumentParser(description="Speaker Recognition Tool")
+    choices = ["full", "transcribe", "recognize", "diarize"]
     parser.add_argument(
-        "--mode", 
+        '-f', '--function',
         type=str, 
-        choices=["transcribe", "add_patient", "add_nurse"], 
+        choices=choices, 
         required=True, 
-        help="Operation mode: transcribe, add_patient, or add_nurse."
+        help=f"Function: {choices}"
     )
-    parser.add_argument("--speaker", type=str, required=False, help="Name of the speaker.")
-    parser.add_argument("--file", type=str, required=True, help="Path to the audio file.")
+    parser.add_argument('-a', '--audio', type=str, required=True, help="Local path to audio file.")
+    parser.add_argument('-i', '--input', type=str, help="S3 path to the specific input text file.")
     args = parser.parse_args()
 
     transcriber = TranscribeAndDiarize()
 
-    speaker = args.speaker if args.speaker else None
+    audio_file = args.audio
+    input_file_path = args.input
+    # input_file_prefix = os_get_filename_without_ext(input_file_path) if input_file_path else None
+    audio_prefix = os_concat_current_time(os_get_filename_without_ext(audio_file)) if audio_file else None
 
-    if args.mode == "transcribe":
-        transcriber.transcribe_and_recognize_speakers(args.file)
-    elif args.mode == "add_patient":
-        transcriber.add_voice_sample(file_path = args.file, speaker_type= SpeakerType.PATIENT, speaker_name=speaker)
-    elif args.mode == "add_nurse":
-        transcriber.add_voice_sample(file_path = args.file, speaker_type= SpeakerType.NURSE, speaker_name=speaker)
+    match args.function:
+        case "full":
+            if not audio_file:
+                print("Audio file is required for full operation")
+                exit(1)
+            transcriber.transcribe_and_recognize_speakers(audio_file, audio_prefix)
+
+        case "transcribe":
+            if not audio_file:
+                print("Audio is required for transcription")
+                exit(2)
+            transcription, _, _ = transcriber.create_output_files_keys(audio_prefix)
+            transcriber.transcribe(audio_file, transcription)
+
+        case "recognize":
+            if not audio_file or not input_file_path:
+                print("Audio and input file are required for recognition")
+                exit(3)
+            # The input file is a post transcription file
+            _, diarization, _ = transcriber.create_output_files_keys(audio_prefix)
+            transcriber.recognize_speakers(audio_file=audio_file, 
+                                           transcription_output_key=Boto3Session.s3_extract_key(input_file_path), # this is the input file
+                                           diarization_output_key=diarization)
+        case "diarize":
+            if not input_file_path:
+                print("Input file is required for diarization")
+                exit(4)
+            # The input file is a post recognition file
+            _, _, text = transcriber.create_output_files_keys(audio_prefix)
+            transcriber.create_diarized_text(diarization_output_key=Boto3Session.s3_extract_key(input_file_path), # this is the input file
+                                             text_output_key=text)
+        case _:
+            print("Invalid operation mode")
+            exit(1)
 
 if __name__ == "__main__":
     main()

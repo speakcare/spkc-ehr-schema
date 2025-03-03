@@ -15,7 +15,7 @@ from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav
-from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_get_filename_without_ext
+from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_get_filename_without_ext, os_concat_current_time
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -30,16 +30,6 @@ boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
 
 supported_tables = EmrUtils.get_table_names()
 
-def generate_output_file_prefix(prefix:str):
-    utc_now = datetime.now(timezone.utc)
-    # Format the datetime as a string with milliseconds without timezone
-    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] # remove last 3 digits
-    # make it shell friendly
-    utc_string = utc_string.replace(":", "-")
-    utc_string = utc_string.replace(".", "-")
-    return f'{prefix}-{utc_string}'
-
-
 def speakcare_process_audio(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
     """
     Transcribe audio, convert transcription to EMR record
@@ -47,7 +37,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
     # prepare file names
     # use output_file_prefix if provided, otherwise use the basename of the first audio file
     _output_prefix = output_file_prefix if output_file_prefix\
-                          else generate_output_file_prefix(os_get_filename_without_ext(audio_files[0]))
+                          else os_concat_current_time(os_get_filename_without_ext(audio_files[0]))
 
     transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{_output_prefix}.txt'
     logger.info(f"Processing audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
@@ -121,7 +111,94 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
         return None, {"error": str(e)}
     
     finally:
-        if is_s3_file and audio_local_file:
+        if is_s3_file and audio_local_file and os.path.isfile(audio_local_file):
+            # delete the local audio file
+            os.remove(audio_local_file)
+            logger.info(f"Deleted local audio file {audio_local_file}")
+
+
+def speakcare_process_transcription(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
+    """
+    Transcribe audio, convert transcription to EMR record
+    """    
+    # prepare file names
+    # use output_file_prefix if provided, otherwise use the basename of the first audio file
+    _output_prefix = output_file_prefix if output_file_prefix\
+                          else os_concat_current_time(os_get_filename_without_ext(audio_files[0]))
+
+    transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{_output_prefix}.txt'
+    logger.info(f"Processing audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
+    audio_local_file = None
+    is_s3_file = False
+    try:
+        record_ids = []    
+        logger.info(f"Processing audio files: {audio_files}")
+        for num, audio_filename in enumerate(audio_files):
+            # Step 1: Verify the audio file exists
+            file_exist = False
+            is_s3_file = False
+            if audio_filename.startswith("s3://"):
+                file_exist = boto3Session.s3_uri_check_object_exists(audio_filename)
+                is_s3_file = True
+            else:
+                file_exist = os.path.isfile(audio_filename)
+                is_s3_file = False
+
+            if not file_exist:
+                err = f"Audio file not found or not file type: {audio_filename}"
+                logger.error(err)
+                raise Exception(err)
+            
+            if is_s3_file:
+                # download the file
+                audio_local_file = f'{SpeakcareEnv.get_audio_local_dir()}/{os.path.basename(audio_filename)}'
+                os_ensure_file_directory_exists(audio_local_file)
+                boto3Session.s3_uri_download_file(audio_filename, audio_local_file)
+                logger.info(f"Downloaded audio file {audio_filename} to {audio_local_file}")
+            else:
+                audio_local_file = audio_filename
+
+            # if audio file is not wav, convert to wav
+            if not audio_local_file.endswith(".wav"):
+                file_ext = os_get_file_extension(audio_local_file)
+                wav_filename = audio_local_file.replace(file_ext, ".wav")
+                logger.info(f"Converting {file_ext} to .wav: {audio_local_file} -> {wav_filename}")
+                audio_convert_to_wav(audio_local_file, wav_filename)
+                audio_local_file = wav_filename
+            
+            # Step 2: Transcribe Audio (speech to text)
+            # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
+            # transcript_len = transcribe_audio_whisper(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
+            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_local_file, output_file=transcription_filename, append= (num > 0))
+            if transcript_len == 0:
+                err = "Error occurred while transcribing audio."
+                logger.error(err)
+                raise Exception(err)
+
+        # Step 3: Convert transcription to EMR record for all tables
+        for table_name in tables:
+            chart_name = table_name.replace(" ", "_")
+            chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{_output_prefix}-chart-{chart_name}.json'
+
+            logger.info(f"Calling create_chart_completion for table {table_name} input_file {transcription_filename} output_file {chart_filename}")
+            record_id = create_chart_completion(boto3Session=boto3Session, input_file=transcription_filename, output_file=chart_filename, 
+                                            emr_table_name=table_name, dryrun=dryrun)
+            if not record_id:
+                err = "Error occurred while converting transcription to EMR record."
+                logger.error(err)
+                raise Exception(err)
+                        
+            record_ids.append(record_id)
+            logger.info(f"Speakcare converted transctiption to table {table_name}. EMR record created: {record_id}")
+        
+        return record_ids, {"message": "Success"}
+
+    except Exception as e:
+        logger.error(f"Error occurred while processing audio: {e}")
+        return None, {"error": str(e)}
+    
+    finally:
+        if is_s3_file and audio_local_file and os.path.isfile(audio_local_file):
             # delete the local audio file
             os.remove(audio_local_file)
             logger.info(f"Deleted local audio file {audio_local_file}")
@@ -159,10 +236,10 @@ def main():
                         help='Print input devices list and exit')
     parser.add_argument('-o', '--output-prefix', type=str,
                         help='Output file prefix (default: the basename of the first input recording file)')
-    parser.add_argument('-t', '--table', type=str, nargs='+',
-                        help=f'Table names (supported tables: {supported_tables})')
-    parser.add_argument('-d', '--dryrun', action='store_true',
-                        help='If dryrun, write JSON only and do not udpate the EMR')
+    parser.add_argument('-c', '--chart', type=str, nargs='+',
+                        help=f'Chart (table) names (supported charts: {supported_tables})')
+    parser.add_argument('-ne', '--no-emr', action='store_true',
+                        help='If no-emr, write JSON only and do not udpate the EMR')
     parser.add_argument('-r', '--input-recording', nargs='+', type=str,
                         help='Name of input recording files to process. If provided, we skip the recording and use these files instead.')
     parser.add_argument('-s', '--seconds', type=int, default=30,
@@ -182,13 +259,13 @@ def main():
         exit(0)
 
     # Ensure --table is always provided if --list-devices is not used
-    if not args.table:
-        parser.error("--table is required.")
+    if not args.chart:
+        parser.error("--chart is required.")
  
-    table_names = args.table
+    table_names = args.chart
     unsupported_tables = [table for table in table_names if table not in supported_tables]
     if unsupported_tables:
-        parser.error(f"Invalid table names: {unsupported_tables}. Supported tables: {supported_tables}")
+        parser.error(f"Invalid chart names: {unsupported_tables}. Supported charts: {supported_tables}")
 
     output_file_prefix = "output"
 
@@ -199,11 +276,11 @@ def main():
         # get the file basename of the first file in the input recording list, without the extension
         output_file_prefix = os_get_filename_without_ext(input_recordings[0])
 
-    output_file_prefix = generate_output_file_prefix(output_file_prefix)
+    output_file_prefix = os_concat_current_time(output_file_prefix)
 
-    dryrun = args.dryrun
+    dryrun = args.no_emr
     if dryrun:
-        logger.info("Dryrun mode enabled. EMR record will not be created.")
+        logger.info("No EMR mode. EMR record will not be created.")
 
 
     if args.input_recording:

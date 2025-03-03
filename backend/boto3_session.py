@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
+import urllib.parse
 
 if not load_dotenv("./.env"):
     print("No .env file found")
@@ -108,54 +109,68 @@ class Boto3Session:
         self.__logger.debug(f"Uploaded file '{file_path}' to s3://{self.__s3_bucket_name}/{key}")
     
     def s3_append_from_file(self, file_path: str, key: str):
+        temp_file_name = f'{SpeakcareEnv.get_local_downloads_dir()}/temp_file.txt'
         try:
             # Get the existing file
             s3_file_exist = self.s3_check_object_exists(key)
             if s3_file_exist:
                 # Download the existing file
-                self.__s3_client.download_file(self.__s3_bucket_name, key, 'temp_file.txt')
+                self.__s3_client.download_file(self.__s3_bucket_name, key, temp_file_name)
 
                 # Append new content to the downloaded file
-                with open('temp_file.txt', 'a') as existing_file, open(file_path, 'r') as new_file:
+                with open(temp_file_name, 'a') as existing_file, open(file_path, 'r') as new_file:
                     existing_file.write('\n')
                     existing_file.write(new_file.read())
                 
-                self.s3_upload_file('temp_file.txt', key)
-                os.remove('temp_file.txt')
+                self.s3_upload_file(temp_file_name, key)
+                os.remove(temp_file_name)
             else:
                 # File does not exist, create it
                 self.s3_upload_file(file_path, key)
         except ClientError as e:
             self.__logger.error(f"Error appending to file: {e}")
             raise
-    
+        finally:
+            if os.path.isfile(temp_file_name):
+                os.remove(temp_file_name)
+
+
     def s3_copy_object(self, srcKey: str, destKey: str):
         self.__s3_client.copy_object(Bucket=self.__s3_bucket_name, CopySource=f"{self.__s3_bucket_name}/{srcKey}", Key=destKey)
         self.__logger.debug(f"Copied file s3://{self.__s3_bucket_name}/{srcKey} to s3://{self.__s3_bucket_name}/{destKey}")
 
     def s3_append_from_key(self, srcKey: str, destKey: str):
+        temp_dest_file = f'{SpeakcareEnv.get_local_downloads_dir()}/temp_dest_file.txt'
+        temp_source_file = f'{SpeakcareEnv.get_local_downloads_dir()}/temp_source_file.txt'
         try:
             # Get the existing file
             dest_file_exist = self.s3_check_object_exists(destKey)
             if dest_file_exist:
                 # Download the existing file
-                self.__s3_client.download_file(self.__s3_bucket_name, destKey, 'temp_dest_file.txt')
-                self.__s3_client.download_file(self.__s3_bucket_name, srcKey, 'temp_source_file.txt')
+                self.__s3_client.download_file(self.__s3_bucket_name, destKey, temp_dest_file)
+                self.__s3_client.download_file(self.__s3_bucket_name, srcKey, temp_source_file)
 
                 # Append new content to the downloaded file
-                with open('temp_dest_file.txt', 'a') as existing_file, open('temp_source_file.txt', 'r') as new_file:
+                with open(temp_dest_file, 'a') as existing_file, open(temp_source_file, 'r') as new_file:
                     existing_file.write('\n')
                     existing_file.write(new_file.read())
                 
-                self.s3_upload_file('temp_dest_file.txt', destKey)
-                os.remove('temp_dest_file.txt')
-                os.remove('temp_source_file.txt')
+                self.s3_upload_file(temp_dest_file, destKey)
+                os.remove(temp_dest_file)
+                os.remove(temp_source_file)
             else:
                 # File does not exist, create it
                 self.s3_copy_object(Bucket=self.__s3_bucket_name, CopySource=f"{self.__s3_bucket_name}/{srcKey}", Key=destKey)
         except ClientError as e:
             self.__logger.error(f"Error appending to file: {e}")
             raise
+        finally:
+            if os.path.isfile(temp_dest_file):
+                os.remove(temp_dest_file)
+            if os.path.isfile(temp_source_file):
+                os.remove(temp_source_file)
+    
+
         
     def s3_download_file(self, key: str, file_path: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
@@ -170,6 +185,10 @@ class Boto3Session:
     def s3_get_object(self, key: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
         return self.__s3_client.get_object(Bucket=bucket, Key=key)
+    
+    def s3_get_object_body(self, key: str, bucket:str = None):
+        obj = self.s3_get_object(key=key, bucket=bucket)
+        return json.loads(obj['Body'].read())
 
     def s3_put_object(self, key: str, body: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
@@ -277,6 +296,22 @@ class Boto3Session:
                 # Extract the bucket name
                 return s3_url[:key_start]
         return None
+    
+    @staticmethod
+    def s3_convert_https_url_to_s3_uri(https_url:str):
+        parsed_url = urllib.parse.urlparse(https_url)
+
+        # Example parsing: this may vary based on your S3 URL format.
+        # For URLs like 'https://s3.amazonaws.com/bucket-name/path/to/file.json'
+        parts = parsed_url.path.lstrip('/').split('/', 1)
+        if len(parts) == 2:
+            bucket, key = parts
+            s3_uri = f"s3://{bucket}/{key}"
+            return s3_uri
+            # print("S3 URI:", s3_uri)
+        else:
+            raise ValueError(f"Could not parse bucket and key from the URL for {https_url}")
+    
     
     @staticmethod
     def __dynamodb_init_tables():

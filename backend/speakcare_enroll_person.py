@@ -250,7 +250,7 @@ class SpeakcareEnrollPerson():
         else:
             self.logger.info("Dryrun mode. EMR record will not be created.")
         #end enroll_patient cleanup
-        if is_s3_file:
+        if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
             os.remove(audio_local_file)
 
@@ -270,7 +270,7 @@ class SpeakcareEnrollPerson():
         else:
             self.logger.info("Dryrun mode. EMR record will not be created.")
         #end enroll_patient cleanup
-        if is_s3_file:
+        if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
             os.remove(audio_local_file)
 
@@ -313,7 +313,7 @@ class SpeakcareEnrollPerson():
         else:
             self.logger.info("Dryrun mode. EMR record will not be created.")
         #end enroll_patient cleanup
-        if is_s3_file:
+        if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
             os.remove(audio_local_file)
 

@@ -1,6 +1,7 @@
 import os
 from speakcare_logging import SpeakcareLogger
 import time
+from datetime import datetime, timezone
 
 
 logger = SpeakcareLogger(__name__)
@@ -42,6 +43,15 @@ def os_get_filename_without_ext(filename):
     """Get the file name from a given filename or path."""
     name, _ = os.path.splitext(os.path.basename(filename))
     return name
+
+def os_concat_current_time(prefix:str):
+    utc_now = datetime.now(timezone.utc)
+    # Format the datetime as a string with milliseconds without timezone
+    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] # remove last 3 digits
+    # make it shell friendly
+    utc_string = utc_string.replace(":", "-")
+    utc_string = utc_string.replace(".", "-")
+    return f'{prefix}-{utc_string}'
 
 class Timer:
     def __init__(self):
