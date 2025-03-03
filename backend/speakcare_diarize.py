@@ -401,25 +401,19 @@ def main():
             transcription, _, _ = transcriber.create_output_files_keys(audio_prefix)
             transcriber.transcribe(audio_file, transcription)
 
-        case "recognize":
+        case "diarize":
             if not audio_file or not input_file_path:
-                print("Audio and input file are required for recognition")
+                print("Audio and input file are required for diarization")
                 exit(3)
-            # The input file is a post transcription file
-            _, diarization, _ = transcriber.create_output_files_keys(audio_prefix)
+            # The input file is a post recognition file
+            _, diarization, text = transcriber.create_output_files_keys(audio_prefix)
             transcriber.recognize_speakers(audio_file=audio_file, 
                                            transcription_output_key=Boto3Session.s3_extract_key(input_file_path), # this is the input file
                                            diarization_output_key=diarization)
-        case "diarize":
-            if not input_file_path:
-                print("Input file is required for diarization")
-                exit(4)
-            # The input file is a post recognition file
-            _, _, text = transcriber.create_output_files_keys(audio_prefix)
-            transcriber.create_diarized_text(diarization_output_key=Boto3Session.s3_extract_key(input_file_path), # this is the input file
+            transcriber.create_diarized_text(diarization_output_key=diarization,
                                              text_output_key=text)
         case _:
-            print("Invalid operation mode")
+            print(f"Invalid function '{args.function}'")
             exit(1)
 
 if __name__ == "__main__":
