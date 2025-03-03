@@ -117,74 +117,26 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
             logger.info(f"Deleted local audio file {audio_local_file}")
 
 
-def speakcare_process_transcription(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
+def speakcare_process_transcription(diarization_filename: str, tables: List[str], output_file_prefix:str, dryrun: bool=False):
     """
     Transcribe audio, convert transcription to EMR record
     """    
     # prepare file names
     # use output_file_prefix if provided, otherwise use the basename of the first audio file
-    _output_prefix = output_file_prefix if output_file_prefix\
-                          else os_concat_current_time(os_get_filename_without_ext(audio_files[0]))
 
-    transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{_output_prefix}.txt'
-    logger.info(f"Processing audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
-    audio_local_file = None
-    is_s3_file = False
+    logger.info(f"Processing diarized transcription file {diarization_filename}. Output file prefix: {output_file_prefix}.")
     try:
         record_ids = []    
-        logger.info(f"Processing audio files: {audio_files}")
-        for num, audio_filename in enumerate(audio_files):
-            # Step 1: Verify the audio file exists
-            file_exist = False
-            is_s3_file = False
-            if audio_filename.startswith("s3://"):
-                file_exist = boto3Session.s3_uri_check_object_exists(audio_filename)
-                is_s3_file = True
-            else:
-                file_exist = os.path.isfile(audio_filename)
-                is_s3_file = False
-
-            if not file_exist:
-                err = f"Audio file not found or not file type: {audio_filename}"
-                logger.error(err)
-                raise Exception(err)
-            
-            if is_s3_file:
-                # download the file
-                audio_local_file = f'{SpeakcareEnv.get_audio_local_dir()}/{os.path.basename(audio_filename)}'
-                os_ensure_file_directory_exists(audio_local_file)
-                boto3Session.s3_uri_download_file(audio_filename, audio_local_file)
-                logger.info(f"Downloaded audio file {audio_filename} to {audio_local_file}")
-            else:
-                audio_local_file = audio_filename
-
-            # if audio file is not wav, convert to wav
-            if not audio_local_file.endswith(".wav"):
-                file_ext = os_get_file_extension(audio_local_file)
-                wav_filename = audio_local_file.replace(file_ext, ".wav")
-                logger.info(f"Converting {file_ext} to .wav: {audio_local_file} -> {wav_filename}")
-                audio_convert_to_wav(audio_local_file, wav_filename)
-                audio_local_file = wav_filename
-            
-            # Step 2: Transcribe Audio (speech to text)
-            # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
-            # transcript_len = transcribe_audio_whisper(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
-            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_local_file, output_file=transcription_filename, append= (num > 0))
-            if transcript_len == 0:
-                err = "Error occurred while transcribing audio."
-                logger.error(err)
-                raise Exception(err)
-
-        # Step 3: Convert transcription to EMR record for all tables
         for table_name in tables:
             chart_name = table_name.replace(" ", "_")
-            chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{_output_prefix}-chart-{chart_name}.json'
+            chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{output_file_prefix}-chart-{chart_name}.json'
+            diarization_file_key = Boto3Session.s3_extract_key(diarization_filename)
 
-            logger.info(f"Calling create_chart_completion for table {table_name} input_file {transcription_filename} output_file {chart_filename}")
-            record_id = create_chart_completion(boto3Session=boto3Session, input_file=transcription_filename, output_file=chart_filename, 
+            logger.info(f"Calling create_chart_completion for table {table_name} input_file {diarization_file_key} output_file {chart_filename}")
+            record_id = create_chart_completion(boto3Session=boto3Session, input_file=diarization_file_key, output_file=chart_filename, 
                                             emr_table_name=table_name, dryrun=dryrun)
             if not record_id:
-                err = "Error occurred while converting transcription to EMR record."
+                err = f"Error occurred while converting diarized transcription '{diarization_filename}' to EMR record."
                 logger.error(err)
                 raise Exception(err)
                         
@@ -195,13 +147,7 @@ def speakcare_process_transcription(audio_files: List[str], tables: List[str], o
 
     except Exception as e:
         logger.error(f"Error occurred while processing audio: {e}")
-        return None, {"error": str(e)}
-    
-    finally:
-        if is_s3_file and audio_local_file and os.path.isfile(audio_local_file):
-            # delete the local audio file
-            os.remove(audio_local_file)
-            logger.info(f"Deleted local audio file {audio_local_file}")
+        return None, {"error": str(e)}    
 
 
 def speakcare_record_and_process_audio(tables: List[str], output_file_prefix:str="output", recording_duration:int=30, audio_device:int =None, dryrun: bool=False):
@@ -246,6 +192,8 @@ def main():
                         help='Recording duration in seconds (default: 30)')
     parser.add_argument('-a', '--audio-device', type=int,
                         help='Audio device index (required if recording is needed)')
+    parser.add_argument('-d', '--diarization', type=str, 
+                        help='Name of diarization file to process. If provided, we skip the recording and use these files instead.')
 
     # Parse arguments
     args = parser.parse_args()
@@ -269,6 +217,18 @@ def main():
 
     output_file_prefix = "output"
 
+    dryrun = args.no_emr
+    if dryrun:
+        logger.info("No EMR mode. EMR record will not be created.")
+
+    if args.diarization:
+        diarization_filename = args.diarization
+        output_file_prefix = os_get_filename_without_ext(diarization_filename)
+        record_ids, error = speakcare_process_transcription(diarization_filename=diarization_filename, tables=table_names, output_file_prefix=output_file_prefix, dryrun=dryrun)
+        EmrUtils.cleanup_db(delete_db_files=False)
+        exit(0)
+
+
     input_recordings = args.input_recording
     if args.output_prefix:
         output_file_prefix = args.output_prefix
@@ -278,11 +238,7 @@ def main():
 
     output_file_prefix = os_concat_current_time(output_file_prefix)
 
-    dryrun = args.no_emr
-    if dryrun:
-        logger.info("No EMR mode. EMR record will not be created.")
-
-
+    
     if args.input_recording:
         # Process the provided audio file and exit
         record_ids, error = speakcare_process_audio(audio_files=input_recordings, output_file_prefix=output_file_prefix, tables=table_names, dryrun=dryrun)
