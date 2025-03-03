@@ -212,7 +212,7 @@ class SpeakcareEnrollPerson():
             transcriber = TranscribeAndDiarize()
             transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.PATIENT, speaker_name=patient_name)
         else:
-            self.logger.error("Patient name not found in transcription. Cannot create EMR record.")
+            self.logger.error("Patient name not found in transcription. Cannot add patient.")
         return patient_name
 
 
@@ -227,7 +227,7 @@ class SpeakcareEnrollPerson():
             transcriber = TranscribeAndDiarize()
             transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.NURSE, speaker_name=nurse_name)
         else:
-            self.logger.error("Nurse name not found in transcription. Cannot create EMR record.")
+            self.logger.error("Nurse name not found in transcription. Cannot add nurse.")
         return nurse_name
 
 
@@ -235,7 +235,7 @@ class SpeakcareEnrollPerson():
     # Public methods
 
     # Enroll a patient
-    def enroll_patient(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
+    def enroll_patient(self, audio_filename:str, output_file_prefix:str="output", name: str=None, dryrun: bool=False):
 
         transciption_output_file, is_s3_file, audio_local_file = self.__transcribe_audio(audio_filename, output_file_prefix)
         # Step 3: Prepare patient data
@@ -245,17 +245,22 @@ class SpeakcareEnrollPerson():
         
         if not dryrun:
             patient_fields = patient_data.get('fields', {})
+            if name:
+                split_name = name.split(" ")
+                patient_fields['FullName'] = name
+                patient_fields['FirstName'] = split_name[0]
+                patient_fields['LastName'] = split_name[-1] if len(split_name) > 1 else None
             self.__add_patient(patient_fields, audio_local_file)
         
         else:
-            self.logger.info("Dryrun mode. EMR record will not be created.")
+            self.logger.info("Dryrun mode. Patient will not be created.")
         #end enroll_patient cleanup
         if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
             os.remove(audio_local_file)
 
     # Enroll a nurse
-    def enroll_nurse(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
+    def enroll_nurse(self, audio_filename:str, output_file_prefix:str="output", name: str=None, dryrun: bool=False):
 
         transciption_output_file, is_s3_file, audio_local_file = self.__transcribe_audio(audio_filename, output_file_prefix)
         # Step 3: Prepare patient data
@@ -265,10 +270,12 @@ class SpeakcareEnrollPerson():
         
         if not dryrun:
             nurse_fields = nurse_data.get('fields', {})
+            if name:
+                nurse_fields['Name'] = name
             self.__add_nurse(nurse_fields, audio_local_file)
         
         else:
-            self.logger.info("Dryrun mode. EMR record will not be created.")
+            self.logger.info("Dryrun mode. Nurse will not be created.")
         #end enroll_patient cleanup
         if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
@@ -276,7 +283,7 @@ class SpeakcareEnrollPerson():
 
     
     # Enroll a person, detect if nurse or patient from the transcription
-    def enroll_person(self, audio_filename:str, output_file_prefix:str="output", dryrun: bool=False):
+    def enroll_person(self, audio_filename:str, output_file_prefix:str="output", name: str=None, dryrun: bool=False):
 
         transciption_output_file, is_s3_file, audio_local_file = self.__transcribe_audio(audio_filename, output_file_prefix)
         # Step 3: Prepare patient data
@@ -304,14 +311,21 @@ class SpeakcareEnrollPerson():
             if role == SpeakerType.PATIENT:
                 self.logger.info("enroll_person: Adding patient")
                 patient_fields = person_data.get('fields', {}).get('patients_fields', {})
+                if name: # override the name
+                    split_name = name.split(" ")
+                    patient_fields['FullName'] = name
+                    patient_fields['FirstName'] = split_name[0]
+                    patient_fields['LastName'] = split_name[-1] if len(split_name) > 1 else None
                 person_name = self.__add_patient(patient_fields, audio_local_file)
             else:
                 self.logger.info("enroll_person: Adding nurse")
                 nurse_fields = person_data.get('fields', {}).get('nurses_fields', {})
+                if name: # override the name
+                    nurse_fields['Name'] = name
                 person_name = self.__add_nurse(nurse_fields, audio_local_file)
         
         else:
-            self.logger.info("Dryrun mode. EMR record will not be created.")
+            self.logger.info("Dryrun mode. Person will not be created.")
         #end enroll_patient cleanup
         if is_s3_file and os.path.isfile(audio_local_file):
             # remove the local audio file
@@ -334,8 +348,10 @@ def main():
                         help='Name of input recording file for enrollment. Local file or s3 file s3://{bucket-name}/{file-name}.')
     parser.add_argument('-o', '--output-prefix', type=str, default="output",
                         help='Output file prefix (default: output)')
-    parser.add_argument('-t', '--type', type=str, default="any",
-                        help="Type of person to enroll ('patient', 'nurse', 'any')")
+    parser.add_argument('-t', '--type', type=str, default="any", choices=['patient', 'nurse', 'any'],
+                        help="Type of person to enroll")
+    parser.add_argument('-n', '--name', type=str, default=None,
+                        help="Override the name of the person to enroll")
 
     # Parse arguments
     args = parser.parse_args()
@@ -356,14 +372,19 @@ def main():
 
     audio_filename = args.input_recording
     speaker_type = args.type
+    name = args.name
     # enroll the patient
     enroller = SpeakcareEnrollPerson()
-    if speaker_type == "patient":
-        enroller.enroll_patient(audio_filename, output_file_prefix, dryrun)
-    elif speaker_type == "nurse":
-        enroller.enroll_nurse(audio_filename, output_file_prefix, dryrun)
-    else:
-        enroller.enroll_person(audio_filename, output_file_prefix, dryrun)
+    match speaker_type:
+        case "patient":
+            enroller.enroll_patient(audio_filename, output_file_prefix, name, dryrun)
+        case "nurse":
+            enroller.enroll_nurse(audio_filename, output_file_prefix, name, dryrun)
+        case "any":
+            enroller.enroll_person(audio_filename, output_file_prefix, name, dryrun)
+        case _:
+            logger.error(f"Invalid speaker type {speaker_type}. Must be 'patient' or 'nurse'.")
+            return
 
 if __name__ == "__main__":
     main()

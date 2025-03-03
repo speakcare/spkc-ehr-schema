@@ -123,9 +123,10 @@ class EmrUtils:
     
     @staticmethod
     def add_patient(patient: dict):
-        logger.info(f"add_patient:\n {patient}")
+        logger.debug(f"add_patient:\n {patient}")
         errors = []
         patient_name = patient.get('FullName', None)
+        logger.info(f"add_patient: {patient_name}")
         isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
         if isValid:
             logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
