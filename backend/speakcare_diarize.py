@@ -368,7 +368,7 @@ class TranscribeAndDiarize:
 
 def main():
     parser = argparse.ArgumentParser(description="Speaker Recognition Tool")
-    choices = ["full", "transcribe", "recognize", "diarize"]
+    choices = ["full", "transcribe", "diarize"]
     parser.add_argument(
         '-f', '--function',
         type=str, 
