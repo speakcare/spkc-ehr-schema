@@ -8,7 +8,7 @@ from typing import List
 import os
 from speakcare_audio import record_audio, audio_check_input_device, audio_print_input_devices, audio_get_devices_string
 from speakcare_logging import SpeakcareLogger
-from speakcare_stt import transcribe_audio_whisper, transcribe_and_diarize_audio
+from speakcare_stt import stt_whisper, stt_and_diarize_aws
 from speakcare_charting import create_chart_completion
 from speakcare_emr import SpeakCareEmr
 from speakcare_emr_utils import EmrUtils
@@ -26,7 +26,7 @@ logger = SpeakcareLogger(__name__)
 
 
 SpeakcareEnv.prepare_env()
-boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
+boto3Session = Boto3Session()
 
 supported_tables = EmrUtils.get_table_names()
 
@@ -82,7 +82,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
             # Step 2: Transcribe Audio (speech to text)
             # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
             # transcript_len = transcribe_audio_whisper(input_file=audio_filename, output_file=transcription_filename, append= (num > 0))
-            transcript_len = transcribe_and_diarize_audio(boto3Session=boto3Session, input_file=audio_local_file, output_file=transcription_filename, append= (num > 0))
+            transcript_len = stt_and_diarize_aws(boto3Session=boto3Session, input_file=audio_local_file, output_file=transcription_filename, append= (num > 0))
             if transcript_len == 0:
                 err = "Error occurred while transcribing audio."
                 logger.error(err)

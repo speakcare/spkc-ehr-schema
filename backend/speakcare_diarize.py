@@ -38,7 +38,7 @@ class SpeakerType(PyEnum):
 class TranscribeAndDiarize:
     def __init__(self):
         self.logger = SpeakcareLogger(__name__)
-        self.b3session =  Boto3Session(SpeakcareEnv.get_working_dirs())
+        self.b3session =  Boto3Session()
         self.init_env_variables()
         self.init_encoder()
         self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")

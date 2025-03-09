@@ -10,14 +10,14 @@ from speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
 from os_utils import os_ensure_file_directory_exists, os_get_file_extension
-from speakcare_stt import transcribe_audio_whisper
+from speakcare_stt import stt_whisper
 from speakcare_llm import openai_complete_schema_from_transcription
 
 
 class SpeakcareEnrollPerson():
     def __init__(self):
         self.logger = SpeakcareLogger(SpeakcareEnrollPerson.__name__)
-        self.b3session = Boto3Session(SpeakcareEnv.get_working_dirs())
+        self.b3session = Boto3Session()
 
     
     def __transcribe_audio(self, audio_filename:str, output_file_prefix:str="output"):
@@ -76,7 +76,7 @@ class SpeakcareEnrollPerson():
             audio_convert_to_wav(audio_filename, wav_filename)
             audio_filename = wav_filename
         
-        len = transcribe_audio_whisper(audio_filename, transcribe_ouptut_file)
+        len = stt_whisper(audio_filename, transcribe_ouptut_file)
         if len:
             self.logger.info(f"Transcription saved to {transcribe_ouptut_file} length: {len} characters")
         else:

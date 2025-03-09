@@ -30,7 +30,7 @@ class SpeakcarePilot:
         self.logger = SpeakcareLogger(SpeakcarePilot.__name__)
         self.gDriveApi = GoogleDriveAPI(GDRIVE_SCOPES)
         self.gDriveApi.authenticate(GOOGLE_OAUTH_CREDS_FILE)
-        self.boto3Session = Boto3Session(SpeakcareEnv.get_working_dirs())
+        self.boto3Session = Boto3Session()
         
 
     def sync_from_gdrive_to_s3(self, gdrive_folder_id, s3_folder_key): 

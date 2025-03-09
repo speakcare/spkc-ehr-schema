@@ -29,12 +29,12 @@ class Boto3Session:
     __transcribe = None
     __logger = SpeakcareLogger(__name__)
 
-    def __init__(self, s3dirs: list):
+    def __init__(self):
         if not Boto3Session.__is_initialized:
             self.__logger.debug("Initializing Boto3 session...")
             self.__init_env_variables()
             self.__boto3_init_clients()
-            self.__s3_init_bucket(s3dirs)
+            self.__s3_init_bucket(SpeakcareEnv.get_working_dirs())
             self.__dynamodb_init_tables()
             Boto3Session.__is_initialized = True
 
@@ -101,13 +101,23 @@ class Boto3Session:
 
 
     def s3_upload_file_obj(self, file, key: str):
-        self.__s3_client.upload_fileobj(file, self.__s3_bucket_name, key)
+        try:
+            self.__s3_client.upload_fileobj(file, self.__s3_bucket_name, key)
+        except ClientError as e:
+            self.__logger.error(f"Error uploading file object to s3://{self.__s3_bucket_name}/{key}: {e}")
+            raise
         self.__logger.debug(f"Uploaded file object to s3://{self.__s3_bucket_name}/{key}")
 
+
     def s3_upload_file(self, file_path: str, key: str):
-        self.__s3_client.upload_file(file_path, self.__s3_bucket_name, key)
-        self.__logger.debug(f"Uploaded file '{file_path}' to s3://{self.__s3_bucket_name}/{key}")
+        try:
+            self.__s3_client.upload_file(file_path, self.__s3_bucket_name, key)
+        except ClientError as e:
+            self.__logger.error(f"Error uploading file '{file_path}' to 's3://{self.__s3_bucket_name}/{key}': {e}")
+            raise
+        self.__logger.debug(f"Uploaded file '{file_path}' to 's3://{self.__s3_bucket_name}/{key}'")
     
+   
     def s3_append_from_file(self, file_path: str, key: str):
         temp_file_name = f'{SpeakcareEnv.get_local_downloads_dir()}/temp_file.txt'
         try:
@@ -128,7 +138,7 @@ class Boto3Session:
                 # File does not exist, create it
                 self.s3_upload_file(file_path, key)
         except ClientError as e:
-            self.__logger.error(f"Error appending to file: {e}")
+            self._logger.error(f"Error appending file '{file_path}' to 's3://{self.__s3_bucket_name}/{key}': {e}")
             raise
         finally:
             if os.path.isfile(temp_file_name):
@@ -136,8 +146,13 @@ class Boto3Session:
 
 
     def s3_copy_object(self, srcKey: str, destKey: str):
-        self.__s3_client.copy_object(Bucket=self.__s3_bucket_name, CopySource=f"{self.__s3_bucket_name}/{srcKey}", Key=destKey)
-        self.__logger.debug(f"Copied file s3://{self.__s3_bucket_name}/{srcKey} to s3://{self.__s3_bucket_name}/{destKey}")
+        self.__logger.debug(f"Copying file s3://{self.__s3_bucket_name}/{srcKey} to 's3://{self.__s3_bucket_name}/{destKey}'")
+        try:
+            self.__s3_client.copy_object(Bucket=self.__s3_bucket_name, CopySource=f"{self.__s3_bucket_name}/{srcKey}", Key=destKey)
+        except ClientError as e:
+            self.__logger.error(f"Error copying file 's3://{self.__s3_bucket_name}/{srcKey}' to 's3://{self.__s3_bucket_name}/{destKey}': {e}")
+            raise
+        self.__logger.debug(f"Copied file s3://{self.__s3_bucket_name}/{srcKey} to 's3://{self.__s3_bucket_name}/{destKey}'")
 
     def s3_append_from_key(self, srcKey: str, destKey: str):
         temp_dest_file = f'{SpeakcareEnv.get_local_downloads_dir()}/temp_dest_file.txt'
@@ -160,9 +175,9 @@ class Boto3Session:
                 os.remove(temp_source_file)
             else:
                 # File does not exist, create it
-                self.s3_copy_object(Bucket=self.__s3_bucket_name, CopySource=f"{self.__s3_bucket_name}/{srcKey}", Key=destKey)
+                self.s3_copy_object(srcKey, destKey)
         except ClientError as e:
-            self.__logger.error(f"Error appending to file: {e}")
+            self.__logger.error(f"Error appending to file 's3://{self.__s3_bucket_name}/{srcKey}' to 's3://{self.__s3_bucket_name}/{destKey}': {e}")
             raise
         finally:
             if os.path.isfile(temp_dest_file):
@@ -174,8 +189,13 @@ class Boto3Session:
         
     def s3_download_file(self, key: str, file_path: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
-        self.__s3_client.download_file(bucket, key, file_path)
+        try:
+            self.__s3_client.download_file(bucket, key, file_path)
+        except ClientError as e:
+            self.__logger.error(f"Error downloading file 's3://{bucket}/{key}' to '{file_path}': {e}")
+            raise
         self.__logger.info(f"Downloaded file s3://{bucket}/{key} to '{file_path}'")
+
 
     def s3_uri_download_file(self, uri: str, file_path: str):
         key = Boto3Session.s3_extract_key(uri)
@@ -184,7 +204,11 @@ class Boto3Session:
 
     def s3_get_object(self, key: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
-        return self.__s3_client.get_object(Bucket=bucket, Key=key)
+        try:
+            return self.__s3_client.get_object(Bucket=bucket, Key=key)
+        except ClientError as e:
+            self.__logger.error(f"Error getting object 's3://{bucket}/{key}': {e}")
+            raise
     
     def s3_get_object_body(self, key: str, bucket:str = None):
         obj = self.s3_get_object(key=key, bucket=bucket)
@@ -192,7 +216,11 @@ class Boto3Session:
 
     def s3_put_object(self, key: str, body: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
-        return self.__s3_client.put_object(Bucket=bucket, Key=key, Body=body)
+        try:
+            return self.__s3_client.put_object(Bucket=bucket, Key=key, Body=body)
+        except ClientError as e:
+            self.__logger.error(f"Error putting object 's3://{bucket}/{key}': {e}")
+            raise
 
     def s3_check_object_exists(self, key:str, bucket:str =None) -> bool:
         try:
@@ -204,6 +232,7 @@ class Boto3Session:
             return False 
              # File does not exist
     
+
     def s3_uri_check_object_exists(self, uri) -> bool:
         key = Boto3Session.s3_extract_key(uri)
         bucket = Boto3Session.s3_extract_bucket(uri)
@@ -215,7 +244,7 @@ class Boto3Session:
             response = self.__s3_client.head_object(Bucket=bucket, Key=key)
             return response['ContentLength']
         except ClientError as e:
-            self.__logger.error(f"Error getting object size: {e}")
+            self.__logger.error(f"Error getting object size 's3://{bucket}/{key}': {e}")
             raise
     
     def s3_uri_get_object_size(self, uri) -> int:

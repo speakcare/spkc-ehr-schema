@@ -18,7 +18,7 @@ trnsAndDrz = TranscribeAndDiarize()
 # Set your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-def transcribe_audio_whisper(input_file="output.wav", output_file="output.txt", append=False):
+def stt_whisper(input_file="output.wav", output_file="output.txt", append=False):
 
     transcript = None
     client = OpenAI()
@@ -39,7 +39,7 @@ def transcribe_audio_whisper(input_file="output.wav", output_file="output.txt", 
     logger.info(f"Transcription saved to {output_file} length: {transcription_length} characters")
     return transcription_length
 
-def transcribe_and_diarize_audio(boto3Session: Boto3Session, input_file="output.wav", output_file="output.txt", append=False):
+def stt_and_diarize_aws(boto3Session: Boto3Session, input_file="output.wav", output_file="output.txt", append=False):
 
     transcipt_file_key = None
     output_file_prefix = os_get_filename_without_ext(output_file)
@@ -72,7 +72,7 @@ def record_and_transcribe():
     record_audio(duration=5, output_filename=output_filename)
 
     # Step 2: Transcribe Audio
-    transcription = transcribe_audio_whisper(output_filename)
+    transcription = stt_whisper(output_filename)
     print("Transcription:", transcription)
 
 if __name__ == "__main__":
@@ -80,6 +80,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
+    parser.add_argument('-m', '--model', type=str, 
+                        choices=['whisper','aws'], default='whisper', help='Model: whisper or aws (default: whisper)')
 
     args = parser.parse_args()
 
@@ -94,7 +96,12 @@ if __name__ == "__main__":
     # Format the datetime as a string without microseconds and timezone
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
-    output_filename = f'{SpeakcareEnv.get_texts_local_dir()}/{output_file_prefix}.{utc_string}.txt'
+    output_filename = f'{SpeakcareEnv.get_texts_dir()}/{output_file_prefix}.{utc_string}.txt'
 
-    logger.info(f"Transcribing audio from {input_file} into {output_filename}")
-    transcribe_audio_whisper(input_file, output_filename)
+    if args.model == 'aws':
+        boto3Session = Boto3Session()
+        logger.info(f"AWS tanscribing and diarizing audio from {input_file} into {output_filename}")
+        stt_and_diarize_aws(boto3Session, input_file, output_filename)
+    else:
+        logger.info(f"Whisper transcribing audio from {input_file} into {output_filename}")
+        stt_whisper(input_file, output_filename)

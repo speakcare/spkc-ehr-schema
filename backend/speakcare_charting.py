@@ -256,6 +256,7 @@ def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
     Based on the transcription, respond with a valid json object formatted according to the provided json_schema, and nothing else.
     Please fill in the json properties if and only if you are sure of the answers.
     Do not assume any values, only fill in the properties that can explicitly be dervied from he transcription.
+    Answer in English only. If any field value is a text in a different language, you must translate it into English.
     If an issue is not mentioned, do not assume it is does not exist and do not fill in a value that implies the patient do not have that issue.
     In any case you cannot explicitly derive an answer from the transcription, you must set the value to null. 
     If the schema has sections, you must fill in the fields of each section separately.
@@ -379,6 +380,10 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
     """
     transcription = None
         
+    if input_file.startswith("s3://"):
+        input_file = Boto3Session.s3_extract_key(input_file)
+    if output_file.startswith("s3://"):
+        output_file = Boto3Session.s3_extract_key(output_file)
 
     try:
         # with open(input_file, "r") as file:
@@ -434,20 +439,22 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
 
 def main():
     
+    supported_tables = EmrUtils.get_table_names()
+
     parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input transcription file name (default: input)')
-    parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
+    parser.add_argument('-c', '--chart', type=str, required=True, help=f'Chart name (suported charts: {supported_tables}')
     parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
 
     args = parser.parse_args()
 
     SpeakcareEnv.prepare_env()
-    output_dir = SpeakcareEnv.get_charts_local_dir()
-    supported_tables = EmrUtils.get_table_names()
+    output_dir = SpeakcareEnv.get_charts_dir()
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    boto3Session = Boto3Session()
 
-    table_name = args.table
+    chart_name = args.chart
     
     input_file = args.input
     output_file_prefix = args.output
@@ -456,8 +463,8 @@ def main():
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
     
-    if table_name not in supported_tables:
-        logger.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
+    if chart_name not in supported_tables:
+        logger.error(f"Invalid chart name: {chart_name}. Supported tables: {supported_tables}")
         exit(1)
     
 
@@ -469,7 +476,7 @@ def main():
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
     logger.info(f"Creating EMR record from {input_file} into {output_filename}")
-    create_chart_completion(input_file=input_file, output_file=output_filename, emr_table_name=table_name, dryrun=dryrun)
+    create_chart_completion(boto3Session, input_file=input_file, output_file=output_filename, emr_table_name=chart_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":
