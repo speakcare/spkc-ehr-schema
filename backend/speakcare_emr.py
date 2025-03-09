@@ -372,15 +372,15 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 return self.patientsTable.get(patientEmdId)
 
 
-    def __lookup_patient(self, patientName):
+    def __match_patient(self, patientName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
         if matchedName:
             return matchedName, self.patientIds[matchedIndex], self.patientEmrIds[matchedIndex]
         else:
             return None, None, None
     
-    def lookup_patient(self, patientFullName):
-        matchedName, patientId, patientEmrId = self.__lookup_patient(patientFullName)
+    def match_patient(self, patientFullName):
+        matchedName, patientId, patientEmrId = self.__match_patient(patientFullName)
         if not matchedName:
             self.logger.info(f'Patient {patientFullName} not found')
         return matchedName, patientId, patientEmrId
@@ -393,11 +393,20 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
     def add_patient(self, patient):
         patient_name = patient.get('FullName')
-        matchedName, patientId, patientEmrId = self.lookup_patient(patient_name)
-        if matchedName:
-            self.logger.warning(f"Patient '{patient_name}' already exists. Matched patient '{matchedName}' with id {patientId}")
+        if patient_name in self.patientNames:
+            patientId = self.patientIds[self.patientNames.index(patient_name)]
+            self.logger.warning(f"Patient '{patient_name}' already exists with id {patientId}")
             return None
-        return self.patientsTable.create(patient)
+        patient_record = self.patientsTable.create(patient)
+        if not patient_record:
+            self.logger.error(f'Failed to create patient {patient}')
+            return None
+        else:
+            self.patientNames.append(patient_record['fields']['FullName'])
+            self.patientEmrIds.append(patient_record['id'])
+            self.patientIds.append(patient_record['fields']['PatientID'])
+            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID']}")
+            return patient_record
 
     def update_patient(self, patient_id, patient):
         self.logger.debug(f'Updating patient {patient_id} with {patient}')
@@ -431,15 +440,15 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 nurseEmdId = self.nurseEmrIds[index]
                 return self.nursesTable.get(nurseEmdId)
     
-    def __lookup_nurse(self, nurseName):
+    def __match_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
         if matchedName:
             return matchedName, self.nurseIds[matchedIndex], self.nurseEmrIds[matchedIndex]
         else:
             return None, None, None
         
-    def lookup_nurse(self, nurseName):
-        matchedName, nurseId, nurseEmrId = self.__lookup_nurse(nurseName)
+    def match_nurse(self, nurseName):
+        matchedName, nurseId, nurseEmrId = self.__match_nurse(nurseName)
         if not matchedName:
             self.logger.info(f'Nurse {nurseName} not found')
         return matchedName, nurseId, nurseEmrId
@@ -455,11 +464,20 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
     def add_nurse(self, nurse):
         nurse_name = nurse.get('Name')
-        matchedName, nurseId, nurseEmrId = self.lookup_nurse(nurse_name)
-        if matchedName:
-            self.logger.warning(f"Nurse '{nurse_name}' already exists. Matched nurse '{matchedName}' with id {nurseId}")
+        if nurse_name in self.nurseNames:
+            nurseId = self.nurseIds[self.nurseNames.index(nurse_name)]
+            self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurseId}")
             return None
-        return self.nursesTable.create(nurse)
+        nurse_record = self.nursesTable.create(nurse)
+        if not nurse_record:
+            self.logger.error(f'Failed to create nurse {nurse}')
+            return None
+        else:
+            self.nurseNames.append(nurse_record['fields']['Name'])
+            self.nurseEmrIds.append(nurse_record['id'])
+            self.nurseIds.append(nurse_record['fields']['NurseID'])
+            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_record['fields']['NurseID']}")
+            return nurse_record
     
     def update_nurse(self, nurse_id, nurse):
         self.logger.debug(f'Updating nurse {nurse_id} with {nurse}')

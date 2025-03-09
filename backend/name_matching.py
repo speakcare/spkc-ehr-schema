@@ -10,7 +10,7 @@ class NameMatcher:
     def __init__(self, primary_threshold=90, secondary_threshold=80):
         self.primary_threshold = primary_threshold
         self.secondary_threshold = secondary_threshold
-        self.logger = SpeakcareLogger(__name__)
+        self.logger = SpeakcareLogger(NameMatcher.__name__)
         
     def get_best_match(self, input_name= None, names_to_match = None):
         # Initial character-based matching
@@ -44,12 +44,12 @@ class NameMatcher:
 
         # found a phonetic match and the character distance is within the threshold
         if best_secondary_score >= self.secondary_threshold:
-            self.logger.debug(f"Found best match by Double Metaphone '{best_match}' with score {best_secondary_score}")
+            self.logger.debug(f"Found best match for '{input_name}' by Double Metaphone '{best_match}' with score {best_secondary_score}")
             return best_match, best_match_index, best_secondary_score
         
         # found a phonetic match but the character distance score is too low
         if best_secondary_score > 0:
-            self.logger.debug(f"Best match by Double Metaphone '{best_match}' score {best_secondary_score} is lower than threshold {self.secondary_threshold}")
+            self.logger.debug(f"Best match by Double Metaphone for '{input_name}' is '{best_match}' score {best_secondary_score} is lower than threshold {self.secondary_threshold}")
         
         else:
             self.logger.debug(f"No match found for '{input_name}'")
@@ -82,6 +82,7 @@ class NameMatcher:
 
 # Example usage
 def main(argv):  
+    logger = SpeakcareLogger(__name__)
     patient_names = ["Carol Smith", "Jane Doe", "Johnathan Smyth", "Johnny Appleseed", "Jaine Do", "Jon Smythen"]
     input_name = "Mr. Smith"  # Example transcribed name
 
@@ -89,9 +90,23 @@ def main(argv):
     best_match, best_match_index, score = matcher.get_best_match(input_name, patient_names)
 
     if best_match_index is not None:
-        print(f"Best match for '{input_name}' is: '{patient_names[best_match_index]}' (Index: {best_match_index}) with score: {score}") 
+        logger.info(f"Best match for '{input_name}' is: '{patient_names[best_match_index]}' (Index: {best_match_index}) with score: {score}") 
     else:
-        print(f"No match found for '{input_name}'")
+        logger.info(f"No match found for '{input_name}'")
+
+
+    nurse_names = ["Christina Aguillera", "Christa Jones", "Christina Applegate"]
+    input_name = "Christy"  # Example transcribed name
+
+    matcher = NameMatcher(primary_threshold=90, secondary_threshold=70)
+    best_match, best_match_index, score = matcher.get_best_match(input_name, nurse_names)
+
+    if best_match_index is not None:
+        logger.info(f"Best match for '{input_name}' is: '{nurse_names[best_match_index]}' (Index: {best_match_index}) with score: {score}") 
+    else:
+        logger.info(f"No match found for '{input_name}'")
+
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

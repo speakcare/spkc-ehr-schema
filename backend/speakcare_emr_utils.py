@@ -45,7 +45,7 @@ class EmrUtils:
         """
         get_patient_info
         """
-        foundName, patientId, patientEmrId = emr_api.lookup_patient(name)
+        foundName, patientId, patientEmrId = emr_api.match_patient(name)
 
         if not patientEmrId:
             return None
@@ -119,7 +119,7 @@ class EmrUtils:
         """
         lookup_patient
         """
-        return emr_api.lookup_patient(name)
+        return emr_api.match_patient(name)
     
     @staticmethod
     def add_patient(patient: dict):
@@ -255,7 +255,7 @@ class EmrUtils:
         foundPatientByName = None
         foundPatientIdByName = None
         foundPatientByPatientId = None
-        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.lookup_patient(patient_name)
+        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.match_patient(patient_name)
 
         if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
@@ -282,7 +282,7 @@ class EmrUtils:
         foundNurseByName = None
         foundNurseIdByName = None
         foundNurseByNurseId = None
-        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.lookup_nurse(nurse_name)
+        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.match_nurse(nurse_name)
 
         if not foundNurseByName: # Nurse name is mandatory and must be found
             _errors.append(f"Nurse '{nurse_name}' not found in the EMR.")
@@ -650,13 +650,13 @@ class EmrUtils:
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             
             # from here record should be ready for commit with no errors
-            foundPatient, foundPatientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
+            foundPatient, foundPatientId, patientEmrId = emr_api.match_patient(record.patient_name) 
             if not foundPatient:
                 record.errors
                 raise ValueError(f"Patient {record.patient_name} not found in the EMR.")
             
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
@@ -755,7 +755,7 @@ class EmrUtils:
             elif record.type != RecordType.MULTI_SECTION:
                 raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database

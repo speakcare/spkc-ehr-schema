@@ -386,10 +386,12 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
         output_file = Boto3Session.s3_extract_key(output_file)
 
     try:
-        # with open(input_file, "r") as file:
-        #     lines = file.readlines()
         # read input file from s3
-        transcription = boto3Session.s3_get_object_content(input_file)
+        if input_file.startswith("s3://"):
+            transcription = boto3Session.s3_uri_get_object_content(input_file)
+        else:
+            transcription = boto3Session.s3_get_object_content(input_file)
+        
         if not transcription:
             raise ValueError("No transcription found in the input file.")
         # Join the lines to form a single string
@@ -421,8 +423,11 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
         
         # with open(output_file, "w") as json_file:
         #     json.dump(filled_schema_dict, json_file, indent=4)
-        
-        boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
+        if output_file.startswith("s3://"):
+            boto3Session.s3_uri_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
+        else:
+            boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
+
         logger.info(f"Chart completion uploaded to {output_file}")
 
         record_id, record_state = __create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)

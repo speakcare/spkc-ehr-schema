@@ -222,6 +222,11 @@ class Boto3Session:
             self.__logger.error(f"Error putting object 's3://{bucket}/{key}': {e}")
             raise
 
+    def s3_uri_put_object(self, uri: str, body: str):
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        self.s3_put_object(key=key, body=body, bucket=bucket)
+
     def s3_check_object_exists(self, key:str, bucket:str =None) -> bool:
         try:
             bucket = bucket if bucket else self.__s3_bucket_name
