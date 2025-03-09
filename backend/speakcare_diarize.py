@@ -50,7 +50,7 @@ class TranscribeAndDiarize:
 
         # Initialize Resemblyzer
     def init_encoder(self):
-        self.encoder = VoiceEncoder()
+        self.encoder = VoiceEncoder(verbose=False)
 
     def upload_audio_to_s3(self, audio_path, key):
         """Upload audio file to S3."""
