@@ -19,7 +19,6 @@ def __get_directory_path(dir_name):
 def os_ensure_directory_exists(dir_name):
     # Extract the directory path from the file path
     _dir_path = __get_directory_path(dir_name)
-    #directory = os.path.dirname(file_path)
     
     logger.debug(f"Verify directory {_dir_path} exists")
     # Create the directory if it does not exist
@@ -44,13 +43,15 @@ def os_get_filename_without_ext(filename):
     name, _ = os.path.splitext(os.path.basename(filename))
     return name
 
+def os_sanitize_filename(filename:str):
+    """Sanitize a filename to remove invalid characters."""
+    return "".join(c if (c.isalnum() or c in "._- ") else "-" for c in filename)
+
+
 def os_concat_current_time(prefix:str):
     utc_now = datetime.now(timezone.utc)
     # Format the datetime as a string with milliseconds without timezone
-    utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] # remove last 3 digits
-    # make it shell friendly
-    utc_string = utc_string.replace(":", "-")
-    utc_string = utc_string.replace(".", "-")
+    utc_string = utc_now.strftime('%Y-%m-%dT%H-%M-%S-%f')[:-3] # remove last 3 digits
     return f'{prefix}-{utc_string}'
 
 class Timer:

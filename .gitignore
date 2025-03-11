@@ -4,6 +4,7 @@ bin/
 env/
 lib/
 playground/
+backend/tmp/
 
 # Ignore the .env file
 .env

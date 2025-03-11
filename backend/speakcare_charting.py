@@ -375,16 +375,10 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
     Convert a transcription from a file to a JSON file.
     
     Parameters:
-        input_file (str): The input file containing the transcription.
+        input_file (str): The input file in s3 containing the transcription.
         output_file (str): The output JSON file to write the converted transcription.
     """
     transcription = None
-        
-    if input_file.startswith("s3://"):
-        input_file = Boto3Session.s3_extract_key(input_file)
-    if output_file.startswith("s3://"):
-        output_file = Boto3Session.s3_extract_key(output_file)
-
     try:
         # read input file from s3
         if input_file.startswith("s3://"):
@@ -421,8 +415,6 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
             logger.error(err)
             raise ValueError(err)
         
-        # with open(output_file, "w") as json_file:
-        #     json.dump(filled_schema_dict, json_file, indent=4)
         if output_file.startswith("s3://"):
             boto3Session.s3_uri_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
         else:

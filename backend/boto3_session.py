@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 import urllib.parse
+from os_utils import os_ensure_file_directory_exists
 
 if not load_dotenv("./.env"):
     print("No .env file found")
@@ -28,6 +29,7 @@ class Boto3Session:
     __dynamodb = None
     __transcribe = None
     __logger = SpeakcareLogger(__name__)
+    __single_instance = None
 
     def __init__(self):
         if not Boto3Session.__is_initialized:
@@ -39,6 +41,11 @@ class Boto3Session:
             Boto3Session.__is_initialized = True
 
 
+    @staticmethod
+    def get_single_instance():
+        if Boto3Session.__single_instance is None:
+            Boto3Session.__single_instance = Boto3Session()
+        return Boto3Session.__single_instance
     
     @staticmethod
     def __init_env_variables():
@@ -197,6 +204,10 @@ class Boto3Session:
         self.__logger.info(f"Downloaded file s3://{bucket}/{key} to '{file_path}'")
 
 
+    def s3_get_object_uri(self, key: str, bucket:str = None) -> str:
+        bucket = bucket if bucket else self.__s3_bucket_name
+        return f"s3://{bucket}/{key}"
+    
     def s3_uri_download_file(self, uri: str, file_path: str):
         key = Boto3Session.s3_extract_key(uri)
         bucket = Boto3Session.s3_extract_bucket(uri)
@@ -210,9 +221,32 @@ class Boto3Session:
             self.__logger.error(f"Error getting object 's3://{bucket}/{key}': {e}")
             raise
     
-    def s3_get_object_body(self, key: str, bucket:str = None):
-        obj = self.s3_get_object(key=key, bucket=bucket)
-        return json.loads(obj['Body'].read())
+    def s3_get_object_content(self, key: str, bucket:str = None) -> str:
+        try:
+            bucket = bucket if bucket else self.__s3_bucket_name
+            response = self.s3_get_object(key=key, bucket=bucket)
+            content = response['Body'].read().decode('utf-8')
+            self.__logger.debug(f"Read content from object s3://{bucket}/{key}")
+            return content
+        except ClientError as e:
+            self.__logger.error(f"Error reading content from object s3://{bucket}/{key}: {e}")
+            raise
+
+    def s3_uri_get_object_content(self, uri) -> str:
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_get_object_content(key=key, bucket=bucket)
+
+
+    def s3_get_object_content_json(self, key: str, bucket:str = None):
+        content = self.s3_get_object_content(key=key, bucket=bucket)
+        return json.loads(content)
+    
+    def s3_uri_get_object_content_json(self, uri) -> str:
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return self.s3_get_object_content_json(key=key, bucket=bucket)
+    
 
     def s3_put_object(self, key: str, body: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
@@ -234,8 +268,8 @@ class Boto3Session:
             self.__s3_client.head_object(Bucket=bucket, Key=key)
             return True  # File exists
         except ClientError as e:
-            return False 
              # File does not exist
+            return False 
     
 
     def s3_uri_check_object_exists(self, uri) -> bool:
@@ -257,21 +291,6 @@ class Boto3Session:
         bucket = Boto3Session.s3_extract_bucket(uri)
         return self.s3_get_object_size(key=key, bucket=bucket)
 
-    def s3_get_object_content(self, key: str, bucket:str = None) -> str:
-        try:
-            bucket = bucket if bucket else self.__s3_bucket_name
-            response = self.s3_get_object(key=key, bucket=bucket)
-            content = response['Body'].read().decode('utf-8')
-            self.__logger.info(f"Read content from object s3://{bucket}/{key}")
-            return content
-        except ClientError as e:
-            self.__logger.error(f"Error reading content from object s3://{bucket}/{key}: {e}")
-            raise
-
-    def s3_uri_get_object_content(self, uri) -> str:
-        key = Boto3Session.s3_extract_key(uri)
-        bucket = Boto3Session.s3_extract_bucket(uri)
-        return self.s3_get_object_content(key=key, bucket=bucket)
 
     def s3_get_object_last_modified(self, key: str, bucket:str = None):
         bucket = bucket if bucket else self.__s3_bucket_name
@@ -304,6 +323,38 @@ class Boto3Session:
 
     def s3_get_file_path(self, key: str):
         return f"s3://{self.__s3_bucket_name}/{key}"
+    
+    ''' 
+        s3_localize_file_path
+        Check if file is s3 path then download to local file.
+        Otherwise return the local file path.
+        Validated existance of file in both cases.
+    '''
+    
+    def s3_localize_file(self, file_path: str):
+        remove_local_file = False
+        if file_path.startswith("s3://"):
+            try:
+                if self.s3_uri_check_object_exists(file_path):
+                    local_file = f'{SpeakcareEnv.get_local_downloads_dir()}/{os.path.basename(file_path)}'
+                    os_ensure_file_directory_exists(local_file)
+                    self.s3_uri_download_file(file_path, local_file)
+                    remove_local_file = True
+                    self.__logger.info(f"Downloaded audio file {file_path} to {local_file}")
+                else:
+                    self.__logger.error(f"s3 file {file_path} not found")
+                    return None, False
+            except Exception as e:
+                self.__logger.error(f"Error downloading file '{file_path}' to local: {e}")
+                return None, False
+        else:
+            local_file = file_path
+            if not os.path.isfile(local_file):
+                self.__logger.error(f"Local file {local_file} not found")
+                return None, False
+            
+        return local_file, remove_local_file
+
 
     @staticmethod
     def s3_extract_key(s3_url):
