@@ -17,7 +17,7 @@ from speakcare_llm import openai_complete_schema_from_transcription
 class SpeakcareEnrollPerson():
     def __init__(self):
         self.logger = SpeakcareLogger(SpeakcareEnrollPerson.__name__)
-        self.b3session = Boto3Session()
+        self.b3session = Boto3Session.get_single_instance()
         self.transciber = SpeakcareOpenAIWhisper()
 
 

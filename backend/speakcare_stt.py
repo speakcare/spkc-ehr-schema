@@ -68,7 +68,7 @@ class SpeakcareAWSTranscribe(SpeakcareSTT):
     def __init__(self):
         super().__init__()
         self.logger = SpeakcareLogger(SpeakcareAWSTranscribe.__name__)
-        self.b3session = Boto3Session()
+        self.b3session = Boto3Session.get_single_instance()
         self.wait_sleep = 10
 
     def transcribe(self, audio_file: str, transcription_output_file: str=None):
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     output_filename = os_sanitize_filename(f'{output_file_prefix}.{utc_string}')
 
     if args.model == 'aws':
-        boto3Session = Boto3Session()
+        boto3Session = Boto3Session.get_single_instance()
         output_path = f'{SpeakcareEnv.get_transcriptions_dir()}/{output_filename}.json'
         stt = SpeakcareAWSTranscribe()
         logger.info(f"AWS tanscribing audio from {input_file} into {output_path}")

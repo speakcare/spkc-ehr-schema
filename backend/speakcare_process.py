@@ -27,7 +27,7 @@ logger = SpeakcareLogger(__name__)
 
 
 SpeakcareEnv.prepare_env()
-boto3Session = Boto3Session()
+boto3Session = Boto3Session.get_single_instance()
 
 supported_tables = EmrUtils.get_table_names()
 diarizer = SpeakcareDiarize()

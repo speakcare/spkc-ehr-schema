@@ -39,7 +39,7 @@ class SpeakerType(PyEnum):
 class SpeakcareDiarize:
     def __init__(self):
         self.logger = SpeakcareLogger(SpeakcareDiarize.__name__)
-        self.b3session =  Boto3Session()
+        self.b3session =  Boto3Session.get_single_instance()
         self.init_env_variables()
         self.init_encoder()
         self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
