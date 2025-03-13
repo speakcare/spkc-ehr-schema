@@ -19,6 +19,7 @@ from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 from os_utils import os_ensure_file_directory_exists, os_get_filename_without_ext, os_concat_current_time
 from speakcare_stt import SpeakcareAWSTranscribe
+from speakcare_recognizer import SpeakerType
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -30,10 +31,6 @@ if not load_dotenv("./.env"):
 
 SpeakcareEnv.prepare_env()
 
-class SpeakerType(PyEnum):
-    PATIENT = 'Patient'
-    NURSE = 'Nurse'
-    UNKNOWN = 'Unknown'
 
 
 class SpeakcareDiarize:

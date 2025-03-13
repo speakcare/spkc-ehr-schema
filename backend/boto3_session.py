@@ -439,11 +439,11 @@ class Boto3Session:
     
     def dynamo_get_table_name(self, table_name: str = '') -> str:
         table_name = table_name.lower()
-        if table_name == 'speakers':
-            return self.__speakers_table_name
-        else:
-            return None
-
+        match table_name:
+            case 'speakers':
+                return self.__speakers_table_name
+            case _:
+                return None
     
     def get_transcribe_client(self):
         return self.__transcribe  

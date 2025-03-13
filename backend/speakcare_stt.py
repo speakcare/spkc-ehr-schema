@@ -26,7 +26,7 @@ class SpeakcareSTT(ABC):
 
     @abstractmethod
     def transcribe(self, audio_file: str, transcription_output_file: str=None):
-        pass
+        raise NotImplementedError()
 
 
 class SpeakcareOpenAIWhisper(SpeakcareSTT):
