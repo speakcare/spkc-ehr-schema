@@ -4,22 +4,22 @@ import argparse
 import numpy as np
 import torch
 import json
-import random
+import shutil
 from pydub import AudioSegment
 from speechbrain.inference import EncoderClassifier
 from resemblyzer import VoiceEncoder, preprocess_wav
 from boto3_session import Boto3Session
-#from speakcare_env import SpeakcareEnv
 from collections import defaultdict
 from decimal import Decimal
 from speakcare_logging import SpeakcareLogger
-from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
+from os_utils import os_ensure_directory_exists, os_get_filename_without_ext, os_get_file_extension
 from enum import Enum as PyEnum
 from datetime import datetime
 from botocore.exceptions import ClientError
 from pydantic import BaseModel, ValidationError
 from typing import List
 from speakcare_env import SpeakcareEnv
+from speakcare_audio import audio_convert_to_wav, audio_is_wav
 
 class SpeakerType(PyEnum):
     PATIENT = 'Patient'
@@ -34,21 +34,20 @@ class SpeakcareVocoder(ABC):
 Abstract class for extracting embeddings from audio files and comparing them.
 '''
 class SpeakcareVocoder(ABC):
-    def __init__(self, output_dir="output_segments"):
-        self._logger = SpeakcareLogger(type(self).__name__)
+    def __init__(self):
+        self._logger = SpeakcareLogger(SpeakcareVocoder.__name__)
         self._audio_path = ""
         self._audio: AudioSegment = None
         self._audio_length = 0
-        self._output_dir = output_dir
-        os_ensure_directory_exists(self._output_dir)
         
     def load_audio_file(self, audio_path):
+        self.reset()
         try:
             self._audio_path = audio_path
             self._audio = AudioSegment.from_file(self._audio_path)
             self._audio_length = len(self._audio)
         except Exception as e:
-            self._logger.log_exception(f"Audio load error: {e}")
+            self._logger.log_exception(f"Audio load error", e)
             raise e
         
     def reset(self):
@@ -62,6 +61,14 @@ class SpeakcareVocoder(ABC):
     def get_audio_length(self):
         return self._audio_length
     
+    def get_audio_file_name(self):
+        return os.path.basename(self._audio_path)
+    
+    def get_segment_file_path(self, index: int, start_ms: int, end_ms: int, output_dir:str):
+        audio_file_name = os_get_filename_without_ext(self._audio_path)
+        segment_filename = f"{audio_file_name}_{index}-{start_ms}-{end_ms}.wav"
+        segment_path = os.path.join(output_dir, segment_filename) 
+        return segment_path
         
     @abstractmethod
     def get_embedding(self):
@@ -71,13 +78,15 @@ class SpeakcareVocoder(ABC):
         raise NotImplementedError()
         
     @abstractmethod
-    def get_segment_embedding(self, start_ms, end_ms, segment_output_path = None):
+    def get_segment_embedding(self, index:int,  start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
         '''
         Get the embedding for the segment of the audio file between start_ms and end_ms
-        If segment_output_path is provided, save the segment to that path for debugging
+        If keep_segments is True, keep the segments for debugging
+
         start_ms: start time in milliseconds
         end_ms: end time in milliseconds
-        segment_output_path: path to save the segment to - use it for debugging
+        segment_output_path: path to put the segment audio file
+        keep_segments: keep the segment audio file (for debugging)
         '''
         raise NotImplementedError()
 
@@ -104,18 +113,34 @@ class SpeechBrainVocoder(SpeakcareVocoder)
 Vocoder implementation using SpeechBrain's speaker recognition model.
 '''
 class SpeechBrainVocoder(SpeakcareVocoder):
-    def __init__(self, output_dir):
-        super().__init__(output_dir=output_dir)
+    def __init__(self):
+        super().__init__()
+        self.converted_to_wav = False
         try:
             self.classifier = EncoderClassifier.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb",
                 savedir="pretrained_models/spkrec-ecapa-voxceleb"
             )
         except Exception as e:
-            self._logger.log_exception(f"Classifier load error: {e}")
+            self._logger.log_exception(f"Classifier load error", e)
             raise e
 
+    def load_audio_file(self, audio_path):
+        self.reset()
+        if not audio_is_wav(audio_path):
+            audio_path = audio_convert_to_wav(audio_path)
+            self.converted_to_wav = True
+        super().load_audio_file(audio_path)
+
+    def reset(self):
+        if self.converted_to_wav and self._audio_path and os.path.isfile(self._audio_path):
+            self._logger.debug(f'Removing converted wav file {self._audio_path}')
+            os.remove(self._audio_path)
+            self.converted_to_wav = False
+        super().reset()
+        
     def __get_embedding(self, audio_path):
+        self._logger.debug(f'Getting embedding for {audio_path}')
         try:
             with torch.no_grad():
                 signal = self.classifier.load_audio(audio_path)
@@ -123,7 +148,7 @@ class SpeechBrainVocoder(SpeakcareVocoder):
                 embedding_np = embedding.squeeze().cpu().numpy()
             return embedding_np
         except Exception as e:
-            self._logger.log_exception(f"Embedding error file '{audio_path}': {e}")
+            self._logger.log_exception(f"Embedding error file '{audio_path}'", e)
             return None
 
     def get_embedding(self):
@@ -134,25 +159,22 @@ class SpeechBrainVocoder(SpeakcareVocoder):
         return self.__get_embedding(self._audio_path)
 
                 
-    def get_segment_embedding(self, start_ms, end_ms, segment_output_path = None):
+    def get_segment_embedding(self, index:int,  start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
         if not self._audio:
             self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
             raise Exception("Audio file not loaded")        
+        
+        self._logger.debug(f'Getting segment embedding {start_ms}-{end_ms}')
         try:
-            rnd = random.randint(1000, 9999) # make it random to avoid conflicts
+            segment_path = self.get_segment_file_path(index, start_ms, end_ms, segment_output_dir)
             segment = self._audio[start_ms:end_ms]
-            audio_file_name = os_get_filename_without_ext(self._audio_path)
-            segment_filename = f"{audio_file_name}-{start_ms}-{end_ms}.{rnd}.wav"
-            segment_path = os.path.join(self._output_dir, segment_filename)
             segment.export(segment_path, format="wav")
             embeddings = self.__get_embedding(segment_path)
-            if not segment_output_path:
+            if not keep_segments and os.path.isfile(segment_path):
                 os.remove(segment_path)
-            else:
-                os.rename(segment_path, segment_output_path)
             return embeddings
         except Exception as e:
-            self._logger.log_exception(f"Segment embedding error: {e}")
+            self._logger.log_exception(f"Segment embedding error", e)
             return None
         
 '''
@@ -162,12 +184,12 @@ Vocoder implementation using Resemblyzer's speaker recognition model.
 class ResemblyzerVocoder(SpeakcareVocoder):
     WAV_NORMALIZATION_FACTOR = 32768.0
 
-    def __init__(self,output_dir):
-        super().__init__(output_dir=output_dir)
+    def __init__(self):
+        super().__init__()
         try:
             self.encoder = VoiceEncoder(verbose=False)
         except Exception as e:
-            self._logger.log_exception(f"Encoder load error: {e}")
+            self._logger.log_exception(f"Encoder load error", e)
             raise e
         
         
@@ -178,32 +200,34 @@ class ResemblyzerVocoder(SpeakcareVocoder):
         if not self._audio:
             self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
             raise Exception("Audio file not loaded")
+        self._logger.debug(f'Getting embedding.')
         try:
-            # _audio = AudioSegment.from_file(audio_path) if audio_path else self.__audio
             normalized_audio_data = self.__get_normalized_audio_data(self._audio) # np.array(_audio.get_array_of_samples(), dtype=np.float32) / 32768.0
             wav = preprocess_wav(normalized_audio_data)
             embedding = self.encoder.embed_utterance(wav)
             return embedding
         except Exception as e:
-            self._logger.log_exception(f"Embedding error: {e}")
+            self._logger.log_exception(f"Embedding error", e)
             return None
 
 
-    def get_segment_embedding(self, start_ms, end_ms, segment_output_path = None):
+    def get_segment_embedding(self, index:int, start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
         if not self._audio:
             self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
             raise Exception("Audio file not loaded")
+        self._logger.debug(f'Getting segment embedding {start_ms}-{end_ms}')
         try:
             audio_segment = self._audio[start_ms:end_ms]
             # get as numpy array and normalize to 16 bits
             normalized_audio_data = self.__get_normalized_audio_data(audio_segment)# np.array(audio_segment.get_array_of_samples(), dtype=np.float32) / 32768.0
             wav = preprocess_wav(normalized_audio_data)
             embedding = self.encoder.embed_utterance(wav)
-            if segment_output_path:
-                audio_segment.export(segment_output_path, format="wav")
+            if keep_segments:
+                segment_path = self.get_segment_file_path(index, start_ms, end_ms, segment_output_dir)
+                audio_segment.export(segment_path, format="wav")
             return embedding
         except Exception as e:
-            self._logger.log_exception(f"Segment embedding error: {e}")
+            self._logger.log_exception(f"Segment embedding error", e)
             return None
 
 
@@ -215,18 +239,20 @@ class SpeakcareEmbeddings:
                  addition_similarity_threshold=0.95
                  ):
         try:
-            self.b3session = Boto3Session.get_single_instance()
             self.logger = SpeakcareLogger(type(self).__name__)
+            self.b3session = Boto3Session.get_single_instance()
             self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
             self.vocoder = vocoder
             self.matching_similarity_threshold = matching_similarity_threshold
             self.addition_similarity_threshold = addition_similarity_threshold
-            self.known_speakers = self.fetch_all_speakers()
+            self.known_speakers = self.__fetch_all_speakers()
+            self.logger.info(f'Initialized with {len(self.known_speakers)} known speakers.')
+            self.logger.info(f'matching_similarity_threshold: {self.matching_similarity_threshold}. addition_similarity_threshold: {self.addition_similarity_threshold}')
         except Exception as e:
-            self.logger.log_exception(f"Initialization error: {e}")
+            self.logger.log_exception(f"Initialization error:", e)
             raise e
 
-    def fetch_all_speakers(self):
+    def __fetch_all_speakers(self):
         """Fetch all embeddings from a DynamoDB table."""
         table = self.b3session.dynamo_get_table(self.speakers_table_name)
         response = table.scan()
@@ -234,11 +260,10 @@ class SpeakcareEmbeddings:
        
 
     def get_speaker(self, speaker_name):
-        """Get speaker from a specific table."""
         return self.known_speakers.get(speaker_name, None)  
     
-    def create_or_update_speaker(self, speaker_embedding, speaker_type: SpeakerType, speaker_name):
-        """Match or create a new speaker in a specific table."""
+    def __create_or_update_speaker(self, speaker_embedding, speaker_type: SpeakerType, speaker_name):
+        """Match or create a new speaker in the speakers table."""
         # Check for identical embeddings
         try:
             for known_speaker_name, speaker in self.known_speakers.items():
@@ -255,51 +280,50 @@ class SpeakcareEmbeddings:
 
             # Add the new embedding to the speaker
             if speaker_name in self.known_speakers:
-                speaker = self.add_embedding_to_speaker(speaker_name, speaker_embedding)
+                speaker = self.__add_embedding_to_speaker(speaker_name, speaker_embedding)
                 self.logger.info(f"Added new embedding to existing speaker: {speaker_name}")
                 return speaker, "added"
             else:
-                speaker = self.add_new_speaker(speaker_name, speaker_embedding, speaker_type)
+                speaker = self.__add_new_speaker(speaker_name, speaker_embedding, speaker_type)
                 self.logger.info(f"New speaker created: {speaker_name}")
                 return speaker, "created"
         except Exception as e:
-            self.logger.log_exception(f"Create or update speaker error: {e}")
+            self.logger.log_exception(f"Create or update speaker error", e)
             return None, "error"
 
     
-    def find_best_match(self, speaker_name, speaker_embedding):
-        """Match or create a new speaker in a specific table."""
+    def find_best_match(self, speaker_embedding):
+        """Find best match."""
         try:
-            self.logger.debug(f"Matching speaker embedding for '{speaker_name}' against {len(self.known_speakers)} known speakers")
+            self.logger.debug(f"Matching speaker embedding against {len(self.known_speakers)} known speakers")
             best_match = None
             highest_similarity = -1
             for known_speaker_name, speaker in self.known_speakers.items():
                 embeddings = speaker.get('EmbeddingVectors', [])
                 type = speaker.get('Type', '')
-                self.logger.debug(f"Checking speaker {known_speaker_name} embeddings {len(embeddings)}")
+                self.logger.debug(f"Checking speaker {known_speaker_name} with {len(embeddings)} embeddings")
                 for known_embedding in embeddings:
-                    self.logger.debug(f"Checking specific embedding {len(known_embedding)}")
                     embedding_vector = self.vocoder.convert_from_decimal_list(known_embedding)
                     similarity = self.vocoder.similarity(speaker_embedding, embedding_vector)
-                    self.logger.debug(f"cosine similarity: {similarity} for '{speaker_name}' with '{known_speaker_name}' of type: '{type}'")
+                    self.logger.debug(f"cosine similarity: {similarity} with '{known_speaker_name}' of type: '{type}'")
                     if similarity >= self.matching_similarity_threshold:
-                        self.logger.debug(f"Found high similarity: {similarity} for '{speaker_name}' with '{known_speaker_name}' of type: '{type}'")
+                        self.logger.debug(f"Found high similarity: {similarity} with '{known_speaker_name}' of type: '{type}'")
                         if similarity > highest_similarity:
                             best_match = speaker
                             highest_similarity = similarity
 
             if best_match:
-                self.logger.debug(f"Match found: '{speaker_name}' is '{best_match['Name']}' with similarity {highest_similarity}")
-                return best_match, "matched"
+                self.logger.debug(f"Match found: '{best_match['Name']}' with similarity {highest_similarity}")
+                return best_match, "matched", highest_similarity
             else:
-                self.logger.debug(f"No match found: '{speaker_name}'")
-                return None, "unmatched"
+                self.logger.debug(f"No match found.")
+                return None, "unmatched", 0
         except Exception as e:
-            self.logger.log_exception(f"Find best match error: {e}")
-            return None, "error"
+            self.logger.log_exception(f"Find best match error", e)
+            return None, "error", 0
   
 
-    def add_embedding_to_speaker(self, speaker_name, embedding):
+    def __add_embedding_to_speaker(self, speaker_name, embedding):
         """Add a new embedding to an existing speaker."""
         embedding_decimal = [Decimal(str(value)) for value in embedding]
         table = self.b3session.dynamo_get_table(self.speakers_table_name)
@@ -319,7 +343,7 @@ class SpeakcareEmbeddings:
         
  
 
-    def add_new_speaker(self, speaker_name, embedding, speaker_type: SpeakerType):
+    def __add_new_speaker(self, speaker_name, embedding, speaker_type: SpeakerType):
         """Save speaker embedding to DynamoDB."""
         embedding_decimal = [Decimal(str(value)) for value in embedding]
         table = self.b3session.dynamo_get_table(self.speakers_table_name)
@@ -361,20 +385,62 @@ class SpeakcareEmbeddings:
             err = "Speaker name is required"
             self.logger.error(err)
             raise ValueError(err)
+
+        local_voice_file = None
+        remove_local_file = False
+        try:
+            local_voice_file, remove_local_file = self.b3session.s3_localize_file(speaker_voice_file_path)   
+            if not local_voice_file:
+                raise Exception("Failed to localize voice file") 
             
-        _speaker_name = speaker_name.replace(" ", "_")
-        self.vocoder.load_audio_file(speaker_voice_file_path)
-        embeddings = self.vocoder.get_embedding()
-        if embeddings is None:
-            self.logger.error(f"Failed to extract embeddings from {speaker_voice_file_path}")
-            return None, "error"        
-        speaker, result = self.create_or_update_speaker(embeddings, speaker_type, speaker_name=_speaker_name)
-        self.vocoder.reset()
-        # refresh the known speakers
-        self.known_speakers = self.fetch_all_speakers()
-        
-        self.logger.info(f"add_voice_sample: create_speaker attepted for speaker '{speaker_type.value}': '{_speaker_name}'. Result: '{result}' with speaker '{speaker['Name']}'")
-        return speaker, result
+            _speaker_name = speaker_name.replace(" ", "_")
+            self.vocoder.load_audio_file(local_voice_file)
+            embeddings = self.vocoder.get_embedding()
+            if embeddings is None:
+                self.logger.error(f"Failed to extract embeddings from {speaker_voice_file_path}")
+                return None, "error"        
+            speaker, result = self.__create_or_update_speaker(embeddings, speaker_type, speaker_name=_speaker_name)
+            self.vocoder.reset()
+            # refresh the known speakers
+            self.known_speakers = self.__fetch_all_speakers()
+            
+            self.logger.info(f"add_voice_sample: create_speaker attepted for speaker '{speaker_type.value}': '{_speaker_name}'. Result: '{result}' with speaker '{speaker['Name']}'")
+            return speaker, result
+        except Exception as e:
+            self.logger.log_exception(f"add_voice_sample error", e)
+            return None, "error"
+        finally:
+            if remove_local_file and local_voice_file and os.path.isfile(local_voice_file):
+                os.remove(local_voice_file)
+
+    def lookup_speaker(self, speaker_voice_file_path):
+        """Lookup a speaker in the database."""
+        #remove white spaces from speaker_name and replace them witn _ (underscore)
+
+        local_voice_file = None
+        remove_local_file = False
+        try:
+            local_voice_file, remove_local_file = self.b3session.s3_localize_file(speaker_voice_file_path)
+            if not local_voice_file:
+                raise Exception("Failed to localize voice file") 
+            
+            self.vocoder.load_audio_file(local_voice_file)
+            embeddings = self.vocoder.get_embedding()
+            if embeddings is None:
+                self.logger.error(f"Failed to extract embeddings from {speaker_voice_file_path}")
+                return None, "error"   
+            
+            speaker, result, similarity = self.find_best_match(embeddings)
+            self.logger.debug(f"Match result: {result}. speaker '{speaker['Name']}'. similarity {similarity}")
+            self.vocoder.reset()
+            
+            return speaker, result, similarity
+        except Exception as e:
+            self.logger.log_exception(f"add_voice_sample error", e)
+            return None, "error", 0
+        finally:
+            if remove_local_file and local_voice_file and os.path.isfile(local_voice_file):
+                os.remove(local_voice_file)
 
 
 # Pydantic objects for the transcript JSON format validation
@@ -395,9 +461,9 @@ class Transcript(BaseModel):
 class TranscriptRecognizer:
 
     
-    def __init__(self, vocoder: SpeakcareVocoder, output_dir="output_segments"):
-        self.output_dir = output_dir
-        os_ensure_directory_exists(self.output_dir)
+    def __init__(self, vocoder: SpeakcareVocoder, matching_similarity_threshold = None, work_dir="output_segments"):
+        self.work_dir = work_dir
+        os_ensure_directory_exists(self.work_dir)
 
         self.b3session = Boto3Session.get_single_instance()
         self.logger = SpeakcareLogger(TranscriptRecognizer.__name__)
@@ -406,22 +472,28 @@ class TranscriptRecognizer:
         #self.speaker_embeddings = defaultdict(list)
         self.speaker_matches = defaultdict(list)
         self.speaker_stats = {}
-        self.processed = 0
-        self.skipped = 0
+        self.processed_segments = 0
+        self.skipped_segments = 0
+        self.mapped_segments = 0
         self.transcript_file = None
         self.transcript = None
         self.vocoder = vocoder
-        self.embeddings_store = SpeakcareEmbeddings(vocoder=self.vocoder)
+        self.embeddings_store = SpeakcareEmbeddings(vocoder=self.vocoder, matching_similarity_threshold=matching_similarity_threshold)
+
+        # state indicators
+        self.mapped = False
+        self.stats_calculated = False
+        self.speakers_updated = False            
 
 
-    def load_audio_and_transcript(self, audio_file, transcript_file):
+    def __load_audio_and_transcript(self, audio_file, transcript_file):
         ''' Load the audio file and transcript json file '''
         try:
             ''' Load the audio file and get its length '''
             self.vocoder.load_audio_file(audio_file)
             audio_length = self.vocoder.get_audio_length()
         except Exception as e:
-            self.logger.log_exception(f"Audio load error: {e}")
+            self.logger.log_exception(f"Audio load error", e)
             raise e
         
         self.transcript = None
@@ -432,18 +504,18 @@ class TranscriptRecognizer:
                  self.transcript = json.load(f) 
                  self.transcript_file = transcript_file
         except Exception as e:
-            self.logger.log_exception(f"Transcript read error from file '{transcript_file}': {e}")
+            self.logger.log_exception(f"Transcript read error from file '{transcript_file}'", e)
             raise e
         
         # try to validate the transcript json format
         try:
             validated = Transcript(** self.transcript)
         except ValidationError as e:
-            self.logger.log_exception(f"Transcript validation error: {e}")
+            self.logger.log_exception(f"Transcript validation error", e)
             raise e
 
 
-    def map_segments_to_speakers(self, keep_segment_files=False):
+    def __map_segments_to_speakers(self, keep_segment_files=False):
         ''' 
             Iterate the audio segments and extract embeddings for each speaker 
             Map each segment to the speaker with the highest similarity
@@ -455,17 +527,20 @@ class TranscriptRecognizer:
 
         audio_length = self.vocoder.get_audio_length()
         segment_speaker_counter = {}
-        segment_counter = 0
         errors = []
+        self.processed_segments = 0
+        self.skipped_segments = 0
+        self.mapped_segments = 0
 
-        
+        segments_output_dir = os.path.join(self.work_dir, os_get_filename_without_ext(self.vocoder.get_audio_file_name()), "segments")
+        os_ensure_directory_exists(segments_output_dir)
         audio_segments =  self.transcript.get("results", {}).get("audio_segments", [])
 
-        for audio_segment in audio_segments:
-            start_time = audio_segment.get("start_time", 0)
-            end_time = audio_segment.get("end_time", 0)
+        for segment_counter, audio_segment in enumerate(audio_segments):
+            start_time = float(audio_segment.get("start_time", 0)) 
+            end_time = float(audio_segment.get("end_time", 0))
             if start_time >= end_time:
-                    self.skipped += 1
+                    self.skipped_segments += 1
                     continue
                 
             speaker_label = audio_segment.get("speaker_label", "Unknown")
@@ -474,67 +549,62 @@ class TranscriptRecognizer:
             end_ms = min(int(end_time * 1000), audio_length)
             
             if start_ms >= audio_length or end_ms - start_ms < MIN_SEGMENT_DURATION:
-                self.skipped += 1
+                self.skipped_segments += 1
                 continue
 
-            # segment = audio[start_ms:end_ms]
-
             segment_speaker_counter[speaker_label] = segment_speaker_counter.get(speaker_label, 0) + 1
-            segment_counter += 1
-
-            segment_path = None
-            if keep_segment_files:
-                segment_filename = f"segment-{segment_counter:03d}_spk{speaker_label}_{segment_speaker_counter[speaker_label]:03d}.wav"
-                segment_path = os.path.join(self.output_dir, segment_filename)
 
             try:
-                #segment.export(segment_path, format="wav")
-                segment_embedding = self.vocoder.get_segment_embedding(start_ms, end_ms, segment_path)
+                segment_embedding = self.vocoder.get_segment_embedding(index=segment_counter, start_ms= start_ms, end_ms=end_ms, 
+                                                                       segment_output_dir= segments_output_dir, 
+                                                                       keep_segments=keep_segment_files)
                 if segment_embedding is None:
-                    self.skipped += 1
+                    self.skipped_segments += 1
                     continue
-            except Exception as e:
-                err = f"Get segment embeddings error: {segment_filename}"
-                errors.append(err)
-                self.skipped += 1
-                self.logger.log_exception(err)
-            
-            segment_info = {
-                    # "file_path": segment_path,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration": end_time - start_time,
-                    "content": content,
-                    **({"file_path": segment_path} if segment_path is not None else {}), #only include file path if it was saved
-            }
-            self.speaker_segments[speaker_label].append(segment_info)
-            self.processed += 1
+
+                segment_path = self.vocoder.get_segment_file_path(segment_counter, start_ms, end_ms, segments_output_dir)
+                segment_info = {
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        "duration": end_time - start_time,
+                        "content": content,
+                        **({"file_path": segment_path} if keep_segment_files is not None else {}), #only include file path if it was saved
+                }
+                self.speaker_segments[speaker_label].append(segment_info)
+                self.logger.debug(f'Calling find_best_match for speaker {speaker_label} segment {segment_counter}')    
+                best_match_speaker, result, similarity = self.embeddings_store.find_best_match(speaker_embedding=segment_embedding)
                 
-            best_match_speaker = self.embeddings_store.find_best_match(speaker_embedding=segment_embedding)# __find_closest_speakers(embedding, known_speakers)
-            if best_match_speaker:
-                self.speaker_matches[speaker_label].append(best_match_speaker)
-                    
-        self.vocoder.reset()
+                if best_match_speaker:
+                    self.logger.debug(f"Match result for segment {segment_counter}: '{speaker_label}' result: {result}. speaker '{best_match_speaker['Name']}'. similarity {similarity}")
+                    self.speaker_matches[speaker_label].append(best_match_speaker)
+                    self.mapped_segments += 1
+                else:
+                    self.logger.debug(f"No match found for segment {segment_counter}: speaker {speaker_label}. result: {result}")
+                self.processed_segments += 1
+
+            except Exception as e:
+                err = f"Get segment {segment_counter} embeddings error: {start_ms}-{end_ms}"
+                errors.append(err)
+                self.skipped_segments += 1
+                self.logger.log_exception(err, e)
+            
+
+        if not keep_segment_files and os.path.isdir(segments_output_dir):
+            self.logger.debug(f"Removing segments directory {segments_output_dir}")
+            shutil.rmtree(segments_output_dir)
+        
+        self.logger.info(f"Mapping done: found {segment_counter}, skipped {self.skipped_segments}, processed {self.processed_segments}, mapped {self.mapped_segments}")
+        self.mapped = True            
         return errors
 
-    def get_results(self):
-        return {
-            "processed_segments": self.processed,
-            "skipped_segments": self.skipped,
-            "speaker_stats": self.speaker_stats
-        }
     
-    def get_audio_segments(self):
-         if not self.transcript:
-             return None
-         else:
-            return self.transcript.get("results", {}).get("audio_segments", [])
-    
-    def calc_speaker_stats(self):
+    def __calc_speaker_stats(self):
         ''' Calculate speaker stats based on the segments and embeddings '''
 
         if not self.transcript or not self.vocoder.get_audio():
             raise Exception("Audio or transcript not loaded")
+        if not self.mapped:
+            raise Exception("Segments not mapped to speakers. Call __map_segments_to_speakers() first")
         
         for speaker, segments in self.speaker_segments.items():
             total_duration = sum(seg["duration"] for seg in segments)
@@ -543,7 +613,7 @@ class TranscriptRecognizer:
             
             # if speaker in self.speaker_embeddings and self.speaker_embeddings[speaker]:
             if speaker in self.speaker_matches and self.speaker_matches[speaker]:
-                all_matches = [match[0] for match in self.speaker_matches[speaker] if match]
+                all_matches = [match['Name'] for match in self.speaker_matches[speaker] if match]
                 if all_matches:
                     match_counts = {}
                     # count how many matches the speaker has with each known speaker
@@ -572,14 +642,18 @@ class TranscriptRecognizer:
                 "match_confidence": match_confidence
             }
         
+        self.stats_calculated = True
         return self.get_results()
 
         
-    def update_recognized_speakers(self):
+    def __update_recognized_speakers(self):
         ''' Update the speaker labels in the transcript with the most likely speaker names '''
         
         if not self.transcript:
             raise Exception("Transcript not loaded")
+        if not self.stats_calculated:
+            raise Exception("Speaker stats not calculated. Call __calc_speaker_stats() first")
+        
         try:        
             audio_segments = self.transcript.get("results", {}).get("audio_segments", [])
 
@@ -590,11 +664,27 @@ class TranscriptRecognizer:
                     audio_segment["speaker_label"] = most_likely_name
         
         except Exception as e:
-            self.logger.log_exception(f"Transcript generation error: {e}")
+            self.logger.log_exception(f"Transcript generation error", e)
             return {}
         
+        self.speakers_updated = True
         return audio_segments
     
+    def get_results(self):
+        return {
+            "processed_segments": self.processed_segments,
+            "skipped_segments": self.skipped_segments,
+            "mapped_segments": self.mapped_segments,
+            "speaker_stats": self.speaker_stats
+        }
+    
+    def get_audio_segments(self):
+         if not self.transcript:
+             return None
+         else:
+            return self.transcript.get("results", {}).get("audio_segments", [])
+
+
     def generate_recognized_text_transcript(self):
         ''' Generate a text transcript with the most likely speaker names '''
 
@@ -605,8 +695,8 @@ class TranscriptRecognizer:
         try:
             audio_segments = self.transcript.get("results", {}).get("audio_segments", [])
             for audio_segment in audio_segments:
-                start_time = audio_segment.get("start_time", 0)
-                end_time = audio_segment.get("end_time", 0)
+                start_time = float(audio_segment.get("start_time", 0))
+                end_time = float(audio_segment.get("end_time", 0))
                 speaker_label = audio_segment.get("speaker_label", "Unknown")
                 transcript = audio_segment.get("transcript", "")
                 speaker_item = self.embeddings_store.get_speaker(speaker_label)
@@ -616,10 +706,10 @@ class TranscriptRecognizer:
                 lines.append(line)
             return "\n".join(lines)
         except Exception as e:
-            self.logger.log_exception(f"Transcript generation error: {e}")
+            self.logger.log_exception(f"Transcript generation error", e)
             return ""
     
-    def recognize(self, audio_file, transcript_file):
+    def recognize(self, audio_file, transcript_file, keep_segment_files=False):
         ''' 
             Takes a diarized transcript and original audio file, splits the audio into segments,
             extracts embeddings, and compares them to known speaker embeddings to identify speakers.
@@ -632,12 +722,16 @@ class TranscriptRecognizer:
         try:
             transcript_local_file, remove_transcript_file = self.b3session.s3_localize_file(transcript_file)
             audio_local_file, remove_audio_file = self.b3session.s3_localize_file(audio_file)
-            self.load_audio_and_transcript(audio_file= audio_local_file, transcript_file= transcript_local_file)
-            self.map_segments_to_speakers()
-            self.calc_speaker_stats()
-            self.update_recognized_speakers()
+            if not transcript_local_file or not audio_local_file:
+                raise Exception("Failed to localize files")
+            
+            self.vocoder.reset()
+            self.__load_audio_and_transcript(audio_file= audio_local_file, transcript_file= transcript_local_file)
+            self.__map_segments_to_speakers(keep_segment_files=keep_segment_files)
+            self.__calc_speaker_stats()
+            self.__update_recognized_speakers()
         except Exception as e:
-            self.logger.log_exception(f"Recognition error: {e}")
+            self.logger.log_exception(f"Recognition error", e)
             raise e
         finally:
             if remove_transcript_file and transcript_local_file and os.path.isfile(transcript_local_file): 
@@ -650,58 +744,78 @@ class TranscriptRecognizer:
 
 
 def main():
+    SpeakcareEnv.load_env()
     parser = argparse.ArgumentParser(description="Process audio, split by speaker, and analyze voice similarity.")
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
-    split_parser = subparsers.add_parser('recognize', help='Recognize speakers in the audio file and update transcript')
-    split_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file.")
-    split_parser.add_argument("--transcript", type=str, required=True, help="Path to the transcript file.")
-    split_parser.add_argument("--output", type=str, default="output_segments", help="Output directory for segments.")
-    split_parser.add_argument("--threshold", type=float, default=0.75, help="Similarity threshold (0-1) for speaker matching.")
-    split_parser.add_argument("--generate-transcript", action="store_true", help="Generate modified transcript with probable names")
+    recognize_parser = subparsers.add_parser('recognize', help='Recognize speakers in the audio file and update transcript')
+    recognize_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file.")
+    recognize_parser.add_argument("--transcript", type=str, required=True, help="Path to the transcript file.")
+    recognize_parser.add_argument("--outdir", type=str, default=SpeakcareEnv.get_transcriptions_local_dir(), help="Output directory for transcription.")
+    recognize_parser.add_argument("--workdir", type=str, default=SpeakcareEnv.get_audio_local_dir(), help="Work directory for recognizer vocoder.")
+    recognize_parser.add_argument("--threshold", type=float, default=0.75, help="Similarity threshold (0-1) for speaker matching.")
+    recognize_parser.add_argument("--keep-segments", action="store_true", help="Keeps the segment files for debug")
+    recognize_parser.add_argument("--generate-transcript", action="store_true", help="Generate final transcript with probable names")
     
-    add_parser = subparsers.add_parser('speaker', help='Manage speaker embeddings in the database')
-    add_parser.add_argument("--name", type=str, required=True, help="Name of the speaker.")
-    add_parser.add_argument("--type", type=str, required=True, choices=[SpeakerType.PATIENT.value, SpeakerType.NURSE.value], help="Type of speaker.")
-    add_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file containing the speaker's voice.")
-    
+    speaker_parser = subparsers.add_parser('speaker', help='Manage speaker embeddings in the database')
+    speaker_subparsers = speaker_parser.add_subparsers(dest='subcommand', help='Sub command to execute')
+
+    speaker_add_parser = speaker_subparsers.add_parser('add', help='Add a new speaker embedding')
+    speaker_add_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file containing the speaker's voice.")
+    speaker_add_parser.add_argument("--name", type=str, required=True, help="Name of the speaker.")
+    speaker_add_parser.add_argument("--type", type=str, required=True, choices=[SpeakerType.PATIENT.value, SpeakerType.NURSE.value], help="Type of speaker.")
+    speaker_add_parser.add_argument("--workdir", type=str, default=SpeakcareEnv.get_audio_local_dir(), help="Work directory for recognizer vocoder.")
+
+    speaker_lookup_parser = speaker_subparsers.add_parser('lookup', help='Lookup a speaker in the database')
+    speaker_lookup_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file containing the speaker's voice.")    
+    speaker_lookup_parser.add_argument("--workdir", type=str, default=SpeakcareEnv.get_audio_local_dir(), help="Work directory for recognizer vocoder.")
+
+
     args = parser.parse_args()
 
-    output_dir = SpeakcareEnv.get_audio_local_dir()
-    vocoder = SpeechBrainVocoder(output_dir="output_segments")
-    recognizer = TranscriptRecognizer(vocoder, output_dir)
-    embedding_store = SpeakcareEmbeddings(vocoder)
+    work_dir = args.workdir
+    vocoder = SpeechBrainVocoder()
+    # vocoder = ResemblyzerVocoder()
+    embedding_store = SpeakcareEmbeddings(vocoder=vocoder, matching_similarity_threshold= args.threshold)
 
     if args.command == 'recognize':
-        recognizer.recognize(args.audio, args.transcript, args.output, args.threshold)
+        recognizer = TranscriptRecognizer(vocoder=vocoder, work_dir=work_dir, matching_similarity_threshold= args.threshold)
+        recognizer.recognize(audio_file= args.audio, transcript_file= args.transcript, keep_segment_files=True)
         results = recognizer.get_results()
         
         print("\n=== Final Summary ===")
         if results:
-            print(f"Successfully processed {results['processed_segments']} segments")
+            print(f"Successfully processed {results['processed_segments']} segments. Mapped {results['mapped_segments']} segments to speakers.")
             print(f"Speaker identities:")
             for speaker, stats in results['speaker_stats'].items():
                 print(f"  Speaker {speaker} → {stats['most_likely_person']} ({stats['match_confidence']*100:.1f}% confidence)")
             
             if args.generate_transcript:
                 generated_transcript = recognizer.generate_recognized_text_transcript()
-                output_transcript_path = os.path.join(args.output, "modified_transcript.txt")
+                output_transcript_path = os.path.join(args.outdir, "transcript.txt")
                 
                 with open(output_transcript_path, 'w', encoding='utf-8') as f:
                     f.write(generated_transcript)
                 
-                print(f"\nGenerated modified transcript: {output_transcript_path}")
+                print(f"\nGenerated transcript: {output_transcript_path}")
         else:
             print("Processing failed. Check the logs for details.")
     
-    elif args.command == 'add':
-        type = SpeakerType(args.type)
-        speaker, result = embedding_store.add_voice_sample(speaker_voice_file_path= args.audio, 
-                                                           speaker_name= args.name, speaker_type= type)
-        if speaker:
-            print(f"Successfully added embedding for speaker '{args.name} type '{type}' result: {result}'")
-        else:
-            print(f"Failed to add embedding. Check the logs for details.")
+    elif args.command == 'speaker':
+        if args.subcommand == 'lookup':
+            speaker, result, similarity = embedding_store.lookup_speaker(args.audio)
+            if speaker:
+                print(f"Speaker found: '{speaker['Name']}' of type {speaker['Type']} with similarity {similarity}")
+            else:
+                print(f"Speaker not found. Check the logs for details.")
+        elif args.subcommand == 'add':
+            type = SpeakerType(args.type)
+            speaker, result = embedding_store.add_voice_sample(speaker_voice_file_path= args.audio, 
+                                                            speaker_name= args.name, speaker_type= type)
+            if speaker and result in ["added", "created"]:
+                print(f"Successfully added embedding for speaker '{args.name}' type '{type}' result: {result}'")
+            else:
+                print(f"Failed to add embedding. result: {result} . Check the logs for details.")
     
     else:
         parser.print_help()

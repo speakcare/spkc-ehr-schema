@@ -20,6 +20,7 @@ from speakcare_env import SpeakcareEnv
 from os_utils import os_ensure_file_directory_exists, os_get_filename_without_ext, os_concat_current_time
 from speakcare_stt import SpeakcareAWSTranscribe
 from speakcare_recognizer import SpeakerType
+from speakcare_audio import audio_is_wav, audio_convert_to_wav
 
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -29,7 +30,7 @@ if not load_dotenv("./.env"):
     print("No .env file found")
     exit(1)
 
-SpeakcareEnv.prepare_env()
+SpeakcareEnv.load_env()
 
 
 
@@ -355,41 +356,51 @@ def main():
     parser.add_argument('-i', '--input', type=str, help="S3 path to the specific input text file.")
     args = parser.parse_args()
 
+    b3session = Boto3Session.get_single_instance()
     diarizer = SpeakcareDiarize()
 
     audio_file = args.audio
+    if not audio_file:
+        print("Audio file is required.")
+        exit(1)
+
     input_file_path = args.input
     audio_prefix = os_concat_current_time(os_get_filename_without_ext(audio_file)) if audio_file else None
 
-    match args.function:
-        case "full":
-            if not audio_file:
-                print("Audio file is required for full operation")
+    remove_audio_local_file = False
+    audio_file, remove_audio_local_file = b3session.s3_localize_file(audio_file)
+    converted_wav_file = None
+    if not audio_is_wav(audio_file):
+        converted_wav_file = audio_convert_to_wav(audio_file)
+        audio_file = converted_wav_file
+    try:
+        match args.function:
+            case "full":
+                diarized_output_file = f'{audio_prefix}-diarized.txt'
+                diarizer.diarize(audio_file=audio_file, output_file=diarized_output_file)
+
+            case "transcribe":
+                transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
+                diarizer.transcriber.transcribe(audio_file, transcription)
+
+            case "diarize":
+                # The input file is a post recognition file
+                _, diarization, text = diarizer.create_output_files_keys(audio_prefix)
+                diarizer.recognize_speakers(audio_file=audio_file, 
+                                            transcription_file = input_file_path,
+                                            diarization_output_key=diarization)
+                diarizer.create_diarized_text(diarization_output_key=diarization,
+                                                text_output_key=text)
+            case _:
+                print(f"Invalid function '{args.function}'")
                 exit(1)
-            diarized_output_file = f'{audio_prefix}-diarized.txt'
-            diarizer.diarize(audio_file=audio_file, output_file=diarized_output_file)
-
-        case "transcribe":
-            if not audio_file:
-                print("Audio is required for transcription")
-                exit(2)
-            transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
-            diarizer.transcriber.transcribe(audio_file, transcription)
-
-        case "diarize":
-            if not audio_file or not input_file_path:
-                print("Audio and input file are required for diarization")
-                exit(3)
-            # The input file is a post recognition file
-            _, diarization, text = diarizer.create_output_files_keys(audio_prefix)
-            diarizer.recognize_speakers(audio_file=audio_file, 
-                                        transcription_file = input_file_path,
-                                        diarization_output_key=diarization)
-            diarizer.create_diarized_text(diarization_output_key=diarization,
-                                             text_output_key=text)
-        case _:
-            print(f"Invalid function '{args.function}'")
-            exit(1)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+    finally:
+        if remove_audio_local_file and audio_file and os.path.isfile(audio_file):
+            os.remove(audio_file)
+        elif converted_wav_file and os.path.isfile(converted_wav_file):
+            os.remove(converted_wav_file)
 
 if __name__ == "__main__":
     main()

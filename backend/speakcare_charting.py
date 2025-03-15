@@ -446,7 +446,7 @@ def main():
 
     args = parser.parse_args()
 
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
     output_dir = SpeakcareEnv.get_charts_dir()
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
     boto3Session = Boto3Session.get_single_instance()

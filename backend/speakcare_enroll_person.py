@@ -7,7 +7,7 @@ from speakcare_diarize import SpeakerType, SpeakcareDiarize
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
-from speakcare_audio import audio_convert_to_wav
+from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from speakcare_logging import SpeakcareLogger
 from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_sanitize_filename
 from speakcare_stt import SpeakcareOpenAIWhisper
@@ -55,11 +55,8 @@ class SpeakcareEnrollPerson():
     def __do_transcription(self, audio_filename:str, transcribe_ouptut_file:str):
         # if audio file is not wav, convert to wav
         wav_filename=""
-        if not audio_filename.endswith(".wav"):
-            file_ext = os_get_file_extension(audio_filename)
-            wav_filename = audio_filename.replace(file_ext, ".wav")
-            self.logger.info(f"Converting {file_ext} to .wav: {audio_filename} -> {wav_filename}")
-            audio_convert_to_wav(audio_filename, wav_filename)
+        if not audio_is_wav(audio_filename): # audio_filename.endswith(".wav"):
+            wav_filename = audio_convert_to_wav(audio_filename)
             audio_filename = wav_filename
         
         len = self.transciber.transcribe(audio_filename, transcribe_ouptut_file)
@@ -348,7 +345,7 @@ class SpeakcareEnrollPerson():
 def main():
     # for testing from command line
     logger = SpeakcareLogger(__name__)
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
 
     parser = argparse.ArgumentParser(description='Speakcare person enrollment.')
     # Add arguments

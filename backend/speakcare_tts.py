@@ -27,7 +27,7 @@ def text_file_to_speech(input_file: str, output_file: str):
 
 if __name__ == "__main__":
 
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
     output_dir = SpeakcareEnv.get_audio_local_dir()
     parser = argparse.ArgumentParser(description='Speakcare speech to text.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')

@@ -15,7 +15,7 @@ from speakcare_emr import SpeakCareEmr
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
-from speakcare_audio import audio_convert_to_wav
+from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_get_filename_without_ext, os_concat_current_time
 
 load_dotenv()
@@ -26,7 +26,7 @@ logger = SpeakcareLogger(__name__)
 
 
 
-SpeakcareEnv.prepare_env()
+SpeakcareEnv.load_env()
 boto3Session = Boto3Session.get_single_instance()
 
 supported_tables = EmrUtils.get_table_names()
@@ -57,11 +57,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
                 raise Exception(err)            
 
             # if audio file is not wav, convert to wav
-            if not audio_local_file.endswith(".wav"):
-                file_ext = os_get_file_extension(audio_local_file)
-                wav_filename = audio_local_file.replace(file_ext, ".wav")
-                logger.info(f"Converting {file_ext} to .wav: {audio_local_file} -> {wav_filename}")
-                audio_convert_to_wav(audio_local_file, wav_filename)
+            if not audio_is_wav(audio_local_file): #audio_local_file.endswith(".wav"):
+                wav_filename = audio_convert_to_wav(audio_local_file)
             else:
                 wav_filename = audio_local_file
             
@@ -72,7 +69,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
                 if transcript_len == 0:
                     logger.error(f"Error occurred while transcribing audio file {wav_filename}")
             except Exception as e:
-                logger.log_exception(f"Error occurred while transcribing audio file {wav_filename}: {e}")
+                logger.log_exception(f"Error occurred while transcribing audio file {wav_filename}", e)
             finally:
                 if wav_filename != audio_local_file:
                     # delete the converted wav file
@@ -189,7 +186,7 @@ def main():
     args = parser.parse_args()
 
     EmrUtils.init_db(db_directory=DB_DIRECTORY, create_db=True)
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
 
 
     if args.list_devices:

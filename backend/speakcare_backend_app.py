@@ -27,7 +27,7 @@ app.logger.setLevel('DEBUG')
 app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
 
-SpeakcareEnv.prepare_env()
+SpeakcareEnv.load_env()
 
 @app.route('/hello', methods=['GET'])
 def hello():

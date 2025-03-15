@@ -74,20 +74,35 @@ class SpeakcareAWSTranscribe(SpeakcareSTT):
     def transcribe(self, audio_file: str, transcription_output_file: str=None):
         """Main method to transcribe audio and recognize speakers."""
 
-        if transcription_output_file.startswith("s3://"):
+        if self.b3session.s3_is_s3_uri(transcription_output_file): #.startswith("s3://"):
             transcription_output_key = boto3Session.s3_extract_key(transcription_output_file)
         else:
             transcription_output_key = transcription_output_file
+
+        # If S3 file use it as is, otherwise upload to S3
+        if not self.b3session.s3_is_s3_uri(audio_file): #.startswith("s3://"):
+            audio_key = f"{SpeakcareEnv.get_audio_dir()}/{os.path.basename(audio_file)}"
+            try:
+                self.b3session.s3_upload_file(file_path=audio_file, key=audio_key)
+
+                audio_uri = self.b3session.s3_get_file_uri(audio_key)
+            except Exception as e:
+                self.logger.log_exception("Error uploading audio to S3", e)
+                return 0
+        else:
+            audio_uri = audio_file
+            self.logger.debug(f"Using S3 audio file: {audio_uri}")
 
         # prepare output files
         output_time = int(time.time())
         transcription_job_name = f"transcription-{output_time}"
 
-        audio_key = f"{SpeakcareEnv.get_audio_dir()}/{os.path.basename(audio_file)}"
-        try:
-            self.b3session.s3_upload_file(file_path=audio_file, key=audio_key)
 
-            response = self.__start_transcription_job(audio_key, self.b3session.s3_get_bucket_name(), transcription_job_name, transcription_output_key)
+
+        try:
+
+            response = self.__start_transcription_job(audio_uri= audio_uri, output_bucket= self.b3session.s3_get_bucket_name(), 
+                                                      job_name= transcription_job_name, output_filename= transcription_output_key)
             self.logger.debug(f"Transcription start job response: {response}")
             self.__wait_for_transcription_job(transcription_job_name)
             return self.b3session.s3_get_object_size(transcription_output_key)
@@ -95,16 +110,15 @@ class SpeakcareAWSTranscribe(SpeakcareSTT):
             self.logger.log_exception("Error transcribing audio", e)
             return 0
 
-    def __start_transcription_job(self, audio_key, bucket, job_name, output_filename=None):
+    def __start_transcription_job(self, audio_uri, output_bucket, job_name, output_filename=None):
         """Start AWS Transcribe job."""
-        media_uri = f"s3://{bucket}/{audio_key}"
         _output_filename = output_filename if output_filename else f"{SpeakcareEnv.get_transcriptions_dir()}/{job_name}.json"
         response = self.b3session.get_transcribe_client().start_transcription_job(
             TranscriptionJobName=job_name,
-            Media={"MediaFileUri": media_uri},
+            Media={"MediaFileUri": audio_uri},
             MediaFormat="wav",
             LanguageCode="en-US",
-            OutputBucketName=bucket,
+            OutputBucketName=output_bucket,
             OutputKey=_output_filename,
             Settings={"ShowSpeakerLabels": True, "MaxSpeakerLabels": 10}
         )
@@ -152,7 +166,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
 
     input_file = args.input
     output_file_prefix = args.output

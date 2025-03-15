@@ -12,6 +12,7 @@ import traceback
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 import ffmpeg
+from os_utils import os_get_file_extension
 
 logger= SpeakcareLogger(__name__)
 
@@ -169,15 +170,21 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
     logger.info(f"Audio saved to {output_filename}")
     return recording_length
 
+def audio_is_wav(filename):
+    return filename.lower().endswith('.wav')
 
-def audio_convert_to_wav(input_file, output_file):
-    ffmpeg.input(input_file).output(output_file, acodec="pcm_s16le", ar=44100).run(quiet=True, overwrite_output=True)
+def audio_convert_to_wav(audio_file):
+    file_ext = os_get_file_extension(audio_file)
+    wav_filename = audio_file.replace(file_ext, ".wav")
+    logger.debug(f"Converting {file_ext} to .wav: {audio_file} -> {wav_filename}")
+    ffmpeg.input(audio_file).output(wav_filename, acodec="pcm_s16le", ar=44100).run(quiet=True, overwrite_output=True)
+    return wav_filename
 
 
 
 def main():
     # Parse command line arguments
-    SpeakcareEnv.prepare_env()
+    SpeakcareEnv.load_env()
     output_dir = SpeakcareEnv.get_audio_local_dir()
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)

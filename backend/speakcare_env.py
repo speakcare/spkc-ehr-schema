@@ -90,7 +90,7 @@ class SpeakcareEnv:
 
     
     @staticmethod
-    def prepare_env(env_file: str = "./.env"):
+    def load_env(env_file: str = "./.env"):
         if SpeakcareEnv.__env_loaded:
             return
         if not SpeakcareEnv.__env_loaded:

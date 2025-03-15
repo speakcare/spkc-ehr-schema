@@ -12,7 +12,7 @@ import json
 import argparse
 
 load_dotenv()
-SpeakcareEnv.prepare_env()
+SpeakcareEnv.load_env()
 
 # scopes is read as a string from .env and needs to be converted to a list
 GDRIVE_SCOPES_STR = os.getenv("GDRIVE_SCOPES", "[]")
@@ -84,7 +84,7 @@ class SpeakcarePilot:
             self.boto3Session.s3_upload_file(download_file_name, s3_file_key)
             self.logger.debug(f"Deleting local file '{download_file_name}'")
             os.remove(download_file_name)
-            return self.boto3Session.s3_get_file_path(s3_file_key)
+            return self.boto3Session.s3_get_file_uri(s3_file_key)
         except Exception as e:
             self.logger.log_exception(f"Error copying file '{gdrive_file_name}' to S3 folder '{s3_folder_key}'", e)
             return None

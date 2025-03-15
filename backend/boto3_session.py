@@ -33,6 +33,7 @@ class Boto3Session:
 
     def __init__(self):
         if not Boto3Session.__is_initialized:
+            SpeakcareEnv.load_env()
             self.__logger.debug("Initializing Boto3 session...")
             self.__init_env_variables()
             self.__boto3_init_clients()
@@ -201,7 +202,7 @@ class Boto3Session:
         except ClientError as e:
             self.__logger.error(f"Error downloading file 's3://{bucket}/{key}' to '{file_path}': {e}")
             raise
-        self.__logger.info(f"Downloaded file s3://{bucket}/{key} to '{file_path}'")
+        self.__logger.debug(f"Downloaded file s3://{bucket}/{key} to '{file_path}'")
 
 
     def s3_get_object_uri(self, key: str, bucket:str = None) -> str:
@@ -321,7 +322,7 @@ class Boto3Session:
             self.__logger.error(f"Error listing objects in folder s3://{self.__s3_bucket_name}/{folder_prefix}: {e}")
             raise
 
-    def s3_get_file_path(self, key: str):
+    def s3_get_file_uri(self, key: str):
         return f"s3://{self.__s3_bucket_name}/{key}"
     
     ''' 
@@ -340,7 +341,7 @@ class Boto3Session:
                     os_ensure_file_directory_exists(local_file)
                     self.s3_uri_download_file(file_path, local_file)
                     remove_local_file = True
-                    self.__logger.info(f"Downloaded audio file {file_path} to {local_file}")
+                    self.__logger.debug(f"Downloaded audio file {file_path} to {local_file}")
                 else:
                     self.__logger.error(f"s3 file {file_path} not found")
                     return None, False
@@ -355,6 +356,9 @@ class Boto3Session:
             
         return local_file, remove_local_file
 
+    @staticmethod
+    def s3_is_s3_uri(uri: str) -> bool:
+        return uri.startswith("s3://")
 
     @staticmethod
     def s3_extract_key(s3_url):
