@@ -1,446 +1,20 @@
-from abc import ABC, abstractmethod
 import os
 import argparse
-import numpy as np
-import torch
 import json
 import shutil
-from pydub import AudioSegment
-from speechbrain.inference import EncoderClassifier
-from resemblyzer import VoiceEncoder, preprocess_wav
 from boto3_session import Boto3Session
 from collections import defaultdict
-from decimal import Decimal
 from speakcare_logging import SpeakcareLogger
-from os_utils import os_ensure_directory_exists, os_get_filename_without_ext, os_get_file_extension
-from enum import Enum as PyEnum
-from datetime import datetime
-from botocore.exceptions import ClientError
+from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List
+from dotenv import load_dotenv
 from speakcare_env import SpeakcareEnv
-from speakcare_audio import audio_convert_to_wav, audio_is_wav
+from speakcare_vocoder import SpeakcareVocoder, VocoderFactory
+from speakcare_embeddings import SpeakcareEmbeddings, SpeakerType
 
-class SpeakerType(PyEnum):
-    PATIENT = 'Patient'
-    NURSE = 'Nurse'
-    UNKNOWN = 'Unknown'
-
-
-MIN_SEGMENT_DURATION = 500 # milliseconds
-
-'''
-class SpeakcareVocoder(ABC):
-Abstract class for extracting embeddings from audio files and comparing them.
-'''
-class SpeakcareVocoder(ABC):
-    def __init__(self):
-        self._logger = SpeakcareLogger(SpeakcareVocoder.__name__)
-        self._audio_path = ""
-        self._audio: AudioSegment = None
-        self._audio_length = 0
-        
-    def load_audio_file(self, audio_path):
-        self.reset()
-        try:
-            self._audio_path = audio_path
-            self._audio = AudioSegment.from_file(self._audio_path)
-            self._audio_length = len(self._audio)
-        except Exception as e:
-            self._logger.log_exception(f"Audio load error", e)
-            raise e
-        
-    def reset(self):
-        self._audio_path = ""
-        self._audio = None
-        self._audio_length = 0
-        
-    def get_audio(self):
-        return self._audio
-    
-    def get_audio_length(self):
-        return self._audio_length
-    
-    def get_audio_file_name(self):
-        return os.path.basename(self._audio_path)
-    
-    def get_segment_file_path(self, index: int, start_ms: int, end_ms: int, output_dir:str):
-        audio_file_name = os_get_filename_without_ext(self._audio_path)
-        segment_filename = f"{audio_file_name}_{index}-{start_ms}-{end_ms}.wav"
-        segment_path = os.path.join(output_dir, segment_filename) 
-        return segment_path
-        
-    @abstractmethod
-    def get_embedding(self):
-        ''' 
-        Get the embedding of the audio file 
-        '''
-        raise NotImplementedError()
-        
-    @abstractmethod
-    def get_segment_embedding(self, index:int,  start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
-        '''
-        Get the embedding for the segment of the audio file between start_ms and end_ms
-        If keep_segments is True, keep the segments for debugging
-
-        start_ms: start time in milliseconds
-        end_ms: end time in milliseconds
-        segment_output_path: path to put the segment audio file
-        keep_segments: keep the segment audio file (for debugging)
-        '''
-        raise NotImplementedError()
-
-    def convert_from_decimal_list(self, decimal_list):
-        return np.array([float(x) for x in decimal_list], dtype=np.float32)
-        
-   
-    def __cosine_similarity(self, vec1, vec2):
-        vec1norm = np.linalg.norm(vec1)
-        vec2norm = np.linalg.norm(vec2)
-        if vec1norm == 0 or vec2norm == 0:
-            return 0
-        return np.dot(vec1, vec2) / (vec1norm * vec2norm)
-    
-    def similarity(self, vec1, vec2):
-        return self.__cosine_similarity(vec1, vec2)
-    
-    def isidenticial(self, vec1, vec2):
-        return np.array_equal(vec1, vec2)
-
-
-'''
-class SpeechBrainVocoder(SpeakcareVocoder)
-Vocoder implementation using SpeechBrain's speaker recognition model.
-'''
-class SpeechBrainVocoder(SpeakcareVocoder):
-    def __init__(self):
-        super().__init__()
-        self.converted_to_wav = False
-        try:
-            self.classifier = EncoderClassifier.from_hparams(
-                source="speechbrain/spkrec-ecapa-voxceleb",
-                savedir="pretrained_models/spkrec-ecapa-voxceleb"
-            )
-        except Exception as e:
-            self._logger.log_exception(f"Classifier load error", e)
-            raise e
-
-    def load_audio_file(self, audio_path):
-        self.reset()
-        if not audio_is_wav(audio_path):
-            audio_path = audio_convert_to_wav(audio_path)
-            self.converted_to_wav = True
-        super().load_audio_file(audio_path)
-
-    def reset(self):
-        if self.converted_to_wav and self._audio_path and os.path.isfile(self._audio_path):
-            self._logger.debug(f'Removing converted wav file {self._audio_path}')
-            os.remove(self._audio_path)
-            self.converted_to_wav = False
-        super().reset()
-        
-    def __get_embedding(self, audio_path):
-        self._logger.debug(f'Getting embedding for {audio_path}')
-        try:
-            with torch.no_grad():
-                signal = self.classifier.load_audio(audio_path)
-                embedding: torch.Tensor = self.classifier.encode_batch(signal)
-                embedding_np = embedding.squeeze().cpu().numpy()
-            return embedding_np
-        except Exception as e:
-            self._logger.log_exception(f"Embedding error file '{audio_path}'", e)
-            return None
-
-    def get_embedding(self):
-        if not self._audio_path:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")
-        
-        return self.__get_embedding(self._audio_path)
-
-                
-    def get_segment_embedding(self, index:int,  start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
-        if not self._audio:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")        
-        
-        self._logger.debug(f'Getting segment embedding {start_ms}-{end_ms}')
-        try:
-            segment_path = self.get_segment_file_path(index, start_ms, end_ms, segment_output_dir)
-            segment = self._audio[start_ms:end_ms]
-            segment.export(segment_path, format="wav")
-            embeddings = self.__get_embedding(segment_path)
-            if not keep_segments and os.path.isfile(segment_path):
-                os.remove(segment_path)
-            return embeddings
-        except Exception as e:
-            self._logger.log_exception(f"Segment embedding error", e)
-            return None
-        
-'''
-class ResemblyzerVocoder(SpeakcareVocoder)
-Vocoder implementation using Resemblyzer's speaker recognition model.
-'''
-class ResemblyzerVocoder(SpeakcareVocoder):
-    WAV_NORMALIZATION_FACTOR = 32768.0
-
-    def __init__(self):
-        super().__init__()
-        try:
-            self.encoder = VoiceEncoder(verbose=False)
-        except Exception as e:
-            self._logger.log_exception(f"Encoder load error", e)
-            raise e
-        
-        
-    def __get_normalized_audio_data(self, audio):
-        return np.array(audio.get_array_of_samples(), dtype=np.float32) /self.WAV_NORMALIZATION_FACTOR
-
-    def get_embedding(self):
-        if not self._audio:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")
-        self._logger.debug(f'Getting embedding.')
-        try:
-            normalized_audio_data = self.__get_normalized_audio_data(self._audio) # np.array(_audio.get_array_of_samples(), dtype=np.float32) / 32768.0
-            wav = preprocess_wav(normalized_audio_data)
-            embedding = self.encoder.embed_utterance(wav)
-            return embedding
-        except Exception as e:
-            self._logger.log_exception(f"Embedding error", e)
-            return None
-
-
-    def get_segment_embedding(self, index:int, start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
-        if not self._audio:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")
-        self._logger.debug(f'Getting segment embedding {start_ms}-{end_ms}')
-        try:
-            audio_segment = self._audio[start_ms:end_ms]
-            # get as numpy array and normalize to 16 bits
-            normalized_audio_data = self.__get_normalized_audio_data(audio_segment)# np.array(audio_segment.get_array_of_samples(), dtype=np.float32) / 32768.0
-            wav = preprocess_wav(normalized_audio_data)
-            embedding = self.encoder.embed_utterance(wav)
-            if keep_segments:
-                segment_path = self.get_segment_file_path(index, start_ms, end_ms, segment_output_dir)
-                audio_segment.export(segment_path, format="wav")
-            return embedding
-        except Exception as e:
-            self._logger.log_exception(f"Segment embedding error", e)
-            return None
-
-
-
-class SpeakcareEmbeddings:
-    def __init__(self, 
-                 vocoder: SpeakcareVocoder, 
-                 matching_similarity_threshold=0.75, 
-                 addition_similarity_threshold=0.95
-                 ):
-        try:
-            self.logger = SpeakcareLogger(type(self).__name__)
-            self.b3session = Boto3Session.get_single_instance()
-            self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
-            self.vocoder = vocoder
-            self.matching_similarity_threshold = matching_similarity_threshold
-            self.addition_similarity_threshold = addition_similarity_threshold
-            self.known_speakers = self.__fetch_all_speakers()
-            self.logger.info(f'Initialized with {len(self.known_speakers)} known speakers.')
-            self.logger.info(f'matching_similarity_threshold: {self.matching_similarity_threshold}. addition_similarity_threshold: {self.addition_similarity_threshold}')
-        except Exception as e:
-            self.logger.log_exception(f"Initialization error:", e)
-            raise e
-
-    def __fetch_all_speakers(self):
-        """Fetch all embeddings from a DynamoDB table."""
-        table = self.b3session.dynamo_get_table(self.speakers_table_name)
-        response = table.scan()
-        return {item['Name']: item for item in response['Items']}
-       
-
-    def get_speaker(self, speaker_name):
-        return self.known_speakers.get(speaker_name, None)  
-    
-    def __create_or_update_speaker(self, speaker_embedding, speaker_type: SpeakerType, speaker_name):
-        """Match or create a new speaker in the speakers table."""
-        # Check for identical embeddings
-        try:
-            for known_speaker_name, speaker in self.known_speakers.items():
-                embeddings = speaker.get('EmbeddingVectors', [])
-                type = speaker.get('Type', '')
-                for idx, known_embedding in enumerate(embeddings):
-                    embedding_vector = self.vocoder.convert_from_decimal_list(known_embedding) 
-                    similarity = self.vocoder.similarity(speaker_embedding, embedding_vector)
-                    if self.vocoder.isidenticial(speaker_embedding, embedding_vector):
-                        self.logger.warning(f"Identical embedding found for speaker '{type}': '{known_speaker_name}' and new speaker '{speaker_type.value}': '{speaker_name}'. No changes made.")
-                        return speaker, "identical"
-                    elif similarity >= self.addition_similarity_threshold and known_speaker_name != speaker_name:
-                        self.logger.warning(f"High similarity found between new speaker {speaker_name} and existing speaker {known_speaker_name} with similarity {similarity}")
-
-            # Add the new embedding to the speaker
-            if speaker_name in self.known_speakers:
-                speaker = self.__add_embedding_to_speaker(speaker_name, speaker_embedding)
-                self.logger.info(f"Added new embedding to existing speaker: {speaker_name}")
-                return speaker, "added"
-            else:
-                speaker = self.__add_new_speaker(speaker_name, speaker_embedding, speaker_type)
-                self.logger.info(f"New speaker created: {speaker_name}")
-                return speaker, "created"
-        except Exception as e:
-            self.logger.log_exception(f"Create or update speaker error", e)
-            return None, "error"
-
-    
-    def find_best_match(self, speaker_embedding):
-        """Find best match."""
-        try:
-            self.logger.debug(f"Matching speaker embedding against {len(self.known_speakers)} known speakers")
-            best_match = None
-            highest_similarity = -1
-            for known_speaker_name, speaker in self.known_speakers.items():
-                embeddings = speaker.get('EmbeddingVectors', [])
-                type = speaker.get('Type', '')
-                self.logger.debug(f"Checking speaker {known_speaker_name} with {len(embeddings)} embeddings")
-                for known_embedding in embeddings:
-                    embedding_vector = self.vocoder.convert_from_decimal_list(known_embedding)
-                    similarity = self.vocoder.similarity(speaker_embedding, embedding_vector)
-                    self.logger.debug(f"cosine similarity: {similarity} with '{known_speaker_name}' of type: '{type}'")
-                    if similarity >= self.matching_similarity_threshold:
-                        self.logger.debug(f"Found high similarity: {similarity} with '{known_speaker_name}' of type: '{type}'")
-                        if similarity > highest_similarity:
-                            best_match = speaker
-                            highest_similarity = similarity
-
-            if best_match:
-                self.logger.debug(f"Match found: '{best_match['Name']}' with similarity {highest_similarity}")
-                return best_match, "matched", highest_similarity
-            else:
-                self.logger.debug(f"No match found.")
-                return None, "unmatched", 0
-        except Exception as e:
-            self.logger.log_exception(f"Find best match error", e)
-            return None, "error", 0
-  
-
-    def __add_embedding_to_speaker(self, speaker_name, embedding):
-        """Add a new embedding to an existing speaker."""
-        embedding_decimal = [Decimal(str(value)) for value in embedding]
-        table = self.b3session.dynamo_get_table(self.speakers_table_name)
-
-        item = table.get_item(Key={'Name': speaker_name}).get('Item')
-        if item:
-            if 'EmbeddingVectors' not in item:
-                item['EmbeddingVectors'] = [embedding_decimal]
-            else:
-                item['EmbeddingVectors'].append(embedding_decimal)
-            table.put_item(Item=item)
-            self.logger.info(f"Added new embedding to speaker {speaker_name} in table {self.speakers_table_name}")
-            return item
-        else:
-            self.logger.error(f"Speaker {speaker_name} not found in table {self.speakers_table_name}")
-            return None
-        
- 
-
-    def __add_new_speaker(self, speaker_name, embedding, speaker_type: SpeakerType):
-        """Save speaker embedding to DynamoDB."""
-        embedding_decimal = [Decimal(str(value)) for value in embedding]
-        table = self.b3session.dynamo_get_table(self.speakers_table_name)
-        item = {
-            "EmbeddingVectors": [embedding_decimal],
-            "Name": speaker_name,
-            "Type": speaker_type.value,
-            "Timestamp": datetime.now().isoformat()
-        }
-        table.put_item(Item=item)
-        self.logger.info(f"Saved embedding for {speaker_name} in table {self.speakers_table_name}")
-        return item
-
-
-    def delete_embedding_from_dynamodb(self, speaker_name, embedding_index=None):
-        """Delete speaker embedding from DynamoDB."""
-        table = self.b3session.dynamo_get_table(self.speakers_table_name)
-        try:
-            if embedding_index is not None:
-                item = table.get_item(Key={'Name': speaker_name}).get('Item')
-                if item and 'EmbeddingVectors' in item:
-                    del item['EmbeddingVectors'][embedding_index]
-                    if item['EmbeddingVectors']:
-                        table.put_item(Item=item)
-                    else:
-                        table.delete_item(Key={'Name': speaker_name})
-                    self.logger.info(f"Deleted embedding index {embedding_index} for speaker {speaker_name} from table {self.speakers_table_name}")
-            else:
-                table.delete_item(Key={'Name': speaker_name})
-                self.logger.info(f"Deleted item with Name {speaker_name} from table {self.speakers_table_name}")
-        except ClientError as e:
-            self.logger.error(f"Unable to delete item: {e.response['Error']['Message']}")
-
-
-    def add_voice_sample(self, speaker_voice_file_path, speaker_name:str, speaker_type: SpeakerType):
-        """Process a voice sample and add to the specified table."""
-        #remove white spaces from speaker_name and replace them witn _ (underscore)
-        if not speaker_name:
-            err = "Speaker name is required"
-            self.logger.error(err)
-            raise ValueError(err)
-
-        local_voice_file = None
-        remove_local_file = False
-        try:
-            local_voice_file, remove_local_file = self.b3session.s3_localize_file(speaker_voice_file_path)   
-            if not local_voice_file:
-                raise Exception("Failed to localize voice file") 
-            
-            _speaker_name = speaker_name.replace(" ", "_")
-            self.vocoder.load_audio_file(local_voice_file)
-            embeddings = self.vocoder.get_embedding()
-            if embeddings is None:
-                self.logger.error(f"Failed to extract embeddings from {speaker_voice_file_path}")
-                return None, "error"        
-            speaker, result = self.__create_or_update_speaker(embeddings, speaker_type, speaker_name=_speaker_name)
-            self.vocoder.reset()
-            # refresh the known speakers
-            self.known_speakers = self.__fetch_all_speakers()
-            
-            self.logger.info(f"add_voice_sample: create_speaker attepted for speaker '{speaker_type.value}': '{_speaker_name}'. Result: '{result}' with speaker '{speaker['Name']}'")
-            return speaker, result
-        except Exception as e:
-            self.logger.log_exception(f"add_voice_sample error", e)
-            return None, "error"
-        finally:
-            if remove_local_file and local_voice_file and os.path.isfile(local_voice_file):
-                os.remove(local_voice_file)
-
-    def lookup_speaker(self, speaker_voice_file_path):
-        """Lookup a speaker in the database."""
-        #remove white spaces from speaker_name and replace them witn _ (underscore)
-
-        local_voice_file = None
-        remove_local_file = False
-        try:
-            local_voice_file, remove_local_file = self.b3session.s3_localize_file(speaker_voice_file_path)
-            if not local_voice_file:
-                raise Exception("Failed to localize voice file") 
-            
-            self.vocoder.load_audio_file(local_voice_file)
-            embeddings = self.vocoder.get_embedding()
-            if embeddings is None:
-                self.logger.error(f"Failed to extract embeddings from {speaker_voice_file_path}")
-                return None, "error"   
-            
-            speaker, result, similarity = self.find_best_match(embeddings)
-            self.logger.debug(f"Match result: {result}. speaker '{speaker['Name']}'. similarity {similarity}")
-            self.vocoder.reset()
-            
-            return speaker, result, similarity
-        except Exception as e:
-            self.logger.log_exception(f"add_voice_sample error", e)
-            return None, "error", 0
-        finally:
-            if remove_local_file and local_voice_file and os.path.isfile(local_voice_file):
-                os.remove(local_voice_file)
+load_dotenv()
+AUDIO_MIN_SEGMENT_DURATION = int(os.getenv("AUDIO_MIN_SEGMENT_DURATION", 500)) # milliseconds
 
 
 # Pydantic objects for the transcript JSON format validation
@@ -467,7 +41,6 @@ class TranscriptRecognizer:
 
         self.b3session = Boto3Session.get_single_instance()
         self.logger = SpeakcareLogger(TranscriptRecognizer.__name__)
-        self.classifier: EncoderClassifier  = None
         self.speaker_segments = defaultdict(list)
         #self.speaker_embeddings = defaultdict(list)
         self.speaker_matches = defaultdict(list)
@@ -548,7 +121,7 @@ class TranscriptRecognizer:
             start_ms = int(start_time * 1000)
             end_ms = min(int(end_time * 1000), audio_length)
             
-            if start_ms >= audio_length or end_ms - start_ms < MIN_SEGMENT_DURATION:
+            if start_ms >= audio_length or end_ms - start_ms < AUDIO_MIN_SEGMENT_DURATION:
                 self.skipped_segments += 1
                 continue
 
@@ -740,9 +313,6 @@ class TranscriptRecognizer:
                 os.remove(audio_local_file)
     
 
-
-
-
 def main():
     SpeakcareEnv.load_env()
     parser = argparse.ArgumentParser(description="Process audio, split by speaker, and analyze voice similarity.")
@@ -774,9 +344,7 @@ def main():
     args = parser.parse_args()
 
     work_dir = args.workdir
-    vocoder = SpeechBrainVocoder()
-    # vocoder = ResemblyzerVocoder()
-    embedding_store = SpeakcareEmbeddings(vocoder=vocoder, matching_similarity_threshold= args.threshold)
+    vocoder = VocoderFactory.create_vocoder()
 
     if args.command == 'recognize':
         recognizer = TranscriptRecognizer(vocoder=vocoder, work_dir=work_dir, matching_similarity_threshold= args.threshold)
@@ -802,6 +370,7 @@ def main():
             print("Processing failed. Check the logs for details.")
     
     elif args.command == 'speaker':
+        embedding_store = SpeakcareEmbeddings(vocoder=vocoder)
         if args.subcommand == 'lookup':
             speaker, result, similarity = embedding_store.lookup_speaker(args.audio)
             if speaker:

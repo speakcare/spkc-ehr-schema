@@ -10,7 +10,7 @@ from speakcare_audio import record_audio
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
-from os_utils import os_sanitize_filename
+from os_utils import os_sanitize_name
 
 load_dotenv()
 logger = SpeakcareLogger(__name__)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     # Format the datetime as a string without microseconds and timezone
     utc_string = utc_now.strftime('%Y-%m-%dT%H-%M-%S')
-    output_filename = os_sanitize_filename(f'{output_file_prefix}.{utc_string}')
+    output_filename = os_sanitize_name(f'{output_file_prefix}.{utc_string}')
 
     if args.model == 'aws':
         boto3Session = Boto3Session.get_single_instance()

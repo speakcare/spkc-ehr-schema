@@ -3,13 +3,14 @@ import argparse
 import random
 import json
 from datetime import datetime, timezone
-from speakcare_diarize import SpeakerType, SpeakcareDiarize
+from speakcare_diarize import SpeakcareDiarize
+from speakcare_embeddings import SpeakerType
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from speakcare_logging import SpeakcareLogger
-from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_sanitize_filename
+from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_sanitize_name
 from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_llm import openai_complete_schema_from_transcription
 
@@ -365,7 +366,7 @@ def main():
 
     output_file_prefix = "output"
     if args.output_prefix:
-        output_file_prefix = os_sanitize_filename(args.output_prefix)
+        output_file_prefix = os_sanitize_name(args.output_prefix)
 
     dryrun = args.dryrun
     if dryrun:

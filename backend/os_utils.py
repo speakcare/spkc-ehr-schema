@@ -43,8 +43,8 @@ def os_get_filename_without_ext(filename):
     name, _ = os.path.splitext(os.path.basename(filename))
     return name
 
-def os_sanitize_filename(filename:str):
-    """Sanitize a filename to remove invalid characters."""
+def os_sanitize_name(filename:str):
+    """Sanitize a name to make it safe for filenames and other identifiere. invalid character with '-'."""
     return "".join(c if (c.isalnum() or c in "._- ") else "-" for c in filename)
 
 

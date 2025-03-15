@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 import urllib.parse
-from os_utils import os_ensure_file_directory_exists
+from os_utils import os_ensure_file_directory_exists, os_sanitize_name
 
 if not load_dotenv("./.env"):
     print("No .env file found")
@@ -53,7 +53,9 @@ class Boto3Session:
         # Configuration from environment variables
         Boto3Session.__profile_name = os.getenv("AWS_PROFILE", "default")
         Boto3Session.__s3_bucket_name = os.getenv("S3_BUKET_NAME", "speakcare-pilot")
-        Boto3Session.__speakers_table_name = os.getenv("DYNAMODB_SPEAKERS_TABLE_NAME", "Speakers")
+        # the speakers table name is based on the vocoder model as switching the model will require a new table
+        Boto3Session.__speakers_table_name = \
+            os_sanitize_name(f'{os.getenv("DYNAMODB_SPEAKERS_TABLE_NAME", "Speakers")}-{os.getenv("VOCODER_MODEL", "default")}')
         Boto3Session.__dynamodb_table_names = [Boto3Session.__speakers_table_name]
         Boto3Session.__use_localstack = os.getenv("USE_LOCALSTACK", "False").lower() == "true"
         Boto3Session.__localstack_endpoint = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
