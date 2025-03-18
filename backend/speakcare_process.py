@@ -8,7 +8,7 @@ from typing import List
 import os
 from speakcare_audio import record_audio, audio_check_input_device, audio_print_input_devices, audio_get_devices_string
 from speakcare_logging import SpeakcareLogger
-from speakcare_stt import SpeakcareAWSTranscribe
+from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_diarize import SpeakcareDiarize
 from speakcare_charting import create_chart_completion
 from speakcare_emr import SpeakCareEmr
@@ -31,6 +31,8 @@ boto3Session = Boto3Session.get_single_instance()
 
 supported_tables = EmrUtils.get_table_names()
 diarizer = SpeakcareDiarize()
+transciber = SpeakcareOpenAIWhisper()
+
 
 def speakcare_process_audio(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
     """
@@ -104,6 +106,79 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
         logger.error(f"Error occurred while processing audio: {e}")
         return None, {"error": str(e)}
     
+def speakcare_process_audio_demo(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
+    """
+    Transcribe audio, convert transcription to EMR record
+    """    
+    # prepare file names
+    # use output_file_prefix if provided, otherwise use the basename of the first audio file
+    _output_prefix = output_file_prefix if output_file_prefix\
+                          else os_concat_current_time(os_get_filename_without_ext(audio_files[0]))
+
+    transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{_output_prefix}.txt'
+    logger.info(f"Processing audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
+    audio_local_file = None
+    is_s3_file = False
+    try:
+        record_ids = []    
+        logger.info(f"Processing audio files: {audio_files}")
+        for num, audio_filename in enumerate(audio_files):
+            audio_local_file, remove_local_file = boto3Session.s3_localize_file(audio_filename)
+            # Step 1: Verify the audio file exists
+            if not audio_local_file:
+                err = f"Error occurred while localizing audio file {audio_filename}"
+                logger.error(err)
+                raise Exception(err)            
+
+            # if audio file is not wav, convert to wav
+            if not audio_is_wav(audio_local_file): #audio_local_file.endswith(".wav"):
+                wav_filename = audio_convert_to_wav(audio_local_file)
+            else:
+                wav_filename = audio_local_file
+            
+            # Step 2: Transcribe Audio (speech to text)
+            # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
+            try:
+                #transcript_len = diarizer.diarize(audio_file=wav_filename, output_file=transcription_filename, append= (num > 0))
+                transcript_len = transciber.transcribe(audio_file=wav_filename, transcription_output_file=transcription_filename, append= (num > 0))
+                if transcript_len == 0:
+                    logger.error(f"Error occurred while transcribing audio file {wav_filename}")
+            except Exception as e:
+                logger.log_exception(f"Error occurred while transcribing audio file {wav_filename}", e)
+            finally:
+                if wav_filename != audio_local_file:
+                    # delete the converted wav file
+                    os.remove(wav_filename)
+                    logger.info(f"Deleted converted wav file {wav_filename}")
+
+                if remove_local_file:
+                    # delete the local audio file                
+                    if audio_local_file and os.path.isfile(audio_local_file):
+                        os.remove(audio_local_file)
+                        logger.info(f"Deleted local audio file {audio_local_file}")
+
+        # Step 3: Convert transcription to EMR record for all tables
+        for table_name in tables:
+            chart_name = table_name.replace(" ", "_")
+            chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{_output_prefix}-chart-{chart_name}.json'
+
+            logger.info(f"Calling create_chart_completion for table {table_name} input_file {transcription_filename} output_file {chart_filename}")
+            record_id = create_chart_completion(boto3Session=boto3Session, input_file=transcription_filename, output_file=chart_filename, 
+                                                emr_table_name=table_name, dryrun=dryrun)
+            if not record_id:
+                err = "Error occurred while converting transcription to EMR record."
+                logger.error(err)
+                raise Exception(err)
+                        
+            record_ids.append(record_id)
+            logger.info(f"Speakcare converted transctiption to table {table_name}. EMR record created: {record_id}")
+        
+        return record_ids, {"message": "Success"}
+
+    except Exception as e:
+        logger.error(f"Error occurred while processing audio: {e}")
+        return None, {"error": str(e)}
+
 
 def speakcare_process_transcription(diarization_filename: str, tables: List[str], output_file_prefix:str, dryrun: bool=False):
     """

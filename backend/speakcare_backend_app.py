@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import audio_get_input_devices
-from speakcare_process import speakcare_record_and_process_audio, speakcare_process_audio
+from speakcare_process import speakcare_process_audio_demo, speakcare_record_and_process_audio
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 
@@ -403,7 +403,7 @@ class ProcessAudioResource(Resource):
         app.logger.debug(f"Audio file saved as {audio_local_filename}")
 
         # Now, you have both the audio file and the other data fields
-        record_ids, err = speakcare_process_audio(audio_files=[audio_local_filename], tables=table_names)
+        record_ids, err = speakcare_process_audio_demo(audio_files=[audio_local_filename], tables=table_names)
         if record_ids:
             app.logger.info(f"Audio file {audio_local_filename} processed successfully. Create {len(record_ids)} records. IDs: {record_ids}")
             return {'message': f'Audio processed successfully. New record ids: {record_ids}'}, 201
