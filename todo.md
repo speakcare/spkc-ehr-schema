@@ -13,6 +13,8 @@
 - [x] work on utils to finish the create record and update record
 - [x] Add support for records with sections in utils and in create records
 - [x] Add utils for transciprt handling
+- [ ] Support record with all captured nurses (discuss with Gil)
+- [ ] Auto register of EMR tables instead of hard coded
 
 ### Text processing
 - [x] Add the converter process from transcript to SpeakCareEmrApi
@@ -21,16 +23,20 @@
 ### User app
 - [x] Add browser extension
 - [x] Make browser extension look nice
-- [ ] Check why extension microphone permission is not requersted automatically
+- [-] Check why extension microphone permission is not requersted automatically
 - [x] save and load extension state to/from local storage
-- [ ] Make the extnesion float and not close when touching the web page
+- [x] Make the extnesion float and not close when touching the web page
 
 ### System
-- [ ] Add run script to load all the processes
+- [-] Add run script to load all the processes
 - [x] Add sqlite db browser to the project
 - [x] Update the transcription db and connect it to the medical reocords
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
-- [ ] Change GPT API to use the new structured output using pydantic
+- [x] Change GPT API to use the new structured output using JSON schema
+- [x] Voice calibration
+- [ ] Allow running on transcription output files instead audio
+- [ ] Remove redundant download and upload in transcription
+- [ ] Enable re-run on already uploaded files in s3
 
 ### General
 - [x] README file

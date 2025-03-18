@@ -3,6 +3,8 @@ venv/
 bin/
 env/
 lib/
+toy/
+
 
 # Ignore the .env file
 .env
@@ -24,5 +26,10 @@ __pycache__/
 db/
 test_db/
 
-# Ignore output dirs
+# Ignore local runtime artifacts
 out/
+output_segments/
+pretrained_models/
+
+# Google auth token
+token.pickle

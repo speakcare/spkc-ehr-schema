@@ -7,7 +7,7 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.types import JSON
 import os
 import atexit
-from os_utils import ensure_directory_exists
+from os_utils import os_ensure_directory_exists
 from speakcare_logging import SpeakcareLogger
 
 # Define the base class for declarative models
@@ -29,8 +29,8 @@ class TranscriptState(PyEnum):
     ERRORS    = 'ERRORS'         # processed transcript with errors
 
 class RecordType(PyEnum):
-    MEDICAL_RECORD = 'MEDICAL_RECORD'
-    ASSESSMENT = 'ASSESSMENT'
+    SIMPLE = 'SIMPLE'
+    MULTI_SECTION = 'MULTI_SECTION'
 
 # Define the RawTextSession model
 class Transcripts(Base):
@@ -52,12 +52,12 @@ class MedicalRecords(Base):
     id = Column(Integer, primary_key=True)
     emr_record_id = Column(String)  # Internal unique EMR record ID
     emr_url = Column(String)  # URL to the EMR record
-    type = Column(Enum(RecordType), default=RecordType.MEDICAL_RECORD)  # Use Enum type for record type
+    type = Column(Enum(RecordType), default=RecordType.SIMPLE)  # Use Enum type for record type
     table_name = Column(String)  # Table name in the external EMR system
     patient_name = Column(String)
-    patient_id = Column(String)  # External EMR application patient ID
+    patient_id = Column(Integer)  # External EMR application patient ID
     nurse_name = Column(String)
-    nurse_id = Column(String)  # External EMR application nurse ID
+    nurse_id = Column(Integer)  # External EMR application nurse ID
     fields = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured records in JSON format
     sections = Column(MutableDict.as_mutable(JSON), nullable=False)  # Stores structured sections in JSON format
     errors = Column(MutableList.as_mutable(JSON), default=[])
@@ -70,24 +70,24 @@ class MedicalRecords(Base):
     transcript = relationship('Transcripts', back_populates='medical_records')
 
 
-class SpeakCareDB:
+class SpeakcareDB:
     DB_FILE_NAME     = 'speakcare.db'
 
     def __init__(self, db_directory: str, create_db= False):
         # Create database engines
-        self.db_path = ensure_directory_exists(db_directory)
-        speakcare_sqlite_db = f'sqlite:///{db_directory}/{SpeakCareDB.DB_FILE_NAME}'#medical_records.db'
+        self.db_path = os_ensure_directory_exists(db_directory)
+        speakcare_sqlite_db = f'sqlite:///{db_directory}/{SpeakcareDB.DB_FILE_NAME}'#medical_records.db'
         logger.debug(f"Creating SpeakCare database at {speakcare_sqlite_db}")
         self.speakcare_db_engine = create_engine(speakcare_sqlite_db)
         # Create tables
         if create_db:
             Base.metadata.create_all(self.speakcare_db_engine)
-        self.SpeakCareDBSession = scoped_session(sessionmaker(bind=self.speakcare_db_engine))
+        self.SpeakcareDBSession = scoped_session(sessionmaker(bind=self.speakcare_db_engine))
         atexit.register(self.__cleanup)
     
     def __cleanup(self):
         # Clean up sessions and dispose of engines
-        self.SpeakCareDBSession.remove()
+        self.SpeakcareDBSession.remove()
         self.speakcare_db_engine.dispose()
         logger.debug("Cleaned up database sessions and disposed of engines.")
 
@@ -96,7 +96,7 @@ class SpeakCareDB:
         atexit.unregister(self.__cleanup)
         if delete_db_files:
             logger.debug(f"Deleting database files from {self.db_path}")
-            os.remove(f"{self.db_path}/{SpeakCareDB.DB_FILE_NAME}")
+            os.remove(f"{self.db_path}/{SpeakcareDB.DB_FILE_NAME}")
             logger.debug(f"Deleting database directory {self.db_path}")
             os.rmdir(self.db_path)
         else:
@@ -116,7 +116,7 @@ def init_speakcare_db(db_directory = None, create_db = False):
         if db_directory is None:
             db_directory = 'db'
         logger.debug(f"Initializing SpeakCareDB with db_directory: {db_directory}")
-        __singletonDbInstance = SpeakCareDB(db_directory, create_db)
+        __singletonDbInstance = SpeakcareDB(db_directory, create_db)
     return __singletonDbInstance
 
 def get_speakcare_db_instance():

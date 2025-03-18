@@ -10,12 +10,14 @@ import argparse
 import time
 import traceback
 from speakcare_logging import SpeakcareLogger
-from os_utils import ensure_directory_exists
+from speakcare_env import SpeakcareEnv
+import ffmpeg
+from os_utils import os_get_file_extension
 
 logger= SpeakcareLogger(__name__)
 
 # List all available audio devices
-def get_audio_devices_string():
+def audio_get_devices_string():
     p = pyaudio.PyAudio()
     intput_device_string = ""
     for i in range(p.get_device_count()):
@@ -30,10 +32,10 @@ def get_audio_devices_string():
     return intput_device_string
 
 
-def print_audio_devices():
-    print(get_audio_devices_string())
+def audio_print_devices():
+    print(audio_get_devices_string())
 
-def get_input_audio_devices():
+def audio_get_input_devices():
     p = pyaudio.PyAudio()
     input_devices = []
     for i in range(p.get_device_count()):
@@ -44,15 +46,15 @@ def get_input_audio_devices():
     p.terminate()
     return input_devices
 
-def print_input_devices():
-    input_devices = get_input_audio_devices()
+def audio_print_input_devices():
+    input_devices = audio_get_input_devices()
     logger.debug(f"Input devices:{input_devices}")
     for device in input_devices:
         name = device['name']
         index = device['index']
         print(f"Device {index}: '{name}'")
 
-def check_input_device(device_index: int):
+def audio_check_input_device(device_index: int):
     p = pyaudio.PyAudio()
     try:
         info = p.get_device_info_by_index(device_index)
@@ -168,19 +170,29 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
     logger.info(f"Audio saved to {output_filename}")
     return recording_length
 
+def audio_is_wav(filename):
+    return filename.lower().endswith('.wav')
+
+def audio_convert_to_wav(audio_file):
+    file_ext = os_get_file_extension(audio_file)
+    wav_filename = audio_file.replace(file_ext, ".wav")
+    logger.debug(f"Converting {file_ext} to .wav: {audio_file} -> {wav_filename}")
+    ffmpeg.input(audio_file).output(wav_filename, acodec="pcm_s16le", ar=44100).run(quiet=True, overwrite_output=True)
+    return wav_filename
 
 
 
 def main():
     # Parse command line arguments
-    output_dir = "out/recordings"
+    SpeakcareEnv.load_env()
+    output_dir = SpeakcareEnv.get_audio_local_dir()
 
     list_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', add_help=False)
     list_parser.add_argument('-l', '--list-devices', action='store_true', help='Print input devices list and exit')
     args, remaining_args = list_parser.parse_known_args()
 
     if args.list_devices:
-        print_input_devices()
+        audio_print_input_devices()
         exit(0)
 
     full_parser = argparse.ArgumentParser(description='Speakcare speech to EMR.', parents=[list_parser])
@@ -191,8 +203,8 @@ def main():
     args = full_parser.parse_args()
     
     audio_device = args.audio_device
-    if not check_input_device(audio_device):
-        full_parser.error(f"Invalid audio device index: {audio_device} \n{get_audio_devices_string()}")
+    if not audio_check_input_device(audio_device):
+        full_parser.error(f"Invalid audio device index: {audio_device} \n{audio_get_devices_string()}")
     
     # Get the current UTC time
     utc_now = datetime.now(timezone.utc)
@@ -203,7 +215,7 @@ def main():
     duration = args.seconds
     output_filename = f'{output_dir}/{args.output}.{utc_string}.wav'
 
-    ensure_directory_exists(output_dir) 
+    #ensure_directory_exists(output_dir) 
     logger.info(f"Recording audio from device index {audio_device} for {duration} seconds into {output_filename}")
     record_audio(device_index=audio_device,  duration=duration, output_filename=output_filename)
 

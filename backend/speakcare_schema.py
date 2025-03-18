@@ -84,7 +84,7 @@ class AirtableSchema:
         return _field_schema_function_registry.get(field_type)
 
 
-    def __init__(self, table_name, table_schema):
+    def __init__(self, table_name, table_schema, is_person_table=False):
         if table_name != table_schema.get("name"):
             raise ValueError(f"Table name '{table_name}' does not match the name in the schema '{table_schema.get('name')}'")
 
@@ -93,6 +93,7 @@ class AirtableSchema:
         self.logger = schema_logger
         self.table_name = table_name
         self.json_schema = {}
+        self.is_person_table = is_person_table
         self.__create_table_schema(table_schema)
         self.logger.debug(f"Created schema for table '{self.table_name}'.") 
         
@@ -106,6 +107,7 @@ class AirtableSchema:
         """
         # Build the JSON schema 
         fields = table_schema.get("fields", None)
+        self.logger.debug(f"Creating schema for table '{self.table_name}' with fields: {fields}")
         self.json_schema['title'] = self.table_name
         self.json_schema['type'] = JsonSchemaTypes.OBJECT.value
         # All schemas will have these properties: table_name, patient_name, fields
@@ -115,12 +117,27 @@ class AirtableSchema:
                 "const": self.table_name,
                 "description": "The name of the Airtable table"
             },
-            "patient_name": {
+        }
+        # self.json_schema['required'] = ["table_name", "patient_name"]
+        self.json_schema['required'] = ["table_name"]
+        
+        # person records (patient, nurse, doctor, etc) don't have a person_name field as they are the person
+        if not self.is_person_table:
+            # regular record add person names here
+            self.json_schema['properties']['patient_name'] = {
                 "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
                 "description": "The name of the patient"
-            },
-        }
-        self.json_schema['required'] = ["table_name", "patient_name"]
+            }
+            self.json_schema['required'].append('patient_name')
+            # add here nurses when I am ready
+            # self.json_schema['properties']['nurses_names'] = {
+            #     "type": [JsonSchemaTypes.ARRAY.value, JsonSchemaTypes.NULL.value],
+            #     "items": {"type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value]},
+            #     "description": "Array of the names of all the nurses in the transcription that actively participated in the conversation" 
+            # }
+            # self.json_schema['required'].append('nurses_names')
+
+            
         self.json_schema['additionalProperties'] = False
         # initialize the field registry
         if fields:

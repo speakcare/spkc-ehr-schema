@@ -16,13 +16,13 @@ def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, p
         "Route": "Tympanic"
     }
 
-    matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
     patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(nurseName)
     logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -48,13 +48,13 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         "Type": "Infection",
         "Status": "Notify doctor"
     }
-    matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
     patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(nurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(nurseName)
     logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -80,13 +80,13 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
                              signingNurseName: str = 'Rebeka Jones'):
 
 
-    matchedPatientName, patientId, patientEmrId = api.lookup_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
     patient = api.get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(creatingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(creatingNurseName)
     logger.info(f'Nurse: {creatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -98,20 +98,20 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "Status": "Old"
     }
     # This should fail
-    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Correctly failed to create fall risk assessment {fallRiskRecord} error: {err}')
 
     # now set correct status name
     fallRiskRecord["Status"] = "New"
-    assementRecord, url, err = api.create_complex_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Wrongly failed to create fall risk assessment {fallRiskRecord} error: {err}')
         return None
     
     logger.info(f'Created fall risk assessment: {assementRecord} url is {url}')
 
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(updatingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(updatingNurseName)
     logger.info(f'Updating Nurse: {updatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
     if not patientId or not nurseId:
         logger.error('Failed to find patient or nurse')
@@ -148,7 +148,7 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
     logger.info(f'Created fall risk assessment section: {assessSection1Record}')
         
 
-    matchedNurseName, nurseId, nurseEmrId = api.lookup_nurse(signingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(signingNurseName)
     logger.info(f'Signing Nurse: {signingNurseName} matched with {matchedNurseName} with id {nurseId}')
     assementRecord, err = api.sign_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
     if not assementRecord:

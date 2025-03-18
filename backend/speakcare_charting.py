@@ -4,7 +4,7 @@ import json
 import openai
 from openai import OpenAI
 from datetime import datetime, timezone
-from os_utils import ensure_directory_exists, Timer
+from os_utils import Timer
 from dotenv import load_dotenv
 import os
 import traceback
@@ -16,12 +16,16 @@ import copy
 import re
 import argparse
 import logging
+from boto3_session import Boto3Session
+from speakcare_env import SpeakcareEnv
+from models import RecordState, RecordType
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+__client = OpenAI()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
-logger = SpeakcareLogger('speakcare_transcriptions')
+logger = SpeakcareLogger(__name__)
 
 multupleSelectionSchemaExample = {
             "type": "multipleSelects",
@@ -66,69 +70,6 @@ multupleSelectionSchemaExample = {
         }
 multupleSelectionResultExample = {"MOOD (CHECK ALL THAT APPLY)": ["Passive", "Depressed", "Elated"]}
 
-def transcription_to_emr_schema_old(transcription: str, schema: dict) -> dict:
-
-    """
-    Fills a schema based on the conversation transcription, returning a dictionary.
-    The dictionary contains field names as keys and the corresponding filled values as values,
-    with each value cast to the appropriate type based on the schema definition.
-    If the value is "no answer", the field is omitted from the final dictionary.
-    
-    Parameters:
-        transcription (str): The conversation transcription.
-        schema (JSON): The JSON schema template to fill.
-        
-    Returns:
-        dict: Dictionary of the filled schema
-    """
-    
-    prompt = f'''
-    You are given a transcription of a conversation related to a nurse's treatment of a patient. 
-    Based on the transcription, fill in the provided following fields as dictionary if you are sure of the answers.
-    If you are unsure of any field, please respond with "no answer".
-    
-    Transcription: {transcription}
-    
-    Schema template:
-    {json.dumps(schema, indent=2)}
-    
-    Return a dictionary by filling in only the fields you are sure about. 
-    Return a dictionary of field name and value, making sure the values are cast as per their correct type (number, text, etc.).
-    If uncertain, use "no answer" as the value.
-    Please return the output as a valid JSON object. 
-    Ensure all fields are filled in with the correct data types (number, text, etc.).
-    Fileds of type "singleSelect" should have a value that is one of the options in the "choices" list.
-    Fields of type 'multipleSelects' should have a value that is a JSON list with values that must be from the "choices" list.
-    For example, here is a field of type "multipleSelects". This is the example schema:
-    {json.dumps(multupleSelectionSchemaExample, indent=2)}
-    and the result should be only from the list of choices values, for example this field response can be:
-    {json.dumps(multupleSelectionResultExample, indent=2)}
-    Or, if you're unsure about a field, use "no answer" as the value. 
-    The full response must be a single valid JSON object and nothing else.
-
-    '''
-    client = OpenAI()
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.3,
-        max_tokens=4096
-    )
-    logger.debug(f"OpenAI Response: {completion}")    
-    filled_schema_str = completion.choices[0].message.content.strip()
-    logger.debug(f"filled_schema_str: {filled_schema_str}")
-    cleaned_filled_schema_str = re.sub(r'```json|```', '', filled_schema_str).strip()
-    logger.debug(f"cleaned_filled_schema_str: {cleaned_filled_schema_str}")
-
-    try:
-        filled_schema_dict = json.loads(cleaned_filled_schema_str)
-        return filled_schema_dict
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing JSON: {e}")
-        return {}
 
 def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
 
@@ -148,14 +89,14 @@ def transcription_to_emr_schema(transcription: str, schema: dict) -> dict:
         
     logger.debug(f"main_schema: {json.dumps(main_schema, indent=4)}")
 
-    record = __transcription_to_emr_json_schema(transcription, main_schema)
+    record = __create_chart_with_json_schema(transcription, main_schema)
     
     sections = schema.get('properties', {}).get('sections', {}).get('properties', {})
     if sections:
         record['sections'] = {}
         # iterate the sections and call the OpenAI API for each of them
         for section_name, section_schema in sections.items():
-            section = __transcription_to_emr_json_schema(transcription, section_schema)
+            section = __create_chart_with_json_schema(transcription, section_schema)
             record['sections'][section_name] = section
     
     logger.debug(f"record: {json.dumps(record, indent=4)}")
@@ -268,10 +209,9 @@ def __transcription_to_emr_schema_in_prompt(transcription: str, schema: dict) ->
     Json schema:
     {json.dumps(schema, indent=2)}      
     '''
-
-    client = OpenAI()
+    
     logger.info("Calling OpenAI API")
-    response = client.chat.completions.create(
+    response = __client.chat.completions.create(
         model="gpt-4o-mini-2024-07-18",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
@@ -295,37 +235,7 @@ def __transcription_to_emr_schema_in_prompt(transcription: str, schema: dict) ->
         return {}
 
 
-    # if you have filled "null" to any of the required properties of a certain object, please set the encompasing object value to null.
-    # Here are some examples to show you how to assign null to a "fields" object if a required property is missing:
-    # In the following example:
-    # {admission_demographics_example}
-    # If the "Admission Date" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {admission_demographics_none}
-    # In the following example:
-    # {temperature_example}
-    # If the "Degrees" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {temperature_null}
-    # In the following example:
-    # {pulse_example}
-    # If the "Pulse" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {pulse_none}
-    # In the following example:
-    # {blood_sugar_example}
-    # If the "SugarLevel" property is required and you are unsure of its value, set the entire "fields" object to null, this way:
-    # {blood_sugar_none}
-    # Please apply the same logic to any "fields" object in the json_schema.
-
-
-    # If you are unsure of any property value, please respond with "null" for that property.
-    # If a property in an object has the word "required" in its description, that property is required to be filled, 
-
-
-    # If the values of all the properties of a specific "fields" object were set to null, please set the entire "fields" object to null.
-
-    # If the values of all the properties of a specific "fields" object were set to null, please set the entire "fields" object to null.
-
-
-def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict:
+def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
 
     """
     Fills a schema based on the conversation transcription, returning a dictionary.
@@ -346,6 +256,7 @@ def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict
     Based on the transcription, respond with a valid json object formatted according to the provided json_schema, and nothing else.
     Please fill in the json properties if and only if you are sure of the answers.
     Do not assume any values, only fill in the properties that can explicitly be dervied from he transcription.
+    Answer in English only. If any field value is a text in a different language, you must translate it into English.
     If an issue is not mentioned, do not assume it is does not exist and do not fill in a value that implies the patient do not have that issue.
     In any case you cannot explicitly derive an answer from the transcription, you must set the value to null. 
     If the schema has sections, you must fill in the fields of each section separately.
@@ -368,9 +279,8 @@ def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict
     #logger.debug(f"response_format: {json.dumps(response_format, indent=4)}")
     #logger.debug(f"prompt: {prompt}")
 
-    client = OpenAI()
     logger.info("Calling OpenAI API")
-    response = client.chat.completions.create(
+    response = __client.chat.completions.create(
         model="gpt-4o-mini-2024-07-18",
         messages=[
             {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
@@ -395,7 +305,7 @@ def __transcription_to_emr_json_schema(transcription: str, schema: dict) -> dict
 
 
 
-def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False) -> int:
+def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False) -> int:
     """
     Create an EMR record based on the transcription and schema.
     
@@ -429,12 +339,12 @@ def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False)
     # user nurse Rebecca jones as default nurse
     record['nurse_name'] = "Rebecca Jones"
     
-    # if it is a multi secrtion assessment record
-    if table_name in [SpeakCareEmr.ADMISSION_TABLE, SpeakCareEmr.FALL_RISK_SCREEN_TABLE, SpeakCareEmr.VITALS_TABLE]:
-        record['type'] = 'ASSESSMENT'
+    # if it is a multi section assessment record
+    if EmrUtils.is_table_multi_section(table_name):
+        record['type'] = RecordType.MULTI_SECTION.value
     else:
         # simple medical record
-        record['type'] = 'MEDICAL_RECORD'
+        record['type'] = RecordType.SIMPLE.value # 'MEDICAL_RECORD'
    
     logger.debug(f"Record: {json.dumps(record, indent = 4)}")
 
@@ -443,7 +353,7 @@ def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False)
         logger.error(f"Failed to create record {record} in EMR. Error: {json.dumps(error, indent=4)}")
         return None, record_state
     elif record_state is RecordState.ERRORS:
-        logger.warning(f"Record {record_id} created with errors: {json.dumps(error, indent=4)}.")
+        logger.error(f"Record {record_id} created with errors: {json.dumps(error, indent=4)}.")
         return record_id,record_state
 
     elif dryrun:
@@ -460,25 +370,26 @@ def create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False)
     return record_id, record_state
 
 
-def transcription_to_emr(input_file: str, output_file: str, table_name: str, dryrun=False):
+def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_file: str, emr_table_name: str, dryrun=False):
     """
     Convert a transcription from a file to a JSON file.
     
     Parameters:
-        input_file (str): The input file containing the transcription.
+        input_file (str): The input file in s3 containing the transcription.
         output_file (str): The output JSON file to write the converted transcription.
     """
     transcription = None
-        
-
     try:
-        with open(input_file, "r") as file:
-            lines = file.readlines()
-
-        if not lines:
+        # read input file from s3
+        if input_file.startswith("s3://"):
+            transcription = boto3Session.s3_uri_get_object_content(input_file)
+        else:
+            transcription = boto3Session.s3_get_object_content(input_file)
+        
+        if not transcription:
             raise ValueError("No transcription found in the input file.")
         # Join the lines to form a single string
-        transcription = " ".join(line.strip() for line in lines)
+        # transcription = " ".join(line.strip() for line in lines)
         logger.debug(f"Transcription:\n{transcription}")
         # Write the transcript to the Transcript database
         transcript_id, err = EmrUtils.add_transcript(transcription)
@@ -486,29 +397,34 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
             logger.error(f"Failed to create transcript: {err}")
             raise ValueError(err)
 
-        schema = EmrUtils.get_table_json_schema(table_name)
+        schema = EmrUtils.get_table_json_schema(emr_table_name)
         if not schema:
-            raise ValueError(f"Invalid table name: {table_name}")
+            err = f'Failed to get schema for table: {emr_table_name}'
+            logger.error(err)
+            raise ValueError(err)
         logger.debug(f"Schema: {json.dumps(schema, indent=4)}")
         
         timer = Timer()
         timer.start()
-        filled_schema_dict = __transcription_to_emr_json_schema(transcription, schema)
+        filled_schema_dict = __create_chart_with_json_schema(transcription, schema)
         timer.stop()
-        logger.info(f"Done calling __transcription_to_emr_json_schema in {timer.elapsed_time()} seconds")
+        logger.info(f"Done calling __create_chart_with_json_schema in {timer.elapsed_time()} seconds")
 
         if not filled_schema_dict:
-            err = f"Failed to fill schema of table {table_name} with transcription."
+            err = f"Failed to fill schema of table {emr_table_name} with transcription."
             logger.error(err)
             raise ValueError(err)
         
-        with open(output_file, "w") as json_file:
-            json.dump(filled_schema_dict, json_file, indent=4)
-        logger.info(f"Transcription saved to {output_file}")
+        if output_file.startswith("s3://"):
+            boto3Session.s3_uri_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
+        else:
+            boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
 
-        record_id, record_state = create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
+        logger.info(f"Chart completion uploaded to {output_file}")
+
+        record_id, record_state = __create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
         if not record_id:
-            err = f"Failed to create EMR record for table {table_name}. from data {filled_schema_dict}"
+            err = f"Failed to create EMR record for table {emr_table_name}. from data {filled_schema_dict}"
             logger.error(err)
             raise ValueError(err)
         
@@ -519,19 +435,23 @@ def transcription_to_emr(input_file: str, output_file: str, table_name: str, dry
     return record_id
 
 def main():
-    output_dir = "out/jsons"
-    supported_tables = EmrUtils.get_table_names()
-    EmrUtils.init_db(db_directory=DB_DIRECTORY)
     
+    supported_tables = EmrUtils.get_table_names()
+
     parser = argparse.ArgumentParser(description='Speakcare transcription to EMR.')
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input transcription file name (default: input)')
-    parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
+    parser.add_argument('-c', '--chart', type=str, required=True, help=f'Chart name (suported charts: {supported_tables}')
     parser.add_argument('-d', '--dryrun', action='store_true', help=f'If dryrun write JSON only and do not create EMR record')
 
     args = parser.parse_args()
 
-    table_name = args.table
+    SpeakcareEnv.load_env()
+    output_dir = SpeakcareEnv.get_charts_dir()
+    EmrUtils.init_db(db_directory=DB_DIRECTORY)
+    boto3Session = Boto3Session.get_single_instance()
+
+    chart_name = args.chart
     
     input_file = args.input
     output_file_prefix = args.output
@@ -540,8 +460,8 @@ def main():
         logger.info("Dryrun mode enabled. EMR record will not be created.")
 
     
-    if table_name not in supported_tables:
-        logger.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
+    if chart_name not in supported_tables:
+        logger.error(f"Invalid chart name: {chart_name}. Supported tables: {supported_tables}")
         exit(1)
     
 
@@ -552,9 +472,8 @@ def main():
     utc_string = utc_now.strftime('%Y-%m-%dT%H:%M:%S')
 
     output_filename = f'{output_dir}/{output_file_prefix}.{utc_string}.json'
-
-    ensure_directory_exists(output_dir) 
-    transcription_to_emr(input_file=input_file, output_file=output_filename, table_name=table_name, dryrun=dryrun)
+    logger.info(f"Creating EMR record from {input_file} into {output_filename}")
+    create_chart_completion(boto3Session, input_file=input_file, output_file=output_filename, emr_table_name=chart_name, dryrun=dryrun)
 
 
 if __name__ == "__main__":

@@ -3,9 +3,14 @@ venv/
 bin/
 env/
 lib/
+playground/
+backend/tmp/
 
 # Ignore the .env file
 .env
+.env.ec2
+# keys files
+*.pem
 
 # Other common Python ignores
 __pycache__/

@@ -3,7 +3,7 @@ from speakcare_emr import SpeakCareEmr
 import logging
 from config import SpeakCareEmrApiconfig
 from speakcare_emr import get_emr_api_instance
-from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakCareDB, init_speakcare_db
+from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState, SpeakcareDB, init_speakcare_db
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
@@ -29,7 +29,7 @@ if not emr_api:
 
 
 class EmrUtils:
-    db : Optional[SpeakCareDB] = None
+    db : Optional[SpeakcareDB] = None
     @staticmethod
     def init_db(db_directory = None, create_db=False):
         EmrUtils.db = init_speakcare_db(db_directory, create_db=create_db)
@@ -45,7 +45,7 @@ class EmrUtils:
         """
         get_patient_info
         """
-        foundName, patientId, patientEmrId = emr_api.lookup_patient(name)
+        foundName, patientId, patientEmrId = emr_api.match_patient(name)
 
         if not patientEmrId:
             return None
@@ -72,6 +72,10 @@ class EmrUtils:
     def get_table_id(tableName):
         table_id = emr_api.get_table_id(tableName)
         return table_id
+
+    @staticmethod
+    def is_table_multi_section(tableName):
+        return emr_api.is_table_multi_section(tableName)
     
     @staticmethod
     def get_record_section_names(tableName):
@@ -88,6 +92,13 @@ class EmrUtils:
         """
         # Get the main table schema
         return emr_api.get_table_json_schema(tableName=tableName)
+    
+    @staticmethod
+    def get_table_schema_fields(tableName: str):
+        """
+        get_table_schema_fields
+        """
+        return emr_api.get_table_json_schema(tableName=tableName).get("properties", {}).get("fields", {})
 
     @staticmethod
     def validate_record(table_name: str, data: dict, errors: list = []):
@@ -108,16 +119,130 @@ class EmrUtils:
         """
         lookup_patient
         """
-        return emr_api.lookup_patient(name)
+        return emr_api.match_patient(name)
     
+    @staticmethod
+    def add_patient(patient: dict):
+        logger.debug(f"add_patient:\n {patient}")
+        errors = []
+        patient_name = patient.get('FullName', None)
+        logger.info(f"add_patient: {patient_name}")
+        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        if isValid:
+            logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
+            record = emr_api.add_patient(validPatientFields)
+            if not record:
+                logger.error(f"add_patient '{patient_name}' failed.")
+                return None, {"error": f"Failed to add patient '{patient_name}'"}
+            else:
+                logger.info(f"add_patient '{patient_name}' success")
+                return record, {"message": f"Patient '{patient_name}' added successfully."}
+        else:
+            logger.error(f"add_patient '{patient_name}' failed: invalid patient fields:\n {patient}")
+            return None, {"error": f"Invalid patient fields: {errors}"}
+    
+    @staticmethod
+    def update_patient(patient_id, patient):
+        logger.info(f"update_patient: {patient_id}:\n {patient}")
+        errors = []
+        isValid, validPatientFields = EmrUtils.validate_partial_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        if isValid:
+            logger.info(f"update_patient: valid patient fields:\n {validPatientFields}")
+            record = emr_api.update_patient(patient_id, validPatientFields)
+            if not record:
+                logger.error(f"update_patient patient id {patient_id} failed: {validPatientFields}")
+                return None, {"error": f"Failed to update patient id {patient_id}"}
+            else:
+                logger.info(f"update_patient id {patient_id} success: {validPatientFields}")
+                return record, {"message": f"Patient id {patient_id} updated successfully."}
+        else:
+            logger.error(f"update_patient failed: invalid patient fields:\n {patient}")
+            return None, {"error": f"Invalid patient fields: {errors}"}
+    
+    @staticmethod    
+    def delete_patient(patient_id):
+        logger.info(f"delete_patient: {patient_id}")
+        record = emr_api.delete_patient(patient_id)
+        if not record:
+            logger.error(f"delete_patient failed: {patient_id}")
+            return None
+        else:
+            logger.info(f"delete_patient success: {patient_id}")
+            return record
+        
+    @staticmethod
+    def get_patients_table_schema():
+        return EmrUtils.get_table_json_schema(SpeakCareEmr.PATIENTS_TABLE)
+    
+    @staticmethod
+    def get_patients_table_fields():
+        return EmrUtils.get_table_schema_fields(SpeakCareEmr.PATIENTS_TABLE)
+     
+    @staticmethod
+    def add_nurse(nurse: dict):
+        logger.info(f"add_nurse:\n {nurse}")
+        errors = []
+        nurse_name = nurse.get('Name', None)
+        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        if isValid:
+            logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
+            record = emr_api.add_nurse(validNurseFields)
+            if not record:
+                logger.error(f"add_nurse '{nurse_name}' failed.")
+                return None, {"error": f"Failed to add nurse '{nurse_name}'"}
+            else:
+                logger.info(f"add_nurse '{nurse_name}' success.")
+                return record, {"message": f"Nurse '{nurse_name}' added successfully."}
+        else:
+            logger.error(f"add_nurse '{nurse_name}' failed: invalid nurse fields:\n {nurse}")
+            return None, {"error": f"Invalid nurse fields: {errors}"}
+
+    @staticmethod
+    def update_nurse(nurse_id, nurse):
+        logger.info(f"update_nurse: {nurse_id}:\n {nurse}")
+        errors = []
+        isValid, validNurseFields = EmrUtils.validate_partial_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        if isValid:
+            logger.info(f"update_nurse: valid nurse fields:\n {validNurseFields}")
+            record = emr_api.update_nurse(nurse_id, validNurseFields)
+            if not record:
+                logger.error(f"update_nurse nurse id {nurse_id} failed: {validNurseFields}")
+                return None, {"error": f"Failed to update nurse id {nurse_id}"}
+            else:
+                logger.info(f"update_nurse id {nurse_id} success: {validNurseFields}")
+                return record, {"message": f"Nurse id {nurse_id} updated successfully."}
+        else:
+            logger.error(f"update_nurse failed: invalid nurse fields:\n {nurse}")
+            return None, {"error": f"Invalid nurse fields: {errors}"}
+    
+    @staticmethod    
+    def delete_nurse(nurse_id):
+        logger.info(f"delete_nurse: {nurse_id}")
+        record = emr_api.delete_nurse(nurse_id)
+        if not record:
+            logger.error(f"delete_nurse failed: {nurse_id}")
+            return None
+        else:
+            logger.info(f"delete_nurse success: {nurse_id}")
+            return record
+        
+    @staticmethod
+    def get_nurses_table_schema():
+        return EmrUtils.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+    
+    @staticmethod
+    def get_nurses_table_fields():
+        return EmrUtils.get_table_schema_fields(SpeakCareEmr.NURSES_TABLE)
+    
+
     @staticmethod
     def __record_validation_helper(table_name: str,
                                    patient_name: str,
                                    nurse_name: str,
                                    fields: dict,
                                    sections = None,
-                                   patient_id: str = None, 
-                                   nurse_id: str = None):
+                                   patient_id: int = None, 
+                                   nurse_id: int = None):
         _errors =[]
         _state = RecordState.PENDING
         _patient_name = patient_name
@@ -130,7 +255,7 @@ class EmrUtils:
         foundPatientByName = None
         foundPatientIdByName = None
         foundPatientByPatientId = None
-        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.lookup_patient(patient_name)
+        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.match_patient(patient_name)
 
         if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
@@ -157,7 +282,7 @@ class EmrUtils:
         foundNurseByName = None
         foundNurseIdByName = None
         foundNurseByNurseId = None
-        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.lookup_nurse(nurse_name)
+        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.match_nurse(nurse_name)
 
         if not foundNurseByName: # Nurse name is mandatory and must be found
             _errors.append(f"Nurse '{nurse_name}' not found in the EMR.")
@@ -233,7 +358,7 @@ class EmrUtils:
         """
         Get the emr record.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             if load_transcript: #preload the transcript
                 stmt = select(MedicalRecords).options(joinedload(MedicalRecords.transcript)).where(MedicalRecords.id == record_id)
@@ -251,14 +376,14 @@ class EmrUtils:
             session.rollback()
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
     @staticmethod
     def get_all_records(state: RecordState = None, table_name: str = None):
         """
         Get the emr records.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             query = session.query(MedicalRecords)
             if state:
@@ -275,7 +400,7 @@ class EmrUtils:
             session.rollback()
             return None, {"error": err}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 
 
@@ -294,12 +419,17 @@ class EmrUtils:
 
         # Perform any additional validity checks on the data
         # Example: Check if the data dictionary contains necessary keys
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             # first check for unrecoverable errors
             
-            required_fields = ['type', 'table_name', 'patient_name', 'nurse_name', 'fields']
+            required_fields = ['type', 'table_name', 'patient_name', 'nurse_name']
             missing_fields = [field for field in required_fields if field not in data]
+            
+            # Check if either 'fields' or 'sections' is present
+            if 'fields' not in data and 'sections' not in data:
+                missing_fields.append('fields or sections')
+
             if missing_fields:
                 raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
@@ -363,7 +493,7 @@ class EmrUtils:
             return None, RecordState.ERRORS, {"error": str(e)}
         
         finally:    
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
             
 
     @staticmethod
@@ -377,7 +507,7 @@ class EmrUtils:
         :param record_id: The id of the record to update.
         :return: A tuple containing the a success or error message and an HTTP status code.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             # first check for unrecoverable errors
             if not updates:
@@ -449,7 +579,7 @@ class EmrUtils:
             logger.error(f"Error updating EMR record: {e}")
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
 
     @staticmethod
@@ -459,7 +589,7 @@ class EmrUtils:
         otherwise returns ane error message and None.
         """
         # Logic to discard the record
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -476,7 +606,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def delete_record(record_id: int):
@@ -484,7 +614,7 @@ class EmrUtils:
         Returns a message and True if the record is successfully deleted, 
         otherwise returns error message and False.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -498,7 +628,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     ### EMR interaction methods ###
 
@@ -509,7 +639,7 @@ class EmrUtils:
         Returns a tuple: The record EMR id if the record is successfully committed to the EMR, the record state, and a message 
         otherwise returns ane error message and None.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         # prepare to commit the record to the EMR
         try:
             # first verify that the record is a PENDING state
@@ -520,13 +650,13 @@ class EmrUtils:
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             
             # from here record should be ready for commit with no errors
-            foundPatient, foundPatientId, patientEmrId = emr_api.lookup_patient(record.patient_name) 
+            foundPatient, foundPatientId, patientEmrId = emr_api.match_patient(record.patient_name) 
             if not foundPatient:
                 record.errors
                 raise ValueError(f"Patient {record.patient_name} not found in the EMR.")
             
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
@@ -538,7 +668,8 @@ class EmrUtils:
             errors = record.errors
             any_section_errors = False
 
-            if (record_type == RecordType.MEDICAL_RECORD):
+            if (record_type == RecordType.SIMPLE):
+                logger.info(f"Commiting simple record {record.id} to table '{record.table_name}'")
                 emr_record, url, err = emr_api.create_simple_record(tableName=record.table_name, record=record_fields, 
                                                                      patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                      errors=errors)
@@ -548,8 +679,9 @@ class EmrUtils:
                     # update the record with the EMR record ID and URL
                     record.emr_record_id = emr_record['id']
                     record.emr_url = url                
-            elif record_type == RecordType.ASSESSMENT:
-                emr_record, url, err = emr_api.create_complex_record(tableName=record.table_name, record=record_fields, 
+            elif record_type == RecordType.MULTI_SECTION:
+                logger.info(f"Commiting multi sections record {record.id} to table '{record.table_name}'")
+                emr_record, url, err = emr_api.create_multi_section_record(tableName=record.table_name, record=record_fields, 
                                                                  patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                  errors=errors)
                 if not emr_record:
@@ -605,12 +737,12 @@ class EmrUtils:
             logger.log_exception(f"Error committing record {record.id} to the EMR", e)
             return None, record.state, {"error": str(e)}          # Return error response and status code
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
         
 
     @staticmethod
     def sign_assessment(record_id: id):
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         record = None
         # prepare to commit the record to the EMR
         try:
@@ -620,10 +752,10 @@ class EmrUtils:
                 raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state in [RecordState.ERRORS, RecordState.DISCARDED]:  # Example check to ensure the record is in a valid state to be committed
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
-            elif record.type != RecordType.ASSESSMENT:
+            elif record.type != RecordType.MULTI_SECTION:
                 raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.lookup_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
@@ -642,7 +774,7 @@ class EmrUtils:
             logger.error(err)
 
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 
     @staticmethod
@@ -650,7 +782,7 @@ class EmrUtils:
         """
         Returns the EMR record for the given record id.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             record: Optional[MedicalRecords] = session.get(MedicalRecords, record_id)
             if not record:
@@ -668,7 +800,7 @@ class EmrUtils:
             logger.error(f"Error getting EMR record id {record_id}: {e}")
             return None, {"error": str(e)}
         finally: 
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def get_emr_record_by_emr_record_id(tableId, emr_record_id: int):
@@ -690,7 +822,7 @@ class EmrUtils:
         Create a new transcript in the database and return its id.
         Return the new transcript id, or None if it fails.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             new_transcript = Transcripts(text=transcript)
             if not new_transcript:
@@ -712,7 +844,7 @@ class EmrUtils:
             logger.error(f"Error creating transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def get_all_transcripts(text_limit: int = 200, state: TranscriptState = None):
@@ -720,7 +852,7 @@ class EmrUtils:
         Return a dictionary with all transcripts but truncate the text to first text_limit characters.
         If state is given (not None), query the database only for these transcripts that are in that state.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             query = session.query(Transcripts)
             if state:
@@ -749,14 +881,14 @@ class EmrUtils:
             logger.error(f"Error retrieving transcripts: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
     
     @staticmethod
     def get_transcript(transcript_id: int, load_medical_records: bool = False):
         """
         Get the transcript record by transcript_id and return the transcript record, or None if failed.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             if load_medical_records:
                 stmt = select(Transcripts).options(joinedload(Transcripts.medical_records)).where(Transcripts.id == transcript_id)
@@ -775,7 +907,7 @@ class EmrUtils:
             logger.error(f"Error retrieving transcript: {e}")
             return None, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def update_transcript_state(transcript_id: int, state: TranscriptState):
@@ -788,7 +920,7 @@ class EmrUtils:
             logger.error(err)
             return False, {"error": err}
         
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -804,14 +936,14 @@ class EmrUtils:
             logger.error(f"Error updating transcript state: {e}")
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
     @staticmethod
     def delete_transcript(transcript_id: int):
         """
         Delete the transcript by transcript_id.
         """
-        session = EmrUtils.db.SpeakCareDBSession()
+        session = EmrUtils.db.SpeakcareDBSession()
         try:
             transcript = session.get(Transcripts, transcript_id)
             if transcript:
@@ -827,7 +959,7 @@ class EmrUtils:
             session.rollback()
             return False, {"error": str(e)}
         finally:
-            EmrUtils.db.SpeakCareDBSession.remove()
+            EmrUtils.db.SpeakcareDBSession.remove()
 
 DB_DIRECTORY = "db"
 def main():

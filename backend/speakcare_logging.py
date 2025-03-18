@@ -13,6 +13,21 @@ logger_level = os.getenv('LOGGER_LEVEL', 'INFO').upper()
 env_log_level = getattr(logging, logger_level, logging.INFO)
 
 
+class CustomFormatter(logging.Formatter):
+    LEVELNAME_MAP = {
+        'WARNING': 'WARN',
+        'INFO': 'INFO',
+        'DEBUG': 'DEBUG',
+        'ERROR': 'ERROR',
+        'CRITICAL': 'CRIT',
+    }
+
+    def format(self, record):
+        if record.levelname in self.LEVELNAME_MAP:
+            record.levelname = self.LEVELNAME_MAP[record.levelname]
+        return super().format(record)
+
+
 class SpeakcareLogger(logging.Logger):
     def __init__(self, name: str, level: int = None, propagate: bool = False):
         super().__init__(name)
@@ -25,7 +40,7 @@ class SpeakcareLogger(logging.Logger):
         self.setLevel(_level)
         handler = logging.StreamHandler()
         handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
+        formatter = CustomFormatter('%(asctime)s - %(levelname)-5s: %(name)s - %(message)s (file: %(filename)s, line: %(lineno)d)')
         handler.setFormatter(formatter)
         self.addHandler(handler)
         self.propagate = propagate

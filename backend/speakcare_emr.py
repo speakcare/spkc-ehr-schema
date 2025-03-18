@@ -9,101 +9,24 @@ from dotenv import load_dotenv
 from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
+from speakcare_emr_tables import SpeakCareEmrTables
 
 # Load the .env file
 load_dotenv()
 AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
 AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 
-class SpeakCareEmr:
+class SpeakCareEmr(SpeakCareEmrTables):
 
-    # Table names
-    #TODO: load tables dynamically from the API
-    ### People ###
-    PATIENTS_TABLE = 'Patients'
-    NURSES_TABLE = 'Nurses'
-    DOCTORS_TABLE = 'Doctors'
-    
-    ### Medical Records ###
-    VITALS_TABLE = 'Vitals'
-    WEIGHTS_TABLE = 'Weights'
-    BLOOD_PRESSURES_TABLE = 'Blood Pressures'
-    BLOOD_SUGARS_TABLE = 'Blood Sugars'
-    HEIGHTS_TABLE = 'Heights'
-    TEMPERATURES_TABLE = 'Temperatures'
-    O2_SATURATIONS_TABLE = 'O2 Saturations'
-    PULSES_TABLE = 'Pulses'
-    RESPIRATION_TABLE = 'Respiration'
-    EPISODES_TABLE = 'Episodes'
-    PROGRESS_NOTES_TABLE = 'Progress Notes'
-
-    ### Assessments ###
-    # Admission
-    ADMISSION_TABLE = 'Admission'
-    ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE   = 'Admission: SECTION 1. DEMOGRAPHICS'
-    ADMISSION_SECTION_2_VITALS_TABLE        = 'Admission: SECTION 2. VITALS-ALLERGIES'
-    ADMISSION_SECTION_3_SKIN_TABLE          = 'Admission: SECTION 3. SKIN CONDITION'
-    ADMISSION_SECTION_4_PHYSICAL_TABLE      = 'Admission: SECTION 4. PHYSICAL / ADL / COMMUNICATION STATUS'
-    ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE = 'Admission: SECTION 5. BOWEL-BLADDER EVALUATION'
-    ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE  = 'Admission: SECTION 6. PSYCHOSOCIAL ASPECTS'
-    ADMISSION_SECTION_7_DISCHARGE_TABLE     = 'Admission: SECTION 7. DISCHARGE EVALUATION'
-    ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
-
-    # Fall Risk Screen
-    FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
-    FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
-
-    # TODO: Table and sections names need to be loaded dyanically from the API
-    EMR_TABLES = [
-        EPISODES_TABLE, 
-        PROGRESS_NOTES_TABLE,
-        ADMISSION_TABLE,
-        FALL_RISK_SCREEN_TABLE,
-        VITALS_TABLE,
-        # WEIGHTS_TABLE, 
-        # BLOOD_PRESSURES_TABLE, 
-        # BLOOD_SUGARS_TABLE, 
-        # HEIGHTS_TABLE, 
-        # TEMPERATURES_TABLE,
-        # O2_SATURATIONS_TABLE,
-        # PULSES_TABLE,
-        # RESPIRATION_TABLE
-    ]
-
-    TABLE_SECTIONS = { 
-            ADMISSION_TABLE: [
-                ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
-                ADMISSION_SECTION_2_VITALS_TABLE, 
-                ADMISSION_SECTION_3_SKIN_TABLE, 
-                ADMISSION_SECTION_4_PHYSICAL_TABLE, 
-                ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
-                ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
-                ADMISSION_SECTION_7_DISCHARGE_TABLE,
-                ADMISSION_SECTION_8_FACILITY_TABLE
-            ],            
-            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
-            VITALS_TABLE: [
-                WEIGHTS_TABLE,
-                BLOOD_PRESSURES_TABLE,
-                BLOOD_SUGARS_TABLE,
-                HEIGHTS_TABLE,
-                TEMPERATURES_TABLE,
-                O2_SATURATIONS_TABLE,
-                PULSES_TABLE,
-                RESPIRATION_TABLE
-            ]
-    }
 
     METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
     API_BASE_URL = 'https://api.airtable.com/v0'
     WEB_APP_BASE_URL = 'https://airtable.com'
 
-    
-    READONLY_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
     INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor', 'SpeakCare']
     READONLY_FIELD_TYPES = ['autoNumber', 'barcode', 'button', 'collaborator', 'count', 'createdBy',  'createdTime', 
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
-                            'multipleRecordLinks', 'rollup', 'singleCollaborator']
+                            'multipleRecordLinks', 'rollup', 'singleCollaborator', 'multipleAttachments']
 
     def __init__(self, baseId: str, logger: logging.Logger):
         self.apiKey = AIRTABLE_API_KEY
@@ -185,16 +108,19 @@ class SpeakCareEmr:
                 tableName = table['name']
                 self.tables[tableName] = table
                 # Check if the table is in not in READONLY_TABLES
-                if tableName not in self.READONLY_TABLES:
-                    # Create writeable schema by copy from table
-                    writeableSchema = copy.deepcopy(table)
-                    # replace the fields with the writable fields
-                    writeableSchema['fields'] = self.__writable_fields(table)
-                    # create the EmrTableSchema object
-                    emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema)
-                    # add the EmrTableSchema to the tableWriteableSchemas dictionary
-                    self.logger.debug(f'Created writable schema for table {tableName}')
-                    self.tableEmrSchemas[tableName] = emrSchema
+                
+                is_person_table = tableName in self.PERSON_TABLES
+                # if tableName not in self.READONLY_TABLES:
+                # Create writeable schema by copy from table
+                writeableSchema = copy.deepcopy(table)
+                # replace the fields with the writable fields
+                writeableSchema['fields'] = self.__writable_fields(table)
+                # create the EmrTableSchema object
+                is_person_table = tableName in self.PERSON_TABLES
+                emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema, is_person_table=is_person_table)
+                # add the EmrTableSchema to the tableWriteableSchemas dictionary
+                self.logger.debug(f'Created writable schema for table {tableName}')
+                self.tableEmrSchemas[tableName] = emrSchema
             
             # register sections
             for tableName, sections in self.TABLE_SECTIONS.items():
@@ -256,9 +182,9 @@ class SpeakCareEmr:
                 self.logger.warning(f'get_table_writable_schema: Table {tableId} not found')
                 return None
 
-        if tableName in self.READONLY_TABLES:
-            self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
-            return None
+        # if tableName in self.READONLY_TABLES:
+        #     self.logger.warning(f'get_table_writable_schema: Table {tableName} is readonly')
+        #     return None
         
         tableSchema = self.tableEmrSchemas.get(tableName)
 
@@ -274,6 +200,9 @@ class SpeakCareEmr:
         return tableSchema.get_json_schema()
 
 
+    def is_table_multi_section(self, tableName):
+        return tableName in self.TABLE_SECTIONS
+        
     def create_record(self, tableId, record):
         self.logger.debug(f'Creating record in table {tableId} with record {record}')
         record = self.api.table(self.appBaseId, tableId).create(record)
@@ -362,7 +291,7 @@ class SpeakCareEmr:
         return record, url, None
 
 
-    def create_complex_record(self, tableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
+    def create_multi_section_record(self, tableName, record, patientEmrId, createdByNurseEmrId, errors=[]):
         """
         Complex record has sections that are implemtedd in different tables
         """
@@ -443,15 +372,15 @@ class SpeakCareEmr:
                 return self.patientsTable.get(patientEmdId)
 
 
-    def __lookup_patient(self, patientName):
+    def __match_patient(self, patientName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
         if matchedName:
             return matchedName, self.patientIds[matchedIndex], self.patientEmrIds[matchedIndex]
         else:
             return None, None, None
     
-    def lookup_patient(self, patientFullName):
-        matchedName, patientId, patientEmrId = self.__lookup_patient(patientFullName)
+    def match_patient(self, patientFullName):
+        matchedName, patientId, patientEmrId = self.__match_patient(patientFullName)
         if not matchedName:
             self.logger.info(f'Patient {patientFullName} not found')
         return matchedName, patientId, patientEmrId
@@ -461,11 +390,26 @@ class SpeakCareEmr:
             if patient_id == patienId:
                 return self.patientNames[index], self.patientEmrIds[index]
         return None, None
-    
+
     def add_patient(self, patient):
-        return self.patientsTable.create(patient)
+        patient_name = patient.get('FullName')
+        if patient_name in self.patientNames:
+            patientId = self.patientIds[self.patientNames.index(patient_name)]
+            self.logger.warning(f"Patient '{patient_name}' already exists with id {patientId}")
+            return None
+        patient_record = self.patientsTable.create(patient)
+        if not patient_record:
+            self.logger.error(f'Failed to create patient {patient}')
+            return None
+        else:
+            self.patientNames.append(patient_record['fields']['FullName'])
+            self.patientEmrIds.append(patient_record['id'])
+            self.patientIds.append(patient_record['fields']['PatientID'])
+            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID']}")
+            return patient_record
 
     def update_patient(self, patient_id, patient):
+        self.logger.debug(f'Updating patient {patient_id} with {patient}')
         return self.patientsTable.update(patient_id, patient)
 
     def delete_patient(self, patient_id):
@@ -496,15 +440,15 @@ class SpeakCareEmr:
                 nurseEmdId = self.nurseEmrIds[index]
                 return self.nursesTable.get(nurseEmdId)
     
-    def __lookup_nurse(self, nurseName):
+    def __match_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
         if matchedName:
             return matchedName, self.nurseIds[matchedIndex], self.nurseEmrIds[matchedIndex]
         else:
             return None, None, None
         
-    def lookup_nurse(self, nurseName):
-        matchedName, nurseId, nurseEmrId = self.__lookup_nurse(nurseName)
+    def match_nurse(self, nurseName):
+        matchedName, nurseId, nurseEmrId = self.__match_nurse(nurseName)
         if not matchedName:
             self.logger.info(f'Nurse {nurseName} not found')
         return matchedName, nurseId, nurseEmrId
@@ -515,10 +459,28 @@ class SpeakCareEmr:
                 return self.nurseNames[index], self.nurseEmrIds[index]
         return None, None
     
+    def get_nurses_table_json_schema(self):
+        return self.get_table_json_schema(tableName=self.NURSES_TABLE)
+
     def add_nurse(self, nurse):
-        return self.nursesTable.create(nurse)
+        nurse_name = nurse.get('Name')
+        if nurse_name in self.nurseNames:
+            nurseId = self.nurseIds[self.nurseNames.index(nurse_name)]
+            self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurseId}")
+            return None
+        nurse_record = self.nursesTable.create(nurse)
+        if not nurse_record:
+            self.logger.error(f'Failed to create nurse {nurse}')
+            return None
+        else:
+            self.nurseNames.append(nurse_record['fields']['Name'])
+            self.nurseEmrIds.append(nurse_record['id'])
+            self.nurseIds.append(nurse_record['fields']['NurseID'])
+            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_record['fields']['NurseID']}")
+            return nurse_record
     
     def update_nurse(self, nurse_id, nurse):
+        self.logger.debug(f'Updating nurse {nurse_id} with {nurse}')
         return self.nursesTable.update(nurse_id, nurse)
     
     def delete_nurse(self, nurse_id):

@@ -40,9 +40,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Lbs",
@@ -65,9 +65,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create_with_extra_field(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Lbs",
@@ -93,9 +93,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_update(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Pounds", # use wrong field here
@@ -114,7 +114,7 @@ class TestRecords(unittest.TestCase):
 
         # fix the record
         record_data = {
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Lbs",
@@ -123,7 +123,7 @@ class TestRecords(unittest.TestCase):
             }
         }
         success, response  = EmrUtils.update_record(record_data, record_id)
-        self.assertTrue(success)
+        self.assertTrue(success, response)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -133,7 +133,7 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_update_with_errors(self):
         # Create a record with 3 errors
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
             "patient_name": "Bruce Willis", # wrong patient name
             "nurse_name": "Sara Parker", # wrong nurse name
@@ -158,7 +158,7 @@ class TestRecords(unittest.TestCase):
 
         # fix only the patient name
         record_data = {
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Parker",
             "fields": {
                  "Units": "Pounds", # use wrong field here
@@ -196,7 +196,7 @@ class TestRecords(unittest.TestCase):
     
         # fix all fields but the nurse
         record_data = {
-            "patient_name": "John Doe", # wrong patient name
+            "patient_name": "James Brown", # wrong patient name
             "nurse_name": "Sara Parker", # wrong nurse name
             "fields": {
                  "Units": "Lbs", # use wrong value here
@@ -218,7 +218,7 @@ class TestRecords(unittest.TestCase):
 
         # fix all fields
         record_data = {
-            "patient_name": "John Doe", # wrong patient name
+            "patient_name": "James Brown", # wrong patient name
             "nurse_name": "Sara Foster", # wrong nurse name
             "fields": {
                  "Units": "Lbs", # use wrong value here
@@ -241,11 +241,11 @@ class TestRecords(unittest.TestCase):
     def test_record_non_existent_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "1234567890",
+            "patient_id": 1234567890,
             "fields": {
                  "Units": "Lbs",
                  "Weight": 120,
@@ -266,11 +266,11 @@ class TestRecords(unittest.TestCase):
 
         # try to fix but provide wrong patient name
         record_data = {
-            "patient_name": "Johny Doggy",
-            "patient_id": "P001"
+            "patient_name": "James Belushi", # wrong patient name
+            "patient_id": 1
         }
         success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertFalse(success)
+        self.assertFalse(success, response)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.ERRORS)
@@ -281,11 +281,11 @@ class TestRecords(unittest.TestCase):
 
         # now fix the patient id and use correct patient name
         record_data = {
-            "patient_name": "John Do", # slgihtly different name - should pass ok
-            "patient_id": "P001"
+            "patient_name": "James Broun", # slgihtly different name - should pass ok
+            "patient_id": 1
         }
         success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertTrue(success)
+        self.assertTrue(success, response)
         record, err = EmrUtils.get_record(record_id)
         self.assertEqual(record.id, record_id)
         # check that state is now PENDING
@@ -297,11 +297,11 @@ class TestRecords(unittest.TestCase):
     def test_record_wrong_patient_id(self):
         # Create a record with non-existent patient id
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "P002",
+            "patient_id": 2,
             "fields": {
                  "Units": "Lbs",
                  "Weight": 120,
@@ -316,14 +316,14 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.ERRORS)
         self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
-        self.assertEqual(record.errors[0], "Patient ID 'P002' does not match the patient ID 'P001' found by name 'John Doe'.")
+        self.assertEqual(record.errors[0], "Patient ID '2' does not match the patient ID '1' found by name 'James Brown'.")
 
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
 
         # fix it
         record_data = {
-            "patient_name": "John Doe",
-            "patient_id": "P001"
+            "patient_name": "James Brown",
+            "patient_id": 1
         }
         success, response = EmrUtils.update_record(record_data, record_id)
         self.assertTrue(success)
@@ -337,9 +337,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_record(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Kg",
@@ -369,16 +369,16 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['Units'], "Kg")
         self.assertEqual(emr_record['fields']['Weight'], 130)
         self.assertEqual(emr_record['fields']['Scale'], "Mechanical Lift")  
-        self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
+        self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["James Brown"])
         self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
     def test_record_create_and_commit_blood_pressure(self):
                     # Create a record example
             record_data = {
-                "type": RecordType.MEDICAL_RECORD,
+                "type": RecordType.SIMPLE,
                 "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
-                "patient_name": "John Doe",
+                "patient_name": "James Brown",
                 "nurse_name": "Sara Foster",
                 "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
             }
@@ -405,16 +405,16 @@ class TestRecords(unittest.TestCase):
             self.assertEqual(emr_record['fields']['Diastolic'], 85)
             self.assertEqual(emr_record['fields']['Position'], "Sitting")
             self.assertEqual(emr_record['fields']['Arm'], "Left")  
-            self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["John Doe"])
+            self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["James Brown"])
             self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
             self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
     def test_record_create_and_commit_and_fail_on_second_commit(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Kg",
@@ -449,9 +449,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_and_fail_on_update(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Kg",
@@ -485,9 +485,9 @@ class TestRecords(unittest.TestCase):
     def test_record_create_and_commit_and_fail_on_discard(self):
                 # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Kg",
@@ -520,7 +520,7 @@ class TestRecords(unittest.TestCase):
 
     def test_record_create_with_transcript(self):
 
-        transcript_text = "Hello John Doe, I am going to meausre your weight now. I am going to use the Mechanical lift. You are weighing 130 Kilograms. Thnak you."
+        transcript_text = "Hello James Brown, I am going to meausre your weight now. I am going to use the Mechanical lift. You are weighing 130 Kilograms. Thnak you."
         transcript_id, response = EmrUtils.add_transcript(transcript_text)
         
         # Assert that the transcript was created successfully
@@ -533,9 +533,9 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(transcript.state, TranscriptState.NEW, "Transcript state should be NEW.")
         # Create a record example
         record_data = {
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Kg",
@@ -583,11 +583,11 @@ class TestRecordWithSections(unittest.TestCase):
         pass
     def test_record_create_fallrisk(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "P001",
+            "patient_id": 1,
             "fields": {
                  "Status": "New"
              }
@@ -627,11 +627,11 @@ class TestRecordWithSections(unittest.TestCase):
   
     def test_record_create_fallrisk_with_wrong_section_name(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "P001",
+            "patient_id": 1,
             "fields": {
                  "Status": "New"
              }
@@ -671,9 +671,9 @@ class TestRecordWithSections(unittest.TestCase):
     def test_record_create_with_wrong_sections(self):
 
         record_data = { # this is a medical record should not have sections
-            "type": RecordType.MEDICAL_RECORD,
+            "type": RecordType.SIMPLE,
             "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
                  "Units": "Lbs",
@@ -716,11 +716,11 @@ class TestRecordWithSections(unittest.TestCase):
 
     def test_record_create_assessment_with_wrong_section_field(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "P001",
+            "patient_id": 1,
             "fields": {
                  "Status": "New"
              }
@@ -763,11 +763,11 @@ class TestRecordWithSections(unittest.TestCase):
     
     def test_record_create_assessment_commit_and_sign(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
-            "patient_name": "John Doe",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": "P001",
+            "patient_id": 1,
             "fields": {
                  "Status": "New"
              }
@@ -833,11 +833,11 @@ class TestRecordWithSections(unittest.TestCase):
   
     def test_record_create_vitals_commit_and_sign(self):
         record_data = {
-            "type": RecordType.ASSESSMENT,
+            "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.VITALS_TABLE,
             "patient_name": "Bob Williams",
             "nurse_name": "Sara Foster",
-            "patient_id": "P003",
+            "patient_id": 3,
             "fields": {
                  "Status": "New"
              }
@@ -1034,7 +1034,222 @@ class TestSchema(unittest.TestCase):
             record_schema = EmrUtils.get_table_json_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
+
+    def test_get_sports_3_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_3_TEST
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
+
+    def test_get_sports_2_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_PERFORMANCE_ASSESSMENT_2
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
+
+    def test_get_sports_4_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.SPORT_PERFORMANCE_ASSESSMENT_4
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
     
+
+class TestPersons(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super(TestPersons, self).__init__(*args, **kwargs)
+        self.logger = SpeakcareLogger(__name__)
+
+    def setUp(self):
+        pass
+
+    def test_create_patient(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Samwise Gamgee",
+            "FirstName": "Samwise",
+            "LastName": "Gamgee",
+            "DateOfBirth": "1980-04-06",
+            "Gender": "Male",
+            "Admission Date": "2024-06-01"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Samwise Gamgee", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Samwise", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "Gamgee", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1980-04-06", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Male", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2024-06-01", message)
+
+        # delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+
+    def test_create_patient_missing_field(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Frodo Baggins",
+            "FirstName": "Frodo",
+            "LastName": "Baggins",
+            #"DateOfBirth": "1968-09-22", # missing DateOfBirth
+            "Gender": "Male",
+            "Admission Date": "2024-05-01"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        # should fail
+        self.assertIsNone(emr_patient_record, message)
+        self.logger.info(f"Patient creation failed. Error: {message["error"]}")
+
+        # add the missing field
+        patient_data["DateOfBirth"] = "1968-09-22"
+        emr_patient_record, message  = EmrUtils.add_patient(patient_data)
+        # should succeed    
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Frodo Baggins", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Frodo", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "Baggins", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1968-09-22", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Male", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2024-05-01", message)
+
+        #delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+    
+    def test_create_and_update_patient(self):
+                # Create a record example
+        patient_data = {
+            "FullName": "Minerva McGonagall",
+            "FirstName": "Minerva",
+            "LastName": "McGonagall",
+            "DateOfBirth": "1935-10-03",
+            "Gender": "Female",
+            "Admission Date": "2020-03-31"
+        }
+        emr_patient_record, message = EmrUtils.add_patient(patient_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Created patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Minerva McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Minerva", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1935-10-03", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Female", message)
+        self.assertEqual(emr_patient_record['fields']['Admission Date'], "2020-03-31", message)
+
+        # update the patient
+        update_data = {
+            "DateOfBirth": "1935-10-04", # change existing field
+            "TreatmentPlan": "Transfiguration", # add new field
+        }
+        emr_patient_record, message = EmrUtils.update_patient(emr_patient_record['id'], update_data)
+        self.assertIsNotNone(emr_patient_record)
+        self.logger.info(f"Updated patient {emr_patient_record['id']}")
+        self.assertEqual(emr_patient_record['fields']['FullName'], "Minerva McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['FirstName'], "Minerva", message)
+        self.assertEqual(emr_patient_record['fields']['LastName'], "McGonagall", message)
+        self.assertEqual(emr_patient_record['fields']['DateOfBirth'], "1935-10-04", message)
+        self.assertEqual(emr_patient_record['fields']['Gender'], "Female", message)
+        self.assertEqual(emr_patient_record['fields']['TreatmentPlan'], "Transfiguration", message)
+
+
+        # delete the patient
+        delete_record = EmrUtils.delete_patient(emr_patient_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_patient_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted patient {emr_patient_record['id']}")
+
+    def test_create_nurse(self):
+                # Create a record example
+        nurse_data = {
+            "Name": "Florence Nightingale",
+            "Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Created nurse {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Florence Nightingale", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Cardiology", "Geriatrics", "Oncology"], message)
+
+        # delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
+
+    def test_create_nurse_missing_field(self):
+                # Create a record example
+        nurse_data = {
+            "Name": "Florence Nightingale",
+            #"Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        # should fail
+        self.assertIsNone(emr_nurse_record, message)
+        self.logger.info(f"Nurse creation failed. Error: {message["error"]}")
+
+        # add the missing field
+        nurse_data["Specialization"] = ["Cardiology", "Geriatrics", "Oncology"]
+        emr_nurse_record, message  = EmrUtils.add_nurse(nurse_data)
+        # should succeed    
+        self.logger.info(f"Created nurse {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Florence Nightingale", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Cardiology", "Geriatrics", "Oncology"], message)
+
+        #delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
+    
+
+    def test_create_and_update_nurse(self):
+                
+        nurse_data = {
+            "Name": "Poppy Pomfrey",
+            "Specialization": ["Pediatrics", "Orthopedics", "Dermatology"]
+        }
+        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Created patient {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Poppy Pomfrey", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Pediatrics", "Orthopedics", "Dermatology"], message)
+
+
+        # update the nurse
+        update_data = {
+            "Name": "Poppy Pomfrey", # change existing field
+            "Specialization": ["Pediatrics", "Orthopedics", "Dermatology", "Neurology"], # update field
+            "Schedule": "Sunday day shift. Tuesday night shift" # add new field
+
+        }
+        emr_nurse_record, message = EmrUtils.update_nurse(emr_nurse_record['id'], update_data)
+        self.assertIsNotNone(emr_nurse_record)
+        self.logger.info(f"Updated patient {emr_nurse_record['id']}")
+        self.assertEqual(emr_nurse_record['fields']['Name'], "Poppy Pomfrey", message)
+        self.assertEqual(emr_nurse_record['fields']['Specialization'], ["Pediatrics", "Orthopedics", "Dermatology", "Neurology"], message)
+        self.assertEqual(emr_nurse_record['fields']['Schedule'], "Sunday day shift. Tuesday night shift", message)
+
+
+        # delete the nurse
+        delete_record = EmrUtils.delete_nurse(emr_nurse_record['id'])
+        self.assertTrue(delete_record)
+        self.assertEqual(delete_record['id'], emr_nurse_record['id'], delete_record)
+        self.assertTrue(delete_record['deleted'], delete_record)
+        self.logger.info(f"Deleted nurse {emr_nurse_record['id']}")
 
 
 
