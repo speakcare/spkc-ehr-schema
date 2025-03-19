@@ -3,8 +3,8 @@ import argparse
 import random
 import json
 from datetime import datetime, timezone
-from speakcare_diarize import SpeakcareDiarize
-from speakcare_embeddings import SpeakerType
+from speakcare_embeddings import SpeakerRole, SpeakcareEmbeddings
+from speakcare_vocoder import VocoderFactory
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
@@ -15,11 +15,13 @@ from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_llm import openai_complete_schema_from_transcription
 
 
+
 class SpeakcareEnrollPerson():
     def __init__(self):
         self.logger = SpeakcareLogger(SpeakcareEnrollPerson.__name__)
         self.b3session = Boto3Session.get_single_instance()
         self.transciber = SpeakcareOpenAIWhisper()
+        self.embeddings = SpeakcareEmbeddings(vocoder=VocoderFactory.create_vocoder())
 
 
     def __prepare_person_audio_file(self, audio_filename:str, output_file_prefix:str):
@@ -70,7 +72,7 @@ class SpeakcareEnrollPerson():
             # remove the wav file
             os.remove(wav_filename)
 
-    def __upload_person_record_to_s3(self, person_role: SpeakerType, person_data:dict, output_file_prefix:str="output"):
+    def __upload_person_record_to_s3(self, person_role: SpeakerRole, person_data:dict, output_file_prefix:str="output"):
         person_data_file = f'{SpeakcareEnv.get_persons_dir()}/{output_file_prefix}-{person_role.value.lower()}.json'
         person_data_local_file = f'{SpeakcareEnv.get_persons_local_dir()}/{os.path.basename(person_data_file)}'
         with open(person_data_local_file, 'w') as f:
@@ -191,8 +193,7 @@ class SpeakcareEnrollPerson():
             emr_patient_record, message = EmrUtils.add_patient(patient_fields)
             if not emr_patient_record:
                 self.logger.error(f"Error adding patient record: {message}")
-            transcriber = SpeakcareDiarize()
-            transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.PATIENT, speaker_name=patient_name)
+            self.embeddings.add_voice_sample(speaker_voice_file_path = audio_local_file, speaker_name=patient_name, speaker_role= SpeakerRole.PATIENT)
         else:
             self.logger.error("Patient name not found in transcription. Cannot add patient.")
         return patient_name
@@ -203,9 +204,8 @@ class SpeakcareEnrollPerson():
         if nurse_name:
             emr_nurse_record, message = EmrUtils.add_nurse(nurse_fields)
             if not emr_nurse_record:
-                self.logger.error(f"Error adding nurse record: {message}")
-            transcriber = SpeakcareDiarize()
-            transcriber.add_voice_sample(file_path = audio_local_file, speaker_type= SpeakerType.NURSE, speaker_name=nurse_name)
+                self.logger.error(f"Error adding nurse record to EMR: {message}")
+            self.embeddings.add_voice_sample(speaker_voice_file_path= audio_local_file, speaker_name=nurse_name, speaker_role= SpeakerRole.NURSE)
         else:
             self.logger.error("Nurse name not found in transcription. Cannot add nurse.")
         return nurse_name
@@ -225,7 +225,7 @@ class SpeakcareEnrollPerson():
             transciption_output_file = self.__transcribe_audio(audio_local_file, output_file_prefix)
             patient_data = self.__generate_patient_record(transciption_output_file)
             # store person data in s3
-            self.__upload_person_record_to_s3(SpeakerType.PATIENT, patient_data, output_file_prefix)
+            self.__upload_person_record_to_s3(SpeakerRole.PATIENT, patient_data, output_file_prefix)
             
             if not dryrun:
                 patient_fields = patient_data.get('fields', {})
@@ -247,7 +247,7 @@ class SpeakcareEnrollPerson():
                 # remove the local audio file
                 os.remove(audio_local_file)
 
-        return {"person": name, "role": SpeakerType.PATIENT.value.lower()}
+        return {"person": name, "role": SpeakerRole.PATIENT.value.lower()}
 
     # Enroll a nurse
     def enroll_nurse(self, audio_filename:str, output_file_prefix:str="output", name: str=None, dryrun: bool=False):
@@ -260,7 +260,7 @@ class SpeakcareEnrollPerson():
             transciption_output_file = self.__transcribe_audio(audio_local_file, output_file_prefix)
             nurse_data = self.__generate_nurse_record(transciption_output_file)
             # store person data in s3
-            self.__upload_person_record_to_s3(SpeakerType.NURSE, nurse_data, output_file_prefix)
+            self.__upload_person_record_to_s3(SpeakerRole.NURSE, nurse_data, output_file_prefix)
             
             if not dryrun:
                 nurse_fields = nurse_data.get('fields', {})
@@ -279,7 +279,7 @@ class SpeakcareEnrollPerson():
                 # remove the local audio file
                 os.remove(audio_local_file)
 
-        return {"person": name, "role": SpeakerType.NURSE.value.lower()}
+        return {"person": name, "role": SpeakerRole.NURSE.value.lower()}
 
     
     # Enroll a person, detect if nurse or patient from the transcription
@@ -300,19 +300,19 @@ class SpeakcareEnrollPerson():
                 return {"person": None, "role": None}
             
             if table_name == "Patients":
-                role = SpeakerType.PATIENT
+                role = SpeakerRole.PATIENT
             elif table_name == "Nurses":
-                role = SpeakerType.NURSE
+                role = SpeakerRole.NURSE
             else:
                 self.logger.error("Inavalid table name {table_name}. Cannot create EMR record.")
                 return {"person": None, "role": None}
             
             # store person data in s3
-            self.__upload_person_record_to_s3(SpeakerType.NURSE, person_data, output_file_prefix)
+            self.__upload_person_record_to_s3(SpeakerRole.NURSE, person_data, output_file_prefix)
             person_name = None
             person_role = role.value.lower()
             if not dryrun:
-                if role == SpeakerType.PATIENT:
+                if role == SpeakerRole.PATIENT:
                     self.logger.info("enroll_person: Adding patient")
                     patient_fields = person_data.get('fields', {}).get('patients_fields', {})
                     if name: # override the name

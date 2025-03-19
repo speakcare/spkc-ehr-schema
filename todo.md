@@ -37,6 +37,7 @@
 - [ ] Allow running on transcription output files instead audio
 - [ ] Remove redundant download and upload in transcription
 - [ ] Enable re-run on already uploaded files in s3
+- [ ] Move the dynamodb init to SpeakcareEmbeddings
 
 ### General
 - [x] README file
