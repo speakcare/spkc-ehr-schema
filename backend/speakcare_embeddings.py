@@ -20,16 +20,16 @@ class SpeakcareEmbeddings:
 
     def __init__(self, 
                  vocoder: SpeakcareVocoder, 
-                 matching_similarity_threshold=0.75, 
-                 addition_similarity_threshold=0.95
+                 matching_similarity_threshold: float =0.75, 
+                 addition_similarity_threshold: float =0.95
                  ):
         try:
             self.logger = SpeakcareLogger(type(self).__name__)
             self.b3session = Boto3Session.get_single_instance()
             self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
-            self.vocoder = vocoder
-            self.matching_similarity_threshold = matching_similarity_threshold
-            self.addition_similarity_threshold = addition_similarity_threshold
+            self.vocoder: SpeakcareVocoder = vocoder
+            self.matching_similarity_threshold: float = float(matching_similarity_threshold)
+            self.addition_similarity_threshold: float = float(addition_similarity_threshold)
             self.known_speakers = self.__fetch_all_speakers()
             self.logger.info(f'Initialized with {len(self.known_speakers)} known speakers.')
             self.logger.info(f'matching_similarity_threshold: {self.matching_similarity_threshold}. addition_similarity_threshold: {self.addition_similarity_threshold}')

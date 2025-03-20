@@ -50,8 +50,8 @@ class TranscriptRecognizer:
         self.mapped_segments = 0
         self.transcript_file = None
         self.transcript = None
-        self.vocoder = vocoder
-        self.embeddings_store = embedding_store
+        self.vocoder: SpeakcareVocoder  = vocoder
+        self.embeddings_store: SpeakcareEmbeddings = embedding_store
 
         # state indicators
         self.mapped = False

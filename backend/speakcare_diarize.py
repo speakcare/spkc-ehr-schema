@@ -31,7 +31,7 @@ class SpeakcareDiarize:
         self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
         self.transcriber = SpeakcareAWSTranscribe()
         self.recognizer = None
-        self.matching_similarity_threshold = matching_similarity_threshold
+        self.matching_similarity_threshold: float =float(matching_similarity_threshold)
         self.__init_speaker_recognition()
 
 
@@ -135,12 +135,12 @@ def main():
     remove_audio_local_file = False
     audio_file, remove_audio_local_file = b3session.s3_localize_file(audio_file)
     converted_wav_file = None
-    matching_similarity_threshold = None
+    matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.5))
     
     if args.match_threshold:
         matching_similarity_threshold = args.match_threshold
     
-    diarizer = SpeakcareDiarize(matching_similarity_threshold)
+    diarizer = SpeakcareDiarize(matching_similarity_threshold=matching_similarity_threshold)
 
     if not audio_is_wav(audio_file):
         converted_wav_file = audio_convert_to_wav(audio_file)
