@@ -44,8 +44,6 @@ class SpeakCareEmrTables:
 
     # Harmony (Holy Name) tables
     HARMONY_VITALS_TABLE = 'Harmony Vitals'
-    HARMONY_MED_SURG_TABLE = 'Harmony Med/Surg Nursing Assessment'
-    HARMONY_CRITICAL_CARE_TABLE = 'Harmony Critical Care Nursing Assessment'
     LABOR_ADMISSION_SECTION_1_TABLE='Labor Admission Section 1'
     #LABOR_ADMISSION_SECTION_2_TABLE='Labor Admission Section 2'
     LABOR_ADMISSION_SECTION_3_TABLE='Labor Admission Section 3'
@@ -92,8 +90,6 @@ class SpeakCareEmrTables:
         FALL_RISK_SCREEN_TABLE,
         VITALS_TABLE,
         HARMONY_VITALS_TABLE,
-        HARMONY_MED_SURG_TABLE,
-        HARMONY_CRITICAL_CARE_TABLE,
         LABOR_ADMISSION_SECTION_1_TABLE,
         #LABOR_ADMISSION_SECTION_2_TABLE,
         LABOR_ADMISSION_SECTION_3_TABLE,

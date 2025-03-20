@@ -134,7 +134,7 @@ TEST_FOLDER_ID = "1Gh1rI3E7O_XqBqP-VKmi2hrbkRqGC4_O"
 def main():
 
     EmrUtils.init_db(db_directory=SPEAKCARE_DB_DIRECTORY, create_db=True)
-    supported_tables = EmrUtils.get_table_names()
+    supported_charts = EmrUtils.get_table_names()
 
     parser = argparse.ArgumentParser(description='Speakcare speech to EMR.')
     # Add arguments
@@ -142,8 +142,8 @@ def main():
                         help='Enroll new persons from voice samples')
     parser.add_argument('-p', '--process', action='store_true',
                         help='Process new care sessions')
-    parser.add_argument('-t', '--table', type=str, nargs='+',
-                        help=f'Table names (supported tables: {supported_tables})')
+    parser.add_argument('-c', '--charts', type=str, nargs='+',
+                        help=f'Chart names (supported charts: {supported_charts})')
 
     
     pilot = SpeakcarePilot()
@@ -155,14 +155,14 @@ def main():
     
     if args.process:
         # Ensure --table is always provided if --list-devices is not used
-        if not args.table:
-            parser.error("--table is required.")
+        if not args.charts:
+            parser.error("--charts is required.")
     
-        table_names = args.table
-        unsupported_tables = [table for table in table_names if table not in supported_tables]
-        if unsupported_tables:
-            parser.error(f"Invalid table names: {unsupported_tables}. Supported tables: {supported_tables}")
-        pilot.process_new_care_sessions(tables=table_names)
+        chart_names = args.charts
+        unsupported_cahrts = [chart for chart in chart_names if chart not in supported_charts]
+        if unsupported_cahrts:
+            parser.error(f"Invalid chart names: {unsupported_cahrts}. Supported charts: {supported_charts}")
+        pilot.process_new_care_sessions(tables=chart_names)
     
 if __name__ == '__main__':
     main()

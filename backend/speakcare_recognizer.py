@@ -11,7 +11,7 @@ from typing import List
 from dotenv import load_dotenv
 from speakcare_env import SpeakcareEnv
 from speakcare_vocoder import SpeakcareVocoder, VocoderFactory
-from speakcare_embeddings import SpeakcareEmbeddings, SpeakerType
+from speakcare_embeddings import SpeakcareEmbeddings, SpeakerRole
 
 load_dotenv()
 AUDIO_MIN_SEGMENT_DURATION = int(os.getenv("AUDIO_MIN_SEGMENT_DURATION", 500)) # milliseconds
@@ -35,7 +35,7 @@ class Transcript(BaseModel):
 class TranscriptRecognizer:
 
     
-    def __init__(self, vocoder: SpeakcareVocoder, matching_similarity_threshold = None, work_dir="output_segments"):
+    def __init__(self, vocoder: SpeakcareVocoder, embedding_store: SpeakcareEmbeddings, work_dir="output_segments"):
         self.work_dir = work_dir
         os_ensure_directory_exists(self.work_dir)
 
@@ -50,8 +50,8 @@ class TranscriptRecognizer:
         self.mapped_segments = 0
         self.transcript_file = None
         self.transcript = None
-        self.vocoder = vocoder
-        self.embeddings_store = SpeakcareEmbeddings(vocoder=self.vocoder, matching_similarity_threshold=matching_similarity_threshold)
+        self.vocoder: SpeakcareVocoder  = vocoder
+        self.embeddings_store: SpeakcareEmbeddings = embedding_store
 
         # state indicators
         self.mapped = False
@@ -116,7 +116,7 @@ class TranscriptRecognizer:
                     self.skipped_segments += 1
                     continue
                 
-            speaker_label = audio_segment.get("speaker_label", "Unknown")
+            speaker_label = audio_segment.get("speaker_label",SpeakcareEmbeddings.UNKNOWN_SPEAKER)
             content = audio_segment.get("transcript", "")
             start_ms = int(start_time * 1000)
             end_ms = min(int(end_time * 1000), audio_length)
@@ -194,15 +194,15 @@ class TranscriptRecognizer:
                         match_counts[match] = match_counts.get(match, 0) + 1
                     
                     sorted_matches = sorted(match_counts.items(), key=lambda x: x[1], reverse=True)
-                    most_likely_person = sorted_matches[0][0] if sorted_matches else "Unknown"
+                    most_likely_person = sorted_matches[0][0] if sorted_matches else SpeakcareEmbeddings.UNKNOWN_SPEAKER
                     match_confidence = sorted_matches[0][1] / len(all_matches) if sorted_matches and all_matches else 0
                 else:
                     self.logger.warning(f"No matches found for speaker {speaker}")
-                    most_likely_person = "Unknown"
+                    most_likely_person = SpeakcareEmbeddings.UNKNOWN_SPEAKER
                     match_confidence = 0
             else:
                 self.logger.warning(f"No embeddings found for speaker {speaker}")
-                most_likely_person = "Unknown"
+                most_likely_person = SpeakcareEmbeddings.UNKNOWN_SPEAKER
                 match_confidence = 0
             
             self.speaker_stats[speaker] = {
@@ -233,8 +233,9 @@ class TranscriptRecognizer:
             for audio_segment in audio_segments:
                 speaker = audio_segment.get("speaker_label", "")
                 if speaker:
-                    most_likely_name = self.speaker_stats.get(speaker, {}).get('most_likely_person', f'{speaker} ("Unknown")')
+                    most_likely_name = self.speaker_stats.get(speaker, {}).get('most_likely_person', f"{speaker} ('{SpeakcareEmbeddings.UNKNOWN_SPEAKER}')")
                     audio_segment["speaker_label"] = most_likely_name
+                    audio_segment["speaker_role"] = self.embeddings_store.get_speaker_role(most_likely_name).value
         
         except Exception as e:
             self.logger.log_exception(f"Transcript generation error", e)
@@ -257,7 +258,9 @@ class TranscriptRecognizer:
          else:
             return self.transcript.get("results", {}).get("audio_segments", [])
 
-
+    def get_transcript(self):
+        return self.transcript
+    
     def generate_recognized_text_transcript(self):
         ''' Generate a text transcript with the most likely speaker names '''
 
@@ -268,21 +271,18 @@ class TranscriptRecognizer:
         try:
             audio_segments = self.transcript.get("results", {}).get("audio_segments", [])
             for audio_segment in audio_segments:
-                start_time = float(audio_segment.get("start_time", 0))
-                end_time = float(audio_segment.get("end_time", 0))
-                speaker_label = audio_segment.get("speaker_label", "Unknown")
+                speaker_label = audio_segment.get("speaker_label", SpeakcareEmbeddings.UNKNOWN_SPEAKER)
+                speaker_role = audio_segment.get("speaker_role", SpeakerRole.UNKNOWN)
                 transcript = audio_segment.get("transcript", "")
-                speaker_item = self.embeddings_store.get_speaker(speaker_label)
-                speaker_type = speaker_item.get("Type", "Unknown") if speaker_item else "Unknown"
 
-                line = f"{start_time} - {end_time}: '{speaker_label}' ({speaker_type}): {transcript}"
+                line = f"speaker:{speaker_label} role:{speaker_role}: {transcript}"
                 lines.append(line)
             return "\n".join(lines)
         except Exception as e:
             self.logger.log_exception(f"Transcript generation error", e)
             return ""
     
-    def recognize(self, audio_file, transcript_file, keep_segment_files=False):
+    def recognize(self, audio_file, transcript_file, keep_segment_files=False) -> dict:
         ''' 
             Takes a diarized transcript and original audio file, splits the audio into segments,
             extracts embeddings, and compares them to known speaker embeddings to identify speakers.
@@ -303,6 +303,7 @@ class TranscriptRecognizer:
             self.__map_segments_to_speakers(keep_segment_files=keep_segment_files)
             self.__calc_speaker_stats()
             self.__update_recognized_speakers()
+            return self.transcript
         except Exception as e:
             self.logger.log_exception(f"Recognition error", e)
             raise e
@@ -333,7 +334,7 @@ def main():
     speaker_add_parser = speaker_subparsers.add_parser('add', help='Add a new speaker embedding')
     speaker_add_parser.add_argument("--audio", type=str, required=True, help="Path to the audio file containing the speaker's voice.")
     speaker_add_parser.add_argument("--name", type=str, required=True, help="Name of the speaker.")
-    speaker_add_parser.add_argument("--type", type=str, required=True, choices=[SpeakerType.PATIENT.value, SpeakerType.NURSE.value], help="Type of speaker.")
+    speaker_add_parser.add_argument("--role", type=str, required=True, choices=[SpeakerRole.PATIENT.value, SpeakerRole.NURSE.value], help="Role of speaker.")
     speaker_add_parser.add_argument("--workdir", type=str, default=SpeakcareEnv.get_audio_local_dir(), help="Work directory for recognizer vocoder.")
 
     speaker_lookup_parser = speaker_subparsers.add_parser('lookup', help='Lookup a speaker in the database')
@@ -345,9 +346,11 @@ def main():
 
     work_dir = args.workdir
     vocoder = VocoderFactory.create_vocoder()
+    
 
     if args.command == 'recognize':
-        recognizer = TranscriptRecognizer(vocoder=vocoder, work_dir=work_dir, matching_similarity_threshold= args.threshold)
+        embedding_store = SpeakcareEmbeddings(vocoder=vocoder,matching_similarity_threshold= args.threshold)
+        recognizer = TranscriptRecognizer(vocoder=vocoder, work_dir=work_dir, embedding_store= embedding_store)
         recognizer.recognize(audio_file= args.audio, transcript_file= args.transcript, keep_segment_files=True)
         results = recognizer.get_results()
         
@@ -374,15 +377,15 @@ def main():
         if args.subcommand == 'lookup':
             speaker, result, similarity = embedding_store.lookup_speaker(args.audio)
             if speaker:
-                print(f"Speaker found: '{speaker['Name']}' of type {speaker['Type']} with similarity {similarity}")
+                print(f"Speaker found: '{speaker['Name']}' role {speaker['Role']} with similarity {similarity}")
             else:
                 print(f"Speaker not found. Check the logs for details.")
         elif args.subcommand == 'add':
-            type = SpeakerType(args.type)
+            role = SpeakerRole(args.role)
             speaker, result = embedding_store.add_voice_sample(speaker_voice_file_path= args.audio, 
-                                                            speaker_name= args.name, speaker_type= type)
+                                                            speaker_name= args.name, speaker_role= role)
             if speaker and result in ["added", "created"]:
-                print(f"Successfully added embedding for speaker '{args.name}' type '{type}' result: {result}'")
+                print(f"Successfully added embedding for speaker '{args.name}' role '{role}' result: {result}'")
             else:
                 print(f"Failed to add embedding. result: {result} . Check the logs for details.")
     

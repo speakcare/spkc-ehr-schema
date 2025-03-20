@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import random
-from datetime import datetime, timezone
 from dotenv import load_dotenv
 from typing import List
 import os
@@ -16,21 +14,19 @@ from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav, audio_is_wav
-from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_get_filename_without_ext, os_concat_current_time
+from os_utils import os_get_filename_without_ext, os_concat_current_time
 
 load_dotenv()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
-
+matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.5))
 
 logger = SpeakcareLogger(__name__)
-
-
 
 SpeakcareEnv.load_env()
 boto3Session = Boto3Session.get_single_instance()
 
 supported_tables = EmrUtils.get_table_names()
-diarizer = SpeakcareDiarize()
+diarizer = SpeakcareDiarize(matching_similarity_threshold=matching_similarity_threshold)
 transciber = SpeakcareOpenAIWhisper()
 
 
@@ -139,7 +135,6 @@ def speakcare_process_audio_demo(audio_files: List[str], tables: List[str], outp
             # Step 2: Transcribe Audio (speech to text)
             # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
             try:
-                #transcript_len = diarizer.diarize(audio_file=wav_filename, output_file=transcription_filename, append= (num > 0))
                 transcript_len = transciber.transcribe(audio_file=wav_filename, transcription_output_file=transcription_filename, append= (num > 0))
                 if transcript_len == 0:
                     logger.error(f"Error occurred while transcribing audio file {wav_filename}")
@@ -182,7 +177,7 @@ def speakcare_process_audio_demo(audio_files: List[str], tables: List[str], outp
 
 def speakcare_process_transcription(diarization_filename: str, tables: List[str], output_file_prefix:str, dryrun: bool=False):
     """
-    Transcribe audio, convert transcription to EMR record
+    Convert transcription to EMR record
     """    
     # prepare file names
     # use output_file_prefix if provided, otherwise use the basename of the first audio file
