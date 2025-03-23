@@ -6,7 +6,7 @@ import argparse
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
-from speakcare_audio import record_audio
+from speakcare_audio import record_audio, audio_is_wav, audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', type=str, default="output", help='Output file prefix (default: output)')
     parser.add_argument('-i', '--input', type=str, required=True, help='Input file name (default: input)')
     parser.add_argument('-m', '--model', type=str, 
-                        choices=['whisper','aws'], default='whisper', help='Model: whisper or aws (default: whisper)')
+                        choices=['openai','aws'], default='openai', help='Model: openai (whisper) or aws (default: openai)')
 
     args = parser.parse_args()
 
@@ -177,6 +177,15 @@ if __name__ == "__main__":
     # Format the datetime as a string without microseconds and timezone
     utc_string = utc_now.strftime('%Y-%m-%dT%H-%M-%S')
     output_filename = os_sanitize_name(f'{output_file_prefix}.{utc_string}')
+    boto3Session = Boto3Session.get_single_instance()
+
+    local_audio_file, remove_local_file = boto3Session.s3_localize_file(input_file)
+    wav_filename = None
+    if not audio_is_wav(local_audio_file):
+        wav_filename = audio_convert_to_wav(local_audio_file)
+        input_file = wav_filename
+    else:
+        input_file = local_audio_file
 
     if args.model == 'aws':
         boto3Session = Boto3Session.get_single_instance()
@@ -189,3 +198,9 @@ if __name__ == "__main__":
         logger.info(f"Whisper transcribing audio from {input_file} into {output_path}")
         stt = SpeakcareOpenAIWhisper()
         stt.transcribe(audio_file=input_file, transcription_output_file=output_path)
+    
+    if remove_local_file and os.path.isfile(local_audio_file):
+        os.remove(local_audio_file)
+        
+    if wav_filename and os.path.isfile(wav_filename):
+        os.remove(wav_filename)
