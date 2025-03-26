@@ -13,9 +13,10 @@ interface AudioRecorderProps {
   recordingTime: number;
   setRecordingTime: React.Dispatch<React.SetStateAction<number>>;
   initialAudioBlob?: Blob | null;
+  setMessage: (message: string) => void;
 }
 
-const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, setAudioBlob, recordingTime, setRecordingTime, initialAudioBlob }) => {
+const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, setAudioBlob, recordingTime, setRecordingTime, initialAudioBlob, setMessage }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -100,6 +101,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ audioType, setAudioBlob, 
           setAudioBlob(blob);
           const url = URL.createObjectURL(blob);
           setAudioUrl(url);
+          setMessage(`Audio recorded successfully!`);
           console.log('Blob URL:', url);
         } else {
           console.error('Audio Blob is empty or corrupted');

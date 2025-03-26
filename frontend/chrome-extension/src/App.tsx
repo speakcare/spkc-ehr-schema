@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Container, Button, CircularProgress, Typography, SelectChangeEvent, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, IconButton, Box } from '@mui/material';
-import { Audiotrack, Delete } from '@mui/icons-material';
 import AudioRecorder from './components/AudioRecorder';
+import AudioButtons from './components/AudioButtons';
 import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob, reloadCurrentTab } from './utils';
 import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils'
+
+declare global {
+  interface Window {
+    showSaveFilePicker: (options: { suggestedName: string; types: { description: string; accept: { [key: string]: string[] } }[] }) => Promise<FileSystemFileHandle>;
+    FileSystemFileHandle: {
+      createWritable: () => Promise<FileSystemWritableFileStream>;
+    };
+  }
+}
 
 const apiBaseUrl = process.env.REACT_APP_SPEAKCARE_API_BASE_URL;
 const isExtension = process.env.REACT_APP_IS_EXTENSION === 'true';
@@ -87,7 +96,7 @@ const App: React.FC = () => {
     selectedTables.forEach((table) => {
       formData.append('table_name', table);
     });
-    //formData.append('table_name', selectedTable); // Append the table name
+ 
     setEhrUpdating(true);
     try {
       const response = await axios.post(`${apiBaseUrl}/api/process-audio`, formData, {
@@ -95,8 +104,7 @@ const App: React.FC = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
-      //setAudioBlob(null);
-      //setRecordingTime(0);
+  
       console.log('Response from backend:', response.data);
       if (isExtension) {
         // refresh the EHR page so we can see the new data
@@ -170,6 +178,61 @@ const App: React.FC = () => {
     }
   };
   
+  const handleSaveAudio = async () => {
+    if (!audioBlob) return;
+    
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'speakcare-recording.webm',
+        types: [{
+          description: 'WebM Audio File',
+          accept: {
+            'audio/webm': ['.webm']
+          }
+        }]
+      });
+      
+      const writable = await handle.createWritable();
+      await writable.write(audioBlob);
+      await writable.close();
+      setMessage(`Audio file saved successfully as "${handle.name}"`);
+    } catch (err) {
+      console.error('Error saving file:', err);
+      // Fallback to the old method if showSaveFilePicker is not supported
+      const url = URL.createObjectURL(audioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'speakcare-recording.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setMessage(`Audio file speakcare-recording.webm downloaded to downloads folder`);
+    }
+  };
+
+  const handleLoadAudio = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && (file.type === 'audio/webm' || file.type === 'audio/webm; codecs=opus' || file.name.endsWith('.webm'))) {
+      setAudioBlob(file);
+      
+      // Calculate audio duration
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const durationInSeconds = Math.round(audioBuffer.duration);
+        setRecordingTime(durationInSeconds);
+        setMessage(`Audio file ${file.name} loaded successfully! Duration: ${durationInSeconds} seconds`);
+      } catch (error) {
+        console.error('Error calculating audio duration:', error);
+        setRecordingTime(0);
+        setMessage(`Audio file ${file.name} loaded successfully! (Duration calculation failed)`);
+      }
+    } else {
+      setMessage('Please select a valid .webm audio file');
+    }
+  };
 
   return (
     <Container maxWidth="sm" sx={{ marginTop: 4, height: '100vh', padding: 2 }}>
@@ -208,25 +271,15 @@ const App: React.FC = () => {
         recordingTime={recordingTime}
         setRecordingTime={setRecordingTime}
         initialAudioBlob={audioBlob}
+        setMessage={setMessage}
       />
 
-      {/* Icons for audio file and delete */}
-      {/* <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 2 }}>
-        <IconButton 
-          color={audioBlob ? 'primary' : 'default'} 
-          disabled={!audioBlob}
-        >
-          <Audiotrack />
-        </IconButton>
-        <IconButton 
-          color={audioBlob ? 'error' : 'default'} 
-          onClick={handleDeleteAudio} 
-          disabled={!audioBlob}
-        >
-          <Delete />
-        </IconButton>
-      </Box> */}
-
+      <AudioButtons
+        audioBlob={audioBlob}
+        audioType={audioType}
+        onSave={handleSaveAudio}
+        onLoad={handleLoadAudio}
+      />
 
       <Button 
         variant="contained" 
@@ -238,6 +291,8 @@ const App: React.FC = () => {
       >
         {ehrUpdating ? <CircularProgress size={24} /> : 'Update Demo EHR'}
       </Button>
+
+
       <Button 
           variant="outlined" 
           color="secondary" 
@@ -245,18 +300,18 @@ const App: React.FC = () => {
           onClick={updatePcc} 
           sx={{ 
             marginTop: 2, 
-            color: 'black', // Semi-dark gray text color
-            backgroundColor: 'teal', // Teal fill color
+            color: 'black',
+            backgroundColor: 'teal',
             borderColor: 'teal',
             fontWeight: 'bold',
             '&:hover': {
               borderColor: 'teal',
-              backgroundColor: 'rgba(0, 128, 128, 0.8)', // Teal with some transparency on hover
+              backgroundColor: 'rgba(0, 128, 128, 0.8)',
             },
             '&.Mui-disabled': {
-              color: 'gray', // Gray text color when disabled
-              backgroundColor: 'lightgray', // Gray background color when disabled
-              borderColor: 'lightgray', // Gray border color when disabled
+              color: 'gray',
+              backgroundColor: 'lightgray',
+              borderColor: 'lightgray',
             }
           }}
           disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
@@ -264,7 +319,7 @@ const App: React.FC = () => {
           {loading ? <CircularProgress size={24} /> : 'Update PointClickCare'}
       </Button>
       {/* Feedback Message */}
-      {message && <Typography variant="body1">{message}</Typography>}
+      {message && <Typography variant="body1" sx={{ marginTop: 2 }}>{message}</Typography>}
 
     </Container>
   );
