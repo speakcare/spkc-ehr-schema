@@ -23,5 +23,8 @@ PORT="${APP_PORT:-3000}"
 
 # create the database 
 python3 speakcare_db_create.py
+
+# Initialize the vocoder model before starting workers
+
 # Run Gunicorn with the specified port and log level
-gunicorn -b localhost:$PORT -w 4 --access-logfile - --log-level $LOG_LEVEL --reload --timeout $TIMEOUT spkc_backend_app:app
+gunicorn -b localhost:$PORT -w 4 --access-logfile - --log-level $LOG_LEVEL --reload --timeout $TIMEOUT speakcare_demo_backend:app

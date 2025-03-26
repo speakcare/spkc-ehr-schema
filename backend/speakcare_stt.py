@@ -6,7 +6,7 @@ import argparse
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
-from speakcare_audio import record_audio, audio_is_wav, audio_convert_to_wav
+from speakcare_audio import audio_record, audio_is_wav, audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
@@ -149,7 +149,7 @@ class SpeakcareAWSTranscribe(SpeakcareSTT):
 def record_and_transcribe():
     # Step 1: Record Audio
     audio_filename = "input.wav"
-    record_audio(duration=5, output_filename=audio_filename)
+    audio_record(duration=5, output_filename=audio_filename)
 
     # Step 2: Transcribe Audio
     stt = SpeakcareOpenAIWhisper()

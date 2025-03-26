@@ -383,7 +383,10 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
         # read input file from s3
         if input_file.startswith("s3://"):
             transcription = boto3Session.s3_uri_get_object_content(input_file)
-        else:
+        elif os.path.isfile(input_file): # try to read the file locally
+            with open(input_file, 'r') as file:
+                transcription = file.read()
+        else: # try to get the object from the config s3 bucket
             transcription = boto3Session.s3_get_object_content(input_file)
         
         if not transcription:

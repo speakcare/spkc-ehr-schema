@@ -68,7 +68,7 @@ def audio_check_input_device(device_index: int):
 
 
 
-def record_audio(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=300, silence_duration=2, max_silence=4):
+def audio_record(device_index: int, duration: int = 10, output_filename="output.wav", silence_threshold=300, silence_duration=2, max_silence=4):
     samples_per_chunk = 4096  # Record in chunks of 4096 samples
     sample_format = pyaudio.paInt16  # 16 bits per sample
     bytes_per_sample = 2 # 16 bits = 2 bytes
@@ -173,6 +173,9 @@ def record_audio(device_index: int, duration: int = 10, output_filename="output.
 def audio_is_wav(filename):
     return filename.lower().endswith('.wav')
 
+def audio_is_webm(filename):
+    return filename.lower().endswith('.webm')
+
 def audio_convert_to_wav(audio_file):
     file_ext = os_get_file_extension(audio_file)
     wav_filename = audio_file.replace(file_ext, ".wav")
@@ -217,7 +220,7 @@ def main():
 
     #ensure_directory_exists(output_dir) 
     logger.info(f"Recording audio from device index {audio_device} for {duration} seconds into {output_filename}")
-    record_audio(device_index=audio_device,  duration=duration, output_filename=output_filename)
+    audio_record(device_index=audio_device,  duration=duration, output_filename=output_filename)
 
 if __name__ == '__main__':
     main()
