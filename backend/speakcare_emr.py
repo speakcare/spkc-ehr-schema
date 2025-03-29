@@ -1,18 +1,17 @@
 import os
 from pyairtable import Api as AirtableApi
-import json
 import logging
 import requests
 import time
 from name_matching import NameMatcher
-from dotenv import load_dotenv
 from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
 from speakcare_emr_tables import SpeakCareEmrTables
+from speakcare_env import SpeakcareEnv
 
 # Load the .env file
-load_dotenv()
+SpeakcareEnv.load_env()
 AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
 AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 

@@ -3,7 +3,6 @@ import time
 import openai
 from openai import OpenAI
 import argparse
-from dotenv import load_dotenv
 from datetime import datetime, timezone
 import os
 from speakcare_audio import audio_record, audio_is_wav, audio_convert_to_wav
@@ -12,7 +11,7 @@ from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from os_utils import os_sanitize_name
 
-load_dotenv()
+SpeakcareEnv.load_env()
 logger = SpeakcareLogger(__name__)
 
 # Set your OpenAI API key

@@ -8,6 +8,7 @@ toy/
 
 # Ignore the .env file
 .env
+.env.demo
 
 # Other common Python ignores
 __pycache__/

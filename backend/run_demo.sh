@@ -1,8 +1,11 @@
 #!/bin/bash
 
 # Load .env file and extract APP_PORT
-if [ -f .env ]; then
-  export $(grep -v '^#' .env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*' | xargs)
+# Export ENV_FILE environment variable
+export ENV_FILE="./.env.demo"
+
+if [ -f $ENV_FILE ]; then
+  export $(grep -v '^#' $ENV_FILE | grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*' | xargs)
 fi
 
 # Set default log level to 'info'
@@ -20,6 +23,8 @@ done
 
 # Make sure APP_PORT is set, otherwise default to 3000
 PORT="${APP_PORT:-3000}"
+
+
 
 # create the database 
 python3 speakcare_db_create.py

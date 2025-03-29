@@ -1,11 +1,10 @@
 import logging
-from logging import Logger
-from dotenv import load_dotenv
 import os, sys
 import traceback
+from speakcare_env import SpeakcareEnv
 
 # Load environment variables
-load_dotenv()
+SpeakcareEnv.load_env()
 
 # Read the log level from the environment variable, defaulting to 'INFO'
 logger_level = os.getenv('LOGGER_LEVEL', 'INFO').upper()

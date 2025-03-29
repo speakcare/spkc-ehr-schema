@@ -8,12 +8,11 @@ from speakcare_logging import SpeakcareLogger
 from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List
-from dotenv import load_dotenv
 from speakcare_env import SpeakcareEnv
 from speakcare_vocoder import SpeakcareVocoder, VocoderFactory
 from speakcare_embeddings import SpeakcareEmbeddings, SpeakerRole
 
-load_dotenv()
+SpeakcareEnv.load_env()
 AUDIO_MIN_SEGMENT_DURATION = int(os.getenv("AUDIO_MIN_SEGMENT_DURATION", 500)) # milliseconds
 
 

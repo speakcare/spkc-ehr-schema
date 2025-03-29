@@ -1,11 +1,8 @@
 from flask import Flask, request, render_template_string
 from flask_restx import Api, Resource, fields, Namespace, reqparse
 from flask_cors import CORS
-import json
-from dotenv import load_dotenv
-import os, sys
+import os
 from models import RecordState, RecordType, TranscriptState
-import logging
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage 
 from speakcare_emr_utils import EmrUtils
@@ -14,7 +11,7 @@ from speakcare_demo import speakcare_demo_process_audio, speakcare_demo_record_a
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 
-load_dotenv()
+SpeakcareEnv.load_env()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 APP_PORT = os.getenv("APP_PORT", 5000)
 
@@ -27,7 +24,7 @@ app.logger.setLevel('DEBUG')
 app.debug = True
 api = Api(app, version='1.0', title='SpeakCare API', description='API for SpeakCare speech to EMR.', doc='/docs')
 
-SpeakcareEnv.load_env()
+
 
 @app.route('/hello', methods=['GET'])
 def hello():
@@ -374,17 +371,19 @@ class RecordAndProcessAudioResource(Resource):
 audio_parser = api.parser()
 audio_parser.add_argument('audio_file', location='files', type=FileStorage, required=True, help='The audio file to be uploaded')
 audio_parser.add_argument('table_name', location='form', type=str, action='append', required=True, help='Name of the tables to store converted data')
-
+audio_parser.add_argument('update_emr', location='form', type=str, required=False, default='true', help='Update EMR with the converted data')
 
 @ns.route('/process-audio')
 class ProcessAudioResource(Resource):
     @ns.doc('process_audio')
     @ns.expect(audio_parser)
     def post(self):
-
+        # refresh the EMR tables structure
+        EmrUtils.load_tables()
         # Get the file from the request
         dirname = SpeakcareEnv.get_audio_local_dir()# './out/audio'
         args = audio_parser.parse_args()
+
         audio_file = args['audio_file']
         if audio_file and audio_file.filename == '':
             return {'error': 'No file provided'}, 400
@@ -396,20 +395,24 @@ class ProcessAudioResource(Resource):
 
         # Get other form fields
         table_names = args['table_name']
+        # Parse the update_emr value manually
+        update_emr = args['update_emr'].lower() == 'true' if isinstance(args['update_emr'], str) else bool(args['update_emr'])
 
-        app.logger.debug(f"POST: process-audio received: audio_filename={audio_local_filename}, table_names={table_names}")
+        # Log the *correctly parsed* value
+        app.logger.debug(f"POST: process-audio received args: table_names={table_names}, update_emr={update_emr}")
         
         audio_file.save(audio_local_filename)
         app.logger.debug(f"Audio file saved as {audio_local_filename}")
 
         # Now, you have both the audio file and the other data fields
-        record_ids, err = speakcare_demo_process_audio(audio_files=[audio_local_filename], tables=table_names)
-        if record_ids:
-            app.logger.info(f"Audio file {audio_local_filename} processed successfully. Create {len(record_ids)} records. IDs: {record_ids}")
-            return {'message': f'Audio processed successfully. New record ids: {record_ids}'}, 201
-        else:
+        
+        record_ids, responses, err = speakcare_demo_process_audio(audio_files=[audio_local_filename], tables=table_names, update_emr=update_emr)
+        if not record_ids and not responses:
             app.logger.error(f"Error processing audio file {audio_local_filename}: {err}")
             return err, 400
+        else:
+            app.logger.info(f"Audio file {audio_local_filename} processed successfully. Create {len(record_ids)} records. IDs: {record_ids}")
+            return {'message': f'New record ids: {record_ids}', 'responses': responses}, 201
        
 # Register the namespace with the API
 api.add_namespace(ns)

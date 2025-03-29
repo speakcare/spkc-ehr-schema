@@ -1,13 +1,10 @@
 from speakcare_emr_utils import EmrUtils
-from speakcare_emr import SpeakCareEmr
 import json
 import openai
 from openai import OpenAI
 from datetime import datetime, timezone
 from os_utils import Timer
-from dotenv import load_dotenv
 import os
-import traceback
 from speakcare_logging import SpeakcareLogger
 from speakcare_emr_utils import EmrUtils
 from models import RecordState, TranscriptState
@@ -15,12 +12,12 @@ import copy
 
 import re
 import argparse
-import logging
 from boto3_session import Boto3Session
 from speakcare_env import SpeakcareEnv
 from models import RecordState, RecordType
+from speakcare_openai import openai_chat_completion
 
-load_dotenv()
+SpeakcareEnv.load_env()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 __client = OpenAI()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -268,31 +265,11 @@ def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
     
     Transcription: {transcription}       
     '''
-    response_format={
-        "type": "json_schema",
-        "json_schema": {
-            "name": "speakcare_transcription",
-            "schema": schema,   
-            "strict": True
-        }
-    }
-    #logger.debug(f"response_format: {json.dumps(response_format, indent=4)}")
-    #logger.debug(f"prompt: {prompt}")
 
-    logger.info("Calling OpenAI API")
-    response = __client.chat.completions.create(
-        model="gpt-4o-mini-2024-07-18",
-        messages=[
-            {"role": "system", "content": "You are an expert in parsing medical transcription and filling treatment forms."},
-            {"role": "user", "content": prompt}
-        ],
-        response_format = response_format,
-        temperature=0.2,
-        max_tokens=4096
-    )
-    logger.info("OpenAI done")
-    logger.debug(f"OpenAI Response: {response}")    
-    response_content = response.choices[0].message.content
+    response_choices = openai_chat_completion(system_prompt="You are an expert in parsing medical transcription and filling treatment forms.", 
+                                              user_prompt=prompt, num_choices=1, json_schema=schema)
+    logger.debug(f"OpenAI Response: {response_choices}")    
+    response_content = response_choices[0].get("content", None)
 
     try:
         response_content_dict = json.loads(response_content)
@@ -370,36 +347,18 @@ def __create_emr_record(record: dict, transcript_id: int=None, dryrun: bool=Fals
     return record_id, record_state
 
 
-def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_file: str, emr_table_name: str, dryrun=False):
+def create_chart_completion(transcript: str, emr_table_name: str) -> dict:
     """
     Convert a transcription from a file to a JSON file.
     
     Parameters:
-        input_file (str): The input file in s3 containing the transcription.
-        output_file (str): The output JSON file to write the converted transcription.
+        transcript (str): The transcript string.
+        emr_table_name (str): The name of the EMR table to chart.
+    
+    Returns:
+        dict: The EMR record as a dictionary.
     """
-    transcription = None
     try:
-        # read input file from s3
-        if input_file.startswith("s3://"):
-            transcription = boto3Session.s3_uri_get_object_content(input_file)
-        elif os.path.isfile(input_file): # try to read the file locally
-            with open(input_file, 'r') as file:
-                transcription = file.read()
-        else: # try to get the object from the config s3 bucket
-            transcription = boto3Session.s3_get_object_content(input_file)
-        
-        if not transcription:
-            raise ValueError("No transcription found in the input file.")
-        # Join the lines to form a single string
-        # transcription = " ".join(line.strip() for line in lines)
-        logger.debug(f"Transcription:\n{transcription}")
-        # Write the transcript to the Transcript database
-        transcript_id, err = EmrUtils.add_transcript(transcription)
-        if not transcript_id:
-            logger.error(f"Failed to create transcript: {err}")
-            raise ValueError(err)
-
         schema = EmrUtils.get_table_json_schema(emr_table_name)
         if not schema:
             err = f'Failed to get schema for table: {emr_table_name}'
@@ -409,33 +368,22 @@ def create_chart_completion(boto3Session: Boto3Session, input_file: str, output_
         
         timer = Timer()
         timer.start()
-        filled_schema_dict = __create_chart_with_json_schema(transcription, schema)
+        response_dict = __create_chart_with_json_schema(transcript, schema)
         timer.stop()
         logger.info(f"Done calling __create_chart_with_json_schema in {timer.elapsed_time()} seconds")
 
-        if not filled_schema_dict:
+        if not response_dict:
             err = f"Failed to fill schema of table {emr_table_name} with transcription."
             logger.error(err)
             raise ValueError(err)
         
-        if output_file.startswith("s3://"):
-            boto3Session.s3_uri_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
-        else:
-            boto3Session.s3_put_object(output_file, json.dumps(filled_schema_dict, indent=4))
-
-        logger.info(f"Chart completion uploaded to {output_file}")
-
-        record_id, record_state = __create_emr_record(record=filled_schema_dict, transcript_id=transcript_id, dryrun=dryrun)
-        if not record_id:
-            err = f"Failed to create EMR record for table {emr_table_name}. from data {filled_schema_dict}"
-            logger.error(err)
-            raise ValueError(err)
+        logger.info(f"Chart {emr_table_name}created successfully.")
+        return response_dict
+        
         
     except Exception as e:
-        logger.log_exception("Error occurred during transcription to EMR", e)
+        logger.log_exception("Error occurred during charting", e)
         return None
-    logger.info(f"EMR record created successfully with ID: {record_id}")
-    return record_id
 
 def main():
     

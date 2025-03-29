@@ -1,7 +1,6 @@
 import os
 import json
 import argparse
-from dotenv import load_dotenv
 import warnings
 from boto3_session import Boto3Session
 from speakcare_logging import SpeakcareLogger
@@ -14,15 +13,6 @@ from speakcare_embeddings import SpeakcareEmbeddings
 from speakcare_vocoder import VocoderFactory
 
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-# Load environment variables and configure logging
-if not load_dotenv("./.env"):
-    print("No .env file found")
-    exit(1)
-
-SpeakcareEnv.load_env()
-
-
 
 class SpeakcareDiarize:
     def __init__(self, matching_similarity_threshold: float = 0.75):
@@ -107,6 +97,7 @@ class SpeakcareDiarize:
     
 
 def main():
+    SpeakcareEnv.load_env()
     parser = argparse.ArgumentParser(description="Speaker Recognition Tool")
     choices = ["full", "transcribe", "recognize"]
     parser.add_argument(

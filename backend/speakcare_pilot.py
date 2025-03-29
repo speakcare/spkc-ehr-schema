@@ -6,12 +6,10 @@ from speakcare_process import speakcare_process_audio
 from speakcare_emr import SpeakCareEmr
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
-from dotenv import load_dotenv
 import os
 import json
 import argparse
 
-load_dotenv()
 SpeakcareEnv.load_env()
 
 # scopes is read as a string from .env and needs to be converted to a list

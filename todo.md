@@ -6,7 +6,7 @@
 - [x] Allow multi select with partial wrong values
 - [x] Fail validation on wrong or missing required fields
 - [ ] Support deletion of EMR records
-- [ ] Supprot deletion of db records and if connected to EMR delete from EMR
+- [ ] Support deletion of db records and if connected to EMR delete from EMR
 
 
 ### EMR utils
@@ -34,10 +34,11 @@
 - [ ] Explore https://docs.cerebrium.ai/v4/examples/realtime-voice-agents
 - [x] Change GPT API to use the new structured output using JSON schema
 - [x] Voice calibration
-- [ ] Allow running on transcription output files instead audio
-- [ ] Remove redundant download and upload in transcription
-- [ ] Enable re-run on already uploaded files in s3
+- [x] Allow running on transcription output files instead audio
+- [x] Remove redundant download and upload in transcription
+- [x] Enable re-run on already uploaded files in s3
 - [ ] Move the dynamodb init to SpeakcareEmbeddings
+- [ ] Review speakcare_llm.py and speakcare_openai.py and possibly consolidate
 
 ### General
 - [x] README file

@@ -41,6 +41,10 @@ class EmrUtils:
             EmrUtils.db = None
 
     @staticmethod
+    def load_tables():
+        emr_api.load_tables()
+        
+    @staticmethod
     def get_patient_info(name):
         """
         get_patient_info
@@ -739,6 +743,71 @@ class EmrUtils:
         finally:
             EmrUtils.db.SpeakcareDBSession.remove()
         
+
+    @staticmethod
+    def create_and_commit_emr_record(record: dict, transcript_id: int=None, dryrun: bool=False) -> tuple[int, int]:
+        """
+        Create an EMR record based on the transcription and schema.
+        
+        Parameters:
+            transcription (str): The transcription of the conversation.
+            schema (dict): The schema for the EMR record.
+            
+        Returns:
+            tuple[record_id,record_state]
+        """
+
+        table_name = record.get('table_name', None)
+        if not table_name:
+            error = f"Table name not found in data: {record}"
+            logger.error(error)
+            raise KeyError(error)
+        
+        logger.debug(f"Table name: {table_name}")
+
+        patient_name = record.get('patient_name', None)
+        if not patient_name:
+            logger.info("Didn't get patient name using 'Alice Johnson' as default.")
+            patient_name = "Alice Johnson"
+
+        foundPatientByName, foundPatientIdByName, patientEmrId = EmrUtils.lookup_patient(patient_name)
+        if not foundPatientByName:
+            logger.info(f"Patient {patient_name} not found in EMR. Setting to 'Alice Johnson' as default")
+            patient_name = "Alice Johnson"
+
+        record["patient_name"] = patient_name
+        # user nurse Rebecca jones as default nurse
+        record['nurse_name'] = "Rebecca Jones"
+        
+        # if it is a multi section assessment record
+        if EmrUtils.is_table_multi_section(table_name):
+            record['type'] = RecordType.MULTI_SECTION.value
+        else:
+            # simple medical record
+            record['type'] = RecordType.SIMPLE.value # 'MEDICAL_RECORD'
+    
+        logger.debug(f"Record: {json.dumps(record, indent = 4)}")
+
+        record_id, record_state, error = EmrUtils.create_record(record, transcript_id)    
+        if not record_id:
+            logger.error(f"Failed to create record {record} in EMR. Error: {json.dumps(error, indent=4)}")
+            return None, record_state
+        elif record_state is RecordState.ERRORS:
+            logger.error(f"Record {record_id} created with errors: {json.dumps(error, indent=4)}.")
+            return record_id,record_state
+
+        elif dryrun:
+            logger.info("Dryrun mode enabled. Skipping EMR record creation.")
+            return record_id, record_state
+        else:
+            logger.info(f"Record created successfully with ID: {record_id}")
+            emr_record_id, record_state, error = EmrUtils.commit_record_to_emr(record_id)
+            if not emr_record_id:
+                logger.error(f"Failed to commit record {record_id} to EMR. Error: {error} Record state: {record_state}")
+            else:
+                logger.info(f"Record id {record_id} committed successfully to EMR with ID: {emr_record_id}")
+
+        return record_id, record_state
 
     @staticmethod
     def sign_assessment(record_id: id):

@@ -579,7 +579,7 @@ class AirtableSchema:
     @__register_field_type_schema(AirtableFieldTypes.CHECKBOX)
     def __checkbox_schema(self, airtable_schema: dict):
         return {
-            "type": [JsonSchemaTypes.BOOLEAN.value, JsonSchemaTypes.NULL.value],
+            "type": JsonSchemaTypes.BOOLEAN.value,
             **({"description": airtable_schema.get('description')} if airtable_schema.get('description') is not None else {})
         }
 

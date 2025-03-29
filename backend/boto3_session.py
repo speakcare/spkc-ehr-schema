@@ -1,16 +1,11 @@
 import os
 import json
 import boto3
-from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from speakcare_env import SpeakcareEnv
 import urllib.parse
 from os_utils import os_ensure_file_directory_exists, os_sanitize_name
-
-if not load_dotenv("./.env"):
-    print("No .env file found")
-    exit(1)
 
 
 
@@ -33,7 +28,6 @@ class Boto3Session:
 
     def __init__(self):
         if not Boto3Session.__is_initialized:
-            SpeakcareEnv.load_env()
             self.__logger.debug("Initializing Boto3 session...")
             self.__init_env_variables()
             self.__boto3_init_clients()
@@ -358,6 +352,24 @@ class Boto3Session:
             
         return local_file, remove_local_file
 
+    def get_s3_or_local_file_content(self, file_path: str):
+        try:
+            if file_path.startswith("s3://"):
+                    content = self.s3_uri_get_object_content(file_path)
+            elif os.path.isfile(file_path): # try to read the file locally
+                with open(file_path, 'r') as file:
+                    content = file.read()
+            else: # try to get the object from this session's s3 bucket
+                content = self.s3_get_object_content(file_path)
+        except Exception as e:
+            self.__logger.log_exception(f"Error reading file {file_path}: {e}")
+            raise
+
+        if not content:
+            self.__logger.error(f"Failed to read file content from {file_path}")
+            raise Exception(f"Failed to read file content from {file_path}")
+        return content
+    
     @staticmethod
     def s3_is_s3_uri(uri: str) -> bool:
         return uri.startswith("s3://")

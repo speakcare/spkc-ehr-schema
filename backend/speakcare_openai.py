@@ -1,15 +1,12 @@
 import json
 import openai
 from openai import OpenAI
-from datetime import datetime, timezone
-from os_utils import Timer
-from dotenv import load_dotenv
 import os
-import re
 import argparse
 from speakcare_logging import SpeakcareLogger
+from speakcare_env import SpeakcareEnv
 
-load_dotenv()
+SpeakcareEnv.load_env()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 OPENAI_TEMPERATURE= float(os.getenv("OPENAI_TEMPERATURE", 0.2))
 OPENAI_MAX_COMPLETION_TOKENS= int(os.getenv("OPENAI_MAX_COMPLETION_TOKENS", 4096))
@@ -22,23 +19,40 @@ __open_ai_default_system_prommpt= "You are an expert in parsing medical transcri
 logger = SpeakcareLogger('speakcare_openai')
 openai_client = OpenAI()
 
-def openai_chat_completion(system_prompt: str, user_prompt: str, num_choices: int = 1) -> dict:
+def openai_chat_completion(system_prompt: str, user_prompt: str, json_schema: dict = None,  num_choices: int = 1) -> dict:
 
    
-    logger.info(f"Calling OpenAI API model '{OPENAI_MODEL}' with temperature '{OPENAI_TEMPERATURE}' and max_completion_tokens '{OPENAI_MAX_COMPLETION_TOKENS}' num_choices '{num_choices}'")
+    logger.info(f"Calling OpenAI API model '{OPENAI_MODEL}', temperature '{OPENAI_TEMPERATURE}', max_completion_tokens '{OPENAI_MAX_COMPLETION_TOKENS}', num_choices '{num_choices}'")
     logger.debug(f"System Prompt: {system_prompt}")
     logger.debug(f"User Prompt: {user_prompt}")
+    logger.debug(f"Json Schema: {json_schema}")
 
-    response = openai_client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
+    # Prepare the arguments for the API call
+    chat_completion_args = {
+        "model": OPENAI_MODEL,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=OPENAI_TEMPERATURE,
-        max_completion_tokens=OPENAI_MAX_COMPLETION_TOKENS,
-        n=num_choices
-    )
+        "temperature": OPENAI_TEMPERATURE,
+        "max_completion_tokens": OPENAI_MAX_COMPLETION_TOKENS,
+        "n": num_choices
+    }
+
+    # Only add response_format if json_schema is provided
+    if json_schema:
+        response_format= {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "speakcare_transcription",
+                "schema": json_schema,   
+                "strict": True
+                }
+            }
+        chat_completion_args["response_format"] =  response_format
+       
+
+    response = openai_client.chat.completions.create(**chat_completion_args)
     logger.info("OpenAI done")
     logger.debug(f"OpenAI Response: {response}")
     response_choices = []

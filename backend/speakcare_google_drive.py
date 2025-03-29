@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from os_utils import os_ensure_directory_exists
 from speakcare_logging import SpeakcareLogger
-from dotenv import load_dotenv
+from speakcare_env import SpeakcareEnv
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
@@ -17,7 +17,7 @@ CREDS_FILE = "/Users/orifinkelman/.google/auth/credentials.json"
 LOCAL_DIR = "/tmp/speakcare/temp"
 
 
-load_dotenv()
+SpeakcareEnv.load_env()
 #SCOPES = os.getenv("GDRIVE_SCOPES", "[]")
 GOOGLE_OAUTH_CREDS_FILE = os.getenv("GOOGLE_OAUTH_CREDS_FILE", "none") 
 

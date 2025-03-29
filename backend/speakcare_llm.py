@@ -1,11 +1,11 @@
-from dotenv import load_dotenv
 import os
 import json
 import openai
 from openai import OpenAI
 from speakcare_logging import SpeakcareLogger
+from speakcare_env import SpeakcareEnv  
 
-load_dotenv()
+SpeakcareEnv.load_env()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 logger = SpeakcareLogger(__name__)

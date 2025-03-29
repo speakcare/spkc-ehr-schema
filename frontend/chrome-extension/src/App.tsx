@@ -4,7 +4,8 @@ import { Container, Button, CircularProgress, Typography, SelectChangeEvent, For
 import AudioRecorder from './components/AudioRecorder';
 import AudioButtons from './components/AudioButtons';
 import { dispatchVisibilityChangeEvent, saveState, loadState, blobToBase64, base64ToBlob, reloadCurrentTab } from './utils';
-import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils'
+import { extractAssessmentSectionFormFields, sendRequestToTabUrl} from './pcc-utils';
+import { generatePccFormData } from './pcc-forms';
 
 declare global {
   interface Window {
@@ -24,8 +25,8 @@ const App: React.FC = () => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [ehrUpdating, setEhrUpdating] = useState<boolean>(false);
+  const [pccUpdating, setPccUpdating] = useState<boolean>(false);
   const [recordingTime, setRecordingTime] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const audioType = 'audio/webm; codecs=opus';
   const audioFileName = 'recording.webm';
@@ -91,8 +92,7 @@ const App: React.FC = () => {
     }
   
     const formData = new FormData();
-    formData.append('audio_file', audioBlob, audioFileName ?? 'recording.webm'); // Append the audio file with a filename
-      // Append each table name to the form data
+    formData.append('audio_file', audioBlob, audioFileName ?? 'recording.webm');
     selectedTables.forEach((table) => {
       formData.append('table_name', table);
     });
@@ -107,7 +107,6 @@ const App: React.FC = () => {
   
       console.log('Response from backend:', response.data);
       if (isExtension) {
-        // refresh the EHR page so we can see the new data
         console.log('Dispatching visibility change event to current tab');
         dispatchVisibilityChangeEvent();
       }
@@ -117,52 +116,50 @@ const App: React.FC = () => {
     setEhrUpdating(false);
   };
 
-  const updatePcc = async () => {
-    setLoading(true);
+  const updatePccFallRisk = async () => {
+    setPccUpdating(true);
     setMessage(null);
-
     try {
       // Extract form fields from the current page
       const extractedFields = await extractAssessmentSectionFormFields();
       console.log('Extracted Fields:', extractedFields);
 
-      // Add static data to formData
-      const formData = {
+      // Make API call to process audio without updating EMR
+      const formData = new FormData();
+      formData.append('audio_file', audioBlob!, audioFileName ?? 'recording.webm');
+      formData.append('table_name', 'Fall Risk Screen');
+      formData.append('update_emr', 'false');
+
+      console.log('Making API call to process audio...');
+      console.debug('FormData entries:');
+      for (let pair of formData.entries()) {
+        console.debug(pair[0] + ': ' + pair[1]);
+      }
+     
+      const response = await axios.post(`${apiBaseUrl}/api/process-audio`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      console.log('API call completed');
+      console.debug('Response from backend:', response.data);
+      console.debug('Response type:', typeof response.data);
+      console.debug('Response keys:', Object.keys(response.data));
+
+      // Generate PCC form data from the response
+      console.log('Generating PCC form data...');
+      const pccFormData = generatePccFormData(response.data);
+      console.log('PCC form data generated:', pccFormData);
+
+      // Combine extracted fields with PCC form data
+      const finalFormData = {
         ...extractedFields,
-        ESOLsaveflag: 'SONLY',
-        ESOLsavedUDASaveFlag: 'N',
-        Cust_A_1: '2',
-        ackCust_A_1: 'Y',
-        Cust_B_2: '2',
-        ackCust_B_2: 'Y',
-        Cust_C_3: '2',
-        ackCust_C_3: 'Y',
-        Cust_D_4: '2',
-        ackCust_D_4: 'Y',
-        Cust_E_5: '0',
-        ackCust_E_5: 'Y',
-        Cust_E_6: '1',
-        chkCust_E_6: 'on',
-        ackCust_E_6: 'Y',
-        Cust_E_7: '1',
-        chkCust_E_7: 'on',
-        ackCust_E_7: 'Y',
-        Cust_E_9: '1',
-        chkCust_E_9: 'on',
-        ackCust_E_9: 'Y',
-        Cust_F_11: '2',
-        ackCust_F_11: 'Y',
-        Cust_G_13: '2',
-        ackCust_G_13: 'Y',
-        Cust_G_14: 'Patient feels dizzy sometimes and thinks about falling, even when not falling.',
-        ackCust_G_14: 'Y',
-        lastUpdateField: 'Cust_G_14'
+        ...pccFormData
       };
 
-
       // Send the save request
-      const response = await sendRequestToTabUrl(formData);
-      console.log('Response:', response);
+      const saveResponse = await sendRequestToTabUrl(finalFormData);
+      console.debug('Response:', saveResponse);
       setMessage('Data submitted successfully!');
       // Reload the current tab to see the changes
       reloadCurrentTab();
@@ -174,7 +171,7 @@ const App: React.FC = () => {
         setMessage('An unknown error occurred.');
       }
     } finally {
-      setLoading(false);
+      setPccUpdating(false);
     }
   };
   
@@ -297,7 +294,7 @@ const App: React.FC = () => {
           variant="outlined" 
           color="secondary" 
           fullWidth 
-          onClick={updatePcc} 
+          onClick={updatePccFallRisk} 
           sx={{ 
             marginTop: 2, 
             color: 'black',
@@ -314,9 +311,9 @@ const App: React.FC = () => {
               borderColor: 'lightgray',
             }
           }}
-          disabled={!audioBlob || selectedTables.length === 0 || ehrUpdating}
+          disabled={!audioBlob || pccUpdating}
         >
-          {loading ? <CircularProgress size={24} /> : 'Update PointClickCare'}
+          {pccUpdating ? <CircularProgress size={24} /> : 'Update PointClickCare'}
       </Button>
       {/* Feedback Message */}
       {message && <Typography variant="body1" sx={{ marginTop: 2 }}>{message}</Typography>}

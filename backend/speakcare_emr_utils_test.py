@@ -5,12 +5,12 @@ from speakcare_emr import SpeakCareEmr
 from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json
-from dotenv import load_dotenv
 import os
+from speakcare_env import SpeakcareEnv
 
 
 run_skipped_tests = False
-load_dotenv()
+SpeakcareEnv.load_env()
 run_skipped_tests = os.getenv('UT_RUN_SKIPPED_TESTS', 'False').lower() == 'true'
 print(f"run_skipped_tests: {run_skipped_tests}")
 
@@ -1034,6 +1034,13 @@ class TestSchema(unittest.TestCase):
             record_schema = EmrUtils.get_table_json_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
+
+    def test_get_fallrisk_schema(self):
+        # Getting schema for a specific table
+        table_name = SpeakCareEmr.FALL_RISK_SCREEN_TABLE
+        record_schema = EmrUtils.get_table_json_schema(table_name)
+        self.assertIsNotNone(record_schema)
+        self.logger.info(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
 
     def test_get_sports_3_schema(self):
         # Getting schema for a specific table

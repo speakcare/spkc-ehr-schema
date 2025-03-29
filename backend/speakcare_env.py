@@ -1,11 +1,12 @@
+'''
+ This module should not import any other Speakcare modules to avoid circular imports !!!
+ It should only be used to load environment variables and set the working directories.
+'''
 from dotenv import load_dotenv
-from os_utils import os_ensure_directory_exists
 import os
-from speakcare_logging import SpeakcareLogger
 
 __env = {}
 envInitialized = False
-logger =  SpeakcareLogger(__name__)
 
 class SpeakcareEnv:
     __env_loaded = False
@@ -90,10 +91,16 @@ class SpeakcareEnv:
 
     
     @staticmethod
-    def load_env(env_file: str = "./.env"):
+    def load_env(env_file: str = None):
         if SpeakcareEnv.__env_loaded:
             return
         if not SpeakcareEnv.__env_loaded:
+            if not env_file:
+                env_file = os.getenv("ENV_FILE", "./.env")
+            if not os.path.isfile(env_file):
+                print(f"No {env_file} file found")
+                exit(1)
+            print(f"Loading environment variables from {env_file}")
             if not load_dotenv(env_file):
                 print(f"No {env_file} file found")
                 exit(1)
@@ -106,15 +113,13 @@ class SpeakcareEnv:
     def __prepare_output_dirs():
         if SpeakcareEnv.__env_loaded:
             return      
-        os_ensure_directory_exists(SpeakcareEnv.get_audio_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_texts_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_charts_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_diarizations_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_transcriptions_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_persons_local_dir())
-        os_ensure_directory_exists(SpeakcareEnv.get_local_downloads_dir())
-        # ensure_directory_exists(SpeakcareEnv.get_voice_samples_local_dir())
-        # ensure_directory_exists(SpeakcareEnv.get_care_sessions_local_dir())
+        os.makedirs(SpeakcareEnv.get_audio_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_texts_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_charts_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_diarizations_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_transcriptions_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_persons_local_dir(), exist_ok=True)
+        os.makedirs(SpeakcareEnv.get_local_downloads_dir(), exist_ok=True)
 
         if SpeakcareEnv.backwards_compatible:
             # set the working directories to local directories
@@ -124,8 +129,6 @@ class SpeakcareEnv:
             SpeakcareEnv.__diarizations_dir = SpeakcareEnv.get_diarizations_local_dir()
             SpeakcareEnv.__transcriptions_dir = SpeakcareEnv.get_transcriptions_local_dir()
             SpeakcareEnv.__persons_dir = SpeakcareEnv.get_persons_local_dir()
-            # SpeakcareEnv.__voice_samples_dir = SpeakcareEnv.get_voice_samples_local_dir()
-            # SpeakcareEnv.__care_sessions_dir = SpeakcareEnv.get_care_sessions_local_dir()
         
     @staticmethod
     def get_local_root_dir():
