@@ -39,6 +39,7 @@
 - [x] Enable re-run on already uploaded files in s3
 - [ ] Move the dynamodb init to SpeakcareEmbeddings
 - [ ] Review speakcare_llm.py and speakcare_openai.py and possibly consolidate
+- [ ] Required field cannot be null
 
 ### General
 - [x] README file
