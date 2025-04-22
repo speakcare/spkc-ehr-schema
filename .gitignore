@@ -5,6 +5,7 @@ env/
 lib/
 playground/
 backend/tmp/
+deploy/customer-policies/
 
 # Ignore the .env file
 .env

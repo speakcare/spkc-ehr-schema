@@ -101,7 +101,7 @@ class SpeakcareEnv:
                 print(f"No {env_file} file found")
                 exit(1)
             print(f"Loading environment variables from {env_file}")
-            if not load_dotenv(env_file):
+            if not load_dotenv(env_file, override=True):
                 print(f"No {env_file} file found")
                 exit(1)
         SpeakcareEnv.backwards_compatible = (os.getenv("BC_MODE", "false").lower() == "true")

@@ -46,6 +46,7 @@ class Boto3Session:
     def __init_env_variables():
         # Configuration from environment variables
         Boto3Session.__profile_name = os.getenv("AWS_PROFILE", "default")
+        Boto3Session.__logger.info(f"AWS profile: {Boto3Session.__profile_name}")
         Boto3Session.__s3_bucket_name = os.getenv("S3_BUKET_NAME", "speakcare-pilot")
         # the speakers table name is based on the vocoder model as switching the model will require a new table
         Boto3Session.__speakers_table_name = \
