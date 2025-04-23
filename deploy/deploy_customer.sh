@@ -1,13 +1,15 @@
 #!/bin/bash
+source ./api_cert.sh
 set -euo pipefail
 
+CUSTOMER_NAME="holyname"
 AWS_PROFILE="speakcare.dev"
 # Login to AWS SSO
 aws sso login --profile $AWS_PROFILE
 
 
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --profile $AWS_PROFILE --query Account --output text)
-CUSTOMER_NAME="holyname"
+AWS_REGION="$(aws configure get region --profile $AWS_PROFILE)"     
 
 # Prepare all the variables
 # S3 variables
@@ -17,9 +19,9 @@ S3_RECORDING_DIR="recording"
 
 # DynamoDB variables
 DYNAMO_TABLE_ENROLLMENTS="${CUSTOMER_NAME}-enrollments"
-DYNAMO_TABLE_ENROLLMENTS_ARN="arn:aws:dynamodb:us-east-1:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_ENROLLMENTS}"
+DYNAMO_TABLE_ENROLLMENTS_ARN="arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_ENROLLMENTS}"
 DYNAMO_TABLE_SESSIONS="${CUSTOMER_NAME}-sessions"
-DYNAMO_TABLE_SESSIONS_ARN="arn:aws:dynamodb:us-east-1:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_SESSIONS}"
+DYNAMO_TABLE_SESSIONS_ARN="arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_SESSIONS}"
 
 # Lambda function names
 LAMBDA_FUNCTION_NAME_RECORDING="speakcare-${CUSTOMER_NAME}-recording-handler"
@@ -41,6 +43,11 @@ POLICY_NAME_S3_DYNAMO="speakcare-${CUSTOMER_NAME}-s3-dynamo-policy"
 POLICY_ARN_S3_DYNAMO="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${POLICY_NAME_S3_DYNAMO}"
 POLICY_FILE_S3_DYNAMO="${POLICY_DIR}/${CUSTOMER_NAME}-lambda-s3-dynamo-policy.json"
 
+# domain variables
+SPEAKCARE_DOMAIN="speakcare.ai"
+SPEAKCARE_ENV="dev"
+SPEAKCARE_API_DOMAIN="api.${SPEAKCARE_ENV}.${SPEAKCARE_DOMAIN}"
+
 # Create S3 buckets
 aws s3 mb "s3://${S3_BUCKET}" --profile $AWS_PROFILE
 
@@ -54,7 +61,7 @@ aws dynamodb create-table \
   --table-name "${DYNAMO_TABLE_ENROLLMENTS}" \
   --attribute-definitions AttributeName=recordingId,AttributeType=S \
   --key-schema AttributeName=recordingId,KeyType=HASH \
-  --region us-east-1 \
+  --region ${AWS_REGION} \
   --billing-mode PAY_PER_REQUEST \
   --profile $AWS_PROFILE \
   --no-cli-pager
@@ -70,7 +77,7 @@ aws dynamodb create-table \
   --table-name "${DYNAMO_TABLE_SESSIONS}" \
   --attribute-definitions AttributeName=recordingId,AttributeType=S \
   --key-schema AttributeName=recordingId,KeyType=HASH \
-  --region us-east-1 \
+  --region ${AWS_REGION} \
   --billing-mode PAY_PER_REQUEST \
   --profile $AWS_PROFILE \
   --no-cli-pager
@@ -365,6 +372,83 @@ echo "   Customer ${CUSTOMER_NAME} API ready"
 echo "   URL: https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}"
 echo "   API Key: ${CLIENT_API_KEY}"
 
+# Create a custom domain for the customer
+CUSTOM_DOMAIN="${CUSTOMER_NAME}.${SPEAKCARE_API_DOMAIN}"
+CERT_ARN=$(get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
+
+api_gateway_create_domain_name() {
+  domain=$1
+  certArn=$2
+  aws apigateway create-domain-name \
+    --domain-name "$domain" \
+    --regional-certificate-arn "$certArn" \
+    --endpoint-configuration types=REGIONAL \
+    --region $AWS_REGION \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
+
+api_gateway_create_domain_name $CUSTOM_DOMAIN $CERT_ARN
+
+# Fetch the target alias and zone ID for Route 53:
+api_gateway_get_domain_info() {
+  domain=$1
+  read regionalDomainName regionalHostedZoneId < <(aws apigateway get-domain-name \
+    --domain-name "$domain" \
+    --region $AWS_REGION \
+    --query '[regionalDomainName, regionalHostedZoneId]' \
+    --profile $AWS_PROFILE \
+    --output text)
+  echo "$regionalDomainName $regionalHostedZoneId"
+}
+
+
+# Create a base path mapping for the customer
+api_gateway_create_base_path_mapping() {
+  domain=$1
+  restApiId=$2
+  stage=$3
+  aws apigateway create-base-path-mapping \
+    --domain-name "$domain" \
+    --rest-api-id "$restApiId" \
+    --stage "$stage" \
+    --region $AWS_REGION \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
+
+api_gateway_create_base_path_mapping $CUSTOM_DOMAIN $REST_API_ID $STAGE_NAME
+
+
+# Add a Route 53 alias record for the custom domain
+route53_change_resource_record_sets() {
+  # zoneId=$1
+  domain=$1
+  zoneId=$(get_route53_zone_id $SPEAKCARE_DOMAIN)
+  read regionalDomainName regionalHostedZoneId < <(api_gateway_get_domain_info $domain)
+  aws route53 change-resource-record-sets \
+    --hosted-zone-id "$zoneId" \
+    --change-batch "{
+      \"Comment\": \"Customer-specific API custom domain\",
+      \"Changes\": [{
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"$domain.\",
+          \"Type\": \"A\",
+          \"AliasTarget\": {
+            \"HostedZoneId\": \"$regionalHostedZoneId\",
+            \"DNSName\": \"$regionalDomainName.\",
+            \"EvaluateTargetHealth\": false
+          }
+        }
+      }]
+    }" \
+  --profile $AWS_PROFILE \
+  --no-cli-pager
+}
+
+route53_change_resource_record_sets $ZONE_ID $CUSTOM_DOMAIN
+
 
 # Test the enrollment API
 
@@ -387,6 +471,22 @@ response=$(curl -s -X POST "https://${REST_API_ID}.execute-api.${AWS_REGION}.ama
     "md5":            "'"${md5}"'"
   }')
 
+response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
+  -H "x-api-key: ${CLIENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId":     "holyname",
+    "username":       "testuser", 
+    "type":           "enroll",
+    "speakerType":    "patient",
+    "deviceType":     "SM-R910",
+    "deviceUniqueId": "12345678",
+    "fileName":       "admission.mp3",
+    "startTime":      "2021-01-01T00:00:00Z",
+    "endTime":        "2021-01-01T00:00:00Z", 
+    "md5":            "'"${md5}"'"
+  }')
+
 recordingId=$(echo "$response" | jq -r '.recordingId')
 uploadUrl=$(echo "$response" | jq -r '.uploadUrl')
 
@@ -395,8 +495,8 @@ curl -i -X PUT \
      --upload-file ../recordings/admission.mp3 \
      "${uploadUrl}"
 
-# Test the session API
-curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording/${recordingId}" \
+# update the enrollment status to uploaded
+curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -405,7 +505,7 @@ curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com
   }'
 
 # try to update non-existent recording in the session table
-curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -418,7 +518,7 @@ curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com
 
 # Test the session API
 
-response=$(curl -s -X POST "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording" \
+response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -442,7 +542,7 @@ curl -i -X PUT \
      "${uploadUrl}"
 
 # Test the session API
-curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -451,7 +551,7 @@ curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com
   }'
 
 # try to update non-existent recording in the enrollments table
-curl -i -X PATCH "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
