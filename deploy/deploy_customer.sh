@@ -140,67 +140,114 @@ aws iam put-role-policy \
   --no-cli-pager
 
 # Lambda handlers
-# zip the lambda functions  
-cd lambda
-zip -r ../recording_handler.zip recording_handler.py
-zip -r ../recording_update_handler.zip recording_update_handler.py
-cd ..
+
+# zip the lambda functions
+# ─── ZIP THE LAMBDA FUNCTIONS ────────────────────────────────────────────────
+create_lambda_zip_files() {
+  cd lambda
+  zip -r ../recording_handler.zip recording_handler.py
+  zip -r ../recording_update_handler.zip recording_update_handler.py
+  cd ..
+}
+
+delete_lambda_zip_files() {
+  rm -f recording_handler.zip
+  rm -f recording_update_handler.zip
+}
+
+
+UPLOAD_EXPIRES=$((1*3600))      # 1 hour
+PRESIGN_URL_EXPIRES=$((5*60))
 
 # deploy the lambda functions
 # Create the enroll lambda function
-aws lambda create-function \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
-  --runtime python3.11 \
-  --role $ROLE_ARN_LAMBDA_RECORDING \
-  --handler recording_handler.lambda_handler \
-  --zip-file fileb://recording_handler.zip \
-  --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
-  --timeout 30 \
-  --memory-size 128 \
-  --profile $AWS_PROFILE \
-  --no-cli-pager
+lambda_create_recording_handler() {
+  aws lambda create-function \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
+    --runtime python3.11 \
+    --role $ROLE_ARN_LAMBDA_RECORDING \
+    --handler recording_handler.lambda_handler \
+    --zip-file fileb://recording_handler.zip \
+    --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR},UPLOAD_EXPIRES=${UPLOAD_EXPIRES},PRESIGN_URL_EXPIRES=${PRESIGN_URL_EXPIRES}}" \
+    --timeout 30 \
+    --memory-size 128 \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
 
-# Update the enroll lambda function code
-aws lambda update-function-code \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
-  --zip-file fileb://recording_handler.zip \
-  --profile $AWS_PROFILE \
-  --no-cli-pager
+# Update the enroll lambda function code  
+lambda_update_recording_handler() {
+  aws lambda update-function-code \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
+    --zip-file fileb://recording_handler.zip \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
 
 # Update the enroll lambda function configuration
-aws lambda update-function-configuration \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
-  --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
-  --profile $AWS_PROFILE \
-  --no-cli-pager
+lambda_update_recording_handler_configuration() {
+  aws lambda update-function-configuration \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING \
+    --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR},UPLOAD_EXPIRES=${UPLOAD_EXPIRES},PRESIGN_URL_EXPIRES=${PRESIGN_URL_EXPIRES}}" \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
 
 
 # Recording update lambda function
-aws lambda create-function \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
-  --runtime python3.11 \
-  --role $ROLE_ARN_LAMBDA_RECORDING \
-  --handler recording_update_handler.lambda_handler \
-  --zip-file fileb://recording_update_handler.zip \
-  --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
-  --timeout 30 \
-  --memory-size 128 \
-  --profile $AWS_PROFILE \
-  --no-cli-pager  
+lambda_create_recording_update_handler() {
+  aws lambda create-function \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
+    --runtime python3.11 \
+    --role $ROLE_ARN_LAMBDA_RECORDING \
+    --handler recording_update_handler.lambda_handler \
+    --zip-file fileb://recording_update_handler.zip \
+    --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
+    --timeout 30 \
+    --memory-size 128 \
+    --profile $AWS_PROFILE \
+    --no-cli-pager  
+}
 
 # Update the recording update lambda function code
-aws lambda update-function-code \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
-  --zip-file fileb://recording_update_handler.zip \
-  --profile $AWS_PROFILE \
-  --no-cli-pager    
+lambda_update_recording_update_handler() {
+  aws lambda update-function-code \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
+    --zip-file fileb://recording_update_handler.zip \
+    --profile $AWS_PROFILE \
+    --no-cli-pager    
+}
 
 # Update the recording update lambda function configuration
-aws lambda update-function-configuration \
-  --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
-  --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
-  --profile $AWS_PROFILE \
-  --no-cli-pager  
+lambda_update_recording_update_handler_configuration() {
+  aws lambda update-function-configuration \
+    --function-name $LAMBDA_FUNCTION_NAME_RECORDING_UPDATE \
+    --environment Variables="{CUSTOMER_NAME=${CUSTOMER_NAME},S3_RECORDING_DIR=${S3_RECORDING_DIR}}" \
+    --profile $AWS_PROFILE \
+    --no-cli-pager  
+}
+
+lambda_create_handlers() {
+  create_lambda_zip_files
+  lambda_create_recording_handler
+  lambda_create_recording_update_handler
+  delete_lambda_zip_files
+}
+
+lambda_update_handlers() {
+  create_lambda_zip_files
+  lambda_update_recording_handler
+  lambda_update_recording_handler_configuration
+  lambda_update_recording_update_handler
+  lambda_update_recording_update_handler_configuration
+  delete_lambda_zip_files
+}
+
+lambda_update_handlers_configuration() {
+  lambda_update_recording_handler_configuration
+  lambda_update_recording_update_handler_configuration
+}
+
 
  
 # API Gateway, REST API, and key
@@ -466,9 +513,8 @@ response=$(curl -s -X POST "https://${REST_API_ID}.execute-api.${AWS_REGION}.ama
     "deviceType":     "SM-R910",
     "deviceUniqueId": "12345678",
     "fileName":       "admission.mp3",
-    "startTime":      "2021-01-01T00:00:00Z",
-    "endTime":        "2021-01-01T00:00:00Z",
-    "md5":            "'"${md5}"'"
+    "startTime":      "2025-04-23T00:00:00Z",
+    "endTime":        "2025-04-23T00:00:00Z"
   }')
 
 response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
@@ -482,9 +528,8 @@ response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
     "deviceType":     "SM-R910",
     "deviceUniqueId": "12345678",
     "fileName":       "admission.mp3",
-    "startTime":      "2021-01-01T00:00:00Z",
-    "endTime":        "2021-01-01T00:00:00Z", 
-    "md5":            "'"${md5}"'"
+    "startTime":      "2025-04-23T00:00:00Z",
+    "endTime":        "2025-04-23T00:10:00Z"
   }')
 
 recordingId=$(echo "$response" | jq -r '.recordingId')
@@ -501,7 +546,8 @@ curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "Content-Type: application/json" \
   -d '{
      "type":           "enroll",
-     "status":         "uploaded"
+     "status":         "uploaded",
+     "md5sum":         "'"${md5}"'"
   }'
 
 # try to update non-existent recording in the session table
@@ -510,7 +556,8 @@ curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "Content-Type: application/json" \
   -d '{
      "type":           "session",
-     "status":         "uploaded"
+     "status":         "uploaded",
+     "md5sum":         "'"${md5}"'"
   }'
 
 
@@ -528,9 +575,8 @@ response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
     "deviceType":     "SM-R910",
     "deviceUniqueId": "12345678",
     "fileName":       "admission.mp3",
-    "startTime":      "2021-01-01T00:00:00Z",
-    "endTime":        "2021-01-01T00:00:00Z",
-    "md5":            "'"${md5}"'"
+    "startTime":      "2025-04-23T00:00:00Z",
+    "endTime":        "2025-04-23T00:00:00Z"
   }')
 
 recordingId=$(echo "$response" | jq -r '.recordingId')
@@ -547,7 +593,8 @@ curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "Content-Type: application/json" \
   -d '{
      "type":           "session",
-     "status":         "uploaded"
+     "status":         "uploaded",
+     "md5sum":         "'"${md5}"'"
   }'
 
 # try to update non-existent recording in the enrollments table
@@ -556,7 +603,8 @@ curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
   -H "Content-Type: application/json" \
   -d '{
      "type":           "enroll",
-     "status":         "uploaded"
+     "status":         "uploaded",
+     "md5sum":         "'"${md5}"'"
   }'
 
   

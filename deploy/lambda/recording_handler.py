@@ -10,6 +10,8 @@ s3     = boto3.client('s3')
 dynamo = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 recordingDir = os.environ['S3_RECORDING_DIR']
+uploadExpires = int(os.environ['UPLOAD_EXPIRES'])
+presignUrlExpires = int(os.environ['PRESIGN_URL_EXPIRES'])
 
 def lambda_handler(event, context):
     # 1) Parse input
@@ -49,7 +51,7 @@ def lambda_handler(event, context):
 
     # 3) Timestamps for TTL
     now       = int(time.time())
-    expiresAt = now + 3600   # expire in 1 hour
+    expiresAt = now + uploadExpires   # expire in 5 minutes
 
     # 4) Write a pending_upload record
     recordingId = str(uuid.uuid4())
@@ -64,7 +66,6 @@ def lambda_handler(event, context):
       'startTime':        body.get('startTime', ""),
       'endTime':          body.get('endTime', ""),
       'fileName':         fileName,
-      'md5':              body.get('md5', ""),
       's3Uri':            f"s3://{bucket}/{key}",
       'status':           'pending_upload',
       'createdAt':        now,
@@ -79,7 +80,7 @@ def lambda_handler(event, context):
     upload_url = s3.generate_presigned_url(
       ClientMethod='put_object',
       Params={'Bucket': bucket, 'Key': key},
-      ExpiresIn=300   # 5 minutes
+      ExpiresIn=presignUrlExpires   # 5 minutes
     )
 
     # 6) Respond with the reservation

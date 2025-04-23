@@ -49,13 +49,27 @@ def lambda_handler(event, context):
 
     # 4) Perform the update: set status, remove expiresAt so TTL no longer applies
     try:
-        table.update_item(
-            Key={'recordingId': recordingId},
-            UpdateExpression="SET #s = :st REMOVE expiresAt",
-            ExpressionAttributeNames={'#s': 'status'},
-            ExpressionAttributeValues={':st': status},
-            ConditionExpression="attribute_exists(recordingId)"
-        )
+        if status == 'uploaded':
+            # When status is uploaded, include the md5sum field
+            table.update_item(
+                Key={'recordingId': recordingId},
+                UpdateExpression="SET #s = :st, md5sum = :md REMOVE expiresAt",
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={
+                    ':st': status,
+                    ':md': body.get('md5sum', '')
+                },
+                ConditionExpression="attribute_exists(recordingId)"
+            )
+        else:
+            # For other statuses, just update the status
+            table.update_item(
+                Key={'recordingId': recordingId},
+                UpdateExpression="SET #s = :st REMOVE expiresAt",
+                ExpressionAttributeNames={'#s': 'status'},
+                ExpressionAttributeValues={':st': status},
+                ConditionExpression="attribute_exists(recordingId)"
+            )
     except dynamo.meta.client.exceptions.ConditionalCheckFailedException:
         return {
             'statusCode': 404,
