@@ -74,6 +74,11 @@ class SpeakCareEmrTables:
     LOCAL_ASSESSMENT_STABILITY='LOCAL ASSESSMENT - STABILITY'
     LOCAL_ASSESSMENT_STRENGTH='LOCAL ASSESSMENT - STRENGTH'
 
+    # Grove (Millennial) tables
+    GROVE_ASSESSMENT_DETAILS_TABLE = 'Grove_Assessment_Details'
+    
+    
+
     # TODO: Table and sections names need to be loaded dyanically from the API
     """
       The followoing are the list of tables that we are actively supporting in the API
@@ -103,6 +108,7 @@ class SpeakCareEmrTables:
         SPORT_PERFORMANCE_ASSESSMENT_4,
         SPORT_2_TEST,
         SPORT_3_TEST,
+        GROVE_ASSESSMENT_DETAILS_TABLE,
 
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
