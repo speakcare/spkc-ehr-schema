@@ -15,7 +15,6 @@ def parse_value_list(value_list_str):
     value_list_str = value_list_str.strip("[] ")
     if not value_list_str:
         return []
-    # Determine format: with '=' or simple list
     if '=' in value_list_str:
         entries = [entry.strip().lstrip("=") for entry in value_list_str.split(";") if entry.strip()]
     else:
@@ -77,7 +76,7 @@ def extract_airtable_fields_from_section(section):
             field_obj["options"] = options
 
         fields.append(field_obj)
-        return 1  # count as a single field for supergroup
+        return 1
 
     def handle_supergroup(group, group_hierarchy):
         finding_array = group.get("Finding", [])
@@ -107,9 +106,11 @@ def extract_airtable_fields_from_section(section):
         group_text = clean_text(group.get("@Text", group.get("@Name", "")))
         next_hierarchy = f"{group_hierarchy}.{group_text}" if group_hierarchy else group_text
 
-        group_result = group.get("EntryComponents", {}).get("Result", inherited_result) or inherited_result
+        group_result = group.get("EntryComponents", {}).get("Result")
+        if group_result is None:
+            group_result = inherited_result or {}
 
-        own_field_count = 0  # counts unique fields only (e.g., one for a supergroup)
+        own_field_count = 0
         logs = []
 
         is_supergroup = group.get("@StyleClass") == "supergroup"
@@ -121,11 +122,31 @@ def extract_airtable_fields_from_section(section):
 
         if is_supergroup and not has_entry_components:
             own_field_count += handle_supergroup(group, group_hierarchy)
+        elif group_result.get("@EntryType") == "singleCheck" and group_result.get("@StyleClass") == "check" and len(findings) > 0:
+            bundled_choices = []
+            for finding in findings:
+                result_override = finding.get("EntryComponents", {}).get("Result", {}).get("@EntryType")
+                if result_override:
+                    own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
+                else:
+                    text = clean_text(finding.get("@Text"))
+                    if text:
+                        bundled_choices.append({"name": text, "color": "blueLight2"})
+
+            if bundled_choices:
+                full_name = f"{section_prefix}.{next_hierarchy}"
+                fields.append({
+                    "name": full_name,
+                    "description": group_text,
+                    "type": "multipleSelects",
+                    "options": {"choices": bundled_choices}
+                })
+                own_field_count += 1
         else:
             for finding in findings:
                 own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
-        total_field_count = own_field_count  # initialize total with own
+        total_field_count = own_field_count
         nested_groups = group.get("Group", [])
         if isinstance(nested_groups, dict):
             nested_groups = [nested_groups]
