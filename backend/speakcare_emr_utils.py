@@ -98,6 +98,13 @@ class EmrUtils:
         return emr_api.get_table_json_schema(tableName=tableName)
     
     @staticmethod
+    def get_airtable_schema(tableName: str):
+        """
+        get_airtable_schema
+        """
+        return emr_api.get_airtable_schema(tableName=tableName)
+    
+    @staticmethod
     def get_table_schema_fields(tableName: str):
         """
         get_table_schema_fields

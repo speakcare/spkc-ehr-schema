@@ -1034,6 +1034,14 @@ class TestSchema(unittest.TestCase):
             record_schema = EmrUtils.get_table_json_schema(table_name)
             self.assertIsNotNone(record_schema)
             self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}') 
+        
+    def test_get_all_table_airtable_schema(self):
+        table_names = EmrUtils.get_table_names()
+        for table_name in table_names:
+            self.logger.info(f'Getting airtable schema for table {table_name}')
+            airtable_schema = EmrUtils.get_airtable_schema(table_name)
+            self.assertIsNotNone(airtable_schema)
+            self.logger.info(f'{table_name} Airtable schema: {json.dumps(airtable_schema, indent=4)}')
 
     def test_get_fallrisk_schema(self):
         # Getting schema for a specific table
