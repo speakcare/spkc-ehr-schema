@@ -143,8 +143,26 @@ def extract_airtable_fields_from_section(section):
                 })
                 own_field_count += 1
         else:
-            for finding in findings:
-                own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
+            # If group has multiple findings and no EntryComponents, treat as multiselect
+            if len(findings) > 1 and not has_entry_components:
+                choices = []
+                for finding in findings:
+                    text = clean_text(finding.get("@Text"))
+                    if text:
+                        choices.append({"name": text, "color": "blueLight2"})
+                if choices:
+                    full_name = f"{section_prefix}.{next_hierarchy}"
+                    fields.append({
+                        "name": full_name,
+                        "description": group_text,
+                        "type": "multipleSelects",
+                        "options": {"choices": choices}
+                    })
+                    own_field_count += 1
+            else:
+                # fallback to per-finding logic (including single finding case)
+                for finding in findings:
+                    own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
         total_field_count = own_field_count
         nested_groups = group.get("Group", [])
