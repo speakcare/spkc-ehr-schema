@@ -128,7 +128,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
         if group.get("@StyleClass") == "supergroup" and not group.get("EntryComponents"):
             choices = [
-                {"name": clean_text(f.get("@Text")), "color": "blueLight2"}
+                {"name": f.get("@Name", "Unnamed") + "." + clean_text(f.get("@Text")), "color": "blueLight2"}
                 for f in findings if clean_text(f.get("@Text"))
             ]
             if choices:
@@ -148,8 +148,9 @@ def extract_airtable_fields_from_section(section, prefix):
                     own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
                 else:
                     text = clean_text(finding.get("@Text"))
+                    name = finding.get("@Name", "Unnamed")
                     if text:
-                        bundled_choices.append({"name": text, "color": "blueLight2"})
+                        bundled_choices.append({"name": f"{name}.{text}", "color": "blueLight2"})
             if len(bundled_choices) > 1:
                 full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
@@ -160,16 +161,17 @@ def extract_airtable_fields_from_section(section, prefix):
                 })
                 own_field_count += 1
             elif len(bundled_choices) == 1:
+                label = bundled_choices[0]["name"]
                 add_field({
-                    "name": f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}.{clean_text(bundled_choices[0]['name'])}",
-                    "description": bundled_choices[0]['name'],
+                    "name": f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}.{label}",
+                    "description": label,
                     "type": "checkbox",
                     "options": {"icon": "check", "color": "greenBright"}
                 })
                 own_field_count += 1
         elif len(findings) > 1 and not group.get("EntryComponents"):
             choices = [
-                {"name": clean_text(f.get("@Text")), "color": "blueLight2"}
+                {"name": f.get("@Name", "Unnamed") + "." + clean_text(f.get("@Text")), "color": "blueLight2"}
                 for f in findings if clean_text(f.get("@Text"))
             ]
             if choices:
