@@ -44,9 +44,10 @@ MAX_FIELDS_PER_TABLE = 90
 FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
 
 
-def extract_airtable_fields_from_section(section):
+def extract_airtable_fields_from_section(section, prefix):
     section_prefix = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
     base_section_name = clean_text(section.get("@Name", "UnnamedSection"))
+    full_section_name_prefix = f"{prefix}.{base_section_name}"
     fields = []
 
     def process_finding(finding, group_hierarchy="", inherited_result=None):
@@ -219,8 +220,9 @@ def extract_airtable_fields_from_section(section):
     tables = []
     for i in range(0, len(fields), FIELD_SPLIT_THRESHOLD):
         chunk = fields[i:i + FIELD_SPLIT_THRESHOLD] + EXTRA_FIELDS
+        suffix = f"_{i // FIELD_SPLIT_THRESHOLD + 1}" if len(fields) > FIELD_SPLIT_THRESHOLD else ""
         tables.append({
-            "name": f"{base_section_name}_{i // FIELD_SPLIT_THRESHOLD + 1}" if len(fields) > FIELD_SPLIT_THRESHOLD else base_section_name,
+            "name": f"{prefix}.{base_section_name}{suffix}",
             "description": section_prefix,
             "fields": chunk
         })
@@ -252,10 +254,9 @@ if __name__ == "__main__":
     written_sections = 0
 
     for section in nested_sections:
-        tables = extract_airtable_fields_from_section(section)
-        for idx, table in enumerate(tables):
-            suffix = f"_{idx + 1}" if len(tables) > 1 else ""
-            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}.json")
+        tables = extract_airtable_fields_from_section(section, args.output_prefix)
+        for table in tables:
+            section_filename = os.path.join(args.output_dir, f"{table['name']}.json")
             with open(section_filename, "w") as f:
                 json.dump(table, f, indent=2)
             total_fields += len(table["fields"])
