@@ -20,7 +20,8 @@ def parse_value_list(value_list_str):
         entries = [entry.strip().lstrip("=") for entry in value_list_str.split(";") if entry.strip()]
     else:
         entries = [entry.strip() for entry in value_list_str.split(";") if entry.strip()]
-    return [{"name": entry, "color": "blueLight2"} for entry in entries]
+    cleaned_entries = [re.sub(r"[^\w\s]+", " ", entry).strip() for entry in entries]
+    return [{"name": entry, "color": "blueLight2"} for entry in cleaned_entries]
 
 
 EXTRA_FIELDS = [
