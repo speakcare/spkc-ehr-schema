@@ -130,6 +130,7 @@ def speakcare_process_transcript(diarized_transcript_filename: str, tables: List
             chart_name = table_name.replace(" ", "_")
             chart_filename = f'{SpeakcareEnv.get_charts_dir()}/{output_file_prefix}-chart-{chart_name}.json'
             boto3Session.s3_put_object(chart_filename, json.dumps(response_dict, indent=4))
+            logger.info(f"Chart written to {chart_filename}")
 
             record_id, record_state = EmrUtils.create_and_commit_emr_record(record=response_dict, transcript_id=transcript_id, dryrun=dryrun)
             if not record_id:
@@ -145,6 +146,30 @@ def speakcare_process_transcript(diarized_transcript_filename: str, tables: List
     except Exception as e:
         logger.log_exception(f"Error occurred while processing transcription: {e}")
         return None, {"error": str(e)}    
+
+
+
+def speakcare_create_emr_record(chart_filename: str):
+    """
+    Create and commit EMR record from JSON chart
+    """    
+    chart_json = boto3Session.get_s3_or_local_file_content(chart_filename)
+    if not chart_json:
+        err = f"Failed to read chart file {chart_filename}"
+        logger.error(err)
+        raise Exception(err)
+    
+    chart = json.loads(chart_json)
+    table_name = chart.get("table_name", None)
+
+    record_id, record_state = EmrUtils.create_and_commit_emr_record(record=chart)
+    if not record_id:
+        err = f"Failed to create EMR record for table {table_name}. from data {chart}"
+        logger.error(err)
+        raise Exception(err)
+
+    logger.info(f"EMR record created for table {table_name}: {record_id}")
+    return record_id, {"message": "Success"}
 
 
 
@@ -170,7 +195,8 @@ def main():
                         help='Name of transcript file to process. If provided, we skip the recording and use these files instead.')
     parser.add_argument('-to', '--transcribe-only', action='store_true', default=False,
                         help='Transcribe only')
-
+    parser.add_argument('-e', '--emr-record', type=str,
+                        help='Name of EMR record file to process. If provided, we skip the recording and transciption and use this file directly.')
     # Parse arguments
     args = parser.parse_args()
 
@@ -178,6 +204,10 @@ def main():
 
     if args.list_devices:
         audio_print_input_devices()
+        exit(0)
+
+    if args.emr_record:
+        record_id, error = speakcare_create_emr_record(chart_filename=args.emr_record)
         exit(0)
 
     # Ensure --table is always provided if --list-devices is not used
