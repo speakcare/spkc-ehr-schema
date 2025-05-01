@@ -102,7 +102,7 @@ def extract_airtable_fields_from_section(section):
         })
         return 1
 
-    def traverse_group(group, group_hierarchy="", inherited_result=None, depth=1):  # updated to support FreeText field generation
+    def traverse_group(group, group_hierarchy="", inherited_result=None, depth=1):
         group_text = clean_text(group.get("@Text", group.get("@Name", "")))
         next_hierarchy = f"{group_hierarchy}.{group_text}" if group_hierarchy else group_text
 
@@ -142,38 +142,45 @@ def extract_airtable_fields_from_section(section):
                     "options": {"choices": bundled_choices}
                 })
                 own_field_count += 1
+        elif len(findings) > 1 and not has_entry_components:
+            choices = []
+            for finding in findings:
+                text = clean_text(finding.get("@Text"))
+                if text:
+                    choices.append({"name": text, "color": "blueLight2"})
+            if choices:
+                full_name = f"{section_prefix}.{next_hierarchy}"
+                fields.append({
+                    "name": full_name,
+                    "description": group_text,
+                    "type": "multipleSelects",
+                    "options": {"choices": choices}
+                })
+                own_field_count += 1
         else:
-            # If group has multiple findings and no EntryComponents, treat as multiselect
-            if len(findings) > 1 and not has_entry_components:
-                choices = []
-                for finding in findings:
-                    text = clean_text(finding.get("@Text"))
-                    if text:
-                        choices.append({"name": text, "color": "blueLight2"})
-                if choices:
-                    full_name = f"{section_prefix}.{next_hierarchy}"
-                    fields.append({
-                        "name": full_name,
-                        "description": group_text,
-                        "type": "multipleSelects",
-                        "options": {"choices": choices}
-                    })
-                    own_field_count += 1
-            else:
-                # fallback to per-finding logic (including single finding case)
-                for finding in findings:
-                    own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
+            for finding in findings:
+                own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
-        total_field_count = own_field_count
         nested_groups = group.get("Group", [])
         if isinstance(nested_groups, dict):
             nested_groups = [nested_groups]
+
+        total_field_count = own_field_count
+        if not findings and not nested_groups:
+            full_name = f"{section_prefix}.{next_hierarchy}"
+            fields.append({
+                "name": full_name,
+                "description": group_text,
+                "type": "multilineText"
+            })
+            own_field_count += 1
+            total_field_count += 1
+
         for sub_group in nested_groups:
             child_logs, child_total = traverse_group(sub_group, next_hierarchy, group_result, depth + 1)
             logs.extend(child_logs)
             total_field_count += child_total
 
-                # Handle FreeText at the group level
         if group.get("FreeText") is not None:
             base_name = clean_text(group.get("FreeText", {}).get("@Name")) if group.get("FreeText", {}).get("@Name") else group_text
             full_name = f"{section_prefix}.{group_hierarchy}.{base_name}" if group_hierarchy else f"{section_prefix}.{base_name}"
@@ -199,7 +206,7 @@ def extract_airtable_fields_from_section(section):
     groups = section.get("Group", [])
     if isinstance(groups, dict):
         groups = [groups]
-    # Handle FreeText at the section level
+
     if section.get("FreeText") is not None:
         base_name = clean_text(section.get("FreeText", {}).get("@Name")) if section.get("FreeText", {}).get("@Name") else section_prefix
         fields.append({
