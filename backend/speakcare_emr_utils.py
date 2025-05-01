@@ -43,7 +43,11 @@ class EmrUtils:
     @staticmethod
     def load_tables():
         emr_api.load_tables()
-        
+
+    @staticmethod
+    def create_table(table:dict):
+        return emr_api.create_table(table)
+
     @staticmethod
     def get_patient_info(name):
         """
@@ -1043,16 +1047,32 @@ def main():
     EmrUtils.init_db(db_directory=DB_DIRECTORY)
     
     parser = argparse.ArgumentParser(description='EMR utils.')
-    parser.add_argument('-t', '--table', type=str, required=True, help=f'Table name (suported tables: {supported_tables}')
+    parser.add_argument('-t', '--table', type=str, help=f'Table name (suported tables: {supported_tables}')
+    parser.add_argument('-c', '--create-table',  type=str, help='Table json file name')
     
     args = parser.parse_args()
 
-    if args.table not in supported_tables:
-        print(f"Table {args.table} not supported.")
-        sys.exit(1)
+    if args.create_table:
+        table_file = args.create_table
+        print(f"table file: {table_file}")
+        with open(table_file, 'r') as f:
+            table = json.load(f)
+            
+        
+        print(f"table json: \n{json.dumps(table, indent=4)}")
+        schema = EmrUtils.create_table(table)
+        if schema: 
+            print(f"Created table:\n{json.dumps(schema, indent=4)}")
+        
+        exit(1)
+
+    if args.table:
+        if args.table not in supported_tables:
+            print(f"Table {args.table} not supported.")
+            sys.exit(1)
     
-    schema = EmrUtils.get_table_json_schema(args.table)
-    print(json.dumps(schema, indent=4))
+        schema = EmrUtils.get_table_json_schema(args.table)
+        print(json.dumps(schema, indent=4))
 
 
 if __name__ == "__main__":

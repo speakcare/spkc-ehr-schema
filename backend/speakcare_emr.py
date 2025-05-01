@@ -32,7 +32,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.api = AirtableApi(self.apiKey)
         self.appBaseId = baseId
         self.logger = logger
-        self.tablesSchemaUrl = f'{self.METADATA_BASE_URL}/{baseId}/tables/'
+        self.tablesSchemaUrl = f'{self.METADATA_BASE_URL}/{baseId}/tables'
         self.apiBaseUrl = f'{self.API_BASE_URL}/{baseId}/'
         self.webBaseUrl = f'{self.WEB_APP_BASE_URL}/{baseId}/'
         self.tables = None
@@ -59,13 +59,12 @@ class SpeakCareEmr(SpeakCareEmrTables):
         return fields
     
 
-    def api_post(self, baseUrl=None, body=None, tableId="", params=None, headers=None):
+    def api_post(self, baseUrl=None, body=None, dictBody=None, tableId="", params=None, headers=None):
 
-        url = baseUrl + tableId
-        self.logger.debug(f'API: Sending POST to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
-        response = requests.post(url, data=body, params=params, headers=headers, cert=self.cert)
+        url = os.path.join(baseUrl, tableId) if tableId else baseUrl
+        self.logger.debug(f'API: Sending POST to endpoint \"{url}\" with:\n headers {headers} body: {body} dictBody: {dictBody} uriParams {params}')
+        response = requests.post(url, data=body, json=dictBody, params=params, headers=headers)#, cert=self.cert)
         
-        time.sleep(0.2)
         if (response.status_code != 200):
             self.logger.error(f'API: POST to tableId \"{tableId}\" with payload {body} returned status code {response.status_code} response: {response.text}')
 
@@ -73,10 +72,9 @@ class SpeakCareEmr(SpeakCareEmrTables):
         
     def api_get(self, baseUrl=None, body=None, tableId="", params=None, headers=None):
 
-        url = baseUrl + tableId
+        url = os.path.join(baseUrl, tableId) if tableId else baseUrl
         self.logger.debug(f'API: Sending GET to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
         
-        time.sleep(0.2)
         response = requests.get(url, data=body, params=params, headers=headers)
         
         
@@ -96,6 +94,16 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.tables = data.get("tables", []) 
         return self.tables
     
+    def create_table(self, table:dict):
+        authHeader = f'Bearer {self.apiKey}'
+        _headers = {
+                      'Authorization': authHeader,
+                      'Content-Type': 'application/json'
+                   }
+        response = self.api_post(baseUrl= self.tablesSchemaUrl, dictBody=table, headers=_headers)
+        return response.json()
+        
+
     def load_tables(self):
         if not self.tables:
             tables = self.__retreive_all_tables_schema()

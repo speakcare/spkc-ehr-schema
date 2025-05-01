@@ -31,7 +31,7 @@ EXTRA_FIELDS = [
         "type": "singleSelect",
         "options": {
             "choices": [
-                {"name": "Draft", "color": "gray"},
+                {"name": "Draft", "color": "blueLight2"},
                 {"name": "Approved", "color": "greenBright"},
                 {"name": "Denied", "color": "redBright"}
             ]
@@ -40,13 +40,13 @@ EXTRA_FIELDS = [
 ]
 
 
-MAX_FIELDS_PER_TABLE = 100
+MAX_FIELDS_PER_TABLE = 90
 FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
 
 
 def extract_airtable_fields_from_section(section):
     section_prefix = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
-    section_name = clean_text(section.get("@Name", "UnnamedSection"))
+    base_section_name = clean_text(section.get("@Name", "UnnamedSection"))
     fields = []
 
     def process_finding(finding, group_hierarchy="", inherited_result=None):
@@ -220,7 +220,7 @@ def extract_airtable_fields_from_section(section):
     for i in range(0, len(fields), FIELD_SPLIT_THRESHOLD):
         chunk = fields[i:i + FIELD_SPLIT_THRESHOLD] + EXTRA_FIELDS
         tables.append({
-            "name": section_name,
+            "name": f"{base_section_name}_{i // FIELD_SPLIT_THRESHOLD + 1}" if len(fields) > FIELD_SPLIT_THRESHOLD else base_section_name,
             "description": section_prefix,
             "fields": chunk
         })
@@ -254,8 +254,8 @@ if __name__ == "__main__":
     for section in nested_sections:
         tables = extract_airtable_fields_from_section(section)
         for idx, table in enumerate(tables):
-            suffix = f"_{idx+1}" if len(tables) > 1 else ""
-            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}{suffix}.json")
+            suffix = f"_{idx + 1}" if len(tables) > 1 else ""
+            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}.json")
             with open(section_filename, "w") as f:
                 json.dump(table, f, indent=2)
             total_fields += len(table["fields"])
