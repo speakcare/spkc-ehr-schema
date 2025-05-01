@@ -47,7 +47,6 @@ FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
 def extract_airtable_fields_from_section(section, prefix):
     section_text = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
     base_section_name = clean_text(section.get("@Name", "UnnamedSection"))
-    full_section_name_prefix = f"{prefix}.{base_section_name}"
     fields = []
     seen_field_names = set()
 
@@ -58,7 +57,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
     def process_finding(finding, group_hierarchy=[], inherited_result=None):
         text = clean_text(finding.get("@Text", "UnnamedField"))
-        name_path = ".".join([prefix, base_section_name] + group_hierarchy + [finding.get("@Name", "Unnamed")])
+        name_path = ".".join(group_hierarchy + [finding.get("@Name", "Unnamed")])
 
         components = finding.get("EntryComponents", {})
         result = components.get("Result", inherited_result) or inherited_result or {}
@@ -126,13 +125,22 @@ def extract_airtable_fields_from_section(section, prefix):
         if isinstance(findings, dict):
             findings = [findings]
 
+        def deduplicated_choices(findings):
+            seen = set()
+            unique = []
+            for f in findings:
+                text = clean_text(f.get("@Text"))
+                name = f.get("@Name", "Unnamed")
+                label = f"{name}.{text}"
+                if label not in seen:
+                    unique.append({"name": label, "color": "blueLight2"})
+                    seen.add(label)
+            return unique
+
         if group.get("@StyleClass") == "supergroup" and not group.get("EntryComponents"):
-            choices = [
-                {"name": f.get("@Name", "Unnamed") + "." + clean_text(f.get("@Text")), "color": "blueLight2"}
-                for f in findings if clean_text(f.get("@Text"))
-            ]
-            if choices:
-                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
+            choices = deduplicated_choices(findings)
+            if len(choices) > 1:
+                full_name = f"{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
                     "name": full_name,
                     "description": group_text,
@@ -140,47 +148,57 @@ def extract_airtable_fields_from_section(section, prefix):
                     "options": {"choices": choices}
                 })
                 own_field_count += 1
+            elif len(choices) == 1:
+                label = choices[0]["name"]
+                add_field({
+                    "name": f"{'.'.join(next_hierarchy)}.{label}",
+                    "description": label,
+                    "type": "checkbox",
+                    "options": {"icon": "check", "color": "greenBright"}
+                })
+                own_field_count += 1
         elif group_result.get("@EntryType") == "singleCheck" and group_result.get("@StyleClass") == "check" and len(findings) > 0:
-            bundled_choices = []
+            choices = deduplicated_choices(findings)
             for finding in findings:
                 result_override = finding.get("EntryComponents", {}).get("Result", {}).get("@EntryType")
                 if result_override:
                     own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
-                else:
-                    text = clean_text(finding.get("@Text"))
-                    name = finding.get("@Name", "Unnamed")
-                    if text:
-                        bundled_choices.append({"name": f"{name}.{text}", "color": "blueLight2"})
-            if len(bundled_choices) > 1:
-                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
+            if len(choices) > 1:
+                full_name = f"{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
                     "name": full_name,
                     "description": group_text,
                     "type": "multipleSelects",
-                    "options": {"choices": bundled_choices}
+                    "options": {"choices": choices}
                 })
                 own_field_count += 1
-            elif len(bundled_choices) == 1:
-                label = bundled_choices[0]["name"]
+            elif len(choices) == 1:
+                label = choices[0]["name"]
                 add_field({
-                    "name": f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}.{label}",
+                    "name": f"{'.'.join(next_hierarchy)}.{label}",
                     "description": label,
                     "type": "checkbox",
                     "options": {"icon": "check", "color": "greenBright"}
                 })
                 own_field_count += 1
         elif len(findings) > 1 and not group.get("EntryComponents"):
-            choices = [
-                {"name": f.get("@Name", "Unnamed") + "." + clean_text(f.get("@Text")), "color": "blueLight2"}
-                for f in findings if clean_text(f.get("@Text"))
-            ]
-            if choices:
-                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
+            choices = deduplicated_choices(findings)
+            if len(choices) > 1:
+                full_name = f"{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
                     "name": full_name,
                     "description": group_text,
                     "type": "multipleSelects",
                     "options": {"choices": choices}
+                })
+                own_field_count += 1
+            elif len(choices) == 1:
+                label = choices[0]["name"]
+                add_field({
+                    "name": f"{'.'.join(next_hierarchy)}.{label}",
+                    "description": label,
+                    "type": "checkbox",
+                    "options": {"icon": "check", "color": "greenBright"}
                 })
                 own_field_count += 1
         else:
@@ -188,7 +206,7 @@ def extract_airtable_fields_from_section(section, prefix):
                 own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
         if not findings and not group.get("Group") and group.get("@Text"):
-            full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
+            full_name = f"{'.'.join(next_hierarchy)}.{group_text}"
             add_field({
                 "name": full_name,
                 "description": group_text,
@@ -205,7 +223,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
         if group.get("FreeText") is not None:
             base_name = clean_text(group["FreeText"].get("@Name") or group_text)
-            full_name = f"{prefix}.{base_section_name}.{'.'.join(group_hierarchy)}.{base_name}"
+            full_name = f"{'.'.join(group_hierarchy)}.{base_name}"
             add_field({
                 "name": full_name,
                 "description": group_text,
@@ -229,7 +247,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
     if section.get("FreeText") is not None:
         base_name = clean_text(section["FreeText"].get("@Name") or section_text)
-        full_name = f"{prefix}.{base_section_name}.{base_name}"
+        full_name = base_name
         add_field({
             "name": full_name,
             "description": section_text,
