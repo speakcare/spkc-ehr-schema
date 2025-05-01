@@ -23,11 +23,31 @@ def parse_value_list(value_list_str):
     return [{"name": entry, "color": "blueLight2"} for entry in entries]
 
 
+EXTRA_FIELDS = [
+    {"name": "Patient", "type": "singleLineText"},
+    {"name": "CreatedBy", "type": "singleLineText"},
+    {
+        "name": "SpeakCare",
+        "type": "singleSelect",
+        "options": {
+            "choices": [
+                {"name": "Draft", "color": "gray"},
+                {"name": "Approved", "color": "greenBright"},
+                {"name": "Denied", "color": "redBright"}
+            ]
+        }
+    }
+]
+
+
+MAX_FIELDS_PER_TABLE = 100
+FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
+
+
 def extract_airtable_fields_from_section(section):
     section_prefix = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
     section_name = clean_text(section.get("@Name", "UnnamedSection"))
     fields = []
-    group_logs = []
 
     def process_finding(finding, group_hierarchy="", inherited_result=None):
         text = clean_text(finding.get("@Text", "UnnamedField"))
@@ -79,71 +99,49 @@ def extract_airtable_fields_from_section(section):
         fields.append(field_obj)
         return 1
 
-    def handle_supergroup(group, group_hierarchy):
-        finding_array = group.get("Finding", [])
-        if isinstance(finding_array, dict):
-            finding_array = [finding_array]
-
-        choices = []
-        for finding in finding_array:
-            text = clean_text(finding.get("@Text"))
-            if text:
-                choices.append({"name": text, "color": "blueLight2"})
-
-        group_text = clean_text(group.get("@Text", group.get("@Name", "")))
-        full_name = f"{section_prefix}.{group_hierarchy}.{group_text}" if group_hierarchy else f"{section_prefix}.{group_text}"
-
-        fields.append({
-            "name": full_name,
-            "description": group_text,
-            "type": "multipleSelects",
-            "options": {
-                "choices": choices
-            }
-        })
-        return 1
-
-    def traverse_group(group, group_hierarchy="", inherited_result=None, depth=1):
+    def traverse_group(group, group_hierarchy="", inherited_result=None):
         group_text = clean_text(group.get("@Text", group.get("@Name", "")))
         next_hierarchy = f"{group_hierarchy}.{group_text}" if group_hierarchy else group_text
 
-        group_result = group.get("EntryComponents", {}).get("Result")
-        if group_result is None:
-            group_result = inherited_result or {}
+        group_result = group.get("EntryComponents", {}).get("Result") or inherited_result or {}
 
         own_field_count = 0
-        logs = []
-
-        is_supergroup = group.get("@StyleClass") == "supergroup"
-        has_entry_components = bool(group.get("EntryComponents"))
-
         findings = group.get("Finding", [])
         if isinstance(findings, dict):
             findings = [findings]
 
-        if is_supergroup and not has_entry_components:
-            own_field_count += handle_supergroup(group, group_hierarchy)
-        elif group_result.get("@EntryType") == "singleCheck" and group_result.get("@StyleClass") == "check" and len(findings) > 0:
-            bundled_choices = []
-            field_count = 0
-            for finding in findings:
-                result_override = finding.get("EntryComponents", {}).get("Result", {}).get("@EntryType")
-                if result_override:
-                    field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
-                else:
-                    text = clean_text(finding.get("@Text"))
-                    if text:
-                        bundled_choices.append({"name": text, "color": "blueLight2"})
-
-            if len(bundled_choices) > 1:
-                full_name = f"{section_prefix}.{next_hierarchy}"
+        if group.get("@StyleClass") == "supergroup" and not group.get("EntryComponents"):
+            choices = [
+                {"name": clean_text(f.get("@Text")), "color": "blueLight2"}
+                for f in findings if clean_text(f.get("@Text"))
+            ]
+            if choices:
+                full_name = f"{section_prefix}.{group_hierarchy}.{group_text}" if group_hierarchy else f"{section_prefix}.{group_text}"
                 fields.append({
                     "name": full_name,
                     "description": group_text,
                     "type": "multipleSelects",
+                    "options": {"choices": choices}
+                })
+                own_field_count += 1
+        elif group_result.get("@EntryType") == "singleCheck" and group_result.get("@StyleClass") == "check" and len(findings) > 0:
+            bundled_choices = []
+            for finding in findings:
+                result_override = finding.get("EntryComponents", {}).get("Result", {}).get("@EntryType")
+                if result_override:
+                    own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
+                else:
+                    text = clean_text(finding.get("@Text"))
+                    if text:
+                        bundled_choices.append({"name": text, "color": "blueLight2"})
+            if len(bundled_choices) > 1:
+                fields.append({
+                    "name": f"{section_prefix}.{next_hierarchy}",
+                    "description": group_text,
+                    "type": "multipleSelects",
                     "options": {"choices": bundled_choices}
                 })
-                field_count += 1
+                own_field_count += 1
             elif len(bundled_choices) == 1:
                 fields.append({
                     "name": f"{section_prefix}.{next_hierarchy}.{bundled_choices[0]['name']}",
@@ -151,18 +149,15 @@ def extract_airtable_fields_from_section(section):
                     "type": "checkbox",
                     "options": {"icon": "check", "color": "greenBright"}
                 })
-                field_count += 1
-            own_field_count += field_count
-        elif len(findings) > 1 and not has_entry_components:
-            choices = []
-            for finding in findings:
-                text = clean_text(finding.get("@Text"))
-                if text:
-                    choices.append({"name": text, "color": "blueLight2"})
+                own_field_count += 1
+        elif len(findings) > 1 and not group.get("EntryComponents"):
+            choices = [
+                {"name": clean_text(f.get("@Text")), "color": "blueLight2"}
+                for f in findings if clean_text(f.get("@Text"))
+            ]
             if choices:
-                full_name = f"{section_prefix}.{next_hierarchy}"
                 fields.append({
-                    "name": full_name,
+                    "name": f"{section_prefix}.{next_hierarchy}",
                     "description": group_text,
                     "type": "multipleSelects",
                     "options": {"choices": choices}
@@ -172,97 +167,64 @@ def extract_airtable_fields_from_section(section):
             for finding in findings:
                 own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
+        if not findings and not group.get("Group"):
+            fields.append({
+                "name": f"{section_prefix}.{next_hierarchy}",
+                "description": group_text,
+                "type": "multilineText"
+            })
+            own_field_count += 1
+
         nested_groups = group.get("Group", [])
         if isinstance(nested_groups, dict):
             nested_groups = [nested_groups]
-
-        total_field_count = own_field_count
-        if not findings and not nested_groups:
-            full_name = f"{section_prefix}.{next_hierarchy}"
-            fields.append({
-                "name": full_name,
-                "description": group_text,
-                "type": "multilineText"
-            })
-            own_field_count += 1
-            total_field_count += 1
-
         for sub_group in nested_groups:
-            child_logs, child_total = traverse_group(sub_group, next_hierarchy, group_result, depth + 1)
-            logs.extend(child_logs)
-            total_field_count += child_total
+            _, sub_count = traverse_group(sub_group, next_hierarchy, group_result)
+            own_field_count += sub_count
 
         if group.get("FreeText") is not None:
-            base_name = clean_text(group.get("FreeText", {}).get("@Name")) if group.get("FreeText", {}).get("@Name") else group_text
-            full_name = f"{section_prefix}.{group_hierarchy}.{base_name}" if group_hierarchy else f"{section_prefix}.{base_name}"
+            base_name = clean_text(group["FreeText"].get("@Name") or group_text)
             fields.append({
-                "name": full_name,
+                "name": f"{section_prefix}.{group_hierarchy}.{base_name}" if group_hierarchy else f"{section_prefix}.{base_name}",
                 "description": group_text,
                 "type": "multilineText"
             })
             own_field_count += 1
-            total_field_count += 1
 
-        logs.insert(0, (depth, group_text, own_field_count, total_field_count))
-        return logs, total_field_count
+        return [], own_field_count
 
-    total_own_field_count = 0
     findings = section.get("Finding", [])
     if isinstance(findings, dict):
         findings = [findings]
     for finding in findings:
-        total_own_field_count += process_finding(finding, group_hierarchy="", inherited_result=section.get("EntryComponents", {}).get("Result"))
+        process_finding(finding, inherited_result=section.get("EntryComponents", {}).get("Result"))
 
-    total_field_count = total_own_field_count
     groups = section.get("Group", [])
     if isinstance(groups, dict):
         groups = [groups]
+    for group in groups:
+        traverse_group(group, inherited_result=section.get("EntryComponents", {}).get("Result"))
 
     if section.get("FreeText") is not None:
-        base_name = clean_text(section.get("FreeText", {}).get("@Name")) if section.get("FreeText", {}).get("@Name") else section_prefix
+        base_name = clean_text(section["FreeText"].get("@Name") or section_prefix)
         fields.append({
             "name": base_name,
             "description": section_prefix,
             "type": "multilineText"
         })
-        total_own_field_count += 1
-        total_field_count += 1
 
-    for group in groups:
-        logs, group_total = traverse_group(group, group_hierarchy="", inherited_result=section.get("EntryComponents", {}).get("Result"), depth=1)
-        group_logs.extend(logs)
-        total_field_count += group_total
+    if not fields:
+        return []
 
-    if total_field_count == 0:
-        return None, 0
-
-    print(f"Section '{section_name}': fields ({total_own_field_count}, {total_field_count})")
-    for depth, group_text, own, total in group_logs:
-        indent = "---+" * depth
-        print(f"{indent} Group: {group_text} (fields {own}, {total})")
-    print(f"Total fields: {len(fields)}\n")
-
-    fields.extend([
-        {"name": "Patient", "type": "singleLineText"},
-        {"name": "CreatedBy", "type": "singleLineText"},
-        {
-            "name": "SpeakCare",
-            "type": "singleSelect",
-            "options": {
-                "choices": [
-                    {"name": "Draft", "color": "gray"},
-                    {"name": "Approved", "color": "greenBright"},
-                    {"name": "Denied", "color": "redBright"}
-                ]
-            }
-        }
-    ])
-
-    return {
-        "name": section_name,
-        "description": section_prefix,
-        "fields": fields
-    }, len(fields)
+    tables = []
+    for i in range(0, len(fields), FIELD_SPLIT_THRESHOLD):
+        chunk = fields[i:i + FIELD_SPLIT_THRESHOLD] + EXTRA_FIELDS
+        tables.append({
+            "name": section_name,
+            "description": section_prefix,
+            "fields": chunk
+        })
+    return tables
 
 
 if __name__ == "__main__":
@@ -288,14 +250,16 @@ if __name__ == "__main__":
 
     total_fields = 0
     written_sections = 0
+
     for section in nested_sections:
-        table, field_count = extract_airtable_fields_from_section(section)
-        if table:
-            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}.json")
+        tables = extract_airtable_fields_from_section(section)
+        for idx, table in enumerate(tables):
+            suffix = f"_{idx+1}" if len(tables) > 1 else ""
+            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}{suffix}.json")
             with open(section_filename, "w") as f:
                 json.dump(table, f, indent=2)
-            total_fields += field_count
+            total_fields += len(table["fields"])
             written_sections += 1
 
-    print(f"Converted {written_sections} sections to Airtable format using prefix '{args.output_prefix}'")
+    print(f"Converted {written_sections} tables to Airtable format using prefix '{args.output_prefix}'")
     print(f"Total fields extracted: {total_fields}")
