@@ -223,7 +223,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
         if group.get("FreeText") is not None:
             base_name = clean_text(group["FreeText"].get("@Name") or group_text)
-            full_name = f"{'.'.join(group_hierarchy)}.{base_name}"
+            full_name = f"{'.'.join(next_hierarchy)}.{base_name}"
             add_field({
                 "name": full_name,
                 "description": group_text,
