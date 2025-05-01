@@ -24,11 +24,12 @@ SPEAKCARE_DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
 
 class SpeakcarePilot:
 
-    def __init__(self):
+    def __init__(self, transcribe_only: bool = False):
         self.logger = SpeakcareLogger(SpeakcarePilot.__name__)
         self.gDriveApi = GoogleDriveAPI(GDRIVE_SCOPES)
         self.gDriveApi.authenticate(GOOGLE_OAUTH_CREDS_FILE)
         self.boto3Session = Boto3Session.get_single_instance()
+        self.transcribe_only = transcribe_only
         
 
     def sync_from_gdrive_to_s3(self, gdrive_folder_id, s3_folder_key): 
@@ -116,11 +117,12 @@ class SpeakcarePilot:
         self.logger.info(f"Processing care sessions: {care_session_files} for {len(tables)} tables {tables} ")
         try:
             for care_session in care_session_files:
-                record_ids, response = speakcare_process_audio([care_session], tables)
+                record_ids, response = speakcare_process_audio([care_session], tables, 
+                                                               transcribe_only=self.transcribe_only)
                                                                    
                 if record_ids:
                     self.logger.info(f"Processed care session {care_session} resulting record_ids: {record_ids}. response: {response}")
-                else:
+                elif not self.transcribe_only:
                     self.logger.error(f"Error processing care session {care_session}. response: {response}")
         except Exception as e:
             self.logger.log_exception(f"Error processing care sessions: {care_session_files}", e)
@@ -142,11 +144,14 @@ def main():
                         help='Process new care sessions')
     parser.add_argument('-c', '--charts', type=str, nargs='+',
                         help=f'Chart names (supported charts: {supported_charts})')
-
+    parser.add_argument('-to', '--transcribe-only', action='store_true', default=False,
+                        help='Transcribe only')
     
-    pilot = SpeakcarePilot()
 
     args = parser.parse_args()
+
+    pilot = SpeakcarePilot(transcribe_only=args.transcribe_only)
+
     if args.enroll:
         enrolled = pilot.enroll_new_persons()
         print(f"Enrolled {enrolled}")

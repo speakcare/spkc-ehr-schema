@@ -28,7 +28,9 @@ diarizer = SpeakcareDiarize(matching_similarity_threshold=matching_similarity_th
 transciber = SpeakcareOpenAIWhisper()
 
 
-def speakcare_process_audio(audio_files: List[str], tables: List[str], output_file_prefix:str=None, dryrun: bool=False):
+def speakcare_process_audio(audio_files: List[str], tables: List[str], 
+                            output_file_prefix:str=None, dryrun: bool=False, 
+                            transcribe_only: bool = False):
     """
     Transcribe audio, convert transcription to EMR record
     """    
@@ -37,7 +39,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
     _output_prefix = output_file_prefix if output_file_prefix else os_concat_current_time(os_get_filename_without_ext(audio_files[0]))
 
     transcription_filename = f'{SpeakcareEnv.get_texts_dir()}/{_output_prefix}.txt'
-    logger.info(f"Processing audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
+    logger.info(f"{'Transcribe' if transcribe_only else 'Transcribe and chart'} audio files: {audio_files}. Output file prefix: {_output_prefix}. Transcription output file: {transcription_filename}")
     audio_local_file = None
     try:   
         logger.info(f"Processing audio files: {audio_files}")
@@ -76,6 +78,11 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str], output_fi
                         logger.info(f"Deleted local audio file {audio_local_file}")
 
         # Step 3: Convert transcription to EMR record for all tables
+        
+        if transcribe_only:
+            logger.info(f"Done transcribing. Exiting.")
+            return None, {"message": "Done transcribing"}
+        
         record_ids, error = speakcare_process_transcript(diarized_transcript_filename=transcription_filename, tables=tables, output_file_prefix=_output_prefix, dryrun=dryrun)
         if not record_ids:
             err = f"Error occurred while processing transcription: {error}"
@@ -161,6 +168,8 @@ def main():
                         help='Audio device index (required if recording is needed)')
     parser.add_argument('-t', '--transcript', type=str, 
                         help='Name of transcript file to process. If provided, we skip the recording and use these files instead.')
+    parser.add_argument('-to', '--transcribe-only', action='store_true', default=False,
+                        help='Transcribe only')
 
     # Parse arguments
     args = parser.parse_args()
@@ -206,7 +215,8 @@ def main():
     
     if args.recordings:
         # Process the provided audio file and exit
-        record_ids, error = speakcare_process_audio(audio_files=recordings, output_file_prefix=output_file_prefix, tables=table_names, dryrun=dryrun)
+        record_ids, error = speakcare_process_audio(audio_files=recordings, output_file_prefix=output_file_prefix, 
+                                                    tables=table_names, dryrun=dryrun, transcribe_only=args.transcribe_only)
         EmrUtils.cleanup_db(delete_db_files=False)
         exit(0)
 
