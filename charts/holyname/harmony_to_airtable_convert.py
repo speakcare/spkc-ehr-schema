@@ -232,6 +232,9 @@ def extract_airtable_fields_from_section(section):
         group_logs.extend(logs)
         total_field_count += group_total
 
+    if total_field_count == 0:
+        return None, 0
+
     print(f"Section '{section_name}': fields ({total_own_field_count}, {total_field_count})")
     for depth, group_text, own, total in group_logs:
         indent = "---+" * depth
@@ -267,8 +270,9 @@ if __name__ == "__main__":
     total_fields = 0
     for section in nested_sections:
         table, field_count = extract_airtable_fields_from_section(section)
-        all_tables.append(table)
-        total_fields += field_count
+        if table:
+            all_tables.append(table)
+            total_fields += field_count
 
     with open(args.output, "w") as f:
         json.dump(all_tables, f, indent=2)
