@@ -74,6 +74,12 @@ class SpeakCareEmrTables:
     LOCAL_ASSESSMENT_STABILITY='LOCAL ASSESSMENT - STABILITY'
     LOCAL_ASSESSMENT_STRENGTH='LOCAL ASSESSMENT - STRENGTH'
 
+    HARMONY_EXAM_SECTION_1_TABLE = 'Harmony.ExamSection_1'
+    HARMONY_EXAM_SECTION_2_TABLE = 'Harmony.ExamSection_2'
+    HARMONY_EXAM_SECTION_3_TABLE = 'Harmony.ExamSection_3'
+    HARMONY_SAFETY_STATUS_SECTION_TABLE = 'Harmony.SafetyStatusSection'
+    HARMONY_TREATMENTS_SECTION_TABLE = 'Harmony.TreatmentsSection'
+
     # Grove (Millennial) tables
     GROVE_ASSESSMENT_DETAILS_TABLE = 'Grove_Assessment_Details'
     
@@ -108,8 +114,18 @@ class SpeakCareEmrTables:
         SPORT_PERFORMANCE_ASSESSMENT_4,
         SPORT_2_TEST,
         SPORT_3_TEST,
+
+        # Harmony
+        HARMONY_EXAM_SECTION_1_TABLE,
+        HARMONY_EXAM_SECTION_2_TABLE,
+        HARMONY_EXAM_SECTION_3_TABLE,
+        HARMONY_SAFETY_STATUS_SECTION_TABLE,
+        HARMONY_TREATMENTS_SECTION_TABLE,
+        
+        # Grove
         GROVE_ASSESSMENT_DETAILS_TABLE,
 
+        
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 
