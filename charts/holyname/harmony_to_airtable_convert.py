@@ -45,7 +45,7 @@ FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
 
 
 def extract_airtable_fields_from_section(section, prefix):
-    section_prefix = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
+    section_text = clean_text(section.get("@Text", section.get("@Name", "UnnamedSection")))
     base_section_name = clean_text(section.get("@Name", "UnnamedSection"))
     full_section_name_prefix = f"{prefix}.{base_section_name}"
     fields = []
@@ -56,12 +56,9 @@ def extract_airtable_fields_from_section(section, prefix):
             fields.append(field_obj)
             seen_field_names.add(field_obj["name"])
 
-    def process_finding(finding, group_hierarchy="", inherited_result=None):
+    def process_finding(finding, group_hierarchy=[], inherited_result=None):
         text = clean_text(finding.get("@Text", "UnnamedField"))
-        if not text:
-            return 0
-
-        full_name = f"{section_prefix}.{group_hierarchy}.{text}" if group_hierarchy else f"{section_prefix}.{text}"
+        name_path = ".".join([prefix, base_section_name] + group_hierarchy + [finding.get("@Name", "Unnamed")])
 
         components = finding.get("EntryComponents", {})
         result = components.get("Result", inherited_result) or inherited_result or {}
@@ -96,7 +93,7 @@ def extract_airtable_fields_from_section(section, prefix):
             options = {"choices": parse_value_list(notation["@ValueList"])}
 
         field_obj = {
-            "name": full_name,
+            "name": name_path + f".{text}",
             "description": text,
             "type": field_type
         }
@@ -106,7 +103,7 @@ def extract_airtable_fields_from_section(section, prefix):
         add_field(field_obj)
         return 1
 
-    def traverse_group(group, group_hierarchy="", inherited_result=None):
+    def traverse_group(group, group_hierarchy=[], inherited_result=None):
         group_name = group.get("@Name", "")
         if "table" in group_name.lower():
             return [], 0
@@ -120,7 +117,7 @@ def extract_airtable_fields_from_section(section, prefix):
                 return [], 0
 
         group_text = clean_text(group.get("@Text", group_name))
-        next_hierarchy = f"{group_hierarchy}.{group_text}" if group_hierarchy else group_text
+        next_hierarchy = group_hierarchy + [group.get("@Name", group_text)]
 
         group_result = group.get("EntryComponents", {}).get("Result") or inherited_result or {}
 
@@ -135,7 +132,7 @@ def extract_airtable_fields_from_section(section, prefix):
                 for f in findings if clean_text(f.get("@Text"))
             ]
             if choices:
-                full_name = f"{section_prefix}.{group_hierarchy}.{group_text}" if group_hierarchy else f"{section_prefix}.{group_text}"
+                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
                     "name": full_name,
                     "description": group_text,
@@ -154,8 +151,9 @@ def extract_airtable_fields_from_section(section, prefix):
                     if text:
                         bundled_choices.append({"name": text, "color": "blueLight2"})
             if len(bundled_choices) > 1:
+                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
-                    "name": f"{section_prefix}.{next_hierarchy}",
+                    "name": full_name,
                     "description": group_text,
                     "type": "multipleSelects",
                     "options": {"choices": bundled_choices}
@@ -163,7 +161,7 @@ def extract_airtable_fields_from_section(section, prefix):
                 own_field_count += 1
             elif len(bundled_choices) == 1:
                 add_field({
-                    "name": f"{section_prefix}.{next_hierarchy}.{bundled_choices[0]['name']}",
+                    "name": f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}.{clean_text(bundled_choices[0]['name'])}",
                     "description": bundled_choices[0]['name'],
                     "type": "checkbox",
                     "options": {"icon": "check", "color": "greenBright"}
@@ -175,8 +173,9 @@ def extract_airtable_fields_from_section(section, prefix):
                 for f in findings if clean_text(f.get("@Text"))
             ]
             if choices:
+                full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
                 add_field({
-                    "name": f"{section_prefix}.{next_hierarchy}",
+                    "name": full_name,
                     "description": group_text,
                     "type": "multipleSelects",
                     "options": {"choices": choices}
@@ -187,8 +186,9 @@ def extract_airtable_fields_from_section(section, prefix):
                 own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
 
         if not findings and not group.get("Group") and group.get("@Text"):
+            full_name = f"{prefix}.{base_section_name}.{'.'.join(next_hierarchy)}.{group_text}"
             add_field({
-                "name": f"{section_prefix}.{next_hierarchy}",
+                "name": full_name,
                 "description": group_text,
                 "type": "multilineText"
             })
@@ -203,7 +203,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
         if group.get("FreeText") is not None:
             base_name = clean_text(group["FreeText"].get("@Name") or group_text)
-            full_name = f"{section_prefix}.{group_hierarchy}.{base_name}" if group_hierarchy else f"{section_prefix}.{base_name}"
+            full_name = f"{prefix}.{base_section_name}.{'.'.join(group_hierarchy)}.{base_name}"
             add_field({
                 "name": full_name,
                 "description": group_text,
@@ -226,10 +226,11 @@ def extract_airtable_fields_from_section(section, prefix):
         traverse_group(group, inherited_result=section.get("EntryComponents", {}).get("Result"))
 
     if section.get("FreeText") is not None:
-        base_name = clean_text(section["FreeText"].get("@Name") or section_prefix)
+        base_name = clean_text(section["FreeText"].get("@Name") or section_text)
+        full_name = f"{prefix}.{base_section_name}.{base_name}"
         add_field({
-            "name": base_name,
-            "description": section_prefix,
+            "name": full_name,
+            "description": section_text,
             "type": "multilineText"
         })
 
@@ -242,7 +243,7 @@ def extract_airtable_fields_from_section(section, prefix):
         suffix = f"_{i // FIELD_SPLIT_THRESHOLD + 1}" if len(fields) > FIELD_SPLIT_THRESHOLD else ""
         tables.append({
             "name": f"{prefix}.{base_section_name}{suffix}",
-            "description": section_prefix,
+            "description": section_text,
             "fields": chunk
         })
     return tables
