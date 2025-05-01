@@ -102,7 +102,7 @@ def extract_airtable_fields_from_section(section):
         })
         return 1
 
-    def traverse_group(group, group_hierarchy="", inherited_result=None, depth=1):
+    def traverse_group(group, group_hierarchy="", inherited_result=None, depth=1):  # updated to support FreeText field generation
         group_text = clean_text(group.get("@Text", group.get("@Name", "")))
         next_hierarchy = f"{group_hierarchy}.{group_text}" if group_hierarchy else group_text
 
@@ -155,6 +155,18 @@ def extract_airtable_fields_from_section(section):
             logs.extend(child_logs)
             total_field_count += child_total
 
+                # Handle FreeText at the group level
+        if group.get("FreeText") is not None:
+            base_name = clean_text(group.get("FreeText", {}).get("@Name")) if group.get("FreeText", {}).get("@Name") else group_text
+            full_name = f"{section_prefix}.{group_hierarchy}.{base_name}" if group_hierarchy else f"{section_prefix}.{base_name}"
+            fields.append({
+                "name": full_name,
+                "description": group_text,
+                "type": "multilineText"
+            })
+            own_field_count += 1
+            total_field_count += 1
+
         logs.insert(0, (depth, group_text, own_field_count, total_field_count))
         return logs, total_field_count
 
@@ -169,6 +181,17 @@ def extract_airtable_fields_from_section(section):
     groups = section.get("Group", [])
     if isinstance(groups, dict):
         groups = [groups]
+    # Handle FreeText at the section level
+    if section.get("FreeText") is not None:
+        base_name = clean_text(section.get("FreeText", {}).get("@Name")) if section.get("FreeText", {}).get("@Name") else section_prefix
+        fields.append({
+            "name": base_name,
+            "description": section_prefix,
+            "type": "multilineText"
+        })
+        total_own_field_count += 1
+        total_field_count += 1
+
     for group in groups:
         logs, group_total = traverse_group(group, group_hierarchy="", inherited_result=section.get("EntryComponents", {}).get("Result"), depth=1)
         group_logs.extend(logs)
