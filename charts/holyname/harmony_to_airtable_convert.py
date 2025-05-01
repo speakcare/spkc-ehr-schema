@@ -24,9 +24,21 @@ def parse_value_list(value_list_str):
     return [{"name": entry, "color": "blueLight2"} for entry in cleaned_entries]
 
 
-EXTRA_FIELDS = [
-    {"name": "Patient", "type": "singleLineText"},
-    {"name": "CreatedBy", "type": "singleLineText"},
+CONSTANT_FIELDS = [
+    {"name": "RecordID", "type": "singleLineText"},
+    {
+        "name": "Patient", 
+        "type": "multipleRecordLinks",
+        "options": {
+            "linkedTableId": "tbleNsgzYZvRy1st1"
+        }
+    },
+    {   "name": "CreatedBy", 
+        "type": "multipleRecordLinks",
+        "options": {
+            "linkedTableId": "tblku5F04AH4D9WBo"
+        }
+    },
     {
         "name": "SpeakCare",
         "type": "singleSelect",
@@ -42,7 +54,7 @@ EXTRA_FIELDS = [
 
 
 MAX_FIELDS_PER_TABLE = 90
-FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(EXTRA_FIELDS)
+FIELD_SPLIT_THRESHOLD = MAX_FIELDS_PER_TABLE - len(CONSTANT_FIELDS)
 
 
 def extract_airtable_fields_from_section(section, prefix):
@@ -53,8 +65,8 @@ def extract_airtable_fields_from_section(section, prefix):
 
     def add_field(field_obj):
         if field_obj["name"] not in seen_field_names:
-            fields.append(field_obj)
             seen_field_names.add(field_obj["name"])
+            fields.append(field_obj)
 
     def process_finding(finding, group_hierarchy=[], inherited_result=None):
         text = clean_text(finding.get("@Text", "UnnamedField"))
@@ -260,7 +272,7 @@ def extract_airtable_fields_from_section(section, prefix):
 
     tables = []
     for i in range(0, len(fields), FIELD_SPLIT_THRESHOLD):
-        chunk = fields[i:i + FIELD_SPLIT_THRESHOLD] + EXTRA_FIELDS
+        chunk = CONSTANT_FIELDS + fields[i:i + FIELD_SPLIT_THRESHOLD]
         suffix = f"_{i // FIELD_SPLIT_THRESHOLD + 1}" if len(fields) > FIELD_SPLIT_THRESHOLD else ""
         tables.append({
             "name": f"{prefix}.{base_section_name}{suffix}",
