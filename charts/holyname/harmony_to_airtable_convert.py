@@ -2,6 +2,7 @@ import json
 import re
 import argparse
 from bs4 import BeautifulSoup
+import os
 
 
 def clean_text(raw_text):
@@ -241,6 +242,22 @@ def extract_airtable_fields_from_section(section):
         print(f"{indent} Group: {group_text} (fields {own}, {total})")
     print(f"Total fields: {len(fields)}\n")
 
+    fields.extend([
+        {"name": "Patient", "type": "singleLineText"},
+        {"name": "CreatedBy", "type": "singleLineText"},
+        {
+            "name": "SpeakCare",
+            "type": "singleSelect",
+            "options": {
+                "choices": [
+                    {"name": "Draft", "color": "gray"},
+                    {"name": "Approved", "color": "greenBright"},
+                    {"name": "Denied", "color": "redBright"}
+                ]
+            }
+        }
+    ])
+
     return {
         "name": section_name,
         "description": section_prefix,
@@ -251,8 +268,11 @@ def extract_airtable_fields_from_section(section):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert EHR JSON to Airtable table format")
     parser.add_argument("input", help="Path to the input EHR JSON file")
-    parser.add_argument("--output", "-o", required=True, help="Path to the output Airtable table JSON file")
+    parser.add_argument("--output-prefix", "-o", required=True, help="Prefix for output JSON files")
+    parser.add_argument("--output-dir", "-d", default=".", help="Directory to store output files")
     args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     with open(args.input, "r") as f:
         ehr_data = json.load(f)
@@ -266,16 +286,16 @@ if __name__ == "__main__":
     if isinstance(nested_sections, dict):
         nested_sections = [nested_sections]
 
-    all_tables = []
     total_fields = 0
+    written_sections = 0
     for section in nested_sections:
         table, field_count = extract_airtable_fields_from_section(section)
         if table:
-            all_tables.append(table)
+            section_filename = os.path.join(args.output_dir, f"{args.output_prefix}.{table['name']}.json")
+            with open(section_filename, "w") as f:
+                json.dump(table, f, indent=2)
             total_fields += field_count
+            written_sections += 1
 
-    with open(args.output, "w") as f:
-        json.dump(all_tables, f, indent=2)
-
-    print(f"Converted {len(all_tables)} sections to Airtable format and saved to {args.output}")
+    print(f"Converted {written_sections} sections to Airtable format using prefix '{args.output_prefix}'")
     print(f"Total fields extracted: {total_fields}")
