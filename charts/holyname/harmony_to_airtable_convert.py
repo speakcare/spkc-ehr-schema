@@ -124,16 +124,17 @@ def extract_airtable_fields_from_section(section):
             own_field_count += handle_supergroup(group, group_hierarchy)
         elif group_result.get("@EntryType") == "singleCheck" and group_result.get("@StyleClass") == "check" and len(findings) > 0:
             bundled_choices = []
+            field_count = 0
             for finding in findings:
                 result_override = finding.get("EntryComponents", {}).get("Result", {}).get("@EntryType")
                 if result_override:
-                    own_field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
+                    field_count += process_finding(finding, group_hierarchy=next_hierarchy, inherited_result=group_result)
                 else:
                     text = clean_text(finding.get("@Text"))
                     if text:
                         bundled_choices.append({"name": text, "color": "blueLight2"})
 
-            if bundled_choices:
+            if len(bundled_choices) > 1:
                 full_name = f"{section_prefix}.{next_hierarchy}"
                 fields.append({
                     "name": full_name,
@@ -141,7 +142,16 @@ def extract_airtable_fields_from_section(section):
                     "type": "multipleSelects",
                     "options": {"choices": bundled_choices}
                 })
-                own_field_count += 1
+                field_count += 1
+            elif len(bundled_choices) == 1:
+                fields.append({
+                    "name": f"{section_prefix}.{next_hierarchy}.{bundled_choices[0]['name']}",
+                    "description": bundled_choices[0]['name'],
+                    "type": "checkbox",
+                    "options": {"icon": "check", "color": "greenBright"}
+                })
+                field_count += 1
+            own_field_count += field_count
         elif len(findings) > 1 and not has_entry_components:
             choices = []
             for finding in findings:
@@ -222,7 +232,7 @@ def extract_airtable_fields_from_section(section):
         group_logs.extend(logs)
         total_field_count += group_total
 
-    print(f"Section '{section_prefix}': fields ({total_own_field_count}, {total_field_count})")
+    print(f"Section '{section_name}': fields ({total_own_field_count}, {total_field_count})")
     for depth, group_text, own, total in group_logs:
         indent = "---+" * depth
         print(f"{indent} Group: {group_text} (fields {own}, {total})")
