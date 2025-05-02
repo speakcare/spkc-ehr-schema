@@ -6,6 +6,8 @@ lib/
 playground/
 backend/tmp/
 deploy/customer-policies/
+recordings/
+records/
 
 # Ignore the .env file
 .env
