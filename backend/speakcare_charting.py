@@ -251,21 +251,22 @@ def __create_chart_with_json_schema(transcription: str, schema: dict) -> dict:
     prompt = f'''
     You are given a Transcription of a conversation of a nurse providing care to a patient. 
     Based on the transcription, respond with a valid json object formatted according to the provided json_schema, and nothing else.
-    Please fill in the json properties if and only if you are sure of the answers.
-    Do not assume any values, only fill in the properties that can explicitly be dervied from he transcription.
+    Please fill in the json properties.
     Answer in English only. If any field value is a text in a different language, you must translate it into English.
-    If an issue is not mentioned, do not assume it is does not exist and do not fill in a value that implies the patient do not have that issue.
-    In any case you cannot explicitly derive an answer from the transcription, you must set the value to null. 
+    In any case you cannot derive an answer from the transcription, you must set the value to null. 
     If the schema has sections, you must fill in the fields of each section separately.
     Step-by-step rules for each section:
     1. Start with "fields" set to `null`.
     2. If any field in the section has a non-null value, replace "fields" with an object containing only those non-null values.
     3. If all fields are null, ensure "fields" remains set to `null`.
 
-    
     Transcription: {transcription}       
     '''
+    # prompt = f'''
+    # Return true for every field in the schema.
 
+    # Transcription: {transcription}       
+    # '''
     response_choices = openai_chat_completion(system_prompt="You are an expert in parsing medical transcription and filling treatment forms.", 
                                               user_prompt=prompt, num_choices=1, json_schema=schema)
     logger.debug(f"OpenAI Response: {response_choices}")    
