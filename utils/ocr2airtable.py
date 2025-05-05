@@ -1,68 +1,105 @@
-import openai
+import pdfplumber
+import pytesseract
+from pdf2image import convert_from_path
+from PIL import Image
 import os
+import json
+import openai
+import pandas as pd
+import re
+from openai import OpenAI
 from dotenv import load_dotenv
-from pyannote.audio import Pipeline
-import wave
+from speakcare_logging import SpeakcareLogger
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-huggingface_token = os.getenv("HUGGINGFACE_TOKEN")
+OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.2))
+OPENAI_MAX_COMPLETION_TOKENS = int(os.getenv("OPENAI_MAX_COMPLETION_TOKENS", 4096))
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini-2024-07-18")
 
-client = openai.OpenAI(api_key=openai.api_key)
+# OpenAI system prompt
+SYSTEM_PROMPT = "You are an expert in medical transcription and form completion. The input comes from an OCR model and may contain errors—correct them accordingly. Provide only a valid JSON object with accurate syntax, without any explanations or additional text."
 
-# Diarization pipeline
-pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=huggingface_token)
+# Logger setup
+logger = SpeakcareLogger('speakcare_openai')
+openai_client = OpenAI()
 
-def diarize_audio(audio_path):
-    return pipeline(audio_path)
+def extract_json_from_response(response_text):
+    """Extracts valid JSON from OpenAI response using regex."""
+    match = re.search(r'\{.*\}', response_text, re.DOTALL)
+    return match.group(0) if match else None
 
-def transcribe_audio(file_path, language="he"):
-    with open(file_path, "rb") as audio_file:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            language=language,
-            response_format="verbose_json"
-        )
-    return transcript
+def openai_chat_completion(system_prompt: str, user_prompt: str) -> dict:
+    """Calls OpenAI API and ensures a valid JSON output."""
+    logger.info(f"Calling OpenAI API model '{OPENAI_MODEL}'")
+    
+    response = openai_client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=OPENAI_TEMPERATURE,
+        max_tokens=OPENAI_MAX_COMPLETION_TOKENS,
+        n=1
+    )
+    
+    raw_response = response.choices[0].message.content.strip() if response.choices else ''
+    logger.info(f"Raw OpenAI Response: {raw_response}")
 
-def combine_speakers_with_transcript(diarization_result, whisper_result):
-    # Extract transcript segments with time
-    segments = whisper_result.segments
-    speaker_segments = []
+    json_response = extract_json_from_response(raw_response)
+    if not json_response:
+        logger.error("OpenAI response does not contain valid JSON.")
+        return {}
 
-    for seg in segments:
-        start = seg['start']
-        end = seg['end']
-        text = seg['text']
+    try:
+        return json.loads(json_response)
+    except json.JSONDecodeError:
+        logger.error("Failed to parse extracted JSON.")
+        return {}
 
-        # Match this to the diarization result
-        speaker_label = "Unknown"
-        for turn in diarization_result.itertracks(yield_label=True):
-            s, e, speaker = turn
-            if s <= start <= e or s <= end <= e:
-                speaker_label = speaker
-                break
+def extract_text_from_pdf(pdf_path):
+    """Extracts text from a PDF, handling both text-based and scanned PDFs."""
+    extracted_text = []
+    with pdfplumber.open(pdf_path) as pdf:
+        images = convert_from_path(pdf_path)
+        for i, (page, img) in enumerate(zip(pdf.pages, images)):
+            text = page.extract_text() or ""
+            ocr_text = pytesseract.image_to_string(img, lang="eng").strip()
+            combined_text = f"--- Page {i+1} ---\n{text}\n\n--- OCR Content ---\n{ocr_text}\n"
+            extracted_text.append(combined_text)
+    return "\n".join(extracted_text)
 
-        speaker_segments.append(f"{speaker_label}: {text.strip()}")
+def clean_column_name(col_name):
+    """Cleans and formats column names to be more readable."""
+    col_name = col_name.replace("General_Admit_Info.", "").replace("_", " ").strip()
+    col_name = re.sub(r"\.(\w)", lambda m: " " + m.group(1).upper(), col_name)  # Capitalize nested keys
+    return col_name
 
-    return "\n".join(speaker_segments)
+def json_to_csv(json_data, csv_output_path):
+    """Converts JSON data into a CSV with cleaned column names."""
+    if not json_data:
+        logger.error("Empty JSON data, skipping CSV conversion.")
+        return
+    
+    try:
+        df = pd.json_normalize(json_data)  # Flatten nested JSON
+        df.columns = [clean_column_name(col) for col in df.columns]  # Rename columns
+        df.to_csv(csv_output_path, index=False)
+        print(f"CSV file saved at: {csv_output_path}")
+    except Exception as e:
+        logger.error(f"Error converting JSON to CSV: {e}")
+
+def process_pdf_to_csv(pdf_path, csv_output_path):
+    """Processes a PDF to extract text, get JSON from OpenAI, and save as CSV."""
+    extracted_text = extract_text_from_pdf(pdf_path)
+    json_data = openai_chat_completion(SYSTEM_PROMPT, extracted_text)
+    json_to_csv(json_data, csv_output_path)
 
 if __name__ == "__main__":
-    wav_file = "/Users/gilgeva/Downloads/Goat.wav"
-
-    print("Transcribing...")
-    transcript = transcribe_audio(wav_file)
-
-    print("Running diarization...")
-    diarization = diarize_audio(wav_file)
-
-    print("Combining speaker labels...")
-    labeled_transcript = combine_speakers_with_transcript(diarization, transcript)
-
-    output_path = "transcription_with_speakers.txt"
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(labeled_transcript)
-
-    print(f"\n✅ Saved to: {output_path}")
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python pdf_to_csv_processor.py <pdf_path> <csv_output_path>")
+    else:
+        process_pdf_to_csv(sys.argv[1], sys.argv[2])
