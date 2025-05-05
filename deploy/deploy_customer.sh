@@ -290,6 +290,25 @@ RECORDING_UPDATE_RESOURCE_ID=$(aws apigateway create-resource \
 
 
 # ─── 4) PUT METHODS (POST + API KEY REQUIRED) ─────────────────────────────────
+api_gateway_put_method() {
+  resourceId=$1
+  httpMethod=$2
+  requestParameters=$3
+  aws apigateway put-method \
+    --rest-api-id "${REST_API_ID}" \
+    --resource-id "${resourceId}" \
+    --http-method "${httpMethod}" \
+    --authorization-type NONE \
+    --api-key-required \
+    --request-parameters "${requestParameters}" \
+    --profile $AWS_PROFILE \
+    --no-cli-pager  
+}
+
+api_gateway_put_method "${RECORDING_RESOURCE_ID}" "POST" ""
+api_gateway_put_method "${RECORDING_UPDATE_RESOURCE_ID}" "PATCH" "method.request.path.recordingId=true"
+
+
 aws apigateway put-method \
   --rest-api-id "${REST_API_ID}" \
   --resource-id "${RECORDING_RESOURCE_ID}" \
@@ -308,6 +327,20 @@ aws apigateway put-method \
   --request-parameters method.request.path.recordingId=true \
   --profile $AWS_PROFILE \
   --no-cli-pager
+
+api_gateway_delete_method() {
+  resourceId=$1
+  httpMethod=$2
+  aws apigateway delete-method \
+    --rest-api-id "${REST_API_ID}" \
+    --resource-id "${resourceId}" \
+    --http-method "${httpMethod}" \
+    --profile $AWS_PROFILE \
+    --no-cli-pager
+}
+
+api_gateway_delete_method "${RECORDING_RESOURCE_ID}" "POST"
+api_gateway_delete_method "${RECORDING_UPDATE_RESOURCE_ID}" "PATCH"
 
 
 RECORDING_SOURCE_ARN="arn:aws:execute-api:${AWS_REGION}:${AWS_ACCOUNT_ID}:${REST_API_ID}/*/POST/recording"
