@@ -5,6 +5,8 @@
 from dotenv import load_dotenv
 import os
 
+
+
 __env = {}
 envInitialized = False
 
@@ -95,14 +97,16 @@ class SpeakcareEnv:
         if SpeakcareEnv.__env_loaded:
             return
         if not SpeakcareEnv.__env_loaded:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
             if not env_file:
-                env_file = os.getenv("ENV_FILE", "./.env")
-            if not os.path.isfile(env_file):
-                print(f"No {env_file} file found")
+                env_file = os.getenv("ENV_FILE", ".env")
+                dotenv_path = os.path.join(base_dir, env_file)
+            if not os.path.isfile(dotenv_path):
+                print(f"No {dotenv_path} file found")
                 exit(1)
-            print(f"Loading environment variables from {env_file}")
-            if not load_dotenv(env_file, override=True):
-                print(f"No {env_file} file found")
+            print(f"Loading environment variables from {dotenv_path}")
+            if not load_dotenv(dotenv_path, override=True):
+                print(f"Failed to load env file from {dotenv_path}")
                 exit(1)
         SpeakcareEnv.backwards_compatible = (os.getenv("BC_MODE", "false").lower() == "true")
         SpeakcareEnv.__prepare_output_dirs()

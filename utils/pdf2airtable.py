@@ -28,9 +28,9 @@ def extract_text_from_pdf(pdf_path):
         for i, (page, img) in enumerate(zip(pdf.pages, images)):
             text = page.extract_text() or ""
             
-            ocr_text = pytesseract.image_to_string(img, lang="eng").strip()
+            # ocr_text = pytesseract.image_to_string(img, lang="eng").strip()
             
-            combined = f"--- Page {i+1} ---\n{text}\n\n--- OCR Content ---\n{ocr_text}"
+            combined = f"--- Page {i+1} ---\n{text}\n\n"
 
             extracted_text.append(combined)
     return "\n".join(extracted_text)

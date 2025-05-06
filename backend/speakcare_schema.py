@@ -203,7 +203,7 @@ class AirtableSchema:
             
             field_options = field.get("options", {})
             field_description = field.get("description", "")
-            is_required = "required" in field_description.lower()
+            is_required = field_description.lower().startswith("(required)")
             # all fields must be set to required in json schema for OpenAI
             required.append(field_name) 
             self.field_registry[field_name] = {

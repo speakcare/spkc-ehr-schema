@@ -1,0 +1,7 @@
+pdf2image
+xmltodict
+pdfplumber
+pytesseract
+pillow
+openai
+httpx

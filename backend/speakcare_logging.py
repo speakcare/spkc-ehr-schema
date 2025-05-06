@@ -1,7 +1,8 @@
 import logging
 import os, sys
 import traceback
-from speakcare_env import SpeakcareEnv
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from backend.speakcare_env import SpeakcareEnv
 
 # Load environment variables
 SpeakcareEnv.load_env()
