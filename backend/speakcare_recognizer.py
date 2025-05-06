@@ -2,6 +2,7 @@ import os
 import argparse
 import json
 import shutil
+import time
 from boto3_session import Boto3Session
 from collections import defaultdict
 from speakcare_logging import SpeakcareLogger
@@ -232,9 +233,13 @@ class TranscriptRecognizer:
             for audio_segment in audio_segments:
                 speaker = audio_segment.get("speaker_label", "")
                 if speaker:
-                    most_likely_name = self.speaker_stats.get(speaker, {}).get('most_likely_person', f"{speaker} ('{SpeakcareEmbeddings.UNKNOWN_SPEAKER}')")
-                    audio_segment["speaker_label"] = most_likely_name
+                    # most_likely_name = self.speaker_stats.get(speaker, {}).get('most_likely_person', f"{speaker} ('{SpeakcareEmbeddings.UNKNOWN_SPEAKER}')")
+                    most_likely_name = self.speaker_stats.get(speaker, {}).get('most_likely_person', SpeakcareEmbeddings.UNKNOWN_SPEAKER)
                     audio_segment["speaker_role"] = self.embeddings_store.get_speaker_role(most_likely_name).value
+                    if most_likely_name != SpeakcareEmbeddings.UNKNOWN_SPEAKER:
+                        audio_segment["speaker_label"] = most_likely_name
+                    
+                    
         
         except Exception as e:
             self.logger.log_exception(f"Transcript generation error", e)
@@ -260,7 +265,7 @@ class TranscriptRecognizer:
     def get_transcript(self):
         return self.transcript
     
-    def generate_recognized_text_transcript(self):
+    def generate_recognized_text_transcript(self, add_timestamps=False):
         ''' Generate a text transcript with the most likely speaker names '''
 
         if not self.transcript:
@@ -273,8 +278,12 @@ class TranscriptRecognizer:
                 speaker_label = audio_segment.get("speaker_label", SpeakcareEmbeddings.UNKNOWN_SPEAKER)
                 speaker_role = audio_segment.get("speaker_role", SpeakerRole.UNKNOWN)
                 transcript = audio_segment.get("transcript", "")
-
-                line = f"speaker:{speaker_label} role:{speaker_role}: {transcript}"
+                start_time = float(audio_segment.get("start_time",0)) 
+                timestamp = time.strftime("%H:%M:%S", time.gmtime(start_time))
+                if add_timestamps:
+                    line = f"{timestamp} speaker:{speaker_label} role:{speaker_role}: {transcript}"
+                else:
+                    line = f"{speaker_label} role:{speaker_role}: {transcript}"
                 lines.append(line)
             return "\n".join(lines)
         except Exception as e:

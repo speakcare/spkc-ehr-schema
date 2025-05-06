@@ -43,7 +43,7 @@ class SpeakcareDiarize:
         return transcription_output_key, diarization_output_key, text_output_key
 
 
-    def __do_diarization(self, audio_file: str, output_file_prefix: str='output'):
+    def __do_diarization(self, audio_file: str, output_file_prefix: str='output', add_timestamps: bool = False):
         """Main method to transcribe audio and recognize speakers."""
 
         transcription_output_key, diarization_output_key, text_output_key = self.create_output_files_keys(output_file_prefix)
@@ -53,17 +53,18 @@ class SpeakcareDiarize:
         return self.recognize_transcript(audio_file = audio_file, 
                                 transcription_file=transcription_file,
                                 diarization_output_key=diarization_output_key,
-                                text_output_key=text_output_key)
+                                text_output_key=text_output_key,
+                                add_timestamps=add_timestamps)
         
 
 
-    def diarize(self, audio_file:str, output_file:str="output.txt", append=False):
+    def diarize(self, audio_file:str, output_file:str="output.txt", append=False, add_timestamps: bool = False):
 
         transcipt_file_key = None
         output_file_prefix = os_get_filename_without_ext(output_file)
         try:
             self.logger.info(f"Transcribing and diarizing audio from {audio_file} into {output_file}. Output prefix: {output_file_prefix}")
-            transcipt_file_key = self.__do_diarization(audio_file, output_file_prefix)
+            transcipt_file_key = self.__do_diarization(audio_file, output_file_prefix, add_timestamps)
 
             if append:
                 self.logger.info(f"Appending to {output_file}")
@@ -78,7 +79,7 @@ class SpeakcareDiarize:
         return self.b3session.s3_get_object_size(output_file)
 
     
-    def recognize_transcript(self, audio_file: str, transcription_file: str, diarization_output_key: str, text_output_key: str):
+    def recognize_transcript(self, audio_file: str, transcription_file: str, diarization_output_key: str, text_output_key: str, add_timestamps: bool = False):
 
         self.logger.info(f"recognize_speakers: transcription {transcription_file}. audio {audio_file}")
         diarized_transcription = self.recognizer.recognize(audio_file, transcription_file)
@@ -88,7 +89,7 @@ class SpeakcareDiarize:
         # Write the diarized transcription to S3 into diariations folder
         self.b3session.s3_put_object(key=diarization_output_key, body=json.dumps(diarized_transcription))
         self.logger.info(f"Uploaded diarized transcription to 's3://{self.b3session.s3_get_bucket_name()}/{diarization_output_key}'")
-        generated_transcript = self.recognizer.generate_recognized_text_transcript()
+        generated_transcript = self.recognizer.generate_recognized_text_transcript(add_timestamps=add_timestamps)
         self.b3session.s3_put_object(key=text_output_key, body=generated_transcript)
         self.logger.info(f"Uploaded text transcription to s3://{self.b3session.s3_get_bucket_name()}/{text_output_key}")
 
@@ -112,6 +113,7 @@ def main():
     parser.add_argument('-i', '--input', type=str, help="S3 path to the specific input file.")
     parser.add_argument('-t', '--match-threshold', type=float, help="Matching similarity threshold.")
     parser.add_argument('-b', '--batch', action='store_true', help="Batch mode: process all files in a directory or S3 bucket.")
+    parser.add_argument('-d', '--add-timestamps', action='store_true', help="Add timestamps to the transcript.")
     args = parser.parse_args()
 
     
@@ -119,6 +121,8 @@ def main():
     if not audio_file:
         print("Audio file is required.")
         exit(1)
+
+    add_timestamps = args.add_timestamps
 
     b3session = Boto3Session.get_single_instance()
    
@@ -175,7 +179,7 @@ def main():
             match function:
                 case "full":
                     diarized_output_file = f'{audio_prefix}-diarized.txt'
-                    diarizer.diarize(audio_file=local_audio_file, output_file=diarized_output_file)
+                    diarizer.diarize(audio_file=local_audio_file, output_file=diarized_output_file, add_timestamps=add_timestamps)
                 case "transcribe":
                     transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
                     diarizer.transcriber.transcribe(local_audio_file, transcription)
@@ -184,7 +188,8 @@ def main():
                     diarizer.recognize_transcript(audio_file=local_audio_file, 
                                                 transcription_file = input_file_path,
                                                 diarization_output_key=diarization,
-                                                text_output_key=text)
+                                                text_output_key=text,
+                                                add_timestamps=add_timestamps)
                 case _:
                     print(f"Invalid function '{function}'")
                     return
