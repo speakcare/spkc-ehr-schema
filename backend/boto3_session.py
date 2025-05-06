@@ -230,6 +230,11 @@ class Boto3Session:
             self.__logger.error(f"Error reading content from object s3://{bucket}/{key}: {e}")
             raise
 
+    def s3_uri_split_bucket_key(self, uri: str):
+        key = Boto3Session.s3_extract_key(uri)
+        bucket = Boto3Session.s3_extract_bucket(uri)
+        return bucket, key
+    
     def s3_uri_get_object_content(self, uri) -> str:
         key = Boto3Session.s3_extract_key(uri)
         bucket = Boto3Session.s3_extract_bucket(uri)
@@ -304,10 +309,11 @@ class Boto3Session:
         bucket = Boto3Session.s3_extract_bucket(uri)
         return self.s3_get_object_last_modified(key=key, bucket=bucket)
 
-    def s3_list_folder(self, folder_prefix: str):
+    def s3_list_folder(self, folder_prefix: str, bucket: str = None):
         """List all objects in a specific folder in the S3 bucket."""
         try:
-            response = self.__s3_client.list_objects_v2(Bucket=self.__s3_bucket_name, Prefix=folder_prefix)
+            bucket = bucket if bucket else self.__s3_bucket_name
+            response = self.__s3_client.list_objects_v2(Bucket=bucket, Prefix=folder_prefix)
             if 'Contents' in response:
                 objects = [obj['Key'] for obj in response['Contents']]
                 self.__logger.info(f"Listed {len(objects)} objects in folder s3://{self.__s3_bucket_name}/{folder_prefix}")

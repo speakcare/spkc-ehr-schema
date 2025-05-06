@@ -98,6 +98,7 @@ class SpeakcareDiarize:
 
 def main():
     SpeakcareEnv.load_env()
+    logger = SpeakcareLogger(main.__name__)
     parser = argparse.ArgumentParser(description="Speaker Recognition Tool")
     choices = ["full", "transcribe", "recognize"]
     parser.add_argument(
@@ -110,59 +111,106 @@ def main():
     parser.add_argument('-a', '--audio', type=str, required=True, help="Local path to audio file.")
     parser.add_argument('-i', '--input', type=str, help="S3 path to the specific input file.")
     parser.add_argument('-t', '--match-threshold', type=float, help="Matching similarity threshold.")
+    parser.add_argument('-b', '--batch', action='store_true', help="Batch mode: process all files in a directory or S3 bucket.")
     args = parser.parse_args()
 
-    b3session = Boto3Session.get_single_instance()
-    matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.5))
-
+    
     audio_file = args.audio
     if not audio_file:
         print("Audio file is required.")
         exit(1)
 
-    input_file_path = args.input
-    audio_prefix = os_concat_current_time(os_get_filename_without_ext(audio_file)) if audio_file else None
-
-    remove_audio_local_file = False
-    audio_file, remove_audio_local_file = b3session.s3_localize_file(audio_file)
-    converted_wav_file = None
-    matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.5))
-    
+    b3session = Boto3Session.get_single_instance()
+   
     if args.match_threshold:
         matching_similarity_threshold = args.match_threshold
+    else:
+        matching_similarity_threshold = float(os.getenv("MATCHING_SIMILARITY_THRESHOLD", 0.5))
     
     diarizer = SpeakcareDiarize(matching_similarity_threshold=matching_similarity_threshold)
 
-    if not audio_is_wav(audio_file):
-        converted_wav_file = audio_convert_to_wav(audio_file)
-        audio_file = converted_wav_file
-    try:
-        match args.function:
-            case "full":
-                diarized_output_file = f'{audio_prefix}-diarized.txt'
-                diarizer.diarize(audio_file=audio_file, output_file=diarized_output_file)
+    def is_s3_path(path):
+        return path and b3session.s3_is_s3_uri(path)
 
-            case "transcribe":
-                transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
-                diarizer.transcriber.transcribe(audio_file, transcription)
+    def list_audio_files(path):
+        if is_s3_path(path):
+            # List S3 objects with audio extensions
+            bucket, prefix = b3session.s3_uri_split_bucket_key(path)
+            all_files = b3session.s3_list_folder(folder_prefix=prefix, bucket=bucket)
+            return [f"s3://{bucket}/{key}" for key in all_files if key.lower().endswith(('.wav', '.mp3', '.m4a', '.flac', '.ogg'))]
+        else:
+            return [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith(('.wav', '.mp3', '.m4a', '.flac', '.ogg'))]
 
-            case "recognize":
-                # The input file is a post recognition file
-                _, diarization, text = diarizer.create_output_files_keys(audio_prefix)
-                diarizer.recognize_transcript(audio_file=audio_file, 
-                                            transcription_file = input_file_path,
-                                            diarization_output_key=diarization,
-                                            text_output_key=text)
-            case _:
-                print(f"Invalid function '{args.function}'")
-                exit(1)
-    except Exception as e:
-        print(f"Error occurred: {e}")
-    finally:
-        if remove_audio_local_file and audio_file and os.path.isfile(audio_file):
-            os.remove(audio_file)
-        elif converted_wav_file and os.path.isfile(converted_wav_file):
-            os.remove(converted_wav_file)
+    def list_transcript_files(path):
+        if not path:
+            return None
+        if is_s3_path(path):
+            bucket, prefix = b3session.s3_uri_split_bucket_key(path)
+            all_files = b3session.s3_list_folder(folder_prefix=prefix, bucket=bucket)
+            return [f"s3://{bucket}/{key}" for key in all_files if key.lower().endswith('.json')]
+        else:
+            return [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith('.json')]
+
+    def match_transcript(audio_file, transcript_files):
+        if not transcript_files:
+            return None
+        audio_base = os.path.splitext(os.path.basename(audio_file))[0]
+        for t in transcript_files:
+            t_base = os.path.splitext(os.path.basename(t))[0]
+            if t_base.startswith(audio_base):
+                logger.info(f"Audio file {audio_file} matches transcript file {t}")
+                return t
+        return None
+
+    def process_file(audio_file, input_file_path, function, diarizer: SpeakcareDiarize):
+        logger.info(f"Function {function} processing audio file {audio_file}, input file {input_file_path}")
+        remove_audio_local_file = False
+        converted_wav_file = None
+        local_audio_file, remove_audio_local_file = b3session.s3_localize_file(audio_file)
+        audio_prefix = os_concat_current_time(os_get_filename_without_ext(audio_file))
+        if not audio_is_wav(local_audio_file):
+            converted_wav_file = audio_convert_to_wav(local_audio_file)
+            local_audio_file = converted_wav_file
+        try:
+            match function:
+                case "full":
+                    diarized_output_file = f'{audio_prefix}-diarized.txt'
+                    diarizer.diarize(audio_file=local_audio_file, output_file=diarized_output_file)
+                case "transcribe":
+                    transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
+                    diarizer.transcriber.transcribe(local_audio_file, transcription)
+                case "recognize":
+                    _, diarization, text = diarizer.create_output_files_keys(audio_prefix)
+                    diarizer.recognize_transcript(audio_file=local_audio_file, 
+                                                transcription_file = input_file_path,
+                                                diarization_output_key=diarization,
+                                                text_output_key=text)
+                case _:
+                    print(f"Invalid function '{function}'")
+                    return
+        except Exception as e:
+            print(f"Error occurred processing {audio_file}: {e}")
+        finally:
+            if remove_audio_local_file and local_audio_file and os.path.isfile(local_audio_file):
+                os.remove(local_audio_file)
+            elif converted_wav_file and os.path.isfile(converted_wav_file):
+                os.remove(converted_wav_file)
+
+
+    if args.batch:
+        audio_files = list_audio_files(args.audio)
+        logger.info(f"Found {len(audio_files)} audio files in {args.audio}")
+        transcript_files = list_transcript_files(args.input) if args.input else None
+        for i, audio_file in enumerate(audio_files):
+            logger.info(f"Processing audio file {i+1} of {len(audio_files)}: {audio_file}")
+            input_file_path = match_transcript(audio_file, transcript_files) if transcript_files else None
+            process_file(audio_file, input_file_path, args.function, diarizer)
+        return
+
+    else:
+        process_file(audio_file, args.input, args.function, diarizer)
+        return
+
 
 if __name__ == "__main__":
     main()
