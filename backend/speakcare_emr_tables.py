@@ -85,6 +85,7 @@ class SpeakCareEmrTables:
     MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE = 'MHCS.Nursing_Daily_Skilled_Note'
     MHCS_ADMISSION_DETAILS_TABLE = 'MHCS.Admission_Details'
     MHCS_EINTERACT_EVALUATION_TABLE = 'MHCS.eINTERACT_Change_in_Condition_Evaluation'
+    MHCS_NEUROLOGICAL_EVALUATION_TABLE = 'MHCS.Neurological_Evaluation'
     
     
 
@@ -130,6 +131,7 @@ class SpeakCareEmrTables:
         MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
         MHCS_ADMISSION_DETAILS_TABLE,
         MHCS_EINTERACT_EVALUATION_TABLE,
+        MHCS_NEUROLOGICAL_EVALUATION_TABLE,
         # WEIGHTS_TABLE, 
         # BLOOD_PRESSURES_TABLE, 
         # BLOOD_SUGARS_TABLE, 
