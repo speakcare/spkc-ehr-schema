@@ -184,6 +184,9 @@ def main():
                     transcription, _, _ = diarizer.create_output_files_keys(audio_prefix)
                     diarizer.transcriber.transcribe(local_audio_file, transcription)
                 case "recognize":
+                    if not input_file_path:
+                        logger.error(f"Input file path is required for recognize function. Audio file: {audio_file}")
+                        raise Exception("Input file path is required for recognize function")
                     _, diarization, text = diarizer.create_output_files_keys(audio_prefix)
                     diarizer.recognize_transcript(audio_file=local_audio_file, 
                                                 transcription_file = input_file_path,
