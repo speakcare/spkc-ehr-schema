@@ -61,7 +61,8 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str],
             # Step 2: Transcribe Audio (speech to text)
             # If multiple audio files are provided, append the transcription to the same file - the first file will overwrite older file if exists
             try:
-                transcript_len = diarizer.diarize(audio_file=wav_filename, output_file=transcription_filename, append= (num > 0), add_timestamps=add_transcript_timestamps)
+                transcript_len = diarizer.diarize(audio_file=wav_filename, output_file=transcription_filename, 
+                                                  append= (num > 0), add_timestamps=add_transcript_timestamps)
                 if transcript_len == 0:
                     logger.error(f"Error occurred while transcribing audio file {wav_filename}")
             except Exception as e:

@@ -114,7 +114,7 @@ class SpeakcarePilot:
 
     def process_new_care_sessions(self, tables: list):
         care_session_files = self.sync_care_session_files()
-        self.logger.info(f"Processing care sessions: {care_session_files} for {len(tables)} tables {tables} ")
+        self.logger.info(f"Processing care sessions: {care_session_files} for tables {tables} ")
         try:
             for care_session in care_session_files:
                 record_ids, response = speakcare_process_audio([care_session], tables, 
@@ -158,13 +158,14 @@ def main():
     
     if args.process:
         # Ensure --table is always provided if --list-devices is not used
-        if not args.charts:
-            parser.error("--charts is required.")
+        if not args.charts and not args.transcribe_only:
+            parser.error("Either --charts or --transcribe-only are required.")
     
         chart_names = args.charts
-        unsupported_cahrts = [chart for chart in chart_names if chart not in supported_charts]
-        if unsupported_cahrts:
-            parser.error(f"Invalid chart names: {unsupported_cahrts}. Supported charts: {supported_charts}")
+        if chart_names:
+            unsupported_cahrts = [chart for chart in chart_names if chart not in supported_charts]
+            if unsupported_cahrts:
+                parser.error(f"Invalid chart names: {unsupported_cahrts}. Supported charts: {supported_charts}")
         pilot.process_new_care_sessions(tables=chart_names)
     
 if __name__ == '__main__':
