@@ -361,17 +361,27 @@ def openai_convert_document_to_airtable_schema(document_text: str, customer: str
             + The document is organized in sections, gruops and questions. Each section is divided into groups of questions.
             + The hierarchy indexing is as follows:
                 1. Section number and title for example: "2. Admission Details"
-                2. Group letter (always a capital letter) for example: "G. Vital Signs"
+                2. Group letter (always a capital letter) for example: "G. Vital Signs" OR Group number and title for example: "2. Required Evaluations"
                 3. Question ID is either a number or a number with a letter. For example: "7" or "12a". When there is a letter, it is always a lowercase letter.
                    When the question ID is a number with a letter it is a subsequent question of the question with the number. For example: "12a" is a subsequent question of "12".
                    Subsequent questions are meaningful only in the context of the question they are a subsequent question of.
+                4. A multi question is a question that splits into multiple questions. For example:
+                      "2. Most Recent Blood Pressure"
+                         "Blood Pressure:"  "Date:"
+                         "Position:"
+                    This is split into 3 questions:
+                      "2a. Most Recent Blood Pressure" (type: number)
+                      "2b. Most Recent Blood Pressure.Date" (type: singleLineText)
+                      "2c. Most Recent Blood Pressure.Position" (type: singleLineText)
+                5. NOTE: Some documents do not have sections and there will be only groups and questions in the hierarchy.
         
         - Create the table schema for the document.
             1. The table name is the section title up to the first comma or dot. If the name has spaces, replace them with unndercores. 
                For example: "Admission Details, Orientation to Facility and Preferences" will be "Admission_Details"
-            2. Use the customer name {customer} as a prefix for the table name. For example: "Customer.Admission_Details"    
-            3. Add the constant fields as the first fields in the fields array.
-            4. Add the other fields to the fields array according to the instructions to follow.
+            2. If there are no sections, use the document title as the table name.
+            3. Use the customer name {customer} as a prefix for the table name. For example: "Customer.Admission_Details"    
+            4. Add the constant fields as the first fields in the fields array.
+            5. Add the other fields to the fields array according to the instructions to follow.
         
                 
         - Field mapping:
@@ -416,8 +426,17 @@ def openai_convert_document_to_airtable_schema(document_text: str, customer: str
                     1. Initial goals: -> name: "1. Initial goals", description: "Initial goals"
                     1a. If "other" selected, describe: -> name: "1a. If "other" selected, describe", description: "Initial goals. If "other" selected, describe"
                
-            8. Format the field according to the type including the options if required.
-            9. General guidelines:
+            8. Multi questions with a single question ID, the question name must be prefixed by the parent question name For example:
+              "3. Most Recent Pulse"
+                 "Pulse:"  "Date:" 
+                 "Pulse Type:" 
+                 
+              This should created 3 fields:
+                 "3a. Most Recent Pulse" (type: number), 
+                 "3b. Pulse Type" (type: singleLineText), 
+                 "3c. Pulse Date" (type: singleLineText)
+            9. Format the field according to the type including the options if required.
+            10. General guidelines:
                 a. IMPORTANT: Always include ALL fields from the form, even if they are empty. Do not skip any fields.
                 b. Avoid creating your own field names.
                 c. Make sure that the words you return are real words and that everything makes sense.
@@ -427,6 +446,30 @@ def openai_convert_document_to_airtable_schema(document_text: str, customer: str
         user_prompt=document_text,
     )
     return table
+
+
+def remove_quotes_from_names_and_descriptions(obj):
+    """
+    Recursively remove all double and single quotes, backslashes, and forward slashes from 'name' and 'description' fields in a nested dict/list.
+    If a slash is separated by spaces, remove it; otherwise, replace it with a space.
+    Forward slash (/) is replaced with the word 'or'.
+    """
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in ("name", "description") and isinstance(v, str):
+                # Remove quotes
+                v = v.replace('"', '').replace("'", "")
+                # Replace forward slash with 'or'
+                v = v.replace('/', ' or ')
+                # Remove backslash if separated by spaces, otherwise replace with space
+                v = re.sub(r'\s*\\\s*', ' ', v)
+                obj[k] = v
+            else:
+                remove_quotes_from_names_and_descriptions(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            remove_quotes_from_names_and_descriptions(item)
+
 
 if __name__ == "__main__":
     import argparse
@@ -470,6 +513,7 @@ if __name__ == "__main__":
                 print("\n\n\n")
                 print(f"cleaned_response_content:\n{cleaned_response_content}")
                 response_dict = json.loads(cleaned_response_content)
+                remove_quotes_from_names_and_descriptions(response_dict)
                 output_filename = f"{response_dict.get('name', 'Unknown')}.json"
                 output_filename = os.path.join(output_dir, output_filename)
                 with open(output_filename, "w") as f:
