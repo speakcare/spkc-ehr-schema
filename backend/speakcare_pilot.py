@@ -67,6 +67,7 @@ class SpeakcarePilot:
         except Exception as e:
             self.logger.log_exception(f"Error syncing S3 folder {s3_folder_key} with Google Drive folder {gdrive_folder_id}", e)
         
+        self.logger.info(f"Uploaded {len(uploaded_files)} files to S3 folder {s3_folder_key}")
         return uploaded_files
     
     
