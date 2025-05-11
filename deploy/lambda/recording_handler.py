@@ -14,7 +14,19 @@ uploadExpires = int(os.environ['UPLOAD_EXPIRES'])
 presignUrlExpires = int(os.environ['PRESIGN_URL_EXPIRES'])
 
 def lambda_handler(event, context):
-    # 1) Parse input
+    print(f"Received event: {event}")
+    # 1) Parse path parameters
+    path = event.get("path", "")
+    if path.endswith("/enrollment"):
+        recordingType = "enrollment"
+    elif path.endswith("/session"):
+        recordingType = "session"
+    else:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": f"Invalid path: {path}"})
+        }
+    # 2) Parse body
     body = json.loads(event['body'])
     customerId = body.get('customerId')
     if not customerId:
@@ -28,19 +40,19 @@ def lambda_handler(event, context):
             'body': json.dumps({'error':'Invalid customerId'})
         }
     
-    recordingType = body.get('type')            # must be "enroll" or "session"
-    if recordingType not in ('enroll','session'):
-        return {
-            'statusCode': 400,
-            'body': json.dumps({'error':'Invalid type; must be "enroll" or "session"'})
-        }
+    # recordingType = body.get('type')            # must be "enroll" or "session"
+    # if recordingType not in ('enroll','session'):
+    #     return {
+    #         'statusCode': 400,
+    #         'body': json.dumps({'error':'Invalid type; must be "enroll" or "session"'})
+    #     }
 
     fileName = body['fileName']            # e.g. "rec-20250422.flac"
     username  = body['username']
 
     # 2) Derive bucket, table, S3 key
     bucket     = f"speakcare-{customer}"
-    if recordingType == 'enroll':
+    if recordingType == 'enrollment':
         prefix     = f"{recordingDir}/enrollments/{username}"
         tableName = f"{customer}-enrollments"
     else:
@@ -71,7 +83,7 @@ def lambda_handler(event, context):
       'createdAt':        now,
       'expiresAt':        expiresAt
     }
-    if recordingType == 'enroll':
+    if recordingType == 'enrollment':
       item['speakerType'] = body.get('speakerType','clinician')
 
     table.put_item(Item=item)
