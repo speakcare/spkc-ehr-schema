@@ -6,7 +6,7 @@ AWS_REGION="$(aws configure get region --profile $AWS_PROFILE)"
 
 SPEAKCARE_DOMAIN="speakcare.ai"
 SPEAKCARE_ENV="dev"
-SPEAKCARE_API_DOMAIN="api.${SPEAKCARE_ENV}.${SPEAKCARE_DOMAIN}"
+SPEAKCARE_API_SUBDOMAIN="api.${SPEAKCARE_ENV}.${SPEAKCARE_DOMAIN}"
 
 # STEP 1: Request a wildcard ACM certificate (once per environment)
 
@@ -26,7 +26,7 @@ acm_request_wildcard_cert() {
 
 # Get the certificate ARN:
 
-get_wildcard_cert_arn() {
+acm_get_wildcard_cert_arn() {
   region=$1
   domain=$2
   certArn=$(aws acm list-certificates \
@@ -38,10 +38,11 @@ get_wildcard_cert_arn() {
   echo "$certArn"
 }
 
-# CERT_ARN=$(get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
+# CERT_ARN=$(acm_get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
 
 # Get route53 zone id
-get_route53_zone_id() {
+# TBD fix this to get the specific zone id
+route53_get_first_zone_id() {
   domain=$1
   zoneId=$(aws route53 list-hosted-zones-by-name \
     --dns-name "$domain" \
@@ -51,8 +52,37 @@ get_route53_zone_id() {
   echo "$zoneId"
 }
 
+route53_get_zone_id() {
+  domain=$1
+  hosted_zone=$2
+
+  # Get all hosted zones that match the domain
+  zones=$(aws route53 list-hosted-zones-by-name \
+    --dns-name "$domain" \
+    --query 'HostedZones[*].[Id,Name]' \
+    --output text \
+    --profile $AWS_PROFILE)
+
+  # If no hosted zone name provided, return the first one (original behavior)
+  if [ -z "$hosted_zone" ]; then
+    echo "$zones" | head -n 1 | cut -f1
+    return
+  fi
+
+  # Search for the specific hosted zone
+  while IFS=$'\t' read -r id name; do
+    if [ "$name" = "$hosted_zone." ]; then  # Note: Route53 names end with a dot
+      echo "$id"
+      return
+    fi
+  done <<< "$zones"
+
+  # If no match found, return empty
+  echo ""
+}
+
 # STEP 2: Create validation CNAME in Route 53
-create_validation_cname_record() {
+acm_create_validation_cname_record() {
   cert_arn=$1
   region=$2
   # Fetch DNS validation info:
@@ -67,7 +97,7 @@ create_validation_cname_record() {
   dnsValue=$(echo "$dnsValidation" | jq -r '.Value')
 
   # Get the Route 53 zone ID:
-  zoneId=$(get_route53_zone_id $SPEAKCARE_DOMAIN)
+  zoneId=$(route53_get_zone_id $SPEAKCARE_DOMAIN)
 
   echo "Route 53 Zone ID: ${zoneId}"
 
@@ -94,7 +124,7 @@ create_validation_cname_record() {
 }
 
 
-wait_for_acm_validation() {
+acm_wait_for_cert_validation() {
   local cert_arn="$1"
   local region="$AWS_REGION"
   local status="PENDING_VALIDATION"

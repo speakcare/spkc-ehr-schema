@@ -1,10 +1,9 @@
 #!/bin/bash
-source ./api_cert.sh
+source ./dns_and_cert.sh
 set -euo pipefail
 
 # Environment variables to be set by the user
 #CUSTOMER_NAME="holyname"
-#AWS_PROFILE="speakcare.dev"
 #STAGE_NAME="prod"
 #SPEAKCARE_ENV="dev"
 AWS_PROFILE="speakcare.${SPEAKCARE_ENV}"
@@ -38,9 +37,9 @@ S3_BUCKET_ARN="arn:aws:s3:::${S3_BUCKET}"
 S3_RECORDING_DIR="recording"
 
 # DynamoDB variables
-DYNAMO_TABLE_ENROLLMENTS="${CUSTOMER_NAME}-enrollments"
+DYNAMO_TABLE_ENROLLMENTS="${CUSTOMER_NAME}-recordings-enrollments"
 DYNAMO_TABLE_ENROLLMENTS_ARN="arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_ENROLLMENTS}"
-DYNAMO_TABLE_SESSIONS="${CUSTOMER_NAME}-sessions"
+DYNAMO_TABLE_SESSIONS="${CUSTOMER_NAME}-recordings-sessions"
 DYNAMO_TABLE_SESSIONS_ARN="arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${DYNAMO_TABLE_SESSIONS}"
 
 # Lambda function names
@@ -54,9 +53,9 @@ LAMBDA_ARN_RECORDING="${LAMBDA_ARN_BASE}:${LAMBDA_FUNCTION_NAME_RECORDING}"
 LAMBDA_ARN_RECORDING_UPDATE="${LAMBDA_ARN_BASE}:${LAMBDA_FUNCTION_NAME_RECORDING_UPDATE}"
 
 # Lambda API URIs
-API_URI_BASE="arn:aws:apigateway:${AWS_REGION}:lambda:path/2015-03-31/functions"
-API_URI_RECORDING="${API_URI_BASE}/${LAMBDA_ARN_RECORDING}/invocations"
-API_URI_RECORDING_UPDATE="${API_URI_BASE}/${LAMBDA_ARN_RECORDING_UPDATE}/invocations"
+API_LAMBDA_URI_BASE="arn:aws:apigateway:${AWS_REGION}:lambda:path/2015-03-31/functions"
+API_LAMBDA_URI_RECORDING="${API_LAMBDA_URI_BASE}/${LAMBDA_ARN_RECORDING}/invocations"
+API_LAMBDA_URI_RECORDING_UPDATE="${API_LAMBDA_URI_BASE}/${LAMBDA_ARN_RECORDING_UPDATE}/invocations"
 
 
 # IAM roles
@@ -65,6 +64,7 @@ ROLE_ARN_LAMBDA_RECORDING="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ROLE_NAME_LAMBD
 
 
 # Policy 
+SERVICE_ROLE_LAMBDA_POLICY_ARN="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 POLICY_DIR="customer-policies"
 POLICY_NAME_S3_DYNAMO="speakcare-${CUSTOMER_NAME}-s3-dynamo-policy"
 POLICY_ARN_S3_DYNAMO="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${POLICY_NAME_S3_DYNAMO}"
@@ -72,8 +72,9 @@ POLICY_FILE_S3_DYNAMO="${POLICY_DIR}/${CUSTOMER_NAME}-lambda-s3-dynamo-policy.js
 
 # domain variables
 SPEAKCARE_DOMAIN="speakcare.ai"
-SPEAKCARE_API_DOMAIN="api.${SPEAKCARE_ENV}.${SPEAKCARE_DOMAIN}"
-CUSTOMER_API_DOMAIN="${CUSTOMER_NAME}.${SPEAKCARE_API_DOMAIN}"
+SPEAKCARE_HOSTED_ZONE="${SPEAKCARE_ENV}.${SPEAKCARE_DOMAIN}"
+SPEAKCARE_API_SUBDOMAIN="api.${SPEAKCARE_HOSTED_ZONE}"
+CUSTOMER_API_DOMAIN="${CUSTOMER_NAME}.${SPEAKCARE_API_SUBDOMAIN}"
 
 # API Gateway, REST API, and key
 # ─── VARIABLES ────────────────────────────────────────────────────────────────                           # e.g. us-east-1
@@ -119,7 +120,7 @@ dynamodb_enable_ttl() {
     --table-name "${table}" \
     --time-to-live-specification Enabled=true,AttributeName=expiresAt \
     --profile $AWS_PROFILE \
-    -no-cli-pager
+    --no-cli-pager
 }
 #dynamodb_enable_ttl $DYNAMO_TABLE_ENROLLMENTS
 #dynamodb_enable_ttl $DYNAMO_TABLE_SESSIONS
@@ -142,9 +143,10 @@ iam_create_role() {
 # Attach the AWS‑managed Lambda Logging Policy
 iam_attach_role_policy() {
   role=$1
+  policyArn=$2
   aws iam attach-role-policy \
     --role-name "${role}" \
-    --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole \
+    --policy-arn "${policyArn}" \
     --profile $AWS_PROFILE \
     --no-cli-pager
 }
@@ -385,7 +387,23 @@ api_gateway_put_method() {
   restApiId=$1
   resourceId=$2
   httpMethod=$3
+  echo "PUT METHOD: ${restApiId} ${resourceId} ${httpMethod}"
+  aws apigateway put-method \
+    --rest-api-id "${restApiId}" \
+    --resource-id "${resourceId}" \
+    --http-method "${httpMethod}" \
+    --authorization-type NONE \
+    --api-key-required \
+    --profile $AWS_PROFILE \
+    --no-cli-pager  
+}
+
+api_gateway_put_method_with_path_parameters() {
+  restApiId=$1
+  resourceId=$2
+  httpMethod=$3
   requestParameters=$4
+  echo "PUT METHOD: ${restApiId} ${resourceId} ${httpMethod} ${requestParameters}"
   aws apigateway put-method \
     --rest-api-id "${restApiId}" \
     --resource-id "${resourceId}" \
@@ -461,7 +479,7 @@ api_gateway_put_integration() {
   apiUri=$4
   aws apigateway put-integration \
     --rest-api-id "${restApiId}" \
-    --resource-id "${resourceId}" \ 
+    --resource-id "${resourceId}" \
     --http-method "${httpMethod}" \
     --type AWS_PROXY \
     --integration-http-method POST \
@@ -550,7 +568,7 @@ api_gateway_create_deployment() {
   restApiId=$1
   stageName=$2
   aws apigateway create-deployment \
-    --rest-api-id "${restApiId}" \  
+    --rest-api-id "${restApiId}" \
     --stage-name "${stageName}" \
     --profile $AWS_PROFILE \
     --no-cli-pager
@@ -572,11 +590,11 @@ api_gateway_create_usage_plan() {
   apiId=$2
   stageName=$3
   usagePlanId=$(aws apigateway create-usage-plan \
-    --name "${customerName}-usage-plan" \  
+    --name "${customerName}-usage-plan" \
     --description "Usage plan for customer ${customerName}" \
-    --api-stages "apiId=${apiId},stage=${stageName}" \
-    --profile $AWS_PROFILE \
+    --api-stages apiId="${apiId}",stage="${stageName}" \
     --query 'id' --output text \
+    --profile $AWS_PROFILE \
     --no-cli-pager)
   echo "${usagePlanId}"
 }
@@ -596,7 +614,7 @@ api_gateway_create_api_key() {
   name=$1
   apiKeyId=$(aws apigateway create-api-key \
     --name "${name}" \
-    --enabled \ 
+    --enabled \
     --query "id" \
     --output text \
     --profile "$AWS_PROFILE")
@@ -637,7 +655,7 @@ api_gateway_get_api_key() {
 #   --profile $AWS_PROFILE \
 #   --no-cli-pager
 
-secretsmanager_create_secret() {
+secrets_manager_create_secret() {
   customerName=$1
   apiKeyId=$2
   apiKeyValue=$3
@@ -681,7 +699,7 @@ api_gateway_create_usage_plan_key() {
 # echo "   API Key: ${CLIENT_API_KEY}"
 
 # Create a custom domain for the customer
-# CERT_ARN=$(get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
+# CERT_ARN=$(acm_get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
 
 api_gateway_create_domain_name() {
   domain=$1
@@ -729,9 +747,8 @@ api_gateway_create_base_path_mapping() {
 
 # Add a Route 53 alias record for the custom domain
 route53_change_resource_record_sets() {
-  # zoneId=$1
   domain=$1
-  zoneId=$(get_route53_zone_id $SPEAKCARE_DOMAIN)
+  zoneId=$(route53_get_zone_id $SPEAKCARE_DOMAIN $SPEAKCARE_HOSTED_ZONE)
   read regionalDomainName regionalHostedZoneId < <(api_gateway_get_domain_info $domain)
   aws route53 change-resource-record-sets \
     --hosted-zone-id "$zoneId" \
@@ -751,7 +768,7 @@ route53_change_resource_record_sets() {
       }]
     }" \
   --profile $AWS_PROFILE \
-  --no-cli-pager
+  -
 }
 
 # route53_change_resource_record_sets $ZONE_ID $CUSTOMER_API_DOMAIN
@@ -769,7 +786,7 @@ speakcare_deploy_customer() {
 
   # ─── CREATE IAM ROLE ───────────────────────────────────────────────────────
   iam_create_role $ROLE_NAME_LAMBDA_RECORDING
-  iam_attach_role_policy $ROLE_NAME_LAMBDA_RECORDING
+  iam_attach_role_policy $ROLE_NAME_LAMBDA_RECORDING $SERVICE_ROLE_LAMBDA_POLICY_ARN
   lambda_generate_policy $POLICY_FILE_S3_DYNAMO
   iam_put_role_policy $ROLE_NAME_LAMBDA_RECORDING $POLICY_NAME_S3_DYNAMO $POLICY_FILE_S3_DYNAMO
 
@@ -791,18 +808,18 @@ speakcare_deploy_customer() {
   RECORDING_SESSION_ID_RESOURCE_ID=$(api_gateway_create_resource $REST_API_ID $RECORDING_SESSION_RESOURCE_ID "{recordingId}")
 
   # ─── Create HTTP POST and PATCH methods for recording/enrollment and recording/session
-  api_gateway_put_method "${REST_API_ID}" "${RECORDING_ENROLLMENT_RESOURCE_ID}" "POST" ""
-  api_gateway_put_method "${REST_API_ID}" "${RECORDING_ENROLLMENT_ID_RESOURCE_ID}" "PATCH" "method.request.path.recordingId=true"
+  api_gateway_put_method "${REST_API_ID}" "${RECORDING_ENROLLMENT_RESOURCE_ID}" "POST"
+  api_gateway_put_method_with_path_parameters "${REST_API_ID}" "${RECORDING_ENROLLMENT_ID_RESOURCE_ID}" "PATCH" "method.request.path.recordingId=true"
 
-  api_gateway_put_method "${REST_API_ID}" "${RECORDING_SESSION_RESOURCE_ID}" "POST" ""
-  api_gateway_put_method "${REST_API_ID}" "${RECORDING_SESSION_ID_RESOURCE_ID}" "PATCH" "method.request.path.recordingId=true"
+  api_gateway_put_method "${REST_API_ID}" "${RECORDING_SESSION_RESOURCE_ID}" "POST"
+  api_gateway_put_method_with_path_parameters "${REST_API_ID}" "${RECORDING_SESSION_ID_RESOURCE_ID}" "PATCH" "method.request.path.recordingId=true"
 
   # ─── INTEGRATE METHODS WITH LAMBDA ─────────────────────────────────────────
-  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_ENROLLMENT_RESOURCE_ID}" "POST" "${API_URI_RECORDING}"
-  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_ENROLLMENT_ID_RESOURCE_ID}" "PATCH" "${API_URI_RECORDING_UPDATE}"
+  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_ENROLLMENT_RESOURCE_ID}" "POST" "${API_LAMBDA_URI_RECORDING}"
+  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_ENROLLMENT_ID_RESOURCE_ID}" "PATCH" "${API_LAMBDA_URI_RECORDING_UPDATE}"
 
-  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_SESSION_RESOURCE_ID}" "POST" "${API_URI_RECORDING}"
-  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_SESSION_ID_RESOURCE_ID}" "PATCH" "${API_URI_RECORDING_UPDATE}"
+  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_SESSION_RESOURCE_ID}" "POST" "${API_LAMBDA_URI_RECORDING}"
+  api_gateway_put_integration "${REST_API_ID}" "${RECORDING_SESSION_ID_RESOURCE_ID}" "PATCH" "${API_LAMBDA_URI_RECORDING_UPDATE}"
 
 
   # ─── ADD PERMISSIONS FOR API GW TO INVOKE LAMBDAS ──────────────────────────
@@ -822,7 +839,7 @@ speakcare_deploy_customer() {
   echo "Deployed API to stage: ${STAGE_NAME}"
 
   # ─── CREATE USAGE PLAN & ASSOCIATE API STAGE ─────────────────────────────
-  USAGE_PLAN_ID= $(api_gateway_create_usage_plan "${CUSTOMER_NAME}" "${REST_API_ID}" "${STAGE_NAME}")
+  USAGE_PLAN_ID=$(api_gateway_create_usage_plan "${CUSTOMER_NAME}" "${REST_API_ID}" "${STAGE_NAME}")
   echo "Created Usage Plan: ${USAGE_PLAN_ID}"
 
   # ─── 9) CREATE API KEY & ASSOCIATE WITH USAGE PLAN ─────────────────────────────
@@ -833,7 +850,7 @@ speakcare_deploy_customer() {
   echo "Key ID:    $API_KEY_ID"
   echo "Key Value: $CLIENT_API_KEY"
   # Store the key in AWS Secrets Manager
-  secretsmanager_create_secret $CUSTOMER_NAME $API_KEY_ID $CLIENT_API_KEY
+  secrets_manager_create_secret $CUSTOMER_NAME $API_KEY_ID $CLIENT_API_KEY
   api_gateway_create_usage_plan_key "${USAGE_PLAN_ID}" "${API_KEY_ID}" "API_KEY"
 
   echo "API Key created (${API_KEY_ID}) and attached to Usage Plan."
@@ -843,13 +860,14 @@ speakcare_deploy_customer() {
   echo "   API Key: ${CLIENT_API_KEY}"
 
   # ─── CREATE CUSTOM DOMAIN ───────────────────────────────────────────────
-  CERT_ARN=$(get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_DOMAIN)
+  CERT_ARN=$(acm_get_wildcard_cert_arn $AWS_REGION $SPEAKCARE_API_SUBDOMAIN)
   api_gateway_create_domain_name $CUSTOMER_API_DOMAIN $CERT_ARN
 
   # Create a base path mapping for the customer
   api_gateway_create_base_path_mapping $CUSTOMER_API_DOMAIN $REST_API_ID $STAGE_NAME
 
   # Add a Route 53 alias record for the custom domain
-  route53_change_resource_record_sets $ZONE_ID $CUSTOMER_API_DOMAIN
+  #ZONE_ID=$(get_route53_zone_id $SPEAKCARE_DOMAIN)
+  route53_change_resource_record_sets $CUSTOMER_API_DOMAIN
 
 }
