@@ -1,8 +1,13 @@
 #!/bin/bash
 
+
 # Set environment variables
 AWS_PROFILE="speakcare.dev"
 AWS_REGION="us-east-1"
+
+CUSTOMER_API_DOMAIN="<customer>.api.dev.speakcare.ai"
+CLIENT_API_KEY="<api-key>"
+
 
 # Test the enrollment API
 
@@ -24,13 +29,12 @@ response=$(curl -s -X POST "https://${REST_API_ID}.execute-api.${AWS_REGION}.ama
     "endTime":        "2025-04-23T00:00:00Z"
   }')
 
-response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
+response=$(curl -s -X POST "https://${CUSTOMER_API_DOMAIN}/recording/enrollment" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "customerId":     "holyname",
+    "customerId":     "nursing",
     "username":       "testuser", 
-    "type":           "enroll",
     "speakerType":    "patient",
     "deviceType":     "SM-R910",
     "deviceUniqueId": "12345678",
@@ -48,21 +52,19 @@ curl -i -X PUT \
      "${uploadUrl}"
 
 # update the enrollment status to uploaded
-curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOMER_API_DOMAIN}/recording/enrollment/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-     "type":           "enroll",
      "status":         "uploaded",
      "md5sum":         "'"${md5}"'"
   }'
 
 # try to update non-existent recording in the session table
-curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOMER_API_DOMAIN}/recording/session/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-     "type":           "session",
      "status":         "uploaded",
      "md5sum":         "'"${md5}"'"
   }'
@@ -72,13 +74,12 @@ curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
 
 # Test the session API
 
-response=$(curl -s -X POST "https://${CUSTOM_DOMAIN}/recording" \
+response=$(curl -s -X POST "https://${CUSTOMER_API_DOMAIN}/recording/session" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "customerId":     "holyname",
+    "customerId":     "nursing",
     "username":       "testuser",
-    "type":           "session",
     "deviceType":     "SM-R910",
     "deviceUniqueId": "12345678",
     "fileName":       "admission.mp3",
@@ -95,21 +96,19 @@ curl -i -X PUT \
      "${uploadUrl}"
 
 # Test the session API
-curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOMER_API_DOMAIN}/recording/session/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-     "type":           "session",
      "status":         "uploaded",
      "md5sum":         "'"${md5}"'"
   }'
 
 # try to update non-existent recording in the enrollments table
-curl -i -X PATCH "https://${CUSTOM_DOMAIN}/recording/${recordingId}" \
+curl -i -X PATCH "https://${CUSTOMER_API_DOMAIN}/recording/enrollment/${recordingId}" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-     "type":           "enroll",
      "status":         "uploaded",
      "md5sum":         "'"${md5}"'"
   }'

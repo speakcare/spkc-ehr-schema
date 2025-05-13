@@ -40,24 +40,17 @@ def lambda_handler(event, context):
             'body': json.dumps({'error':'Invalid customerId'})
         }
     
-    # recordingType = body.get('type')            # must be "enroll" or "session"
-    # if recordingType not in ('enroll','session'):
-    #     return {
-    #         'statusCode': 400,
-    #         'body': json.dumps({'error':'Invalid type; must be "enroll" or "session"'})
-    #     }
-
-    fileName = body['fileName']            # e.g. "rec-20250422.flac"
+    fileName = body['fileName']      
     username  = body['username']
 
     # 2) Derive bucket, table, S3 key
     bucket     = f"speakcare-{customer}"
     if recordingType == 'enrollment':
         prefix     = f"{recordingDir}/enrollments/{username}"
-        tableName = f"{customer}-enrollments"
+        tableName = f"{customer}-recordings-enrollments"
     else:
         prefix     = f"{recordingDir}/sessions/{username}"
-        tableName = f"{customer}-sessions"
+        tableName = f"{customer}-recordings-sessions"
 
     key = f"{prefix}/{fileName}"
 

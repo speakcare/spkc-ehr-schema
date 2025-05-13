@@ -3,6 +3,7 @@
 import os
 import json
 import boto3
+import re
 
 dynamo   = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
@@ -11,15 +12,17 @@ def lambda_handler(event, context):
     print(f"Received event: {event}")
     # 1) Parse path parameters
     path = event.get("path", "")
-    if path.endswith("/enrollment"):
+
+    # Check if the path matches the expected patterns
+    enrollment_pattern = r'^/recording/enrollment/[^/]+$'
+    session_pattern = r'^/recording/session/[^/]+$'
+
+    if re.match(enrollment_pattern, path):
         recordingType = "enrollment"
-    elif path.endswith("/session"):
+    elif re.match(session_pattern, path):
         recordingType = "session"
     else:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": f"Invalid path: {path}"})
-        }
+        raise ValueError(f"Invalid path format: {path}")
     
     recordingId = event.get('pathParameters',{}).get('recordingId')
     if not recordingId:
@@ -47,17 +50,11 @@ def lambda_handler(event, context):
             })
         }
 
-    # recordingType = body.get('type')  # "enroll" or "session"
-    # if recordingType not in ('enroll','session'):
-    #     return {
-    #         'statusCode': 400,
-    #         'body': json.dumps({'error':'`type` must be "enroll" or "session"'})
-    #     }
 
     # 3) Derive table name
-    # enrollment table is "<customer>-enrollments"
-    # session table is "<customer>-sessions"
-    tableName = f"{customer}-{'enrollments' if recordingType=='enrollment' else 'sessions'}"
+    # enrollment table is "<customer>-recordings-enrollments"
+    # session table is "<customer>-recordings-sessions"
+    tableName = f"{customer}-recordings-{'enrollments' if recordingType=='enrollment' else 'sessions'}"
     table = dynamo.Table(tableName)
 
     # 4) Perform the update: set status, remove expiresAt so TTL no longer applies
