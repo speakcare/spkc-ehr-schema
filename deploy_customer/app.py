@@ -2,62 +2,53 @@
 import os
 import boto3
 
-# import aws_cdk
+import aws_cdk
 
-# # from cdk.cdk_stack import CdkStack
-# from cdk.customer_stack import SpeakCareCustomerStack
-# # ...rest of your deployment logic
+# from cdk.cdk_stack import CdkStack
+from cdk.customer_stack import SpeakCareCustomerStack
+from cdk.cdk_stack import CdkStack
+from get_cert import get_acm_cert_arn_by_wildcard
+# ...rest of your deployment logic
 
 
 
-# app = aws_cdk.App()
+app = aws_cdk.App()
 
-# # Get params from env or context
-# customer_name = app.node.try_get_context("customer_name") or os.environ.get("CUSTOMER_NAME")
-# environment = app.node.try_get_context("environment") or os.environ.get("SPEAKCARE_ENV", "dev")
-# acm_cert_arn = app.node.try_get_context("acm_cert_arn") or os.environ.get("ACM_CERT_ARN")
-# # hosted_zone_id = app.node.try_get_context("hosted_zone_id") or os.environ.get("HOSTED_ZONE_ID")
-# domain = f"{customer_name}.api.{environment}.speakcare.ai"
+# Get params from env or context
+customer_name = app.node.try_get_context("customer_name") or os.environ.get("CUSTOMER_NAME")
+environment = app.node.try_get_context("environment") or os.environ.get("SPEAKCARE_ENV", "dev")
+acm_cert_arn = app.node.try_get_context("acm_cert_arn") or os.environ.get("ACM_CERT_ARN")
+account = app.node.try_get_context("account") or os.environ.get("CDK_DEFAULT_ACCOUNT")
+region = app.node.try_get_context("region") or os.environ.get("CDK_DEFAULT_REGION")
+api_domain = f"api.{environment}.speakcare.ai"
+customer_domain = f"{customer_name}.{api_domain}"
+print(f"Customer domain: {customer_domain}")
+print(f"ACM cert ARN: {acm_cert_arn}")
 
-# SpeakCareCustomerStack(
-#     app,
-#     f"SpeakCareCustomer-{customer_name}-{environment}",
-#     customer_name=customer_name,
-#     environment=environment,
-#     acm_cert_arn=acm_cert_arn,
-#     # hosted_zone_id=hosted_zone_id,
-#     domain=domain,
-#     env=aws_cdk.Environment(
-#         account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
-#         region=os.environ.get("CDK_DEFAULT_REGION"),
-#     ),
-# )
 
-# app.synth()
 
-def get_aws_region_from_profile(profile_name):
-    """Get AWS region from a profile (if set in ~/.aws/config) or return default region."""
-    session = boto3.Session(profile_name=profile_name)
-    region = session.region_name
-    if not region:
-        # fallback to AWS_DEFAULT_REGION env variable, or default 'us-east-1'
-        region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-    return region
+if customer_name and environment and acm_cert_arn and account and region:
+    SpeakCareCustomerStack(
+        app,
+        f"SpeakCareCustomer-{customer_name}-{environment}",
+        customer_name=customer_name,
+        environment=environment,
+        acm_cert_arn=acm_cert_arn,
+        customer_domain=customer_domain,
+        env=aws_cdk.Environment(
+            account=account,
+            region=region,
+        ),
+    )
+else:
+    print("Required context not found: creating a default app').")
+    CdkStack(
+        app,
+        f"SpeakCareCustomer-{customer_name}-{environment}",
+    )
 
-def get_acm_cert_arn_by_wildcard(profile, domain_wildcard, region=None):
-    """Look up ACM cert ARN matching a wildcard domain (e.g., '*.api.dev.speakcare.ai')."""
-    session = boto3.Session(profile_name=profile, region_name=region)
-    acm = session.client('acm')
-    paginator = acm.get_paginator('list_certificates')
-    for page in paginator.paginate(CertificateStatuses=['ISSUED']):
-        for cert in page['CertificateSummaryList']:
-            if cert.get('DomainName') == domain_wildcard:
-                return cert['CertificateArn']
-    return None
+app.synth()
 
-if __name__ == "__main__":
-    profile = "speakcare.dev"
-    domain_wildcard = "*.api.dev.speakcare.ai"
-    region = get_aws_region_from_profile(profile)
-    cert_arn = get_acm_cert_arn_by_wildcard(profile, domain_wildcard, region)
-    print(f"Found ACM cert ARN: {cert_arn}")
+#use this command to deploy the stack
+#cdk deploy  --context customer_name=<customer_name> --context environment=[dev|stage|prod] --context acm_cert_arn=<cert_arn> --context account=<account_id> --context "@aws-cdk/core:bootstrapQualifier=speakcare"
+#you can get the cert_arn from the aws console or by running the get_cert.py script (python3 get_cert.py --profile <profile_name> --domain <wildcard_domain>)

@@ -5,6 +5,7 @@
 AWS_PROFILE="speakcare.dev"
 AWS_REGION="us-east-1"
 
+CUSTOMER="<customer_name>"
 CUSTOMER_API_DOMAIN="<customer>.api.dev.speakcare.ai"
 CLIENT_API_KEY="<api-key>"
 
@@ -17,31 +18,36 @@ md5=$(md5sum ../recordings/admission.mp3 | awk '{ print $1 }')
 response=$(curl -s -X POST "https://${REST_API_ID}.execute-api.${AWS_REGION}.amazonaws.com/${STAGE_NAME}/recording" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "customerId":     "holyname",
-    "username":       "testuser",
-    "type":           "enroll",
-    "speakerType":    "patient",
-    "deviceType":     "SM-R910",
-    "deviceUniqueId": "12345678",
-    "fileName":       "admission.mp3",
-    "startTime":      "2025-04-23T00:00:00Z",
-    "endTime":        "2025-04-23T00:00:00Z"
-  }')
+  -d @- <<EOF
+{
+  "customerId":     "${CUSTOMER}",
+  "username":       "testuser",
+  "speakerType":    "patient",
+  "deviceType":     "SM-R910",
+  "deviceUniqueId": "12345678",
+  "fileName":       "admission.mp3",
+  "startTime":      "2025-04-23T00:00:00Z",
+  "endTime":        "2025-04-23T00:10:00Z"
+}
+EOF
+)
 
 response=$(curl -s -X POST "https://${CUSTOMER_API_DOMAIN}/recording/enrollment" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "customerId":     "nursing",
-    "username":       "testuser", 
-    "speakerType":    "patient",
-    "deviceType":     "SM-R910",
-    "deviceUniqueId": "12345678",
-    "fileName":       "admission.mp3",
-    "startTime":      "2025-04-23T00:00:00Z",
-    "endTime":        "2025-04-23T00:10:00Z"
-  }')
+  -d @- <<EOF
+{
+  "customerId":     "${CUSTOMER}",
+  "username":       "testuser",
+  "speakerType":    "patient",
+  "deviceType":     "SM-R910",
+  "deviceUniqueId": "12345678",
+  "fileName":       "admission.mp3",
+  "startTime":      "2025-04-23T00:00:00Z",
+  "endTime":        "2025-04-23T00:10:00Z"
+}
+EOF
+)
 
 recordingId=$(echo "$response" | jq -r '.recordingId')
 uploadUrl=$(echo "$response" | jq -r '.uploadUrl')
@@ -77,15 +83,18 @@ curl -i -X PATCH "https://${CUSTOMER_API_DOMAIN}/recording/session/${recordingId
 response=$(curl -s -X POST "https://${CUSTOMER_API_DOMAIN}/recording/session" \
   -H "x-api-key: ${CLIENT_API_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "customerId":     "nursing",
-    "username":       "testuser",
-    "deviceType":     "SM-R910",
-    "deviceUniqueId": "12345678",
-    "fileName":       "admission.mp3",
-    "startTime":      "2025-04-23T00:00:00Z",
-    "endTime":        "2025-04-23T00:00:00Z"
-  }')
+  -d @- <<EOF
+{
+  "customerId":     "${CUSTOMER}",
+  "username":       "testuser",
+  "deviceType":     "SM-R910",
+  "deviceUniqueId": "12345678",
+  "fileName":       "admission.mp3",
+  "startTime":      "2025-04-23T00:00:00Z",
+  "endTime":        "2025-04-23T00:10:00Z"
+}
+EOF
+)
 
 recordingId=$(echo "$response" | jq -r '.recordingId')
 uploadUrl=$(echo "$response" | jq -r '.uploadUrl')

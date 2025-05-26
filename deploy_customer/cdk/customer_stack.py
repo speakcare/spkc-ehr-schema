@@ -15,6 +15,10 @@ from aws_cdk import (
     RemovalPolicy
 )
 from constructs import Construct
+import secrets
+
+
+
 
 class SpeakCareCustomerStack(Stack):
     def __init__(self, scope: Construct, id: str, *,
@@ -22,7 +26,7 @@ class SpeakCareCustomerStack(Stack):
                  environment: str,
                  acm_cert_arn: str,
                 #  hosted_zone_id: str,
-                 domain: str,
+                 customer_domain: str,
                  **kwargs):
         super().__init__(scope, id, **kwargs)
 
@@ -50,7 +54,7 @@ class SpeakCareCustomerStack(Stack):
             partition_key=dynamodb.Attribute(name="recordingId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute="expiresAt",
-            removal_policy=dynamodb.RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
         # --- IAM Role for Lambda ---
@@ -85,7 +89,7 @@ class SpeakCareCustomerStack(Stack):
             function_name=f"speakcare-{customer_name}-recording-handler",
             runtime=lambda_.Runtime.PYTHON_3_11,
             handler="recording_handler.lambda_handler",
-            code=lambda_.Code.from_asset("../lambda", include=["recording_handler.py"]),
+            code=lambda_.Code.from_asset("lambda/recording_handler"),
             environment=lambda_env,
             role=lambda_role,
             timeout=Duration.seconds(30),
@@ -96,7 +100,7 @@ class SpeakCareCustomerStack(Stack):
             function_name=f"speakcare-{customer_name}-recording-update-handler",
             runtime=lambda_.Runtime.PYTHON_3_11,
             handler="recording_update_handler.lambda_handler",
-            code=lambda_.Code.from_asset("../lambda", include=["recording_update_handler.py"]),
+            code=lambda_.Code.from_asset("lambda/recording_update_handler"),
             environment={
                 "CUSTOMER_NAME": customer_name,
                 "S3_RECORDING_DIR": "recording",
@@ -134,12 +138,16 @@ class SpeakCareCustomerStack(Stack):
                               request_parameters={"method.request.path.recordingId": True}, api_key_required=True)
 
         # --- Usage Plan & API Key ---
+        api_key_value = secrets.token_urlsafe(32)  # 43-character random string
         usage_plan = rest_api.add_usage_plan(
             f"{customer_name}-usage-plan",
             name=f"{customer_name}-usage-plan",
             api_stages=[apigw.UsagePlanPerApiStage(api=rest_api, stage=rest_api.deployment_stage)],
         )
-        api_key = rest_api.add_api_key(f"{customer_name}-api-key")
+        api_key = rest_api.add_api_key(f"{customer_name}-api-key", 
+                                       api_key_name=f"{customer_name}-api-key", 
+                                       value=api_key_value,
+                                       )
         usage_plan.add_api_key(api_key)
 
         # Store API key in Secrets Manager
@@ -150,10 +158,11 @@ class SpeakCareCustomerStack(Stack):
             secret_string_value=SecretValue.unsafe_plain_text(
                 json.dumps({
                     "apiKeyId": api_key.key_id,
-                    "apiKeyValue": api_key.key_value
-        })
-    ),
-)
+                    "apiKeyValue": api_key_value
+                })
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+        )
         # TODO: where is the key id?
 
         # --- Custom Domain ---
@@ -165,7 +174,7 @@ class SpeakCareCustomerStack(Stack):
         )
         domain_name = apigw.DomainName(
             self, f"{customer_name}-domain",
-            domain_name=domain,
+            domain_name=customer_domain,
             certificate=cert,
             endpoint_type=apigw.EndpointType.REGIONAL,
             security_policy=apigw.SecurityPolicy.TLS_1_2,
@@ -180,7 +189,7 @@ class SpeakCareCustomerStack(Stack):
         # Route53 Alias
         route53.ARecord(
             self, f"{customer_name}-api-alias",
-            record_name=domain,
+            record_name=customer_domain,
             target=route53.RecordTarget.from_alias(targets.ApiGatewayDomain(domain_name)),
             zone=zone,
         )
