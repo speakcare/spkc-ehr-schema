@@ -42,11 +42,11 @@ def lambda_handler(event, context):
 
     # 2) Validate required fields
     status = body.get('status')
-    if status not in ('uploaded','processed','error'):
+    if status not in ('UPLOADED','PROCESSED','ERROR'):
         return {
             'statusCode': 400,
             'body': json.dumps({
-               'error':'`status` must be one of "uploaded", "processed", or "error"'
+               'error':'`status` must be one of "UPLOADED", "PROCESSED", or "ERROR"'
             })
         }
 
@@ -59,7 +59,7 @@ def lambda_handler(event, context):
 
     # 4) Perform the update: set status, remove expiresAt so TTL no longer applies
     try:
-        if status == 'uploaded':
+        if status == 'UPLOADED':
             # When status is uploaded, include the md5sum field
             table.update_item(
                 Key={'recordingId': recordingId},
