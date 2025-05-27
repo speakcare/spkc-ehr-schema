@@ -4,7 +4,7 @@ import argparse
 import warnings
 from boto3_session import Boto3Session
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_get_filename_without_ext, os_concat_current_time
 from speakcare_stt import SpeakcareAWSTranscribe
 from speakcare_audio import audio_is_wav, audio_convert_to_wav

@@ -6,7 +6,7 @@ from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json
 import os
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 
 
 run_skipped_tests = False

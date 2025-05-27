@@ -1,5 +1,5 @@
 from speakcare_google_drive import GoogleDriveAPI
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from speakcare_logging import SpeakcareLogger
 from speakcare_enroll_person import SpeakcareEnrollPerson
 from speakcare_process import speakcare_process_audio

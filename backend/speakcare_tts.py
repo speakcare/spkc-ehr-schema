@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse
 from datetime import datetime, timezone
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 
 
 logger = SpeakcareLogger(__name__)

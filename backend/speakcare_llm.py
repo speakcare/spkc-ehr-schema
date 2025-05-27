@@ -3,7 +3,7 @@ import json
 import openai
 from openai import OpenAI
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv  
+from backend.speakcare_env import SpeakcareEnv  
 
 SpeakcareEnv.load_env()
 openai.api_key = os.getenv("OPENAI_API_KEY")

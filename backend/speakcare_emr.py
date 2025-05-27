@@ -9,7 +9,7 @@ from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
 from speakcare_emr_tables import SpeakCareEmrTables
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 
 # Load the .env file
 SpeakcareEnv.load_env()

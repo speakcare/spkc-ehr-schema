@@ -9,7 +9,7 @@ from speakcare_logging import SpeakcareLogger
 from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from speakcare_vocoder import SpeakcareVocoder, VocoderFactory
 from speakcare_embeddings import SpeakcareEmbeddings, SpeakerRole
 
@@ -42,7 +42,6 @@ class TranscriptRecognizer:
         self.b3session = Boto3Session.get_single_instance()
         self.logger = SpeakcareLogger(TranscriptRecognizer.__name__)
         self.speaker_segments = defaultdict(list)
-        #self.speaker_embeddings = defaultdict(list)
         self.speaker_matches = defaultdict(list)
         self.speaker_stats = {}
         self.processed_segments = 0

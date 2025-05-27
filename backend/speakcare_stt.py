@@ -8,7 +8,7 @@ import os
 from speakcare_audio import audio_record, audio_is_wav, audio_convert_to_wav
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_sanitize_name
 
 SpeakcareEnv.load_env()

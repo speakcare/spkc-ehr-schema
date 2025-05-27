@@ -7,7 +7,7 @@ from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_charting import create_chart_completion
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_get_filename_without_ext, os_concat_current_time
 from speakcare_audio import audio_record
 

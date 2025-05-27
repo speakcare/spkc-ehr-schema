@@ -8,7 +8,7 @@ from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from speechbrain.inference import EncoderClassifier
 from resemblyzer import VoiceEncoder, preprocess_wav
 from os_utils import os_get_filename_without_ext
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
  
 
 '''

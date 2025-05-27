@@ -7,7 +7,7 @@ from speakcare_embeddings import SpeakerRole, SpeakcareEmbeddings
 from speakcare_vocoder import VocoderFactory
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from speakcare_logging import SpeakcareLogger
 from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_sanitize_name
