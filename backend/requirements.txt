@@ -46,7 +46,6 @@ python-dateutil
 python-dotenv
 rapidfuzz
 requests
-Resemblyzer
 s3transfer
 scikit-learn
 scipy

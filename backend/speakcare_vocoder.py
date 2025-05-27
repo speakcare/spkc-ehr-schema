@@ -6,7 +6,6 @@ import numpy as np
 import os
 from speakcare_audio import audio_convert_to_wav, audio_is_wav
 from speechbrain.inference import EncoderClassifier
-from resemblyzer import VoiceEncoder, preprocess_wav
 from os_utils import os_get_filename_without_ext
 from backend.speakcare_env import SpeakcareEnv
  
@@ -164,60 +163,12 @@ class SpeechBrainVocoder(SpeakcareVocoder):
 class ResemblyzerVocoder(SpeakcareVocoder)
 Vocoder implementation using Resemblyzer's speaker recognition model.
 '''
-class ResemblyzerVocoder(SpeakcareVocoder):
-    WAV_NORMALIZATION_FACTOR = 32768.0
-
-    def __init__(self):
-        super().__init__()
-        try:
-            self.encoder = VoiceEncoder(verbose=False)
-        except Exception as e:
-            self._logger.log_exception(f"Encoder load error", e)
-            raise e
-        
-        
-    def __get_normalized_audio_data(self, audio):
-        return np.array(audio.get_array_of_samples(), dtype=np.float32) /self.WAV_NORMALIZATION_FACTOR
-
-    def get_embedding(self):
-        if not self._audio:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")
-        self._logger.debug(f'Getting embedding.')
-        try:
-            normalized_audio_data = self.__get_normalized_audio_data(self._audio) # np.array(_audio.get_array_of_samples(), dtype=np.float32) / 32768.0
-            wav = preprocess_wav(normalized_audio_data)
-            embedding = self.encoder.embed_utterance(wav)
-            return embedding
-        except Exception as e:
-            self._logger.log_exception(f"Embedding error", e)
-            return None
-
-
-    def get_segment_embedding(self, index:int, start_ms:int, end_ms:int, segment_output_dir:str, keep_segments=False):
-        if not self._audio:
-            self._logger.error("Unable to get embedding. Audio file not loaded. Call load_audio_file() first.")
-            raise Exception("Audio file not loaded")
-        self._logger.debug(f'Getting segment embedding {start_ms}-{end_ms}')
-        try:
-            audio_segment = self._audio[start_ms:end_ms]
-            # get as numpy array and normalize to 16 bits
-            normalized_audio_data = self.__get_normalized_audio_data(audio_segment)# np.array(audio_segment.get_array_of_samples(), dtype=np.float32) / 32768.0
-            wav = preprocess_wav(normalized_audio_data)
-            embedding = self.encoder.embed_utterance(wav)
-            if keep_segments:
-                segment_path = self.get_segment_file_path(index, start_ms, end_ms, segment_output_dir)
-                audio_segment.export(segment_path, format="wav")
-            return embedding
-        except Exception as e:
-            self._logger.log_exception(f"Segment embedding error", e)
-            return None
 
 
 SpeakcareEnv.load_env()
 VOCODER_MODEL = os.getenv("VOCODER_MODEL", "speechbrain/spkrec-ecapa-voxceleb")
 class VocoderFactory:
-    VOCODERS = ["speechbrain/spkrec-ecapa-voxceleb", "resemblyzer"]
+    VOCODERS = ["speechbrain/spkrec-ecapa-voxceleb"]
     @staticmethod
     def create_vocoder(vocoder_model=None):
         vocoder_model = vocoder_model or VOCODER_MODEL
@@ -227,8 +178,6 @@ class VocoderFactory:
         match vocoder_model.lower():
             case model if model.startswith("speechbrain"):
                 return SpeechBrainVocoder(vocoder_model)
-            case "resemblyzer":
-                return ResemblyzerVocoder()
             case _:
                 raise ValueError("Invalid vocoder model")
         
