@@ -49,6 +49,13 @@ else:
 
 app.synth()
 
-#use this command to deploy the stack
-#cdk deploy  --context customer_name=<customer_name> --context environment=[dev|stage|prod] --context acm_cert_arn=<cert_arn> --context account=<account_id> --context "@aws-cdk/core:bootstrapQualifier=speakcare"
-#you can get the cert_arn from the aws console or by running the get_cert.py script (python3 get_cert.py --profile <profile_name> --domain <wildcard_domain>)
+# use this command to deploy the stack
+
+# before running cdk from local station you need to have credentianls set in your enviroment variables
+# export AWS_ACCESS_KEY_ID="<access-key-id>"
+# export AWS_SECRET_ACCESS_KEY="<secret-access-key>"
+# export AWS_SESSION_TOKEN="<session-token>"
+# get them from the aws console - note that these are temporary and will expire after a certain time
+
+# cdk deploy  --context customer_name=<customer_name> --context environment=[dev|stage|prod] --context acm_cert_arn=<cert_arn> --context account=<account_id> --context "@aws-cdk/core:bootstrapQualifier=speakcare"
+# you can get the cert_arn from the aws console or by running the get_cert.py script (python3 get_cert.py --profile <profile_name> --domain <wildcard_domain>)
