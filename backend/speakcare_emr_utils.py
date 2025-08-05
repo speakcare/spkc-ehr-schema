@@ -134,6 +134,7 @@ class EmrUtils:
         """
         lookup_patient
         """
+        logger.debug(f"lookup_patient: {name}")
         return emr_api.match_patient(name)
     
     @staticmethod

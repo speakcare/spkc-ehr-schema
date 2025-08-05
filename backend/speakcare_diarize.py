@@ -10,7 +10,7 @@ from speakcare_stt import SpeakcareAWSTranscribe
 from speakcare_audio import audio_is_wav, audio_convert_to_wav
 from speakcare_recognizer import TranscriptRecognizer
 from speakcare_embeddings import SpeakcareEmbeddings
-from speakcare_vocoder import VocoderFactory
+from speakcare_vocoder import VoiceEmbedderFactory
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -28,7 +28,7 @@ class SpeakcareDiarize:
     def __init_speaker_recognition(self):
 
         self.logger.info(f"Matching similarity threshold: {self.matching_similarity_threshold}")
-        vocoder = VocoderFactory.create_vocoder()
+        vocoder = VoiceEmbedderFactory.create_voice_embedder()
         embedding_store = SpeakcareEmbeddings(vocoder=vocoder, matching_similarity_threshold=self.matching_similarity_threshold)
         self.recognizer = TranscriptRecognizer(vocoder=vocoder, embedding_store=embedding_store, work_dir=SpeakcareEnv.get_audio_local_dir())
 

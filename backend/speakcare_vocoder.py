@@ -11,13 +11,13 @@ from backend.speakcare_env import SpeakcareEnv
  
 
 '''
-class SpeakcareVocoder(ABC):
+class VoiceEmbedder(ABC):
 Abstract class for extracting embeddings from audio files and comparing them.
 '''
 
-class SpeakcareVocoder(ABC):
+class VoiceEmbedder(ABC):
     def __init__(self):
-        self._logger = SpeakcareLogger(SpeakcareVocoder.__name__)
+        self._logger = SpeakcareLogger(VoiceEmbedder.__name__)
         self._audio_path = ""
         self._audio: AudioSegment = None
         self._audio_length = 0
@@ -91,10 +91,10 @@ class SpeakcareVocoder(ABC):
 
 
 '''
-class SpeechBrainVocoder(SpeakcareVocoder)
+class SpeechBrainEmbedder(VoiceEmbedder)
 Vocoder implementation using SpeechBrain's speaker recognition model.
 '''
-class SpeechBrainVocoder(SpeakcareVocoder):
+class SpeechBrainEmbedder(VoiceEmbedder):
     def __init__(self, model="speechbrain/spkrec-ecapa-voxceleb"):
         super().__init__()
         self.converted_to_wav = False
@@ -159,28 +159,24 @@ class SpeechBrainVocoder(SpeakcareVocoder):
             self._logger.log_exception(f"Segment embedding error", e)
             return None
         
-'''
-class ResemblyzerVocoder(SpeakcareVocoder)
-Vocoder implementation using Resemblyzer's speaker recognition model.
-'''
 
 
 SpeakcareEnv.load_env()
-VOCODER_MODEL = os.getenv("VOCODER_MODEL", "speechbrain/spkrec-ecapa-voxceleb")
-class VocoderFactory:
-    VOCODERS = ["speechbrain/spkrec-ecapa-voxceleb"]
+EMBEDDER_MODEL = os.getenv("EMBEDDER_MODEL", "speechbrain/spkrec-ecapa-voxceleb")
+class VoiceEmbedderFactory:
+    EMBEDDER_MODELS = ["speechbrain/spkrec-ecapa-voxceleb"]
     @staticmethod
-    def create_vocoder(vocoder_model=None):
-        vocoder_model = vocoder_model or VOCODER_MODEL
-        if not vocoder_model in VocoderFactory.VOCODERS:
-            raise ValueError(f"Invalid vocoder model '{vocoder_model}'")
+    def create_voice_embedder(embedder_model=None):
+        embedder_model = embedder_model or EMBEDDER_MODEL
+        if not embedder_model in VoiceEmbedderFactory.EMBEDDER_MODELS:
+            raise ValueError(f"Invalid embedder model '{embedder_model}'")
         
-        match vocoder_model.lower():
+        match embedder_model.lower():
             case model if model.startswith("speechbrain"):
-                return SpeechBrainVocoder(vocoder_model)
+                return SpeechBrainEmbedder(embedder_model)
             case _:
                 raise ValueError("Invalid vocoder model")
         
     @staticmethod
     def get_vocoder_model():
-        return VOCODER_MODEL
+        return EMBEDDER_MODEL

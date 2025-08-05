@@ -4,7 +4,7 @@ import random
 import json
 from datetime import datetime, timezone
 from speakcare_embeddings import SpeakerRole, SpeakcareEmbeddings
-from speakcare_vocoder import VocoderFactory
+from speakcare_vocoder import VoiceEmbedderFactory
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
@@ -21,7 +21,7 @@ class SpeakcareEnrollPerson():
         self.logger = SpeakcareLogger(SpeakcareEnrollPerson.__name__)
         self.b3session = Boto3Session.get_single_instance()
         self.transciber = SpeakcareOpenAIWhisper()
-        self.embeddings = SpeakcareEmbeddings(vocoder=VocoderFactory.create_vocoder())
+        self.embeddings = SpeakcareEmbeddings(vocoder=VoiceEmbedderFactory.create_voice_embedder())
 
 
     def __prepare_person_audio_file(self, audio_filename:str, output_file_prefix:str):

@@ -94,7 +94,7 @@ def speakcare_process_audio(audio_files: List[str], tables: List[str],
         return record_ids, {"message": "Success"}   
     
     except Exception as e:
-        logger.log_exception(f"Error occurred while processing audio: {e}")
+        logger.log_exception(f"Error occurred while processing audio:", e)
         return None, {"error": str(e)}
     
 
@@ -146,7 +146,7 @@ def speakcare_process_transcript(diarized_transcript_filename: str, tables: List
         return record_ids, {"message": "Success"}
 
     except Exception as e:
-        logger.log_exception(f"Error occurred while processing transcription: {e}")
+        logger.log_exception(f"Error occurred while processing transcription:", e)
         return None, {"error": str(e)}    
 
 

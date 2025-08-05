@@ -5,7 +5,7 @@ from datetime import datetime
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
-from speakcare_vocoder import SpeakcareVocoder
+from speakcare_vocoder import VoiceEmbedder
 
 
 class SpeakerRole(PyEnum):
@@ -19,7 +19,7 @@ class SpeakcareEmbeddings:
     UNKNOWN_SPEAKER = 'Unknown'
 
     def __init__(self, 
-                 vocoder: SpeakcareVocoder, 
+                 vocoder: VoiceEmbedder, 
                  matching_similarity_threshold: float =0.75, 
                  addition_similarity_threshold: float =0.95
                  ):
@@ -27,7 +27,7 @@ class SpeakcareEmbeddings:
             self.logger = SpeakcareLogger(type(self).__name__)
             self.b3session = Boto3Session.get_single_instance()
             self.speakers_table_name = self.b3session.dynamo_get_table_name("speakers")
-            self.vocoder: SpeakcareVocoder = vocoder
+            self.vocoder: VoiceEmbedder = vocoder
             self.matching_similarity_threshold: float = float(matching_similarity_threshold)
             self.addition_similarity_threshold: float = float(addition_similarity_threshold)
             self.known_speakers = self.__fetch_all_speakers()

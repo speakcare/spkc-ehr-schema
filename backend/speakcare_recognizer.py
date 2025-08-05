@@ -10,7 +10,7 @@ from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List
 from backend.speakcare_env import SpeakcareEnv
-from speakcare_vocoder import SpeakcareVocoder, VocoderFactory
+from speakcare_vocoder import VoiceEmbedder, VoiceEmbedderFactory
 from speakcare_embeddings import SpeakcareEmbeddings, SpeakerRole
 
 SpeakcareEnv.load_env()
@@ -35,7 +35,7 @@ class Transcript(BaseModel):
 class TranscriptRecognizer:
 
     
-    def __init__(self, vocoder: SpeakcareVocoder, embedding_store: SpeakcareEmbeddings, work_dir="output_segments"):
+    def __init__(self, vocoder: VoiceEmbedder, embedding_store: SpeakcareEmbeddings, work_dir="output_segments"):
         self.work_dir = work_dir
         os_ensure_directory_exists(self.work_dir)
 
@@ -49,7 +49,7 @@ class TranscriptRecognizer:
         self.mapped_segments = 0
         self.transcript_file = None
         self.transcript = None
-        self.vocoder: SpeakcareVocoder  = vocoder
+        self.vocoder: VoiceEmbedder  = vocoder
         self.embeddings_store: SpeakcareEmbeddings = embedding_store
 
         # state indicators
@@ -352,7 +352,7 @@ def main():
     args = parser.parse_args()
 
     work_dir = args.workdir
-    vocoder = VocoderFactory.create_vocoder()
+    vocoder = VoiceEmbedderFactory.create_voice_embedder()
     
 
     if args.command == 'recognize':

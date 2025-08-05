@@ -14,6 +14,7 @@ class NameMatcher:
         
     def get_best_match(self, input_name= None, names_to_match = None):
         # Initial character-based matching
+        self.logger.debug(f"get_best_match: {input_name} {names_to_match}")
         best_match, score, best_idx = process.extractOne(input_name, names_to_match, scorer=fuzz.WRatio)
         
         if score >= self.primary_threshold:
@@ -30,6 +31,7 @@ class NameMatcher:
         best_secondary_score = 0
         best_match_index = None
         for i, name in enumerate(names_to_match):
+            self.logger.debug(f"name: {name}")
             name_primary, name_secondary = dmetaphone(name)
             if (input_primary == name_primary or input_primary == name_secondary or
                 input_secondary == name_primary or input_secondary == name_secondary):

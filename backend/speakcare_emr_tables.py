@@ -82,6 +82,7 @@ class SpeakCareEmrTables:
 
     # Grove (Millennial) tables
     GROVE_ASSESSMENT_DETAILS_TABLE = 'Grove_Assessment_Details'
+    GROVE_ASSESSMENT_DETAILS_FALL_TABLE = 'Grove_Assessment_Details_Fall'
     MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE = 'MHCS.Nursing_Daily_Skilled_Note'
     MHCS_ADMISSION_DETAILS_TABLE = 'MHCS.Admission_Details'
     MHCS_EINTERACT_EVALUATION_TABLE = 'MHCS.eINTERACT_Change_in_Condition_Evaluation'
@@ -145,6 +146,7 @@ class SpeakCareEmrTables:
         
         # Grove
         GROVE_ASSESSMENT_DETAILS_TABLE,
+        GROVE_ASSESSMENT_DETAILS_FALL_TABLE,
         MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
         MHCS_ADMISSION_DETAILS_TABLE,
         MHCS_EINTERACT_EVALUATION_TABLE,

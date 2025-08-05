@@ -388,6 +388,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
             return None, None, None
     
     def match_patient(self, patientFullName):
+        self.logger.debug(f"match_patient: {patientFullName}")
         matchedName, patientId, patientEmrId = self.__match_patient(patientFullName)
         if not matchedName:
             self.logger.info(f'Patient {patientFullName} not found')
