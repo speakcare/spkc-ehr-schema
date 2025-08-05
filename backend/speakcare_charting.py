@@ -13,7 +13,7 @@ import copy
 import re
 import argparse
 from boto3_session import Boto3Session
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 from models import RecordState, RecordType
 from speakcare_openai import openai_chat_completion
 

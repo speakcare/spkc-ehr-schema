@@ -23,6 +23,15 @@ class AirtableFieldTypes(PyEnum):
     CHECKBOX = 'checkbox'
     CURRENCY = 'currency'
 
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return str(self)
+
+    def __format__(self, format_spec):
+        return format(str(self), format_spec)
+
 class JsonSchemaTypes(PyEnum):
     STRING = 'string'
     NUMBER = 'number'

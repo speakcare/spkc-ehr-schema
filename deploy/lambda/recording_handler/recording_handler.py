@@ -73,7 +73,7 @@ def lambda_handler(event, context):
       'endTime':          body.get('endTime', ""),
       'fileName':         fileName,
       's3Uri':            f"s3://{bucket}/{key}",
-      'status':           'pending_upload',
+      'status':           body.get('status', 'PENDING_UPLOAD'),
       'createdAt':        now,
       'expiresAt':        expiresAt
     }

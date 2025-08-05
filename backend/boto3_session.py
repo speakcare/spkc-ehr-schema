@@ -3,7 +3,7 @@ import json
 import boto3
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 import urllib.parse
 from os_utils import os_ensure_file_directory_exists, os_sanitize_name
 

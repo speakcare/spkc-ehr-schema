@@ -12,10 +12,13 @@ from aws_cdk import (
     aws_route53_targets as targets,
     Duration,
     SecretValue,
-    RemovalPolicy
+    RemovalPolicy,
+    CfnOutput
 )
 from constructs import Construct
 import secrets
+from botocore.exceptions import ClientError
+import boto3
 
 
 
@@ -66,16 +69,12 @@ class SpeakCareCustomerStack(Stack):
                 iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole"),
             ]
         )
-        # Custom policy: Allow s3:PutObject and dynamodb:PutItem,UpdateItem
-        lambda_role.add_to_policy(iam.PolicyStatement(
-            actions=["s3:PutObject"],
-            resources=[f"{s3_bucket.bucket_arn}/recording/*"],
-        ))
-        lambda_role.add_to_policy(iam.PolicyStatement(
-            actions=["dynamodb:PutItem", "dynamodb:UpdateItem"],
-            resources=[enrollments_table.table_arn, sessions_table.table_arn],
-        ))
 
+        # --- Grant permissions to the lambda role ---
+        s3_bucket.grant_put(lambda_role, "recording/*")
+        enrollments_table.grant_write_data(lambda_role)
+        sessions_table.grant_write_data(lambda_role)
+        
         # --- Lambda Functions ---
         lambda_env = {
             "CUSTOMER_NAME": customer_name,
@@ -137,33 +136,70 @@ class SpeakCareCustomerStack(Stack):
         session_id.add_method("PATCH", apigw.LambdaIntegration(recording_update_handler), 
                               request_parameters={"method.request.path.recordingId": True}, api_key_required=True)
 
-        # --- Usage Plan & API Key ---
-        api_key_value = secrets.token_urlsafe(32)  # 43-character random string
+
+        # ------------------------------------------------------------
+        # Create-or-reuse a Secrets Manager entry for the *value*
+        # ------------------------------------------------------------
+        secret_name = f"speakcare/{customer_name}/api-key"
+        sm  = boto3.client("secretsmanager", region_name=self.region) 
+        api_key_secret = None
+        secret_id = f"{customer_name}-api-key-secret"
+        try:
+            sm.describe_secret(SecretId=secret_name)                 # ← fast existence test
+            api_key_secret = secretsmanager.Secret.from_secret_name_v2(  # already there ➜ import
+                self, secret_id, secret_name
+            )      
+        except ClientError as e:
+            if e.response['Error']['Code'] != 'ResourceNotFoundException':
+                raise e
+            else:
+                api_key_secret = secretsmanager.Secret(
+                    self, secret_id,
+                    secret_name = secret_name,
+                    description = f"API key for customer {customer_name}",
+                    generate_secret_string = secretsmanager.SecretStringGenerator(
+                        secret_string_template = json.dumps({}),         # create empty JSON
+                        generate_string_key   = "apiKeyValue",           # fill this key
+                        password_length       = 43,
+                        exclude_punctuation   = True,
+                    ),
+                    removal_policy = RemovalPolicy.RETAIN,  
+                )
+
+        api_key_value = (
+            api_key_secret                       # the imported/created secret
+                .secret_value_from_json("apiKeyValue")   # → SecretValue
+                .unsafe_unwrap()                         # → plain string (a CFN-dynamic ref)
+        )
+
+        # ------------------------------------------------------------
+        # Usage plan & ApiKey that pulls its value from the secret
+        # ------------------------------------------------------------
         usage_plan = rest_api.add_usage_plan(
             f"{customer_name}-usage-plan",
-            name=f"{customer_name}-usage-plan",
-            api_stages=[apigw.UsagePlanPerApiStage(api=rest_api, stage=rest_api.deployment_stage)],
+            name       = f"{customer_name}-usage-plan",
+            api_stages = [
+                apigw.UsagePlanPerApiStage(api  = rest_api,
+                                           stage = rest_api.deployment_stage)
+            ],
         )
-        api_key = rest_api.add_api_key(f"{customer_name}-api-key", 
-                                       api_key_name=f"{customer_name}-api-key", 
-                                       value=api_key_value,
-                                       )
+
+        api_key = rest_api.add_api_key(
+            f"{customer_name}-api-key",
+            api_key_name = f"{customer_name}-api-key",           # stable logical ID & name
+            value        = api_key_value,
+        )
         usage_plan.add_api_key(api_key)
 
-        # Store API key in Secrets Manager
-        secretsmanager.Secret(
-            self, f"{customer_name}-api-key-secret",
-            secret_name=f"speakcare/{customer_name}/api-key",
-            description=f"API key for customer {customer_name} audio ingestion",
-            secret_string_value=SecretValue.unsafe_plain_text(
-                json.dumps({
-                    "apiKeyId": api_key.key_id,
-                    "apiKeyValue": api_key_value
-                })
-            ),
-            removal_policy=RemovalPolicy.DESTROY,
+        # ------------------------------------------------------------
+        # Publish the ApiKey *ID* as a CloudFormation output
+        #     (easy to query; value stays in the secret)
+        # ------------------------------------------------------------
+        CfnOutput(
+            self, f"{customer_name}-api-key-id",
+            value       = api_key.key_id,                        # physical ID
+            export_name = f"{customer_name}-ApiKeyId"            # optional cross-stack use
         )
-        # TODO: where is the key id?
 
         # --- Custom Domain ---
         cert = acm.Certificate.from_certificate_arn(self, "acm-cert", acm_cert_arn)

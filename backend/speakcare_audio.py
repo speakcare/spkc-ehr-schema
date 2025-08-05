@@ -10,7 +10,7 @@ import argparse
 import time
 import traceback
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 import ffmpeg
 from os_utils import os_get_file_extension
 

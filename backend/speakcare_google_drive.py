@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from os_utils import os_ensure_directory_exists
 from speakcare_logging import SpeakcareLogger
-from speakcare_env import SpeakcareEnv
+from backend.speakcare_env import SpeakcareEnv
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
