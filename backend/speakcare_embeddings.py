@@ -5,7 +5,7 @@ from datetime import datetime
 from botocore.exceptions import ClientError
 from speakcare_logging import SpeakcareLogger
 from boto3_session import Boto3Session
-from speakcare_vocoder import VoiceEmbedder
+from backend.speakcare_voice_embedder import VoiceEmbedder
 
 
 class SpeakerRole(PyEnum):

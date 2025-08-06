@@ -10,7 +10,7 @@ from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List
 from backend.speakcare_env import SpeakcareEnv
-from speakcare_vocoder import VoiceEmbedder, VoiceEmbedderFactory
+from backend.speakcare_voice_embedder import VoiceEmbedder, VoiceEmbedderFactory
 from speakcare_embeddings import SpeakcareEmbeddings, SpeakerRole
 
 SpeakcareEnv.load_env()

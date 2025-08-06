@@ -10,7 +10,7 @@ from speakcare_stt import SpeakcareAWSTranscribe
 from speakcare_audio import audio_is_wav, audio_convert_to_wav
 from speakcare_recognizer import TranscriptRecognizer
 from speakcare_embeddings import SpeakcareEmbeddings
-from speakcare_vocoder import VoiceEmbedderFactory
+from backend.speakcare_voice_embedder import VoiceEmbedderFactory
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 

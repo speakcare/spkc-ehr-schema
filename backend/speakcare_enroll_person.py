@@ -4,7 +4,7 @@ import random
 import json
 from datetime import datetime, timezone
 from speakcare_embeddings import SpeakerRole, SpeakcareEmbeddings
-from speakcare_vocoder import VoiceEmbedderFactory
+from backend.speakcare_voice_embedder import VoiceEmbedderFactory
 from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
