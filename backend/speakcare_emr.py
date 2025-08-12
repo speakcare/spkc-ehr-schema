@@ -417,12 +417,21 @@ class SpeakCareEmr(SpeakCareEmrTables):
             self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID']}")
             return patient_record
 
-    def update_patient(self, patient_id, patient):
-        self.logger.debug(f'Updating patient {patient_id} with {patient}')
-        return self.patientsTable.update(patient_id, patient)
+    def update_patient(self, patientEmrId, patient):
+        self.logger.debug(f'Updating patient {patientEmrId} with {patient}')
+        return self.patientsTable.update(patientEmrId, patient)
 
-    def delete_patient(self, patient_id):
-        return self.patientsTable.delete(patient_id)
+    def delete_patient(self, patientEmrId):
+        try:
+            idx = self.patientEmrIds.index(patientEmrId)
+            recDeleted = self.patientsTable.delete(patientEmrId)
+            self.patientIds.pop(idx)
+            self.patientEmrIds.pop(idx)
+            self.patientNames.pop(idx)
+            return recDeleted
+        except Exception as e:
+            self.logger.error(f'Failed to delete patient {patientEmrId} with error {e}')
+            return None
 
 # Nurses methods 
     def load_nurses(self):
@@ -446,8 +455,8 @@ class SpeakCareEmr(SpeakCareEmrTables):
     def get_nurse_by_id(self, nurse_id):
         for index, nurseId in enumerate(self.nurseIds): 
             if nurse_id == nurseId:
-                nurseEmdId = self.nurseEmrIds[index]
-                return self.nursesTable.get(nurseEmdId)
+                nurseEmrId = self.nurseEmrIds[index]
+                return self.nursesTable.get(nurseEmrId)
     
     def __match_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
@@ -488,12 +497,22 @@ class SpeakCareEmr(SpeakCareEmrTables):
             self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_record['fields']['NurseID']}")
             return nurse_record
     
-    def update_nurse(self, nurse_id, nurse):
-        self.logger.debug(f'Updating nurse {nurse_id} with {nurse}')
-        return self.nursesTable.update(nurse_id, nurse)
+    def update_nurse(self, nurseEmrId, nurse):
+        self.logger.debug(f'Updating nurse {nurseEmrId} with {nurse}')
+        return self.nursesTable.update(nurseEmrId, nurse)
     
-    def delete_nurse(self, nurse_id):
-        return self.nursesTable.delete(nurse_id)
+    def delete_nurse(self, nurseEmrId):
+        try:
+            idx = self.nurseEmrIds.index(nurseEmrId)
+            recDeleted = self.nursesTable.delete(nurseEmrId)
+            self.nurseIds.pop(idx)
+            self.nurseEmrIds.pop(idx)
+            self.nurseNames.pop(idx)
+            return recDeleted
+        except Exception as e:
+            self.logger.error(f'Failed to delete nurse {nurseEmrId} with error {e}')
+            return None
+    
     
     def get_nurse_patients(self, nurse_id):
         return self.nursesTable.get(nurse_id)['fields']['Patients']

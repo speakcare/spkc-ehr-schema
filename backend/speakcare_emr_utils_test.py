@@ -1041,14 +1041,14 @@ class TestSchema(unittest.TestCase):
             self.logger.info(f'Getting airtable schema for table {table_name}')
             airtable_schema = EmrUtils.get_airtable_schema(table_name)
             self.assertIsNotNone(airtable_schema)
-            self.logger.info(f'{table_name} Airtable schema: {json.dumps(airtable_schema, indent=4)}')
+            self.logger.debug(f'{table_name} Airtable schema: {json.dumps(airtable_schema, indent=4)}')
 
     def test_get_fallrisk_schema(self):
         # Getting schema for a specific table
         table_name = SpeakCareEmr.FALL_RISK_SCREEN_TABLE
         record_schema = EmrUtils.get_table_json_schema(table_name)
         self.assertIsNotNone(record_schema)
-        self.logger.info(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
+        self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')
 
     def test_get_sports_3_schema(self):
         # Getting schema for a specific table
@@ -1112,9 +1112,9 @@ class TestPersons(unittest.TestCase):
                 # Create a record example
         patient_data = {
             "FullName": "Frodo Baggins",
-            "FirstName": "Frodo",
+            #"FirstName": "Frodo",
             "LastName": "Baggins",
-            #"DateOfBirth": "1968-09-22", # missing DateOfBirth
+            "DateOfBirth": "1968-09-22", # missing DateOfBirth
             "Gender": "Male",
             "Admission Date": "2024-05-01"
         }
@@ -1124,7 +1124,7 @@ class TestPersons(unittest.TestCase):
         self.logger.info(f"Patient creation failed. Error: {message["error"]}")
 
         # add the missing field
-        patient_data["DateOfBirth"] = "1968-09-22"
+        patient_data["FirstName"] = "Frodo"
         emr_patient_record, message  = EmrUtils.add_patient(patient_data)
         # should succeed    
         self.logger.info(f"Created patient {emr_patient_record['id']}")

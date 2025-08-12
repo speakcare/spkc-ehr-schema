@@ -158,32 +158,32 @@ class EmrUtils:
             return None, {"error": f"Invalid patient fields: {errors}"}
     
     @staticmethod
-    def update_patient(patient_id, patient):
-        logger.info(f"update_patient: {patient_id}:\n {patient}")
+    def update_patient(patientEmrId, patient):
+        logger.info(f"update_patient: {patientEmrId}:\n {patient}")
         errors = []
         isValid, validPatientFields = EmrUtils.validate_partial_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
         if isValid:
             logger.info(f"update_patient: valid patient fields:\n {validPatientFields}")
-            record = emr_api.update_patient(patient_id, validPatientFields)
+            record = emr_api.update_patient(patientEmrId, validPatientFields)
             if not record:
-                logger.error(f"update_patient patient id {patient_id} failed: {validPatientFields}")
-                return None, {"error": f"Failed to update patient id {patient_id}"}
+                logger.error(f"update_patient patient id {patientEmrId} failed: {validPatientFields}")
+                return None, {"error": f"Failed to update patient id {patientEmrId}"}
             else:
-                logger.info(f"update_patient id {patient_id} success: {validPatientFields}")
-                return record, {"message": f"Patient id {patient_id} updated successfully."}
+                logger.info(f"update_patient id {patientEmrId} success: {validPatientFields}")
+                return record, {"message": f"Patient id {patientEmrId} updated successfully."}
         else:
             logger.error(f"update_patient failed: invalid patient fields:\n {patient}")
             return None, {"error": f"Invalid patient fields: {errors}"}
     
     @staticmethod    
-    def delete_patient(patient_id):
-        logger.info(f"delete_patient: {patient_id}")
-        record = emr_api.delete_patient(patient_id)
+    def delete_patient(patientEmrId):
+        logger.info(f"delete_patient: {patientEmrId}")
+        record = emr_api.delete_patient(patientEmrId)
         if not record:
-            logger.error(f"delete_patient failed: {patient_id}")
+            logger.error(f"delete_patient failed: {patientEmrId}")
             return None
         else:
-            logger.info(f"delete_patient success: {patient_id}")
+            logger.info(f"delete_patient success: {patientEmrId}")
             return record
         
     @staticmethod
@@ -214,32 +214,32 @@ class EmrUtils:
             return None, {"error": f"Invalid nurse fields: {errors}"}
 
     @staticmethod
-    def update_nurse(nurse_id, nurse):
-        logger.info(f"update_nurse: {nurse_id}:\n {nurse}")
+    def update_nurse(nurseEmrId, nurse):
+        logger.info(f"update_nurse: {nurseEmrId}:\n {nurse}")
         errors = []
         isValid, validNurseFields = EmrUtils.validate_partial_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
         if isValid:
             logger.info(f"update_nurse: valid nurse fields:\n {validNurseFields}")
-            record = emr_api.update_nurse(nurse_id, validNurseFields)
+            record = emr_api.update_nurse(nurseEmrId, validNurseFields)
             if not record:
-                logger.error(f"update_nurse nurse id {nurse_id} failed: {validNurseFields}")
-                return None, {"error": f"Failed to update nurse id {nurse_id}"}
+                logger.error(f"update_nurse nurse id {nurseEmrId} failed: {validNurseFields}")
+                return None, {"error": f"Failed to update nurse id {nurseEmrId}"}
             else:
-                logger.info(f"update_nurse id {nurse_id} success: {validNurseFields}")
-                return record, {"message": f"Nurse id {nurse_id} updated successfully."}
+                logger.info(f"update_nurse id {nurseEmrId} success: {validNurseFields}")
+                return record, {"message": f"Nurse id {nurseEmrId} updated successfully."}
         else:
             logger.error(f"update_nurse failed: invalid nurse fields:\n {nurse}")
             return None, {"error": f"Invalid nurse fields: {errors}"}
     
     @staticmethod    
-    def delete_nurse(nurse_id):
-        logger.info(f"delete_nurse: {nurse_id}")
-        record = emr_api.delete_nurse(nurse_id)
+    def delete_nurse(nurseEmrId):
+        logger.info(f"delete_nurse: {nurseEmrId}")
+        record = emr_api.delete_nurse(nurseEmrId)
         if not record:
-            logger.error(f"delete_nurse failed: {nurse_id}")
+            logger.error(f"delete_nurse failed: {nurseEmrId}")
             return None
         else:
-            logger.info(f"delete_nurse success: {nurse_id}")
+            logger.info(f"delete_nurse success: {nurseEmrId}")
             return record
         
     @staticmethod
