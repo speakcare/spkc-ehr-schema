@@ -6,7 +6,9 @@ from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json
 import os
+import requests
 from backend.speakcare_env import SpeakcareEnv
+from backend.tests.table_schemas import TableSchemas
 
 
 run_skipped_tests = False
@@ -27,14 +29,210 @@ def tearDownModule():
 
 import unittest
 
+class AirtableUtils():
+    
+    
+    def create_airtable_table(base_id, airtable_token, table_name, fields):
+        url = f"https://api.airtable.com/v0/meta/bases/{base_id}/tables"
+        headers = {
+            "Authorization": f"Bearer {airtable_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Convert field types to Airtable types
+        airtable_fields = []
+        used_names = set()
+        name_mapping = {}  # Keep track of original name to actual name mapping
+        
+        # First, create a list of all field names and their counts
+        name_counts = {}
+        for field in fields:
+            name = field["name"]
+            name_counts[name] = name_counts.get(name, 0) + 1
+        
+        # Reset counters for each name
+        name_counters = {name: 1 for name in name_counts}
+        
+        for field in fields:
+            original_name = field["name"]
+            base_name = original_name
+            
+            # If this name appears multiple times, add a suffix
+            if name_counts[base_name] > 1:
+                name = f"{base_name} {name_counters[base_name]}"
+                name_counters[base_name] += 1
+            else:
+                name = base_name
+                
+            name_mapping[original_name] = name
+            
+            airtable_field = {
+                "name": name,
+                "type": "singleLineText"  # Default type
+            }
+
+            if field["type"] == "multilineText":
+                airtable_field["type"] = "multilineText"
+            elif field["type"] == "singleLineText":
+                airtable_field["type"] = "singleLineText"
+            elif field["type"] == "checkbox":
+                airtable_field["type"] = "singleSelect"
+                airtable_field["options"] = {
+                    "choices": [
+                        {"name": "Yes"},
+                        {"name": "No"}
+                    ]
+                }
+            elif field["type"] == "singleSelect" and "options" in field:
+                airtable_field["type"] = "singleSelect"
+                airtable_field["options"] = field["options"]
+            elif field["type"] == "multipleSelects" and "options" in field:
+                airtable_field["type"] = "multipleSelects"
+                airtable_field["options"] = field["options"]
+
+            airtable_fields.append(airtable_field)
+
+        payload = {
+            "name": table_name,
+            "fields": airtable_fields
+        }
+
+        logger = SpeakcareLogger("AirtableUtils")
+        logger.info(f"sending create table request to url: {url}, header: {headers}, payload: {payload}")
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 422 and "DUPLICATE_TABLE_NAME" in response.text:
+            logger.info(f"⚠️ Table '{table_name}' already exists.")
+            return True, True
+        elif response.status_code == 200:
+            logger.info("✅ Airtable Table created successfully.")
+            return True, False
+        else:
+            logger.info(f"❌ Error creating table: {response.status_code}")
+            logger.info(response.text)
+            return False, False
+    
+    @staticmethod
+    def delete_all_records_in_table(base_id, airtable_token, table_name):
+        """
+        Delete all records from an existing Airtable table
+        
+        Args:
+            base_id: Airtable base ID
+            airtable_token: Airtable API token
+            table_name: Name of the table to clear
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        import requests
+        
+        # First, get all records from the table
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        headers = {
+            "Authorization": f"Bearer {airtable_token}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            # Get all records
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                logger = SpeakcareLogger("AirtableUtils")
+                logger.error(f"Failed to get records from table '{table_name}': {response.status_code}")
+                return False
+            
+            records = response.json().get('records', [])
+            if not records:
+                logger = SpeakcareLogger("AirtableUtils")
+                logger.info(f"Table '{table_name}' is already empty")
+                return True
+            
+            # Delete all records
+            record_ids = [record['id'] for record in records]
+            logger = SpeakcareLogger("AirtableUtils")
+            logger.info(f"Deleting {len(record_ids)} records from table '{table_name}'")
+            
+            # Airtable allows deleting multiple records in one request
+            delete_url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+            delete_payload = {"records": [{"id": rid, "deleted": True} for rid in record_ids]}
+            
+            delete_response = requests.delete(delete_url, headers=headers, json=delete_payload)
+            if delete_response.status_code == 200:
+                logger.info(f"Successfully deleted {len(record_ids)} records from table '{table_name}'")
+                return True
+            else:
+                logger.error(f"Failed to delete records from table '{table_name}': {delete_response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger = SpeakcareLogger("AirtableUtils")
+            logger.error(f"Error deleting records from table '{table_name}': {str(e)}")
+            return False
+
 
 class TestRecords(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        """Run once when the test class is first created, before any tests run"""
+        cls.logger = SpeakcareLogger(__name__)
+        cls.logger.info("**** setUpClass - TestRecords class initialized ****")
+        # Add any one-time setup code here
+        # Create test tables. If they exist, delete them and create new ones
+        # tables to create: Patients, Nurses
+        # Create nurses table with actual fields used in tests
+
+        SpeakcareEnv.load_env()
+        AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
+        AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
+        
+        # Check if table already exists and handle accordingly
+        table_name = "Test_Nurses"
+        nurses_fields = TableSchemas.TEST_NURSES_FIELDS
+
+        success, record_deletion_required = AirtableUtils.create_airtable_table(
+            base_id=AIRTABLE_APP_BASE_ID, 
+            airtable_token=AIRTABLE_API_KEY, 
+            table_name=table_name, 
+            fields=nurses_fields
+        )
+        
+        if success:
+            if record_deletion_required:  # Table already existed
+                cls.logger.info(f"Table '{table_name}' already exists. Deleting all existing records...")
+                # Delete all existing records in the table
+                AirtableUtils.delete_all_records_in_table(
+                    base_id=AIRTABLE_APP_BASE_ID,
+                    airtable_token=AIRTABLE_API_KEY,
+                    table_name=table_name
+                )
+                cls.logger.info(f"All records deleted from table '{table_name}'")
+            else:
+                cls.logger.info(f"Table '{table_name}' created successfully")
+        else:
+            cls.logger.error(f"Failed to create/access table '{table_name}'")
+
+        
+
+        
+    @classmethod
+    def tearDownClass(cls):
+        """Run once when all tests in the class are finished"""
+        cls.logger = SpeakcareLogger(__name__)
+        pass
+        # Add any cleanup code here
+        # For example: close connections, delete test data, etc.
+        # This is a good place to clean up any resources created in setUpClass
 
     def __init__(self, *args, **kwargs):
         super(TestRecords, self).__init__(*args, **kwargs)
         self.logger = SpeakcareLogger(__name__)
 
     def setUp(self):
+        pass
+
+    def test_table_creation(self):
+        # make sure the table is created successfully
         pass
 
     def test_record_create(self):
