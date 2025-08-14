@@ -1,6 +1,9 @@
 import os, sys
+
+from dotenv.main import logger
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from pyairtable import Api as AirtableApi
+import json
 import logging
 import requests
 import time
@@ -10,6 +13,7 @@ import copy
 from typing import Dict
 from speakcare_emr_tables import SpeakCareEmrTables
 from backend.speakcare_env import SpeakcareEnv
+from backend.speakcare_airtable_api import SpeakCareAirtableApi
 
 # Load the .env file
 SpeakcareEnv.load_env()
@@ -19,24 +23,15 @@ AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 class SpeakCareEmr(SpeakCareEmrTables):
 
 
-    METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
-    API_BASE_URL = 'https://api.airtable.com/v0'
-    WEB_APP_BASE_URL = 'https://airtable.com'
-
     INTERNAL_FIELDS = ['Patient', 'CreatedBy', 'Doctor', 'SpeakCare']
     READONLY_FIELD_TYPES = ['autoNumber', 'barcode', 'button', 'collaborator', 'count', 'createdBy',  'createdTime', 
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
                             'multipleRecordLinks', 'rollup', 'singleCollaborator', 'multipleAttachments']
 
-    def __init__(self, baseId: str, logger: logging.Logger):
-        self.apiKey = AIRTABLE_API_KEY
-        self.api = AirtableApi(self.apiKey)
-        self.appBaseId = baseId
+    def __init__(self, config, logger: logging.Logger):
         self.logger = logger
-        self.tablesSchemaUrl = f'{self.METADATA_BASE_URL}/{baseId}/tables'
-        self.apiBaseUrl = f'{self.API_BASE_URL}/{baseId}/'
-        self.webBaseUrl = f'{self.WEB_APP_BASE_URL}/{baseId}/'
         self.tables = None
+        self.airtableApi = SpeakCareAirtableApi(config, logger=logger)
         self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=75)
         self.initialze()
 
@@ -45,8 +40,6 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.load_patients()
         self.load_nurses()
     
-
-
     def __writable_fields(self, tableSchema):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
@@ -58,56 +51,13 @@ class SpeakCareEmr(SpeakCareEmrTables):
                      fields.append(_field)
         
         return fields
-    
 
-    def api_post(self, baseUrl=None, body=None, dictBody=None, tableId="", params=None, headers=None):
-
-        url = os.path.join(baseUrl, tableId) if tableId else baseUrl
-        self.logger.debug(f'API: Sending POST to endpoint \"{url}\" with:\n headers {headers} body: {body} dictBody: {dictBody} uriParams {params}')
-        response = requests.post(url, data=body, json=dictBody, params=params, headers=headers)#, cert=self.cert)
-        
-        if (response.status_code != 200):
-            self.logger.error(f'API: POST to tableId \"{tableId}\" with payload {body} returned status code {response.status_code} response: {response.text}')
-
-        return response
-        
-    def api_get(self, baseUrl=None, body=None, tableId="", params=None, headers=None):
-
-        url = os.path.join(baseUrl, tableId) if tableId else baseUrl
-        self.logger.debug(f'API: Sending GET to endpoint \"{url}\" with:\n headers {headers} body: {body} uriParams {params}')
-        
-        response = requests.get(url, data=body, params=params, headers=headers)
-        
-        
-        if (response.status_code != 200):
-            self.logger.error(f'API: GET to endpoint \"{url}\" with payload {body} returned status code {response.status_code} response: {response.text}')
-
-        return response
-
-
-    def __retreive_all_tables_schema(self):
-        authHeader = f'Bearer {self.apiKey}'
-        _headers = {
-                      'Authorization': authHeader
-                   }
-        response = self.api_get(self.tablesSchemaUrl, headers=_headers)
-        data = response.json()  # Convert the JSON response to a dictionary
-        self.tables = data.get("tables", []) 
-        return self.tables
-    
     def create_table(self, table:dict):
-        authHeader = f'Bearer {self.apiKey}'
-        _headers = {
-                      'Authorization': authHeader,
-                      'Content-Type': 'application/json'
-                   }
-        response = self.api_post(baseUrl= self.tablesSchemaUrl, dictBody=table, headers=_headers)
-        return response.json()
-        
+        return self.airtableApi.create_table(table)
 
     def load_tables(self):
         if not self.tables:
-            tables = self.__retreive_all_tables_schema()
+            tables = self.airtableApi.retreive_all_tables_schema()
             self.tables = {}
             self.tableEmrSchemas: Dict[str, AirtableSchema] = {}
             # Traverse the tables and create writable schema
@@ -148,8 +98,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
     
     def get_emr_table_names(self):
         return SpeakCareEmr.EMR_TABLES
-    
-    
+   
     def get_emr_table_section_names(self, tableName=None):
         if not tableName:
             return None
@@ -213,20 +162,15 @@ class SpeakCareEmr(SpeakCareEmrTables):
         
     def create_record(self, tableId, record):
         self.logger.debug(f'Creating record in table {tableId} with record {record}')
-        record = self.api.table(self.appBaseId, tableId).create(record)
-        if record:
-            url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
-            return record, url
-        else:
-            self.logger.error(f'Failed to create record {record} in table {tableId}')
-            return None, None
+        record, url = self.airtableApi.create_record(tableId, record)
+        return record, url
         
     def get_record(self, tableId, recordId):
-        return self.api.table(self.appBaseId, tableId).get(recordId)
+        return self.airtableApi.get_record(tableId, recordId)
     
     def update_record(self, tableId, recordId, record):
         self.logger.debug(f'Update record in table {tableId} with record {record}')
-        return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
+        return self.airtableApi.update_record(tableId, recordId, fields=record)
     
     def validate_record(self, tableName, record, errors):
         tableSchema = self.tableEmrSchemas.get(tableName)
@@ -351,16 +295,13 @@ class SpeakCareEmr(SpeakCareEmrTables):
             err_msg = f'sign_assessment: Failed to get assessment record with id {assessmentId}'
             self.logger.error(err_msg)
             return None, err_msg
-
-
-
 # Patients methods
     def load_patients(self):
-        self.patientsTable = self.api.table(self.appBaseId, self.PATIENTS_TABLE)
+        self.airtableApi.load_table(self.PATIENTS_TABLE)
         self.patientNames=[]
         self.patientEmrIds=[]
         self.patientIds=[]
-        patients = self.patientsTable.all()
+        patients = self.airtableApi.get_table_records(self.PATIENTS_TABLE)
         for patient in patients:
             self.patientNames.append(patient['fields']['FullName'])
             self.patientEmrIds.append(patient['id'])
@@ -368,17 +309,16 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.logger.debug(f'Loaded patients. Patients names: {self.patientNames}')
 
     def get_patients(self):
-        return self.patientsTable.all()
+        return self.airtableApi.get_table_records(self.PATIENTS_TABLE)
 
     def get_patient_by_emr_id(self, patient_emr_id):
-        return self.patientsTable.get(patient_emr_id)
+        return self.airtableApi.get_record(self.PATIENTS_TABLE, patient_emr_id)
     
     def get_patient_by_id(self, patient_id):
         for index, patienId in enumerate(self.patientIds): 
             if patient_id == patienId:
                 patientEmdId = self.patientEmrIds[index]
-                return self.patientsTable.get(patientEmdId)
-
+                return self.airtableApi.get_record(self.PATIENTS_TABLE, patientEmdId)
 
     def __match_patient(self, patientName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
@@ -406,7 +346,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
             patientId = self.patientIds[self.patientNames.index(patient_name)]
             self.logger.warning(f"Patient '{patient_name}' already exists with id {patientId}")
             return None
-        patient_record = self.patientsTable.create(patient)
+        patient_record, _ = self.airtableApi.create_record(self.PATIENTS_TABLE, patient)
         if not patient_record:
             self.logger.error(f'Failed to create patient {patient}')
             return None
@@ -419,12 +359,12 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
     def update_patient(self, patientEmrId, patient):
         self.logger.debug(f'Updating patient {patientEmrId} with {patient}')
-        return self.patientsTable.update(patientEmrId, patient)
+        return self.airtableApi.update_record(self.PATIENTS_TABLE, patientEmrId, patient)
 
     def delete_patient(self, patientEmrId):
         try:
             idx = self.patientEmrIds.index(patientEmrId)
-            recDeleted = self.patientsTable.delete(patientEmrId)
+            recDeleted = self.airtableApi.requests.delete(self.PATIENTS_TABLE, patientEmrId)
             self.patientIds.pop(idx)
             self.patientEmrIds.pop(idx)
             self.patientNames.pop(idx)
@@ -435,11 +375,11 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
 # Nurses methods 
     def load_nurses(self):
-        self.nursesTable = self.api.table(self.appBaseId, self.NURSES_TABLE)
+        self.airtableApi.load_table(self.NURSES_TABLE)
         self.nurseNames = []
         self.nurseEmrIds = []
         self.nurseIds = []
-        nurses = self.nursesTable.all()
+        nurses = self.airtableApi.get_table_records(self.NURSES_TABLE)
         for nurse in nurses:
             self.nurseNames.append(nurse['fields']['Name'])
             self.nurseEmrIds.append(nurse['id'])
@@ -447,16 +387,16 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.logger.debug(f'Loaded nurses. Nurses names: {self.nurseNames}')
 
     def get_nurses(self):
-        return self.nursesTable.all()
+        return self.airtableApi.get_table_records(self.NURSES_TABLE)
     
     def get_nurse_by_emr_id(self, nurse_emr_id):
-        return self.nursesTable.get(nurse_emr_id)
+        return self.airtableApi.get_record(self.NURSES_TABLE, nurse_emr_id)
     
     def get_nurse_by_id(self, nurse_id):
         for index, nurseId in enumerate(self.nurseIds): 
             if nurse_id == nurseId:
                 nurseEmrId = self.nurseEmrIds[index]
-                return self.nursesTable.get(nurseEmrId)
+                return self.airtableApi.get_record(self.NURSES_TABLE, nurseEmrId)
     
     def __match_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
@@ -486,7 +426,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
             nurseId = self.nurseIds[self.nurseNames.index(nurse_name)]
             self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurseId}")
             return None
-        nurse_record = self.nursesTable.create(nurse)
+        nurse_record, _ = self.airtableApi.create_record(self.NURSES_TABLE, nurse)
         if not nurse_record:
             self.logger.error(f'Failed to create nurse {nurse}')
             return None
@@ -499,12 +439,12 @@ class SpeakCareEmr(SpeakCareEmrTables):
     
     def update_nurse(self, nurseEmrId, nurse):
         self.logger.debug(f'Updating nurse {nurseEmrId} with {nurse}')
-        return self.nursesTable.update(nurseEmrId, nurse)
+        return self.airtableApi.update_record(self.NURSES_TABLE, nurseEmrId, nurse)
     
     def delete_nurse(self, nurseEmrId):
         try:
             idx = self.nurseEmrIds.index(nurseEmrId)
-            recDeleted = self.nursesTable.delete(nurseEmrId)
+            recDeleted = self.airtableApi.delete_record(self.NURSES_TABLE, nurseEmrId)
             self.nurseIds.pop(idx)
             self.nurseEmrIds.pop(idx)
             self.nurseNames.pop(idx)
@@ -515,7 +455,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
     
     
     def get_nurse_patients(self, nurse_id):
-        return self.nursesTable.get(nurse_id)['fields']['Patients']
+        return self.airtableApi.get_record(self.NURSES_TABLE)['fields']['Patients']
     
 
 __singletonInstance = None
@@ -533,5 +473,5 @@ def get_emr_api_instance(config=None):
         else:
             baseId = config.get('baseId')
             logger = config.get('logger')
-            __singletonInstance = SpeakCareEmr(baseId=baseId, logger=logger)
+            __singletonInstance = SpeakCareEmr(config, logger=logger)
     return __singletonInstance
