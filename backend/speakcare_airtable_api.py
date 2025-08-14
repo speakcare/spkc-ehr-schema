@@ -61,7 +61,7 @@ class SpeakCareAirtableApi():
     #     return self.api.table(self.appBaseId, table)
 
     def get_table_records(self, tableId):
-        if not tableId and not self.tables:
+        if tableId not in self.tables:
             self.logger.error(f'get_table_records: table {tableId} not loaded')
             return None
         return self.tables[tableId].all()
@@ -76,20 +76,20 @@ class SpeakCareAirtableApi():
             return None, None
     
     def update_record(self, tableId, recordId, record):
-        if not tableId and not self.tables:
+        if tableId not in self.tables:
             self.logger.debug(f'update_record: updating record {recordId} in a non-loaded table {tableId}')
             return self.api.table(self.appBaseId, tableId).get(recordId)
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
 
     def get_record(self, tableId, recordId):
-        if not tableId and not self.tables:
+        if tableId not in self.tables:
             self.logger.debug(f'get_record: getting record {recordId} from a non-loaded table {tableId}')
             return self.api.table(self.appBaseId, tableId).get(recordId)
         else:
             return self.tables[tableId].get(recordId)
 
     def delete_record(self, tableId, recordId):
-        if not tableId and not self.tables:
+        if tableId not in self.tables:
             self.logger.debug(f'delete_record: deleting record {recordId} from a non-loaded table {tableId}')
             return self.api.table(self.appBaseId, tableId).get(recordId)
         return self.tables[tableId].delete(recordId)
