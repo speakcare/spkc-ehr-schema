@@ -13,6 +13,15 @@ class NameMatcher:
         self.logger = SpeakcareLogger(NameMatcher.__name__)
         
     def get_best_match(self, input_name= None, names_to_match = None):
+        # Input validation
+        if not input_name or not input_name.strip():
+            self.logger.debug(f"No match found for '{input_name}' - None input")
+            return None, None, None
+        
+        if not names_to_match or len(names_to_match) == 0:
+            self.logger.debug(f"No match found for '{input_name}' - empty match list input")
+            return None, None, None
+        
         # Initial character-based matching
         self.logger.debug(f"get_best_match: {input_name} {names_to_match}")
         best_match, score, best_idx = process.extractOne(input_name, names_to_match, scorer=fuzz.WRatio)
@@ -23,7 +32,13 @@ class NameMatcher:
 
         # Fallback to phonetic matching
         dmetaphone = fuzzy.DMetaphone()
-        input_primary, input_secondary = dmetaphone(input_name)
+        try:
+            input_primary, input_secondary = dmetaphone(input_name)
+        except UnicodeEncodeError:
+            # Handle unicode characters gracefully
+            self.logger.debug(f"Unicode encoding error for '{input_name}', skipping phonetic matching")
+            return None, None, None
+            
         potential_matches = []
 
         # Check phonetic similarity
@@ -32,7 +47,13 @@ class NameMatcher:
         best_match_index = None
         for i, name in enumerate(names_to_match):
             self.logger.debug(f"name: {name}")
-            name_primary, name_secondary = dmetaphone(name)
+            try:
+                name_primary, name_secondary = dmetaphone(name)
+            except UnicodeEncodeError:
+                # Skip names with unicode characters for phonetic matching
+                self.logger.debug(f"Unicode encoding error for '{name}', skipping phonetic matching")
+                continue
+                
             if (input_primary == name_primary or input_primary == name_secondary or
                 input_secondary == name_primary or input_secondary == name_secondary):
 
@@ -64,13 +85,25 @@ class NameMatcher:
         Filters the patient names based on Double Metaphone similarity with the input name.
         Returns a list of indices of matching names.
         """
+        if not input_name or not patient_names:
+            return []
+            
         dmetaphone = fuzzy.DMetaphone()
-        input_primary, input_secondary = dmetaphone(input_name)
+        
+        try:
+            input_primary, input_secondary = dmetaphone(input_name)
+        except UnicodeEncodeError:
+            # Handle unicode characters gracefully
+            return []
         
         matching_indices = []
         
         for i, name in enumerate(patient_names):
-            name_primary, name_secondary = dmetaphone(name)
+            try:
+                name_primary, name_secondary = dmetaphone(name)
+            except UnicodeEncodeError:
+                # Skip names with unicode characters
+                continue
             
             # Check if either primary or secondary metaphone matches
             if (input_primary == name_primary) or (input_primary == name_secondary) or \
