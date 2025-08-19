@@ -1,0 +1,852 @@
+{
+    "name": "Patients",
+    "primaryFieldId": "fldZV54PFLRjqsxDp",
+    "fields": [
+      {
+        "type": "singleLineText",
+        "name": "id"
+      },
+      {
+        "type": "singleLineText",
+        "name": "FullName",
+        "description": "(required): if last name is not available use only first name"
+      },
+      
+    {
+        "type": "multipleAttachments",
+        "name": "Photo"
+      },
+      {
+        "type": "singleLineText",
+        "name": "FirstName",
+        "description": "(required)"
+      },
+      {
+        "type": "singleLineText",
+        "name": "LastName"
+      },
+      {
+        "type": "singleSelect",
+        "options": {
+          "choices": [
+            {
+              "name": "Mr.",
+              "color": "blueLight2"
+            },
+            {
+              "name": "Mrs.",
+              "color": "cyanLight2"
+            },
+            {
+              "name": "Miss",
+              "color": "tealLight2"
+            },
+            {
+              "name": "Dr.",
+              "color": "greenLight2"
+            },
+            {
+              "name": "Eng.",
+              "color": "yellowLight2"
+            }
+          ]
+        },
+        "name": "Prefix"
+      },
+      {
+        "type": "date",
+        "options": {
+          "dateFormat": {
+            "name": "friendly",
+            "format": "LL"
+          }
+        },
+        "name": "DateOfBirth"
+      },
+      {
+        "type": "singleSelect",
+        "options": {
+          "choices": [
+            {
+              "name": "Male",
+              "color": "blueLight2"
+            },
+            {
+              "name": "Female",
+              "color": "cyanLight2"
+            },
+            {
+              "name": "Other",
+              "color": "tealLight2"
+            }
+          ]
+        },
+        "name": "Gender"
+      },
+      {
+        "type": "singleLineText",
+        "name": "ContactNumber"
+      },
+      {
+        "type": "singleLineText",
+        "name": "Email"
+      },
+      {
+        "type": "singleLineText",
+        "name": "Address"
+      },
+      {
+        "type": "singleLineText",
+        "name": "EmergencyContact"
+      },
+      {
+        "type": "singleLineText",
+        "name": "EmergencyContactNumber"
+      },
+      {
+        "type": "singleLineText",
+        "name": "MedicalHistory"
+      },
+      {
+        "type": "singleLineText",
+        "name": "TreatmentPlan"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblhcDlSmtb29KhhK"
+        },
+        "name": "PrimaryDoctor"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl72548xop34lCG4"
+        },
+        "name": "Department"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblfeaisVdIxR20tl"
+        },
+        "name": "Episodes"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblNl2WQHPOkzzoBf"
+        },
+        "name": "BillingRecords"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl6SwZHUtKUT3UjR"
+        },
+        "name": "Appointments"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl3nvE6GrMZkigZ3"
+        },
+        "name": "Medications"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblQ7rRrTQvs9hhH6"
+        },
+        "name": "LabResults"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblpvrGhmxqXqF1G7"
+        },
+        "name": "ProgressNotes"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblHVaOCvQN22Km87"
+        },
+        "name": "Blood Pressure"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl7h1M2HkAE3BI0l"
+        },
+        "name": "Weight"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblPppIyBTmR1oJwI"
+        },
+        "name": "Temperature"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblS25xo735rTWkgm"
+        },
+        "name": "Admission"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblku5F04AH4D9WBo"
+        },
+        "name": "Nurses"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblLVurM7XJ8nqd2O"
+        },
+        "name": "O2 saturation"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblZCx2zsCBk0oaWj"
+        },
+        "name": "Blood Sugar"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblhQ0O2zrw4ggszx"
+        },
+        "name": "Pulse"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblrj15Hc7NXx0FBx"
+        },
+        "name": "Respiration"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblFAiDDQUnjUdQDE"
+        },
+        "name": "Height"
+      },
+      {
+        "type": "date",
+        "options": {
+          "dateFormat": {
+            "name": "local",
+            "format": "l"
+          }
+        },
+        "name": "Admission Date"
+      },
+      {
+        "type": "number",
+        "options": {
+          "precision": 0
+        },
+        "name": "Age"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl2yXRrwd4UBHi82"
+        },
+        "name": "Fall Risk Screen"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblKOc5me2F6kIOzO"
+        },
+        "name": "Vitals"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblvO41S1pqPp55az"
+        },
+        "name": "Admission: SECTION 1. DEMOGRAPHICS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbly7IqDrqa8rjpi5"
+        },
+        "name": "Admission: SECTION 2. VITALS-ALLERGIES"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblV66nn054XitWjl"
+        },
+        "name": "Admission: SECTION 3. SKIN CONDITION"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblqlnOmEyynhqr3i"
+        },
+        "name": "Admission: SECTION 4. PHYSICAL / ADL / COMMUNICATION STATUS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbluqo68EFu0RJpnY"
+        },
+        "name": "Admission: SECTION 5. BOWEL-BLADDER EVALUATION"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblVeUM3M35SQ7Tl8"
+        },
+        "name": "Admission: SECTION 6. PSYCHOSOCIAL ASPECTS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblPe6uTsWZRpel6W"
+        },
+        "name": "Admission: SECTION 7. DISCHARGE EVALUATION"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblJmqbqD1OOITdtN"
+        },
+        "name": "Admission: SECTION 8. ORIENTATION TO FACILITY"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl5588R30FaqYxml"
+        },
+        "name": "Fall Risk Screen: SECTION 1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblx6DkJcuFUF4uds"
+        },
+        "name": "Harmony vitals"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl4QJoZ5cYM9xfbn"
+        },
+        "name": "Harmony Med/Surg Nursing Assessment"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblwj9ATff2OwdQkE"
+        },
+        "name": "Labor admission"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl4yT9eaK2rYbTOI"
+        },
+        "name": "Labor Admission Section 1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblS1iIml5gN1ujn1"
+        },
+        "name": "Sport Performance Assessment 1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbllrtBZs62q56RFO"
+        },
+        "name": "Labor Admission Section 3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblK1DWQCdZUCq2Y7"
+        },
+        "name": "Labor Admission Section 4"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblSlNsLngN4PIBHs"
+        },
+        "name": "Labor Admission Section 5"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblip3xGMx04ZN6Wt"
+        },
+        "name": "STAR EXCURSION BALANCE TEST"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblc5S68lK4B9FU6J"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl5uvLRwtZkw4x9Y"
+        },
+        "name": "LOCAL ASSESSMENT"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblHX2m2Lao5WLeXb"
+        },
+        "name": "Sport Performance Assessment 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblou6WXUhn3H2DBK"
+        },
+        "name": "Sport Performance Assessment 4"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl13YUemprghMMjC"
+        },
+        "name": "Harmony Critical Care Nursing Assessment"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblSiIKl26Bq0lL2v"
+        },
+        "name": "Sport Performance Assessment 3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl3ZPn4cxhjDXw33"
+        },
+        "name": "STAR EXCURSION BALANCE TEST copy"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblpZSNeiBBWdSMG2"
+        },
+        "name": "STAR EXCURSION BALANCE TEST copy 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl7PZHVUvaCuGBaR"
+        },
+        "name": "STAR EXCURSION BALANCE TEST copy 3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblh1POqmpAfIsey8"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS - ANTERIOR copy"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblWRbxPwtKtXl1P8"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS - ANTERIOR copy 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblRtKn6mrzYdzmnb"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS - ANTERIOR copy 3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblMf59IkUqigDFwF"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS - ANTERIOR copy 4"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl0c1YlXkS9A1EOl"
+        },
+        "name": "GLOBAL/INTEGRATED ASSESSMENT 3DMAPS - LIMITING AREAS - ANTERIOR copy 5"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblwupHPCnmbcZbu3"
+        },
+        "name": "LOCAL ASSESSMENT copy"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblJ6Ipf33H79keZA"
+        },
+        "name": "LOCAL ASSESSMENT copy 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tble0jtubPUXVGieq"
+        },
+        "name": "Sport Performance Assessment 2 copy"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblaAG2d45BqQOAOG"
+        },
+        "name": "Sport Performance Assessment 3 copy"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbleEpPp5hnD1nPwg"
+        },
+        "name": "Grove_Assessment_Details"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblgswCGlBCYBKs7r"
+        },
+        "name": "Grove_Assessment_Details_Medications"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl9qdtr2EsxpVsG1"
+        },
+        "name": "Grove_Assessment_Details_Evaluation"
+      },
+      {
+        "type": "singleLineText",
+        "name": "Grove_Assessment_Details_Alcohol"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblAK18F9oL7ewwD7"
+        },
+        "name": "Grove_Assessment_Details_AIMS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbltQ57N37geeEXO9"
+        },
+        "name": "Grove_Assessment_Details_Pain"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblMkFF1OpTUzD2Ze"
+        },
+        "name": "Grove_Assessment_Details_Braden"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl83BiQ4pE7vaEfc"
+        },
+        "name": "Grove_Assessment_Details_Elopement"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblNElNLhPZAy8aWJ"
+        },
+        "name": "Grove_Assessment_Details_Fall"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl4fR2NOVaXFhXxF"
+        },
+        "name": "Grove_Assessment_Details_Infections"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblDrUQrpTyaddNqD"
+        },
+        "name": "Grove_Assessment_Details_Enabler/Bed_Rail_Screen"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblQRs0Td43XjmMt8"
+        },
+        "name": "Grove_Assessment_Details_Intravenous"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblp5m7UUNIvlR5gw"
+        },
+        "name": "Grove_Assessment_Details_Education"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblGkuu1jHhN8g6ID"
+        },
+        "name": "Skin_Check"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbllCTziQuMwnloLe"
+        },
+        "name": "MHCS_Nursing_Daily_Note"
+      },
+      {
+        "type": "singleLineText",
+        "name": "Grove_Assessment_Details_Alcohol 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblQgBVU5HK8L0A7Q"
+        },
+        "name": "Grove_Assessment_Details_Alcohol 3"
+      },
+      {
+        "type": "singleLineText",
+        "name": "FormData"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblPDnDMYet32buUn"
+        },
+        "name": "Nursing Assessment"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblvpW5cG7VDI7B2C"
+        },
+        "name": "FormData 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblA7mRzh5QYAc7sF"
+        },
+        "name": "ExamSection_1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblNk3THJNvT82Zip"
+        },
+        "name": "ExamSection_2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblbJSUreunCrec7q"
+        },
+        "name": "ExamSection_3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblQu0O362wg33FNg"
+        },
+        "name": "Harmony.ExamSection_1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl9xBLCBmKy1q5ad"
+        },
+        "name": "Harmony.ExamSection_2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbljYkzNWZHlfglLq"
+        },
+        "name": "Harmony.ExamSection_3"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblz42sRmeaN8htLH"
+        },
+        "name": "Harmony.SafetyStatusSection"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblN6iRfUZB1GreAC"
+        },
+        "name": "Harmony.TreatmentsSection"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbljk3WlP37wbTUf6"
+        },
+        "name": "MHCS.Admission_Details"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblx1KUXkecKFlYwH"
+        },
+        "name": "MHCS.Nursing_Daily_Skilled_Note"
+      },
+      {
+        "type": "singleLineText",
+        "name": "MHCS.eINTERACT_Change_in_Condition_Evaluation"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblphzXVC1fVSF0iX"
+        },
+        "name": "MHCS.eINTERACT_Change_in_Condition_Evaluation 2"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblCGbz9TxdvzvBrr"
+        },
+        "name": "MHCS.Neurological_Evaluation"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl6HovJsevxq0y5m"
+        },
+        "name": "MHCS.Admission_AIMS"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblybSSV7oXcO4wwX"
+        },
+        "name": "MHCS.Admission_Alcohol_Tobacco_Use"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblij26ddm7LAHVB3"
+        },
+        "name": "MHCS.Admission_Braden"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblqsODlQgGbABA1R"
+        },
+        "name": "MHCS.Admission_Education"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl7lvMzZm1etTuHJ"
+        },
+        "name": "MHCS.Admission_Elopement"
+      },
+      {
+        "type": "singleLineText",
+        "name": "MHCS.Enabler_Bed_Rail_Screen"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblqmPYCY7LU6xgxx"
+        },
+        "name": "MHCS.Admission_Enabler_Bed_Rail_Screen"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblMLIzerETsyXUkg"
+        },
+        "name": "MHCS.Admission_Fall_Screen"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblepeogAnNbO3icj"
+        },
+        "name": "MHCS.Admission_Infections"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblfaW2K7dz32sORB"
+        },
+        "name": "MHCS.Admission_Intravenous_Access_Devices"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblcVdw3OLbuALNxs"
+        },
+        "name": "MHCS.Admission_Medications"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblZEOtsTQaPiewTJ"
+        },
+        "name": "MHCS.Admission_Pain"
+      },
+      {
+        "type": "singleLineText",
+        "name": "MHCS.Admission_Evaluation_of_Body_Systems"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tblOkzvkEJCf65HVL"
+        },
+        "name": "MHCS.Admission_Evaluation_of_Body_Systems_1"
+      },
+      {
+        "type": "multipleRecordLinks",
+        "options": {
+          "linkedTableId": "tbl18Ifv7jhLQ94YI"
+        },
+        "name": "MHCS.Admission_Evaluation_of_Body_Systems_2"
+      }
+    ],
+    "views": [
+      {
+        "name": "Grid view",
+        "type": "grid"
+      },
+      {
+        "name": "Gallery",
+        "type": "gallery"
+      }
+    ]
+  }

@@ -42,23 +42,23 @@ class EmrUtils:
 
     @staticmethod
     def load_tables():
-        emr_api.load_tables()
+        get_emr_api_instance(SpeakCareEmrApiconfig).load_tables()
 
     @staticmethod
     def create_table(table:dict):
-        return emr_api.create_table(table)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).create_table(table)
 
     @staticmethod
     def get_patient_info(name):
         """
         get_patient_info
         """
-        foundName, patientId, patientEmrId = emr_api.match_patient(name)
+        foundName, patientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(name)
 
         if not patientEmrId:
             return None
 
-        emr_patient = emr_api.get_patient_by_emr_id(patientEmrId)
+        emr_patient = get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_by_emr_id(patientEmrId)
         patient_data = {
             "emr_patient_id": patientId,
             "patient_id": emr_patient['fields']['PatientID'],
@@ -73,22 +73,26 @@ class EmrUtils:
 
     @staticmethod
     def get_table_names():
-        table_names = emr_api.get_emr_table_names()
+        table_names = get_emr_api_instance(SpeakCareEmrApiconfig).get_emr_table_names()
         return table_names
 
     @staticmethod
     def get_table_id(tableName):
-        table_id = emr_api.get_table_id(tableName)
+        table_id = get_emr_api_instance(SpeakCareEmrApiconfig).get_table_id(tableName)
         return table_id
 
     @staticmethod
     def is_table_multi_section(tableName):
-        return emr_api.is_table_multi_section(tableName)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).is_table_multi_section(tableName)
     
     @staticmethod
     def get_record_section_names(tableName):
-        section_names = emr_api.get_emr_table_section_names(tableName)
+        section_names = get_emr_api_instance(SpeakCareEmrApiconfig).get_emr_table_section_names(tableName)
         return section_names
+
+    @staticmethod
+    def get_raw_table_schema(tableName: str):
+        return get_emr_api_instance(SpeakCareEmrApiconfig).get_raw_table_schema(tableName=tableName)
 
     @staticmethod
     def get_table_json_schema(tableName: str):
@@ -99,35 +103,35 @@ class EmrUtils:
         IF there are no sections, the sections dictionary will be None.
         """
         # Get the main table schema
-        return emr_api.get_table_json_schema(tableName=tableName)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).get_table_json_schema(tableName=tableName)
     
     @staticmethod
     def get_airtable_schema(tableName: str):
         """
         get_airtable_schema
         """
-        return emr_api.get_airtable_schema(tableName=tableName)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).get_airtable_schema(tableName=tableName)
     
     @staticmethod
     def get_table_schema_fields(tableName: str):
         """
         get_table_schema_fields
         """
-        return emr_api.get_table_json_schema(tableName=tableName).get("properties", {}).get("fields", {})
+        return get_emr_api_instance(SpeakCareEmrApiconfig).get_table_json_schema(tableName=tableName).get("properties", {}).get("fields", {})
 
     @staticmethod
     def validate_record(table_name: str, data: dict, errors: list = []):
         """
         validate_record_data
         """
-        return emr_api.validate_record(tableName=table_name, record=data, errors=errors)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).validate_record(tableName=table_name, record=data, errors=errors)
     
     @staticmethod
     def validate_partial_record(table_name: str, data: dict, errors: list = []):
         """
         validate_partial_record_data
         """
-        return emr_api.validate_partial_record(tableName=table_name, record=data, errors=errors)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).validate_partial_record(tableName=table_name, record=data, errors=errors)
 
     @staticmethod
     def lookup_patient(name):
@@ -135,7 +139,7 @@ class EmrUtils:
         lookup_patient
         """
         logger.debug(f"lookup_patient: {name}")
-        return emr_api.match_patient(name)
+        return get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(name)
     
     @staticmethod
     def add_patient(patient: dict):
@@ -143,10 +147,11 @@ class EmrUtils:
         errors = []
         patient_name = patient.get('FullName', None)
         logger.info(f"add_patient: {patient_name}")
-        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        # logger.info(f"add_patient: {get_emr_api_instance(SpeakCareEmrApiconfig)._person_table_prefix}")
+        isValid, validPatientFields = EmrUtils.validate_record(get_emr_api_instance(SpeakCareEmrApiconfig).PATIENTS_TABLE(), patient, errors)
         if isValid:
             logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
-            record = emr_api.add_patient(validPatientFields)
+            record = get_emr_api_instance(SpeakCareEmrApiconfig).add_patient(validPatientFields)
             if not record:
                 logger.error(f"add_patient '{patient_name}' failed.")
                 return None, {"error": f"Failed to add patient '{patient_name}'"}
@@ -161,10 +166,10 @@ class EmrUtils:
     def update_patient(patientEmrId, patient):
         logger.info(f"update_patient: {patientEmrId}:\n {patient}")
         errors = []
-        isValid, validPatientFields = EmrUtils.validate_partial_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        isValid, validPatientFields = EmrUtils.validate_partial_record(get_emr_api_instance(SpeakCareEmrApiconfig).PATIENTS_TABLE(), patient, errors)
         if isValid:
             logger.info(f"update_patient: valid patient fields:\n {validPatientFields}")
-            record = emr_api.update_patient(patientEmrId, validPatientFields)
+            record = get_emr_api_instance(SpeakCareEmrApiconfig).update_patient(patientEmrId, validPatientFields)
             if not record:
                 logger.error(f"update_patient patient id {patientEmrId} failed: {validPatientFields}")
                 return None, {"error": f"Failed to update patient id {patientEmrId}"}
@@ -178,7 +183,7 @@ class EmrUtils:
     @staticmethod    
     def delete_patient(patientEmrId):
         logger.info(f"delete_patient: {patientEmrId}")
-        record = emr_api.delete_patient(patientEmrId)
+        record = get_emr_api_instance(SpeakCareEmrApiconfig).delete_patient(patientEmrId)
         if not record:
             logger.error(f"delete_patient failed: {patientEmrId}")
             return None
@@ -188,21 +193,21 @@ class EmrUtils:
         
     @staticmethod
     def get_patients_table_schema():
-        return EmrUtils.get_table_json_schema(SpeakCareEmr.PATIENTS_TABLE)
+        return EmrUtils.get_table_json_schema(get_emr_api_instance(SpeakCareEmrApiconfig).PATIENTS_TABLE())
     
     @staticmethod
     def get_patients_table_fields():
-        return EmrUtils.get_table_schema_fields(SpeakCareEmr.PATIENTS_TABLE)
+        return EmrUtils.get_table_schema_fields(get_emr_api_instance(SpeakCareEmrApiconfig).PATIENTS_TABLE())
      
     @staticmethod
     def add_nurse(nurse: dict):
         logger.info(f"add_nurse:\n {nurse}")
         errors = []
         nurse_name = nurse.get('Name', None)
-        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        isValid, validNurseFields = EmrUtils.validate_record(get_emr_api_instance(SpeakCareEmrApiconfig).NURSES_TABLE(), nurse, errors)
         if isValid:
             logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
-            record = emr_api.add_nurse(validNurseFields)
+            record = get_emr_api_instance(SpeakCareEmrApiconfig).add_nurse(validNurseFields)
             if not record:
                 logger.error(f"add_nurse '{nurse_name}' failed.")
                 return None, {"error": f"Failed to add nurse '{nurse_name}'"}
@@ -217,10 +222,10 @@ class EmrUtils:
     def update_nurse(nurseEmrId, nurse):
         logger.info(f"update_nurse: {nurseEmrId}:\n {nurse}")
         errors = []
-        isValid, validNurseFields = EmrUtils.validate_partial_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        isValid, validNurseFields = EmrUtils.validate_partial_record(get_emr_api_instance(SpeakCareEmrApiconfig).NURSES_TABLE(), nurse, errors)
         if isValid:
             logger.info(f"update_nurse: valid nurse fields:\n {validNurseFields}")
-            record = emr_api.update_nurse(nurseEmrId, validNurseFields)
+            record = get_emr_api_instance(SpeakCareEmrApiconfig).update_nurse(nurseEmrId, validNurseFields)
             if not record:
                 logger.error(f"update_nurse nurse id {nurseEmrId} failed: {validNurseFields}")
                 return None, {"error": f"Failed to update nurse id {nurseEmrId}"}
@@ -234,7 +239,7 @@ class EmrUtils:
     @staticmethod    
     def delete_nurse(nurseEmrId):
         logger.info(f"delete_nurse: {nurseEmrId}")
-        record = emr_api.delete_nurse(nurseEmrId)
+        record = get_emr_api_instance(SpeakCareEmrApiconfig).delete_nurse(nurseEmrId)
         if not record:
             logger.error(f"delete_nurse failed: {nurseEmrId}")
             return None
@@ -244,11 +249,11 @@ class EmrUtils:
         
     @staticmethod
     def get_nurses_table_schema():
-        return EmrUtils.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+        return EmrUtils.get_table_json_schema(get_emr_api_instance(SpeakCareEmrApiconfig).NURSES_TABLE())
     
     @staticmethod
     def get_nurses_table_fields():
-        return EmrUtils.get_table_schema_fields(SpeakCareEmr.NURSES_TABLE)
+        return EmrUtils.get_table_schema_fields(get_emr_api_instance(SpeakCareEmrApiconfig).NURSES_TABLE())
     
 
     @staticmethod
@@ -271,13 +276,13 @@ class EmrUtils:
         foundPatientByName = None
         foundPatientIdByName = None
         foundPatientByPatientId = None
-        foundPatientByName, foundPatientIdByName, patientEmrId = emr_api.match_patient(patient_name)
+        foundPatientByName, foundPatientIdByName, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patient_name)
 
         if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
             _state = RecordState.ERRORS
         elif patient_id: # if patient id is provided, it MUST match the patient name
-            foundPatientByPatientId, patientEmrId = emr_api.lookup_patient_by_id(patient_id)
+            foundPatientByPatientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).lookup_patient_by_id(patient_id)
             if not foundPatientByPatientId: # if not found it is an error
                 _errors.append(f"Patient ID '{patient_id}' not found in the EMR.")
                 _state = RecordState.ERRORS
@@ -298,13 +303,13 @@ class EmrUtils:
         foundNurseByName = None
         foundNurseIdByName = None
         foundNurseByNurseId = None
-        foundNurseByName, foundNurseIdByName, nurseEmrId = emr_api.match_nurse(nurse_name)
+        foundNurseByName, foundNurseIdByName, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(nurse_name)
 
         if not foundNurseByName: # Nurse name is mandatory and must be found
             _errors.append(f"Nurse '{nurse_name}' not found in the EMR.")
             _state = RecordState.ERRORS
         elif nurse_id: # if nurse id is provided, it MUST match the nurse name
-            foundNurseByNurseId, nurseEmrId = emr_api.lookup_nurse_by_id(nurse_id)
+            foundNurseByNurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).lookup_nurse_by_id(nurse_id)
             if not foundNurseByNurseId: # if not found it is an error
                 _errors.append(f"Nurse ID '{nurse_id}' not found in the EMR.")
                 _state = RecordState.ERRORS
@@ -326,10 +331,10 @@ class EmrUtils:
         if not isValid:
             _state = RecordState.ERRORS
 
-        if sections and table_name in SpeakCareEmr.TABLE_SECTIONS:  
+        if sections and table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS:  
             for section_name, section in sections.items():
                 section_fields = section.get('fields', None)
-                if not section_name in SpeakCareEmr.TABLE_SECTIONS[table_name]:
+                if not section_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS[table_name]:
                     err = f"Section '{section_name}' not found in table '{table_name}'"
                     logger.error(err)
                     _errors.append(err)
@@ -358,7 +363,7 @@ class EmrUtils:
                 else:
                     logger.debug(f"Section '{section_name}' has no fields. Skipping it.")
 
-        elif sections and not table_name in SpeakCareEmr.TABLE_SECTIONS:
+        elif sections and not table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS:
                 #create a list from sections field 'table_name'
                 _sections_names = [section_name for section_name, _ in sections.items()]
                 err = f"Sections '{_sections_names}' provided for table '{table_name}' that has no sections"
@@ -666,13 +671,13 @@ class EmrUtils:
                 raise RecordStateError(f"Record id {record.id} cannot be commited as it is in '{record.state}' state.")
             
             # from here record should be ready for commit with no errors
-            foundPatient, foundPatientId, patientEmrId = emr_api.match_patient(record.patient_name) 
+            foundPatient, foundPatientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(record.patient_name) 
             if not foundPatient:
                 record.errors
                 raise ValueError(f"Patient {record.patient_name} not found in the EMR.")
             
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
@@ -686,7 +691,7 @@ class EmrUtils:
 
             if (record_type == RecordType.SIMPLE):
                 logger.info(f"Commiting simple record {record.id} to table '{record.table_name}'")
-                emr_record, url, err = emr_api.create_simple_record(tableName=record.table_name, record=record_fields, 
+                emr_record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_simple_record(tableName=record.table_name, record=record_fields, 
                                                                      patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                      errors=errors)
                 if not emr_record:    
@@ -697,7 +702,7 @@ class EmrUtils:
                     record.emr_url = url                
             elif record_type == RecordType.MULTI_SECTION:
                 logger.info(f"Commiting multi sections record {record.id} to table '{record.table_name}'")
-                emr_record, url, err = emr_api.create_multi_section_record(tableName=record.table_name, record=record_fields, 
+                emr_record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_multi_section_record(tableName=record.table_name, record=record_fields, 
                                                                  patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId,
                                                                  errors=errors)
                 if not emr_record:
@@ -712,7 +717,7 @@ class EmrUtils:
                         section_state =  section['state'] #section.get('state', RecordState.PENDING)
                         if section_fields and section_state != RecordState.ERRORS.value:
                             logger.debug(f"Commiting section '{section_name}' in record '{record.id}' state: '{section_state}'")
-                            emr_record, url, err = emr_api.create_record_section(sectionTableName=section_name, record=section_fields, 
+                            emr_record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_record_section(sectionTableName=section_name, record=section_fields, 
                                                                                      patientEmrId=patientEmrId, assessmentId=record.emr_record_id, 
                                                                                      createdByNurseEmrId=nurseEmrId, errors=errors)
                             if not emr_record:
@@ -836,14 +841,14 @@ class EmrUtils:
             elif record.type != RecordType.MULTI_SECTION:
                 raise TypeError(f"Sign assessment - record type '{record.type}' is not ASSESSMENT.")
             
-            foundNurse, foundNurseId, nurseEmrId = emr_api.match_nurse(record.nurse_name)
+            foundNurse, foundNurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(record.nurse_name)
             if not foundNurse:
                 raise ValueError(f"Nurse {record.nurse_name} not found in the EMR.")
             # update the nurse name to the correct one as matched in the database
             
             table_name  = record.table_name
             assessment_id = record.emr_record_id
-            emr_record, err = emr_api.sign_assessment(assessmentTableName=table_name, assessmentId=assessment_id, signedByNurseEmrId=nurseEmrId)
+            emr_record, err = get_emr_api_instance(SpeakCareEmrApiconfig).sign_assessment(assessmentTableName=table_name, assessmentId=assessment_id, signedByNurseEmrId=nurseEmrId)
             if not emr_record:
                 raise ValueError(f"Failed to sign assessment record {record.fields} in table {table_name}. Error: {err}")
         except Exception as e:
@@ -870,7 +875,7 @@ class EmrUtils:
                 raise KeyError(f"Record id {record_id} not found in the database.")
             elif record.state != RecordState.COMMITTED:
                 raise ValueError(f"Record id {record.id} is not in '{RecordState.COMMITTED}' state.")
-            emr_record = emr_api.get_record(tableId= record.table_name, recordId= record.emr_record_id)
+            emr_record = get_emr_api_instance(SpeakCareEmrApiconfig).get_record(tableId= record.table_name, recordId= record.emr_record_id)
             if not emr_record:
                 raise ValueError(f"EMR record id {record.emr_record_id} not found in table {record.table_name} the EMR.")
             
@@ -888,7 +893,7 @@ class EmrUtils:
         """
         Returns the EMR record for the given record id.
         """
-        emr_record = emr_api.get_record(tableId= tableId, recordId= emr_record_id)
+        emr_record = get_emr_api_instance(SpeakCareEmrApiconfig).get_record(tableId= tableId, recordId= emr_record_id)
         if not emr_record:
             return None, {"error": f"EMR record id {emr_record_id} not found in table {tableId} the EMR."}
         else:

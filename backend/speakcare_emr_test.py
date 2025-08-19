@@ -16,13 +16,13 @@ def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, p
         "Route": "Tympanic"
     }
 
-    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient_by_emr_id(patientEmrId)
+    patient = get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(nurseName)
+    matchedNurseName, nurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(nurseName)
     logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -31,14 +31,14 @@ def test_temperatue_record_creation(api: SpeakCareEmr, logger: logging.Logger, p
     
 
 
-    record, url, err = api.create_simple_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
+    record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_simple_record(tableName= SpeakCareEmr.TEMPERATURES_TABLE, record=temperatureRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not record:
         logger.error(f'Failed to create temperature record: {temperatureRecord} error: {err}')
         return None
     
     logger.info(f'Created temperature record: {record} url is {url}')
-    logger.info(f'get_record_url returns {api.get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
+    logger.info(f'get_record_url returns {get_emr_api_instance(SpeakCareEmrApiconfig).get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
     return record
 
 def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patientName: str = 'Karol Smythe', nurseName: str = 'Odrey Hapborn'):
@@ -48,13 +48,13 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         "Type": "Infection",
         "Status": "Notify doctor"
     }
-    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient_by_emr_id(patientEmrId)
+    patient = get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(nurseName)
+    matchedNurseName, nurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(nurseName)
     logger.info(f'Nurse: {nurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -62,7 +62,7 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         return None
 
     
-    record, url, err = api.create_simple_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
+    record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_simple_record(tableName= SpeakCareEmr.PROGRESS_NOTES_TABLE, record=progressNoteRecord, 
                                             patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     
     if not record:
@@ -70,7 +70,7 @@ def test_progress_note_creation(api: SpeakCareEmr, logger: logging.Logger, patie
         return None
     
     logger.info(f'Created progress notes record: {record} url is {url}')
-    logger.info(f'get_record_url returns {api.get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
+    logger.info(f'get_record_url returns {get_emr_api_instance(SpeakCareEmrApiconfig).get_record_url(record["id"], tableName=SpeakCareEmr.TEMPERATURES_TABLE)}')
     return record
 
 def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger, 
@@ -80,13 +80,13 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
                              signingNurseName: str = 'Rebeka Jones'):
 
 
-    matchedPatientName, patientId, patientEmrId = api.match_patient(patientName)
+    matchedPatientName, patientId, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patientName)
     logger.info(f'Patient: {patientName} matched with {matchedPatientName} with id {patientId}, emrId {patientEmrId}')
-    patient = api.get_patient_by_emr_id(patientEmrId)
+    patient = get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_by_emr_id(patientEmrId)
     logger.info(f'Patient: {json.dumps(patient, indent=4)}')
    
     
-    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(creatingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(creatingNurseName)
     logger.info(f'Nurse: {creatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
    
     if not patientId or not nurseId:
@@ -98,20 +98,20 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "Status": "Old"
     }
     # This should fail
-    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Correctly failed to create fall risk assessment {fallRiskRecord} error: {err}')
 
     # now set correct status name
     fallRiskRecord["Status"] = "New"
-    assementRecord, url, err = api.create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
+    assementRecord, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_multi_section_record(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, fallRiskRecord, patientEmrId=patientEmrId, createdByNurseEmrId=nurseEmrId)
     if not assementRecord:
         logger.error(f'Wrongly failed to create fall risk assessment {fallRiskRecord} error: {err}')
         return None
     
     logger.info(f'Created fall risk assessment: {assementRecord} url is {url}')
 
-    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(updatingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(updatingNurseName)
     logger.info(f'Updating Nurse: {updatingNurseName} matched with {matchedNurseName} with id {nurseId}, emrId {nurseEmrId}')
     if not patientId or not nurseId:
         logger.error('Failed to find patient or nurse')
@@ -131,14 +131,14 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
         "PREDISPOSING DISEASES": "1 - 2 PRESENT (2 points)",
         "Total score": 19
     }
-    assessSection1Record, url, err = api.create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+    assessSection1Record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
                                                                    patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     if not assessSection1Record:
         logger.error(f'Correctly failed to create fall risk section {SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE} data {fallRiskRecord} error: {err}')
 
     # fix the error
     fallRiskSectionRecord['VISION STATUS'] = "POOR (with or without glasses) (2 points)"
-    assessSection1Record, url, err = api.create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
+    assessSection1Record, url, err = get_emr_api_instance(SpeakCareEmrApiconfig).create_record_section(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE, record=fallRiskSectionRecord,
                                                                    patientEmrId=patientEmrId, assessmentId= assementRecord['id'], createdByNurseEmrId= nurseEmrId)
     
     if not assessSection1Record:
@@ -148,24 +148,24 @@ def test_falls_risk_creation(api: SpeakCareEmr, logger: logging.Logger,
     logger.info(f'Created fall risk assessment section: {assessSection1Record}')
         
 
-    matchedNurseName, nurseId, nurseEmrId = api.match_nurse(signingNurseName)
+    matchedNurseName, nurseId, nurseEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(signingNurseName)
     logger.info(f'Signing Nurse: {signingNurseName} matched with {matchedNurseName} with id {nurseId}')
-    assementRecord, err = api.sign_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
+    assementRecord, err = get_emr_api_instance(SpeakCareEmrApiconfig).sign_assessment(SpeakCareEmr.FALL_RISK_SCREEN_TABLE, assessmentId= assementRecord['id'], signedByNurseEmrId =nurseEmrId)
     if not assementRecord:
         logger.error(f'Failed to sign fall risk assessment: {assementRecord} error: {err}')
         return None
-    logger.info(f'Signed fall risk assessment: {assementRecord} url is {api.get_record_url(assementRecord["id"], tableName=SpeakCareEmr.FALL_RISK_SCREEN_TABLE)}')
+    logger.info(f'Signed fall risk assessment: {assementRecord} url is {get_emr_api_instance(SpeakCareEmrApiconfig).get_record_url(assementRecord["id"], tableName=SpeakCareEmr.FALL_RISK_SCREEN_TABLE)}')
 
     return assementRecord
 
 def test_get_single_table_schema(api: SpeakCareEmr, logger: logging.Logger, tableName):
-    tableSchema = api.get_table_json_schema(tableName=tableName)
+    tableSchema = get_emr_api_instance(SpeakCareEmrApiconfig).get_table_json_schema(tableName=tableName)
     logger.info(f'{tableName} Table schema: {json.dumps(tableSchema, indent=4)}')
     return
 
 def test_get_tables_schemas(api: SpeakCareEmr, logger: logging.Logger, tableName: str = None):
 
-    tableNames = api.get_emr_table_names()
+    tableNames = get_emr_api_instance(SpeakCareEmrApiconfig).get_emr_table_names()
     logger.info(f'Table names: {tableNames}')
 
     if tableName and tableName in tableNames:

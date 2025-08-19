@@ -1,5 +1,21 @@
+import os, sys
+
+from dotenv.main import logger
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from backend.speakcare_env import SpeakcareEnv
+
+SpeakcareEnv.load_env()
+
+
 class SpeakCareEmrTables:
-        # Table names
+
+
+    @classmethod
+    def get_person_table_prefix(cls):
+        # print(f"get_person_table_prefix: {os.getenv('PERSON_TABLE_PREFIX')}")
+        return os.getenv('PERSON_TABLE_PREFIX', 'Test')
+    
+    # Table names
     
     """
       The followoing are table names as they appear in the Airtable database 
@@ -8,9 +24,12 @@ class SpeakCareEmrTables:
       #TODO: load tables dynamically from the API
     """
     ### People ###
-    PATIENTS_TABLE = 'Patients'
-    NURSES_TABLE = 'Nurses'
-    DOCTORS_TABLE = 'Doctors'
+    def PATIENTS_TABLE(self): 
+        return f'{self.get_person_table_prefix()}_Patients' if self.get_person_table_prefix() else 'Patients'
+    def NURSES_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Nurses' if self.get_person_table_prefix() else 'Nurses'
+    def DOCTORS_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Doctors' if self.get_person_table_prefix() else 'Doctors'
     
     ### Medical Records ###
     VITALS_TABLE = 'Vitals'
@@ -113,67 +132,68 @@ class SpeakCareEmrTables:
       In order for a table to be accessed by the API, it should be added to this list
       # TODO: Table and sections names need to be loaded dyanically from the API
     """
-    EMR_TABLES = [
-        PATIENTS_TABLE,
-        NURSES_TABLE,
-        DOCTORS_TABLE,
-        EPISODES_TABLE, 
-        PROGRESS_NOTES_TABLE,
-        ADMISSION_TABLE,
-        FALL_RISK_SCREEN_TABLE,
-        VITALS_TABLE,
-        HARMONY_VITALS_TABLE,
-        LABOR_ADMISSION_SECTION_1_TABLE,
-        #LABOR_ADMISSION_SECTION_2_TABLE,
-        LABOR_ADMISSION_SECTION_3_TABLE,
-        LABOR_ADMISSION_SECTION_4_TABLE,
-        LABOR_ADMISSION_SECTION_5_TABLE,
-        MED_SRG_NURSING_ASSESSMENT_TABLE,
-        CRITICAL_CARE_NURSING_ASSESSMENT_TABLE,
-        SPORT_PERFORMANCE_ASSESSMENT_1,
-        SPORT_PERFORMANCE_ASSESSMENT_2,
-        SPORT_PERFORMANCE_ASSESSMENT_3,
-        SPORT_PERFORMANCE_ASSESSMENT_4,
-        SPORT_2_TEST,
-        SPORT_3_TEST,
+    def EMR_TABLES(self):
+        return [
+            self.PATIENTS_TABLE(),
+            self.NURSES_TABLE(),
+            self.DOCTORS_TABLE(),
+            EPISODES_TABLE, 
+            PROGRESS_NOTES_TABLE,
+            ADMISSION_TABLE,
+            FALL_RISK_SCREEN_TABLE,
+            VITALS_TABLE,
+            HARMONY_VITALS_TABLE,
+            LABOR_ADMISSION_SECTION_1_TABLE,
+            LABOR_ADMISSION_SECTION_2_TABLE,
+            LABOR_ADMISSION_SECTION_3_TABLE,
+            LABOR_ADMISSION_SECTION_4_TABLE,
+            LABOR_ADMISSION_SECTION_5_TABLE,
+            MED_SRG_NURSING_ASSESSMENT_TABLE,
+            CRITICAL_CARE_NURSING_ASSESSMENT_TABLE,
+            SPORT_PERFORMANCE_ASSESSMENT_1,
+            SPORT_PERFORMANCE_ASSESSMENT_2,
+            SPORT_PERFORMANCE_ASSESSMENT_3,
+            SPORT_PERFORMANCE_ASSESSMENT_4,
+            SPORT_2_TEST,
+            SPORT_3_TEST,
 
-        # Harmony
-        HARMONY_EXAM_SECTION_1_TABLE,
-        HARMONY_EXAM_SECTION_2_TABLE,
-        HARMONY_EXAM_SECTION_3_TABLE,
-        HARMONY_SAFETY_STATUS_SECTION_TABLE,
-        HARMONY_TREATMENTS_SECTION_TABLE,
-        
-        # Grove
-        GROVE_ASSESSMENT_DETAILS_TABLE,
-        GROVE_ASSESSMENT_DETAILS_FALL_TABLE,
-        MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
-        MHCS_ADMISSION_DETAILS_TABLE,
-        MHCS_EINTERACT_EVALUATION_TABLE,
-        MHCS_NEUROLOGICAL_EVALUATION_TABLE,
-        MHCS_ADMISSION_AIMS_TABLE,
-        MHCS_ADMISSION_ALCOHOL_TOBACCO_USE_TABLE,
-        MHCS_ADMISSION_BRADEN_TABLE,
-        MHCS_ADMISSION_EDUCATION_TABLE,
-        MHCS_ADMISSION_ELOPEMENT_TABLE,
-        MHCS_ADMISSION_ENABLER_BED_RAIL_SCREEN_TABLE,
-        MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_1,
-        MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_2,
-        MHCS_ADMISSION_FALL_SCREEN_TABLE,
-        MHCS_ADMISSION_INFECTIONS_TABLE,
-        MHCS_ADMISSION_INTERVENOUS_ACCESS_DEVICES_TABLE,
-        MHCS_ADMISSION_MEDICATIONS_TABLE,
-        MHCS_ADMISSION_PAIN_TABLE,
-        
-        # WEIGHTS_TABLE, 
-        # BLOOD_PRESSURES_TABLE, 
-        # BLOOD_SUGARS_TABLE, 
-        # HEIGHTS_TABLE, 
-        # TEMPERATURES_TABLE,
-        # O2_SATURATIONS_TABLE,
-        # PULSES_TABLE,
-        # RESPIRATION_TABLE
-    ]
+            # Harmony
+            HARMONY_EXAM_SECTION_1_TABLE,
+            HARMONY_EXAM_SECTION_2_TABLE,
+            HARMONY_EXAM_SECTION_3_TABLE,
+            HARMONY_SAFETY_STATUS_SECTION_TABLE,
+            HARMONY_TREATMENTS_SECTION_TABLE,
+            
+            # Grove
+            GROVE_ASSESSMENT_DETAILS_TABLE,
+            GROVE_ASSESSMENT_DETAILS_FALL_TABLE,
+            MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
+            MHCS_ADMISSION_DETAILS_TABLE,
+            MHCS_EINTERACT_EVALUATION_TABLE,
+            MHCS_NEUROLOGICAL_EVALUATION_TABLE,
+            MHCS_ADMISSION_AIMS_TABLE,
+            MHCS_ADMISSION_ALCOHOL_TOBACCO_USE_TABLE,
+            MHCS_ADMISSION_BRADEN_TABLE,
+            MHCS_ADMISSION_EDUCATION_TABLE,
+            MHCS_ADMISSION_ELOPEMENT_TABLE,
+            MHCS_ADMISSION_ENABLER_BED_RAIL_SCREEN_TABLE,
+            MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_1,
+            MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_2,
+            MHCS_ADMISSION_FALL_SCREEN_TABLE,
+            MHCS_ADMISSION_INFECTIONS_TABLE,
+            MHCS_ADMISSION_INTERVENOUS_ACCESS_DEVICES_TABLE,
+            MHCS_ADMISSION_MEDICATIONS_TABLE,
+            MHCS_ADMISSION_PAIN_TABLE,
+            
+            # WEIGHTS_TABLE, 
+            # BLOOD_PRESSURES_TABLE, 
+            # BLOOD_SUGARS_TABLE, 
+            # HEIGHTS_TABLE, 
+            # TEMPERATURES_TABLE,
+            # O2_SATURATIONS_TABLE,
+            # PULSES_TABLE,
+            # RESPIRATION_TABLE
+        ]
 
     """
       The followoing are the dictionary of multi-section tables.
@@ -232,4 +252,5 @@ class SpeakCareEmrTables:
             # ]
     }
 
-    PERSON_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
+    def PERSON_TABLES(self):
+        return [self.PATIENTS_TABLE(), self.NURSES_TABLE(), self.DOCTORS_TABLE()]

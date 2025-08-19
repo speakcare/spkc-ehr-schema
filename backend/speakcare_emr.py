@@ -14,6 +14,7 @@ from typing import Dict
 from speakcare_emr_tables import SpeakCareEmrTables
 from backend.speakcare_env import SpeakcareEnv
 from backend.speakcare_airtable_api import SpeakCareAirtableApi
+from config import SpeakCareEmrApiconfig
 
 # Load the .env file
 SpeakcareEnv.load_env()
@@ -40,20 +41,36 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.load_patients()
         self.load_nurses()
     
-    def __writable_fields(self, tableSchema):
+    def __writable_fields(self, tableSchema, allow_writable_id_field=False, log=False):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
             if field['name'] not in self.INTERNAL_FIELDS and\
                field['type'] not in self.READONLY_FIELD_TYPES and\
-               field['id'] != primaryFieldId:
+               (allow_writable_id_field == True or field['id'] != primaryFieldId):
                      _field = copy.deepcopy(field)
                      fields.append(_field)
+ #                    if log:
+ #                       self.logger.debug(f"adding field: {_field['name']}")
+ #           else:
+ #               if log:
+ #                   self.logger.debug(f"skipping field: {field['name']}")
+ #                   self.logger.debug(f"table: {tableSchema['name']}")
+ #                   self.logger.debug(f"field['name'] not in self.INTERNAL_FIELDS: {field['name'] not in self.INTERNAL_FIELDS}")
+ #                   self.logger.debug(f"field['type'] not in self.READONLY_FIELD_TYPES: {field['type'] not in self.READONLY_FIELD_TYPES}")
+ #                   self.logger.debug(f"field['id'] != primaryFieldId: {field['id'] != primaryFieldId}, primaryFieldId: {primaryFieldId}")
         
         return fields
 
     def create_table(self, table:dict):
         return self.airtableApi.create_table(table)
+
+    def get_raw_table_schema(self, tableName: str):
+        tables = self.airtableApi.retreive_all_tables_schema()
+        for table in tables:
+            if table['name'] == tableName:
+                return table
+        return None
 
     def load_tables(self):
         if not self.tables:
@@ -65,17 +82,23 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 # add the table to the tables dictionary
                 tableName = table['name']
                 self.tables[tableName] = table
+                log = tableName in [self.PATIENTS_TABLE(), self.NURSES_TABLE(), "Nurses", "Patients"]
                 # Check if the table is in not in READONLY_TABLES
                 
-                is_person_table = tableName in self.PERSON_TABLES
+                is_person_table = tableName in self.PERSON_TABLES()
                 # if tableName not in self.READONLY_TABLES:
                 # Create writeable schema by copy from table
                 writeableSchema = copy.deepcopy(table)
                 # replace the fields with the writable fields
-                writeableSchema['fields'] = self.__writable_fields(table)
+                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=len(os.getenv('PERSON_TABLE_PREFIX', ''), log) > 0)
                 # create the EmrTableSchema object
-                is_person_table = tableName in self.PERSON_TABLES
+                is_person_table = tableName in self.PERSON_TABLES()
+                # if log:
+                #     self.logger.info(f"load_tables: {tableName}")
+                #     self.logger.info(f"writeableSchema: {writeableSchema}")
                 emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema, is_person_table=is_person_table)
+                # if log:
+                #     self.logger.info(f"emrSchema: {emrSchema.field_registry}")
                 # add the EmrTableSchema to the tableWriteableSchemas dictionary
                 self.logger.debug(f'Created writable schema for table {tableName}')
                 self.tableEmrSchemas[tableName] = emrSchema
@@ -97,7 +120,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         return self.tables
     
     def get_emr_table_names(self):
-        return SpeakCareEmr.EMR_TABLES
+        return get_emr_api_instance(SpeakCareEmrApiconfig).EMR_TABLES()
    
     def get_emr_table_section_names(self, tableName=None):
         if not tableName:
@@ -297,28 +320,30 @@ class SpeakCareEmr(SpeakCareEmrTables):
             return None, err_msg
 # Patients methods
     def load_patients(self):
-        self.airtableApi.load_table(self.PATIENTS_TABLE)
+        self.logger.info(f"load_patients: {self.PATIENTS_TABLE()}")
+        self.airtableApi.load_table(self.PATIENTS_TABLE())
         self.patientNames=[]
         self.patientEmrIds=[]
         self.patientIds=[]
-        patients = self.airtableApi.get_table_records(self.PATIENTS_TABLE)
+        patients = self.airtableApi.get_table_records(self.PATIENTS_TABLE())
+        self.logger.info(f"patients: {patients}")
         for patient in patients:
             self.patientNames.append(patient['fields']['FullName'])
             self.patientEmrIds.append(patient['id'])
-            self.patientIds.append(patient['fields']['PatientID'])
+            self.patientIds.append(patient['fields']['PatientID'] if 'PatientID' in patient['fields'] else patient['id'])
         self.logger.debug(f'Loaded patients. Patients names: {self.patientNames}')
 
     def get_patients(self):
-        return self.airtableApi.get_table_records(self.PATIENTS_TABLE)
+        return self.airtableApi.get_table_records(self.PATIENTS_TABLE())
 
     def get_patient_by_emr_id(self, patient_emr_id):
-        return self.airtableApi.get_record(self.PATIENTS_TABLE, patient_emr_id)
+        return self.airtableApi.get_record(self.PATIENTS_TABLE(), patient_emr_id)
     
     def get_patient_by_id(self, patient_id):
         for index, patienId in enumerate(self.patientIds): 
             if patient_id == patienId:
                 patientEmdId = self.patientEmrIds[index]
-                return self.airtableApi.get_record(self.PATIENTS_TABLE, patientEmdId)
+                return self.airtableApi.get_record(self.PATIENTS_TABLE(), patientEmdId)
 
     def __match_patient(self, patientName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
@@ -346,25 +371,25 @@ class SpeakCareEmr(SpeakCareEmrTables):
             patientId = self.patientIds[self.patientNames.index(patient_name)]
             self.logger.warning(f"Patient '{patient_name}' already exists with id {patientId}")
             return None
-        patient_record, _ = self.airtableApi.create_record(self.PATIENTS_TABLE, patient)
+        patient_record, _ = self.airtableApi.create_record(self.PATIENTS_TABLE(), patient)
         if not patient_record:
             self.logger.error(f'Failed to create patient {patient}')
             return None
         else:
             self.patientNames.append(patient_record['fields']['FullName'])
             self.patientEmrIds.append(patient_record['id'])
-            self.patientIds.append(patient_record['fields']['PatientID'])
-            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID']}")
+            self.patientIds.append(patient_record['fields']['PatientID'] if 'PatientID' in patient_record['fields'] else patient['id'])
+            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID'] if 'PatientID' in patient_record['fields'] else patient['id']}")
             return patient_record
 
     def update_patient(self, patientEmrId, patient):
         self.logger.debug(f'Updating patient {patientEmrId} with {patient}')
-        return self.airtableApi.update_record(self.PATIENTS_TABLE, patientEmrId, patient)
+        return self.airtableApi.update_record(self.PATIENTS_TABLE(), patientEmrId, patient)
 
     def delete_patient(self, patientEmrId):
         try:
             idx = self.patientEmrIds.index(patientEmrId)
-            recDeleted = self.airtableApi.requests.delete(self.PATIENTS_TABLE, patientEmrId)
+            recDeleted = self.airtableApi.delete_record(self.PATIENTS_TABLE(), patientEmrId)
             self.patientIds.pop(idx)
             self.patientEmrIds.pop(idx)
             self.patientNames.pop(idx)
@@ -375,28 +400,28 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
 # Nurses methods 
     def load_nurses(self):
-        self.airtableApi.load_table(self.NURSES_TABLE)
+        self.airtableApi.load_table(self.NURSES_TABLE())
         self.nurseNames = []
         self.nurseEmrIds = []
         self.nurseIds = []
-        nurses = self.airtableApi.get_table_records(self.NURSES_TABLE)
+        nurses = self.airtableApi.get_table_records(self.NURSES_TABLE())
         for nurse in nurses:
             self.nurseNames.append(nurse['fields']['Name'])
             self.nurseEmrIds.append(nurse['id'])
-            self.nurseIds.append(nurse['fields']['NurseID'])
+            self.nurseIds.append(nurse['fields']['NurseID'] if 'NurseID' in nurse['fields'] else nurse['id'])
         self.logger.debug(f'Loaded nurses. Nurses names: {self.nurseNames}')
 
     def get_nurses(self):
-        return self.airtableApi.get_table_records(self.NURSES_TABLE)
+        return self.airtableApi.get_table_records(self.NURSES_TABLE())
     
     def get_nurse_by_emr_id(self, nurse_emr_id):
-        return self.airtableApi.get_record(self.NURSES_TABLE, nurse_emr_id)
+        return self.airtableApi.get_record(self.NURSES_TABLE(), nurse_emr_id)
     
     def get_nurse_by_id(self, nurse_id):
         for index, nurseId in enumerate(self.nurseIds): 
             if nurse_id == nurseId:
                 nurseEmrId = self.nurseEmrIds[index]
-                return self.airtableApi.get_record(self.NURSES_TABLE, nurseEmrId)
+                return self.airtableApi.get_record(self.NURSES_TABLE(), nurseEmrId)
     
     def __match_nurse(self, nurseName):
         matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
@@ -418,33 +443,35 @@ class SpeakCareEmr(SpeakCareEmrTables):
         return None, None
     
     def get_nurses_table_json_schema(self):
-        return self.get_table_json_schema(tableName=self.NURSES_TABLE)
+        return self.get_table_json_schema(tableName=self.NURSES_TABLE())
 
     def add_nurse(self, nurse):
         nurse_name = nurse.get('Name')
+        self.logger.info(f"add_nurse in table {self.NURSES_TABLE()}")
         if nurse_name in self.nurseNames:
             nurseId = self.nurseIds[self.nurseNames.index(nurse_name)]
             self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurseId}")
             return None
-        nurse_record, _ = self.airtableApi.create_record(self.NURSES_TABLE, nurse)
+        nurse_record, _ = self.airtableApi.create_record(self.NURSES_TABLE(), nurse)
         if not nurse_record:
             self.logger.error(f'Failed to create nurse {nurse}')
             return None
         else:
             self.nurseNames.append(nurse_record['fields']['Name'])
             self.nurseEmrIds.append(nurse_record['id'])
-            self.nurseIds.append(nurse_record['fields']['NurseID'])
-            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_record['fields']['NurseID']}")
+            nurseId = nurse_record['fields']['NurseID'] if 'NurseID' in nurse_record['fields'] else nurse_record['id']
+            self.nurseIds.append(nurseId)
+            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurseId}'")
             return nurse_record
     
     def update_nurse(self, nurseEmrId, nurse):
         self.logger.debug(f'Updating nurse {nurseEmrId} with {nurse}')
-        return self.airtableApi.update_record(self.NURSES_TABLE, nurseEmrId, nurse)
+        return self.airtableApi.update_record(self.NURSES_TABLE(), nurseEmrId, nurse)
     
     def delete_nurse(self, nurseEmrId):
         try:
             idx = self.nurseEmrIds.index(nurseEmrId)
-            recDeleted = self.airtableApi.delete_record(self.NURSES_TABLE, nurseEmrId)
+            recDeleted = self.airtableApi.delete_record(self.NURSES_TABLE(), nurseEmrId)
             self.nurseIds.pop(idx)
             self.nurseEmrIds.pop(idx)
             self.nurseNames.pop(idx)
@@ -455,7 +482,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
     
     
     def get_nurse_patients(self, nurse_id):
-        return self.airtableApi.get_record(self.NURSES_TABLE)['fields']['Patients']
+        return self.airtableApi.get_record(self.NURSES_TABLE())['fields']['Patients']
     
 
 __singletonInstance = None
