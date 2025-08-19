@@ -55,12 +55,14 @@ class SpeakcareTestUtils:
 
         with open('tests/nurses.json', 'r') as f:
             nurses = json.load(f)
-            test_utils_logger.info(f"Creating and clearing nurses table: {nurses}")
+            test_utils_logger.info(f"Creating and clearing nurses table")
+            test_utils_logger.debug(f"nurses table: {nurses}")
             cls.create_and_clear_table(nurses, "NurseID")
         
         with open('tests/patients.json', 'r') as f:
             patients = json.load(f)
             test_utils_logger.info(f"Creating and clearing patients table: {patients}")
+            test_utils_logger.debug(f"patients table: {patients}")
             cls.create_and_clear_table(patients, "PatientID")
 
 class AirtableUtils():
@@ -77,7 +79,7 @@ class AirtableUtils():
             "fields": fields
         }
 
-        test_utils_logger.info(f"sending create table request to url: {url}, header: {headers}, payload: {payload}")
+        test_utils_logger.debug(f"sending create table request to url: {url}, header: {headers}, payload: {payload}")
         response = requests.post(url, headers=headers, json=payload)
         success = False
         record_deletion_required = False

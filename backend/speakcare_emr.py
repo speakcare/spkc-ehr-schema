@@ -41,7 +41,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.load_patients()
         self.load_nurses()
     
-    def __writable_fields(self, tableSchema, allow_writable_id_field=False, log=False):
+    def __writable_fields(self, tableSchema, allow_writable_id_field=False):#, log=False):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
@@ -90,7 +90,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 # Create writeable schema by copy from table
                 writeableSchema = copy.deepcopy(table)
                 # replace the fields with the writable fields
-                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=len(os.getenv('PERSON_TABLE_PREFIX', ''), log) > 0)
+                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=len(os.getenv('PERSON_TABLE_PREFIX', '')) > 0)#, log)
                 # create the EmrTableSchema object
                 is_person_table = tableName in self.PERSON_TABLES()
                 # if log:
