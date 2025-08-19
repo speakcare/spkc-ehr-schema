@@ -1147,7 +1147,7 @@ class TestPersons(unittest.TestCase):
         # should fail
         self.assertIsNone(emr_patient_record, message)
         self.logger.info(f"Patient creation failed. Error: {message["error"]}")
-        # self.logger.info(f"prefix: {SpeakCareEmr._person_table_prefix}")
+
         # add the missing field
         patient_data["FirstName"] = "Frodo"
         emr_patient_record, message  = EmrUtils.add_patient(patient_data)

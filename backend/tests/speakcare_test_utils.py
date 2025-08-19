@@ -1,7 +1,6 @@
 import json
 import os
 import requests
-from backend.tests.table_schemas import TableSchemas
 from backend.speakcare_emr_tables import SpeakCareEmrTables
 from backend.speakcare_env import SpeakcareEnv
 from speakcare_logging import SpeakcareLogger

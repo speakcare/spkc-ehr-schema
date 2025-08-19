@@ -147,7 +147,6 @@ class EmrUtils:
         errors = []
         patient_name = patient.get('FullName', None)
         logger.info(f"add_patient: {patient_name}")
-        # logger.info(f"add_patient: {get_emr_api_instance(SpeakCareEmrApiconfig)._person_table_prefix}")
         isValid, validPatientFields = EmrUtils.validate_record(get_emr_api_instance(SpeakCareEmrApiconfig).PATIENTS_TABLE(), patient, errors)
         if isValid:
             logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")

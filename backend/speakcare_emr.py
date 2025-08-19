@@ -326,7 +326,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.patientEmrIds=[]
         self.patientIds=[]
         patients = self.airtableApi.get_table_records(self.PATIENTS_TABLE())
-        self.logger.info(f"patients: {patients}")
+        # self.logger.info(f"patients: {patients}")
         for patient in patients:
             self.patientNames.append(patient['fields']['FullName'])
             self.patientEmrIds.append(patient['id'])
