@@ -1,0 +1,3 @@
+# .cursorrules
+- rule: "Before running any shell/python command, first run: source venv/bin/activate, once per terminal"
+- rule: "Assume all Python dependencies are installed in this venv."
