@@ -263,7 +263,6 @@ class EmrUtils:
                                    sections = None,
                                    patient_id: int = None, 
                                    nurse_id: int = None):
-        logger.info(f"__record_validation_helper: {table_name}, {patient_name}, {nurse_name}, {fields}, {sections}, {patient_id}, {nurse_id}")
         _errors =[]
         _state = RecordState.PENDING
         _patient_name = patient_name
@@ -278,9 +277,6 @@ class EmrUtils:
         foundPatientByPatientId = None
         foundPatientByName, foundPatientIdByName, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patient_name)
 
-        logger.info(f"validating record, searching for patientId {_patient_id} and patientName {patient_name} in Ids: \
-        {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_ids()}, emrIds: {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_emr_ids()}, \
-            names: {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_names()}")
         if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
             _state = RecordState.ERRORS

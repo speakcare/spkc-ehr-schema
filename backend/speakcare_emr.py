@@ -81,7 +81,8 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 # Create writeable schema by copy from table
                 writeableSchema = copy.deepcopy(table)
                 # replace the fields with the writable fields
-                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=len(os.getenv('PERSON_TABLE_PREFIX', '')) > 0)#, log)
+                allow_writable_id_field = len(os.getenv('PERSON_TEST_TABLE_PREFIX', '')) > 0
+                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=allow_writable_id_field)#, log)
                 # create the EmrTableSchema object
                 is_person_table = tableName in self.PERSON_TABLES()
                 # if log:

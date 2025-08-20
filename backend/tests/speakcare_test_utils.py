@@ -84,7 +84,7 @@ class SpeakcareTestUtils:
         
         with open('tests/patients.json', 'r') as f:
             table = json.load(f)
-            test_utils_logger.info(f"Creating and clearing patients table: {table}")
+            test_utils_logger.info(f"Creating and clearing patients table")
             test_utils_logger.debug(f"patients table: {table}")
             cls.create_and_clear_table(table)
 
@@ -92,14 +92,14 @@ class SpeakcareTestUtils:
 
         with open('tests/weights.json', 'r') as f:
             table = json.load(f)
-            test_utils_logger.info(f"Creating and clearing weights table: {table}")
+            test_utils_logger.info(f"Creating and clearing weights table")
             test_utils_logger.debug(f"weights table: {table}")
             cls.create_and_clear_table(table)
 
         with open('tests/blood_pressures.json', 'r') as f:
             table = json.load(f)
-            test_utils_logger.info(f"Creating and clearing blood-preassures table: {table}")
-            test_utils_logger.debug(f"weights table: {table}")
+            test_utils_logger.info(f"Creating and clearing blood-preassures table")
+            test_utils_logger.debug(f"blood-preassures table: {table}")
             cls.create_and_clear_table(table)
 
 class AirtableUtils():

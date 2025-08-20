@@ -14,13 +14,11 @@ class TestNameMatcher(unittest.TestCase):
     def setUpClass(cls):
         """Run once when the test class is first created, before any tests run"""
         cls.logger = SpeakcareLogger(__name__)
-        cls.logger.info("**** setUpClass - TestNameMatcher class initialized ****")
         
     @classmethod
     def tearDownClass(cls):
         """Run once when all tests in the class are finished"""
         cls.logger = SpeakcareLogger(__name__)
-        cls.logger.info("**** tearDownClass - TestNameMatcher class cleanup ****")
 
     def __init__(self, *args, **kwargs):
         super(TestNameMatcher, self).__init__(*args, **kwargs)
