@@ -9,11 +9,10 @@ SpeakcareEnv.load_env()
 
 class SpeakCareEmrTables:
 
-
     @classmethod
     def get_person_table_prefix(cls):
-        # print(f"get_person_table_prefix: {os.getenv('PERSON_TABLE_PREFIX')}")
-        return os.getenv('PERSON_TABLE_PREFIX', 'Test')
+        # print(f"get_person_table_prefix: {os.getenv('PERSON_TEST_TABLE_PREFIX')}")
+        return os.getenv('PERSON_TEST_TABLE_PREFIX', 'Test')
     
     # Table names
     
@@ -33,8 +32,14 @@ class SpeakCareEmrTables:
     
     ### Medical Records ###
     VITALS_TABLE = 'Vitals'
-    WEIGHTS_TABLE = 'Weights'
+    def TEST_WEIGHTS_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Weights' if self.get_person_table_prefix() else 'Weights'
+
+    def TEST_BLOOD_PRESSURES_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Blood Pressures' if self.get_person_table_prefix() else 'Blood Pressures'
+        
     BLOOD_PRESSURES_TABLE = 'Blood Pressures'
+    WEIGHTS_TABLE = 'Weights'
     BLOOD_SUGARS_TABLE = 'Blood Sugars'
     HEIGHTS_TABLE = 'Heights'
     TEMPERATURES_TABLE = 'Temperatures'
@@ -254,3 +259,4 @@ class SpeakCareEmrTables:
 
     def PERSON_TABLES(self):
         return [self.PATIENTS_TABLE(), self.NURSES_TABLE(), self.DOCTORS_TABLE()]
+    

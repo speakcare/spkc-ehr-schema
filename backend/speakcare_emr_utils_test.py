@@ -3,7 +3,8 @@ from models import MedicalRecords, Transcripts, RecordType, RecordState, Transcr
 from backend.tests.speakcare_test_utils import SpeakcareTestUtils
 SpeakcareTestUtils.initialize_test_env()
 from speakcare_emr_utils import EmrUtils
-from speakcare_emr import SpeakCareEmr
+from speakcare_emr import SpeakCareEmr, get_emr_api_instance
+from config import SpeakCareEmrApiconfig
 from speakcare_logging import SpeakcareLogger
 from typing import Optional
 import json, os, uuid
@@ -61,10 +62,10 @@ class TestRecords(unittest.TestCase):
         pass
 
     def test_record_create(self):
-                # Create a record example
+        # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -77,6 +78,7 @@ class TestRecords(unittest.TestCase):
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
+        # Test record read from the DB
         record: Optional[MedicalRecords] = {}
         record, err = EmrUtils.get_record(record_id)
         self.assertIsNotNone(record)
@@ -86,10 +88,10 @@ class TestRecords(unittest.TestCase):
         self.logger.info(f"Created record {record_id}")
 
     def test_record_create_with_extra_field(self):
-                # Create a record example
+        # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -100,6 +102,7 @@ class TestRecords(unittest.TestCase):
             }
         }
         record_id, state, response = EmrUtils.create_record(record_data)
+        self.logger.info(f"Record created: {record_id}, state: {state}, response: {response}")
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully")
 
@@ -110,14 +113,14 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
-        self.assertEqual(record.errors[0], "Field name 'Time' does not exist in the schema of table Weights.")
+        self.assertEqual(record.errors[0], f"Field name 'Time' does not exist in the schema of table {get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE()}.")
         self.logger.info(f"Created record {record_id}")
 
     def test_record_create_and_update(self):
                 # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -157,7 +160,7 @@ class TestRecords(unittest.TestCase):
         # Create a record with 3 errors
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "Bruce Willis", # wrong patient name
             "nurse_name": "Sara Parker", # wrong nurse name
             "fields": {
@@ -265,7 +268,7 @@ class TestRecords(unittest.TestCase):
         # Create a record with non-existent patient id
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "patient_id": 1234567890,
@@ -301,11 +304,10 @@ class TestRecords(unittest.TestCase):
         # we don't change the fields if we can't get it validated
         self.assertEqual(record.errors[0], "Patient ID '1234567890' not found in the EMR.")
         
-
         # now fix the patient id and use correct patient name
         record_data = {
             "patient_name": "James Broun", # slgihtly different name - should pass ok
-            "patient_id": 1
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1]
         }
         success, response = EmrUtils.update_record(record_data, record_id)
         self.assertTrue(success, response)
@@ -319,12 +321,14 @@ class TestRecords(unittest.TestCase):
 
     def test_record_wrong_patient_id(self):
         # Create a record with non-existent patient id
+        james_brown_id = EmrUtils.lookup_patient('James Brown')[1]
+        alice_johnson_id = EmrUtils.lookup_patient('Alice Johnson')[1]
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 2,
+            "patient_id": alice_johnson_id,
             "fields": {
                  "Units": "Lbs",
                  "Weight": 120,
@@ -339,14 +343,14 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.ERRORS)
         self.assertEqual(record.state, state)
         self.assertEqual(len(record.errors), 1)
-        self.assertEqual(record.errors[0], "Patient ID '2' does not match the patient ID '1' found by name 'James Brown'.")
+        self.assertEqual(record.errors[0], f"Patient ID '{alice_johnson_id}' does not match the patient ID '{james_brown_id}' found by name 'James Brown'.")
 
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
 
         # fix it
         record_data = {
             "patient_name": "James Brown",
-            "patient_id": 1
+            "patient_id": james_brown_id
         }
         success, response = EmrUtils.update_record(record_data, record_id)
         self.assertTrue(success)
@@ -361,7 +365,7 @@ class TestRecords(unittest.TestCase):
                 # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -392,15 +396,17 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(emr_record['fields']['Units'], "Kg")
         self.assertEqual(emr_record['fields']['Weight'], 130)
         self.assertEqual(emr_record['fields']['Scale'], "Mechanical Lift")  
-        self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["James Brown"])
-        self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        self.assertIsNotNone(emr_record['fields']['Patient'])
+        self.assertEqual(emr_record['fields']['Patient'][:3], "rec")
+        self.assertIsNotNone(emr_record['fields']['CreatedBy'])
+        self.assertEqual(emr_record['fields']['CreatedBy'][:3], "rec")
         self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
     def test_record_create_and_commit_blood_pressure(self):
                     # Create a record example
             record_data = {
                 "type": RecordType.SIMPLE,
-                "table_name": SpeakCareEmr.BLOOD_PRESSURES_TABLE,
+                "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_BLOOD_PRESSURES_TABLE(),
                 "patient_name": "James Brown",
                 "nurse_name": "Sara Foster",
                 "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
@@ -428,15 +434,17 @@ class TestRecords(unittest.TestCase):
             self.assertEqual(emr_record['fields']['Diastolic'], 85)
             self.assertEqual(emr_record['fields']['Position'], "Sitting")
             self.assertEqual(emr_record['fields']['Arm'], "Left")  
-            self.assertEqual(emr_record['fields']['PatientName (from Patient)'], ["James Brown"])
-            self.assertEqual(emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+            self.assertIsNotNone(emr_record['fields']['Patient'])
+            self.assertEqual(emr_record['fields']['Patient'][:3], "rec")
+            self.assertIsNotNone(emr_record['fields']['CreatedBy'])
+            self.assertEqual(emr_record['fields']['CreatedBy'][:3], "rec")
             self.logger.info(f"Commited record {record_id} to the EMR successfully")
 
     def test_record_create_and_commit_and_fail_on_second_commit(self):
                 # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -473,7 +481,7 @@ class TestRecords(unittest.TestCase):
                 # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -509,7 +517,7 @@ class TestRecords(unittest.TestCase):
                 # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -557,7 +565,7 @@ class TestRecords(unittest.TestCase):
         # Create a record example
         record_data = {
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -695,7 +703,7 @@ class TestRecordWithSections(unittest.TestCase):
 
         record_data = { # this is a medical record should not have sections
             "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "fields": {
@@ -725,7 +733,7 @@ class TestRecordWithSections(unittest.TestCase):
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{SpeakCareEmr.WEIGHTS_TABLE}' that has no sections" in response['error'], response['error'])
+        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE()}' that has no sections" in response['error'], response['error'])
 
 
         record: Optional[MedicalRecords] = {}
@@ -866,11 +874,11 @@ class TestRecordWithSections(unittest.TestCase):
              }
         }
         record_sections = {
-            SpeakCareEmr.WEIGHTS_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE():
             {
                 "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
             },
-            SpeakCareEmr.BLOOD_PRESSURES_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).TEST_BLOOD_PRESSURES_TABLE():
             {
                 "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
             },
@@ -911,7 +919,7 @@ class TestRecordWithSections(unittest.TestCase):
         # Check the blood pressure section
         self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
         sectionEmrId = emr_record['fields']['Blood Pressure'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.BLOOD_PRESSURES_TABLE)
+        sectionTableId = EmrUtils.get_table_id(get_emr_api_instance(SpeakCareEmrApiconfig).TEST_BLOOD_PRESSURES_TABLE(),)
         section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
         self.assertIsNotNone(section_emr_record)
         self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
@@ -937,7 +945,7 @@ class TestRecordWithSections(unittest.TestCase):
         # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
         self.assertIsNotNone(emr_record['fields']['Weight'])
         sectionEmrId = emr_record['fields']['Weight'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.WEIGHTS_TABLE)
+        sectionTableId = EmrUtils.get_table_id(get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE())
         section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
         self.assertIsNotNone(section_emr_record)
         self.assertEqual(section_emr_record['fields']['Weight'], 120)  

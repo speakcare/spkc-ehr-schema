@@ -41,7 +41,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.load_patients()
         self.load_nurses()
     
-    def __writable_fields(self, tableSchema, allow_writable_id_field=False):#, log=False):
+    def __writable_fields(self, tableSchema, allow_writable_id_field=False):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
@@ -50,15 +50,6 @@ class SpeakCareEmr(SpeakCareEmrTables):
                (allow_writable_id_field == True or field['id'] != primaryFieldId):
                      _field = copy.deepcopy(field)
                      fields.append(_field)
- #                    if log:
- #                       self.logger.debug(f"adding field: {_field['name']}")
- #           else:
- #               if log:
- #                   self.logger.debug(f"skipping field: {field['name']}")
- #                   self.logger.debug(f"table: {tableSchema['name']}")
- #                   self.logger.debug(f"field['name'] not in self.INTERNAL_FIELDS: {field['name'] not in self.INTERNAL_FIELDS}")
- #                   self.logger.debug(f"field['type'] not in self.READONLY_FIELD_TYPES: {field['type'] not in self.READONLY_FIELD_TYPES}")
- #                   self.logger.debug(f"field['id'] != primaryFieldId: {field['id'] != primaryFieldId}, primaryFieldId: {primaryFieldId}")
         
         return fields
 
@@ -182,7 +173,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
     def is_table_multi_section(self, tableName):
         return tableName in self.TABLE_SECTIONS
-        
+
     def create_record(self, tableId, record):
         self.logger.debug(f'Creating record in table {tableId} with record {record}')
         record, url = self.airtableApi.create_record(tableId, record)
@@ -257,7 +248,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
             errors.append(err_msg)
             self.logger.error(err_msg)
             return None, None, err_msg
-        
+        self.logger.info(f'create_simple_record: {patientEmrId}, {createdByNurseEmrId}')
         record['Patient'] = [patientEmrId]
         record['CreatedBy'] = [createdByNurseEmrId]
         record['SpeakCare'] = 'Draft'
@@ -318,6 +309,15 @@ class SpeakCareEmr(SpeakCareEmrTables):
             err_msg = f'sign_assessment: Failed to get assessment record with id {assessmentId}'
             self.logger.error(err_msg)
             return None, err_msg
+
+    def get_patient_ids(self):
+        return self.patientIds
+    
+    def get_patient_emr_ids(self):
+        return self.patientEmrIds
+    
+    def get_patient_names(self):
+        return self.patientNames
 # Patients methods
     def load_patients(self):
         self.logger.info(f"load_patients: {self.PATIENTS_TABLE()}")
@@ -353,7 +353,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
             return None, None, None
     
     def match_patient(self, patientFullName):
-        self.logger.debug(f"match_patient: {patientFullName}")
+        self.logger.info(f"match_patient: {patientFullName}")
         matchedName, patientId, patientEmrId = self.__match_patient(patientFullName)
         if not matchedName:
             self.logger.info(f'Patient {patientFullName} not found')

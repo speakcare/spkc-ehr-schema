@@ -263,6 +263,7 @@ class EmrUtils:
                                    sections = None,
                                    patient_id: int = None, 
                                    nurse_id: int = None):
+        logger.info(f"__record_validation_helper: {table_name}, {patient_name}, {nurse_name}, {fields}, {sections}, {patient_id}, {nurse_id}")
         _errors =[]
         _state = RecordState.PENDING
         _patient_name = patient_name
@@ -277,6 +278,9 @@ class EmrUtils:
         foundPatientByPatientId = None
         foundPatientByName, foundPatientIdByName, patientEmrId = get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(patient_name)
 
+        logger.info(f"validating record, searching for patientId {_patient_id} and patientName {patient_name} in Ids: \
+        {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_ids()}, emrIds: {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_emr_ids()}, \
+            names: {get_emr_api_instance(SpeakCareEmrApiconfig).get_patient_names()}")
         if not foundPatientByName: # Patient name is mandatory and must be found
             _errors.append(f"Patient '{patient_name}' not found in the EMR.")
             _state = RecordState.ERRORS
@@ -473,7 +477,7 @@ class EmrUtils:
             _table_id = EmrUtils.get_table_id(_table_name)
             if not _table_id:
                 raise ValueError(f"Table name {_table_name} not found in the EMR.")
-
+            logger.info(f"Creating record {_table_name} with patient {_patient_name} and nurse {_nurse_name}")
                 # fields data integrity check is done inside the create_record function - no need to do it here
             _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _validated_fields, _validated_sections =\
                 EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 

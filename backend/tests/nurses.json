@@ -62,10 +62,7 @@
             "description": "Work days and/or shifts"
         },
         {
-            "type": "multipleRecordLinks",
-            "options": {
-                "linkedTableId": "tbleNsgzYZvRy1st1"
-            },
+            "type": "multilineText",
             "name": "Patients"
         },
         {

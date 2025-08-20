@@ -196,10 +196,7 @@
         "name": "Admission"
       },
       {
-        "type": "multipleRecordLinks",
-        "options": {
-          "linkedTableId": "tblku5F04AH4D9WBo"
-        },
+        "type": "multilineText",
         "name": "Nurses"
       },
       {

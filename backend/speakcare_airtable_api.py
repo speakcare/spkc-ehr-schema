@@ -23,6 +23,8 @@ class SpeakCareAirtableApi():
     API_BASE_URL = 'https://api.airtable.com/v0'
     WEB_APP_BASE_URL = 'https://airtable.com'
 
+    PERSON_FIELDS = ['Patient', 'Nurse', 'Doctor', 'CreatedBy']
+
     def __init__(self,config, logger: logging.Logger):
         self.apiKey = AIRTABLE_API_KEY
         self.api = AirtableApi(self.apiKey)
@@ -66,7 +68,20 @@ class SpeakCareAirtableApi():
             return None
         return self.tables[tableId].all()
 
+    def _sterilize_record(self, record):
+        """
+        When working with test tables, all person fields are pure text, not record links
+        """
+        should_sterilize = len(os.getenv('PERSON_TEST_TABLE_PREFIX')) > 0
+        if should_sterilize:
+            for field in record:
+                if field in self.PERSON_FIELDS:
+                    record[field] = ",".join(record[field]) if isinstance(record[field], list) else record[field]
+        
+
     def create_record(self, tableId, record):
+        self._sterilize_record(record=record)
+        self.logger.info(f'create_record: creating record {record} in table {tableId}')
         record = self.api.table(self.appBaseId, tableId).create(record)
         if record:
             url = f'{self.webBaseUrl}{tableId}/{record["id"]}'
@@ -76,6 +91,7 @@ class SpeakCareAirtableApi():
             return None, None
     
     def update_record(self, tableId, recordId, record):
+        self._sterilize_record(record=record)
         if tableId not in self.tables:
             self.logger.debug(f'update_record: updating record {recordId} in a non-loaded table {tableId}')
             return self.api.table(self.appBaseId, tableId).get(recordId)
