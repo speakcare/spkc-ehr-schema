@@ -360,9 +360,23 @@ class TestRecords(unittest.TestCase):
 
 
     def test_record_wrong_patient_id(self):
+        # preparation - create another patient record
+        alice_johnson_found, alice_johnson_id, _ = EmrUtils.lookup_patient('Alice Johnson')
+        if not alice_johnson_found:
+            patient_data = {
+                "id": generate_random_id(),
+                "FullName": "Alice Johnson",
+                "FirstName": "Alice",
+                "LastName": "Johnson",
+                "DateOfBirth": "1975-09-22",
+                "Gender": "Female",
+                "Admission Date": "2024-06-01"
+            }
+            alice_johnson_record, message  = EmrUtils.add_patient(patient_data)
+            alice_johnson_id = alice_johnson_record['id']
+
         # Create a record with non-existent patient id
         james_brown_id = EmrUtils.lookup_patient('James Brown')[1]
-        alice_johnson_id = EmrUtils.lookup_patient('Alice Johnson')[1]
         record_data = {
             "type": RecordType.SIMPLE,
             "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE(),
@@ -400,6 +414,9 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(len(record.errors), 0)
         self.logger.info(f"Updated record {record_id} successfully")
 
+        # cleanup - delete the patient
+        if alice_johnson_id:
+            EmrUtils.delete_patient(alice_johnson_id)
 
     def test_record_create_and_commit_record(self):
                 # Create a record example

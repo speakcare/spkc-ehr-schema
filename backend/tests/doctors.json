@@ -1,0 +1,49 @@
+{
+    "name": "Doctors",
+    "fields": [
+        {
+            "type": "singleLineText",
+            "name": "id"
+        },
+        {
+            "type": "singleLineText",
+            "name": "Name"
+        },
+        {
+            "type": "singleSelect",
+            "options": {
+                "choices": [
+                    {
+                        "name": "Cardiology",
+                        "color": "blueLight2"
+                    },
+                    {
+                        "name": "Neurology",
+                        "color": "cyanLight2"
+                    },
+                    {
+                        "name": "Orthopedics",
+                        "color": "tealLight2"
+                    },
+                    {
+                        "name": "Pediatrics",
+                        "color": "greenLight2"
+                    },
+                    {
+                        "name": "General Medicine",
+                        "color": "yellowLight2"
+                    },
+                    {
+                        "name": "Dermatology",
+                        "color": "orangeLight2"
+                    },
+                    {
+                        "name": "Oncology",
+                        "color": "redLight2"
+                    }
+                ]
+            },
+            "name": "Specialization"
+        }
+    ]
+}

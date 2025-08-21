@@ -74,6 +74,14 @@ class SpeakcareTestUtils:
 
         SpeakcareEnv.load_env()
 
+        with open('tests/doctors.json', 'r') as f:
+            table = json.load(f)
+            test_utils_logger.info(f"Creating and clearing doctors table")
+            test_utils_logger.debug(f"doctors table: {table}")
+            cls.create_and_clear_table(table)
+
+        cls.populate_test_table_from_original(table)
+
         with open('tests/nurses.json', 'r') as f:
             table = json.load(f)
             test_utils_logger.info(f"Creating and clearing nurses table")
