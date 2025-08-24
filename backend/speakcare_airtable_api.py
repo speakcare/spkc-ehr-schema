@@ -94,7 +94,7 @@ class SpeakCareAirtableApi():
         self._sterilize_record(record=record)
         if tableId not in self.tables:
             self.logger.debug(f'update_record: updating record {recordId} in a non-loaded table {tableId}')
-            return self.api.table(self.appBaseId, tableId).get(recordId)
+            return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
         return self.api.table(self.appBaseId, tableId).update(record_id=recordId, fields=record)
 
     def get_record(self, tableId, recordId):
@@ -107,7 +107,7 @@ class SpeakCareAirtableApi():
     def delete_record(self, tableId, recordId):
         if tableId not in self.tables:
             self.logger.debug(f'delete_record: deleting record {recordId} from a non-loaded table {tableId}')
-            return self.api.table(self.appBaseId, tableId).get(recordId)
+            return self.api.table(self.appBaseId, tableId).delete(recordId)
         return self.tables[tableId].delete(recordId)
 
     def get_table_url(self, tableId=None, tableName=None):

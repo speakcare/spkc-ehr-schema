@@ -1,0 +1,73 @@
+{
+      "name": "Fall Risk Screen",
+      "fields": [
+        {
+          "type": "singleLineText",
+          "name": "id"
+        },
+        {
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {
+                "name": "In progress",
+                "color": "yellowLight2"
+              },
+              {
+                "name": "New",
+                "color": "blueLight2"
+              },
+              {
+                "name": "Completed",
+                "color": "cyanLight2"
+              }
+            ]
+          },
+          "name": "Status"
+        },
+        {
+          "type": "singleLineText",
+          "name": "CreatedBy"
+        },
+        {
+          "type": "singleLineText",
+          "name": "CreatedByName (from CreatedBy)"
+        },
+        {
+          "type": "singleLineText",
+          "name": "Patient"
+        },
+        {
+          "type": "singleLineText",
+          "name": "PatientlName (from Patient)"
+        },
+        {
+          "type": "singleLineText",
+          "name": "SignedBy"
+        },
+        {
+          "type": "singleLineText",
+          "name": "SignedByName (from SignedBy)"
+        },
+        {
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {
+                "name": "Draft",
+                "color": "orangeBright"
+              },
+              {
+                "name": "Approved",
+                "color": "greenBright"
+              },
+              {
+                "name": "Decline",
+                "color": "grayBright"
+              }
+            ]
+          },
+          "name": "SpeakCare"
+        }
+      ]
+    }

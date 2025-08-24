@@ -96,7 +96,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 self.tableEmrSchemas[tableName] = emrSchema
             
             # register sections
-            for tableName, sections in self.TABLE_SECTIONS.items():
+            for tableName, sections in self.TABLE_SECTIONS().items():
                 if tableName in self.tableEmrSchemas:
                     tableSchema = self.tableEmrSchemas.get(tableName)
                     for section in sections:
@@ -117,7 +117,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
     def get_emr_table_section_names(self, tableName=None):
         if not tableName:
             return None
-        return SpeakCareEmr.TABLE_SECTIONS.get(tableName)
+        return SpeakCareEmr.TABLE_SECTIONS().get(tableName)
 
     def get_table_id(self, tableName):
         table = self.tables.get(tableName)
@@ -173,7 +173,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
 
     def is_table_multi_section(self, tableName):
-        return tableName in self.TABLE_SECTIONS
+        return tableName in self.TABLE_SECTIONS()
 
     def create_record(self, tableId, record):
         self.logger.debug(f'Creating record in table {tableId} with record {record}')
@@ -184,8 +184,8 @@ class SpeakCareEmr(SpeakCareEmrTables):
         return self.airtableApi.get_record(tableId, recordId)
     
     def update_record(self, tableId, recordId, record):
-        self.logger.debug(f'Update record in table {tableId} with record {record}')
-        return self.airtableApi.update_record(tableId, recordId, fields=record)
+        self.logger.debug(f'Update record in table {tableId} with record id {recordId} and record {record}')
+        return self.airtableApi.update_record(tableId, recordId, record=record)
     
     def validate_record(self, tableName, record, errors):
         tableSchema = self.tableEmrSchemas.get(tableName)
@@ -291,14 +291,15 @@ class SpeakCareEmr(SpeakCareEmrTables):
             return None, None, err_msg         
 
         record['Patient'] = [patientEmrId]
-        record['ParentRecord'] = [assessmentId]
+        if not get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            record['ParentRecord'] = [assessmentId]
         record['CreatedBy'] = [createdByNurseEmrId]
         self.logger.debug(f'Creating assessment section in table {sectionTableName} with record {record}')
         record, url = self.create_record(sectionTableName, record)
         return record, url, None
     
     def sign_assessment(self, assessmentTableName, assessmentId, signedByNurseEmrId):
-        assessment = self.api.table(self.appBaseId, assessmentTableName).get(assessmentId)
+        assessment = self.airtableApi.get_record(assessmentTableName, assessmentId)
         if assessment:
             record = {}
             record['Status'] = 'Completed'

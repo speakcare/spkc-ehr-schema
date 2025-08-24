@@ -10,6 +10,10 @@ SpeakcareEnv.load_env()
 class SpeakCareEmrTables:
 
     @classmethod
+    def is_test_env(cls):
+        return len(cls.get_person_table_prefix()) > 0
+    
+    @classmethod
     def get_person_table_prefix(cls):
         # print(f"get_person_table_prefix: {os.getenv('PERSON_TEST_TABLE_PREFIX')}")
         return os.getenv('PERSON_TEST_TABLE_PREFIX', 'Test')
@@ -62,8 +66,10 @@ class SpeakCareEmrTables:
     ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
 
     # Fall Risk Screen
-    FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
-    FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
+    def FALL_RISK_SCREEN_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Fall Risk Screen' if self.get_person_table_prefix() else 'Fall Risk Screen'
+    def FALL_RISK_SCREEN_SECTION_1_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Fall Risk Screen: SECTION 1' if self.get_person_table_prefix() else 'Fall Risk Screen: SECTION 1'
 
 
     # Harmony (Holy Name) tables
@@ -145,7 +151,7 @@ class SpeakCareEmrTables:
             self.EPISODES_TABLE, 
             self.PROGRESS_NOTES_TABLE,
             self.ADMISSION_TABLE,
-            self.FALL_RISK_SCREEN_TABLE,
+            self.FALL_RISK_SCREEN_TABLE(),
             self.VITALS_TABLE,
             self.HARMONY_VITALS_TABLE,
             self.LABOR_ADMISSION_SECTION_1_TABLE,
@@ -205,33 +211,34 @@ class SpeakCareEmrTables:
       A table that has sections should be added to this dict with its sections as a list.
       #TODO: load tables dynamically from the API
     """
-    TABLE_SECTIONS = { 
-            ADMISSION_TABLE: [
-                ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
-                ADMISSION_SECTION_2_VITALS_TABLE, 
-                ADMISSION_SECTION_3_SKIN_TABLE, 
-                ADMISSION_SECTION_4_PHYSICAL_TABLE, 
-                ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
-                ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
-                ADMISSION_SECTION_7_DISCHARGE_TABLE,
-                ADMISSION_SECTION_8_FACILITY_TABLE
+    def TABLE_SECTIONS(self):
+        return { 
+            self.ADMISSION_TABLE: [
+                self.ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
+                self.ADMISSION_SECTION_2_VITALS_TABLE, 
+                self.ADMISSION_SECTION_3_SKIN_TABLE, 
+                self.ADMISSION_SECTION_4_PHYSICAL_TABLE, 
+                self.ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
+                self.ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
+                self.ADMISSION_SECTION_7_DISCHARGE_TABLE,
+                self.ADMISSION_SECTION_8_FACILITY_TABLE
             ],            
-            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
-            VITALS_TABLE: [
-                WEIGHTS_TABLE,
-                BLOOD_PRESSURES_TABLE,
-                BLOOD_SUGARS_TABLE,
-                HEIGHTS_TABLE,
-                TEMPERATURES_TABLE,
-                O2_SATURATIONS_TABLE,
-                PULSES_TABLE,
-                RESPIRATION_TABLE
+            self.FALL_RISK_SCREEN_TABLE(): [self.FALL_RISK_SCREEN_SECTION_1_TABLE()],
+            self.VITALS_TABLE: [
+                self.WEIGHTS_TABLE,
+                self.BLOOD_PRESSURES_TABLE,
+                self.BLOOD_SUGARS_TABLE,
+                self.HEIGHTS_TABLE,
+                self.TEMPERATURES_TABLE,
+                self.O2_SATURATIONS_TABLE,
+                self.PULSES_TABLE,
+                self.RESPIRATION_TABLE
             ],
-            SPORT_2_TEST: [
-                STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_FOOT_REACH,
-                STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_FOOT_REACH,
-                HAND_STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_HAND_REACH,
-                HAND_STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_HAND_REACH,
+            self.SPORT_2_TEST: [
+                self.STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_FOOT_REACH,
+                self.STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_FOOT_REACH,
+                self.HAND_STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_HAND_REACH,
+                self.HAND_STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_HAND_REACH,
             ],
 
             # SPORT_PERFORMANCE_ASSESSMENT_2: [
@@ -242,13 +249,13 @@ class SpeakCareEmrTables:
             # ],
             
             # SPORT_PERFORMANCE_ASSESSMENT_3: [
-            SPORT_3_TEST: [
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ANTERIOR,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_OS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_SS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_POSTERIOR,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_OS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_SS,
+            self.SPORT_3_TEST: [
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ANTERIOR,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_OS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_SS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_POSTERIOR,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_OS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_SS,
             ],
             # SPORT_PERFORMANCE_ASSESSMENT_4: [
             #     LOCAL_ASSESSMENT_ENDURANCE,

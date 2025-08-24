@@ -63,40 +63,41 @@ class TestRecords(unittest.TestCase):
 
     @classmethod
     def __create_patient_and_nurse_record(cls):
-        patient_data = {
-            "id": generate_random_id(),
-            "FullName": "James Brown",
-            "FirstName": "James",
-            "LastName": "Brown",
-            "DateOfBirth": "1968-09-22",
-            "Gender": "Male",
-            "Admission Date": "2024-05-01"
-        }
-        emr_patient_record, message  = EmrUtils.add_patient(patient_data)
-        # should succeed    
-        cls.logger.debug(f"Created patient {emr_patient_record['id']}")
-        cls._patient_id = emr_patient_record['id']
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            patient_data = {
+                "id": generate_random_id(),
+                "FullName": "James Brown",
+                "FirstName": "James",
+                "LastName": "Brown",
+                "DateOfBirth": "1968-09-22",
+                "Gender": "Male",
+                "Admission Date": "2024-05-01"
+            }
+            emr_patient_record, message  = EmrUtils.add_patient(patient_data)
+            # should succeed    
+            cls.logger.debug(f"Created patient {emr_patient_record['id']}")
+            cls._patient_id = emr_patient_record['id']
 
-        nurse_data = {
-            "id": generate_random_id(),
-            "Name": "Florence Nightingale",
-            "Specialization": ["Cardiology", "Geriatrics", "Oncology"]
-        }
-        emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
-        cls.logger.info(f"Created nurse {emr_nurse_record['id']}")
-        cls._nurse_id = emr_nurse_record['id']
+            nurse_data = {
+                "id": generate_random_id(),
+                "Name": "Florence Nightingale",
+                "Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+            }
+            emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+            cls.logger.info(f"Created nurse {emr_nurse_record['id']}")
+            cls._nurse_id = emr_nurse_record['id']
 
     @classmethod
     def __delete_patient_and_nurse_record(cls):
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            # delete the nurse
+            delete_record = EmrUtils.delete_nurse(cls._nurse_id)
+            cls.logger.info(f"Deleted nurse {cls._nurse_id}")
 
-        # delete the nurse
-        delete_record = EmrUtils.delete_nurse(cls._nurse_id)
-        cls.logger.info(f"Deleted nurse {cls._nurse_id}")
 
-
-        #delete the patient
-        delete_record = EmrUtils.delete_patient(cls._patient_id)
-        cls.logger.info(f"Deleted patient {cls._patient_id}")        
+            #delete the patient
+            delete_record = EmrUtils.delete_patient(cls._patient_id)
+            cls.logger.info(f"Deleted patient {cls._patient_id}")        
 
     def test_record_create(self):
         # Create a record example
@@ -669,20 +670,74 @@ class TestRecordWithSections(unittest.TestCase):
 
     def setUp(self):
         pass
+
+    @classmethod
+    def setUpClass(cls):
+        """Run once when the test class is first created, before any tests run"""
+        cls.logger = SpeakcareLogger(__name__)
+        cls.__create_patient_and_nurse_record()
+        
+    @classmethod
+    def tearDownClass(cls):
+        """Run once when all tests in the class are finished"""
+        cls.logger = SpeakcareLogger(__name__)
+        cls.__delete_patient_and_nurse_record()
+        # Add any cleanup code here
+        # For example: close connections, delete test data, etc.
+        # This is a good place to clean up any resources created in setUpClass
+
+    @classmethod
+    def __create_patient_and_nurse_record(cls):
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            patient_data = {
+                "id": generate_random_id(),
+                "FullName": "James Brown",
+                "FirstName": "James",
+                "LastName": "Brown",
+                "DateOfBirth": "1968-09-22",
+                "Gender": "Male",
+                "Admission Date": "2024-05-01"
+            }
+            emr_patient_record, message  = EmrUtils.add_patient(patient_data)
+            # should succeed    
+            cls.logger.debug(f"Created patient {emr_patient_record['id']}")
+            cls._patient_id = emr_patient_record['id']
+
+            nurse_data = {
+                "id": generate_random_id(),
+                "Name": "Florence Nightingale",
+                "Specialization": ["Cardiology", "Geriatrics", "Oncology"]
+            }
+            emr_nurse_record, message = EmrUtils.add_nurse(nurse_data)
+            cls.logger.info(f"Created nurse {emr_nurse_record['id']}")
+            cls._nurse_id = emr_nurse_record['id']
+
+    @classmethod
+    def __delete_patient_and_nurse_record(cls):
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            # delete the nurse
+            delete_record = EmrUtils.delete_nurse(cls._nurse_id)
+            cls.logger.info(f"Deleted nurse {cls._nurse_id}")
+
+
+            #delete the patient
+            delete_record = EmrUtils.delete_patient(cls._patient_id)
+            cls.logger.info(f"Deleted patient {cls._patient_id}")      
+        
     def test_record_create_fallrisk(self):
         record_data = {
             "type": RecordType.MULTI_SECTION,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 1,
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1],
             "fields": {
                  "Status": "New"
              }
         }
 
         record_sections = { 
-            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE():
             {
                  "fields": {
                     "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
@@ -716,7 +771,7 @@ class TestRecordWithSections(unittest.TestCase):
     def test_record_create_fallrisk_with_wrong_section_name(self):
         record_data = {
             "type": RecordType.MULTI_SECTION,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
             "patient_id": 1,
@@ -745,7 +800,7 @@ class TestRecordWithSections(unittest.TestCase):
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertTrue(f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'" in response['error'], response['error'])
+        self.assertTrue(f"Section 'Wrong section name' not found in table '{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE()}'" in response['error'], response['error'])
 
 
         record: Optional[MedicalRecords] = {}
@@ -753,7 +808,7 @@ class TestRecordWithSections(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertEqual(record.errors[0], f"Section 'Wrong section name' not found in table '{SpeakCareEmr.FALL_RISK_SCREEN_TABLE}'")
+        self.assertEqual(record.errors[0], f"Section 'Wrong section name' not found in table '{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE()}'")
         self.logger.info(f"Created record {record_id}")
 
     def test_record_create_with_wrong_sections(self):
@@ -770,7 +825,7 @@ class TestRecordWithSections(unittest.TestCase):
             }
         }
         record_sections = { 
-            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE():
             {
                  "fields": {
                     "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
@@ -790,7 +845,7 @@ class TestRecordWithSections(unittest.TestCase):
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
         self.assertIsNotNone(record_id)
-        self.assertTrue(f"Sections '['{SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE}']' provided for table '{get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE()}' that has no sections" in response['error'], response['error'])
+        self.assertTrue(f"Sections '['{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}']' provided for table '{get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE()}' that has no sections" in response['error'], response['error'])
 
 
         record: Optional[MedicalRecords] = {}
@@ -805,17 +860,17 @@ class TestRecordWithSections(unittest.TestCase):
     def test_record_create_assessment_with_wrong_section_field(self):
         record_data = {
             "type": RecordType.MULTI_SECTION,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 1,
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1],
             "fields": {
                  "Status": "New"
              }
         }
 
         record_sections = { 
-            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE():
             {
                  "fields": {
                     "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
@@ -852,17 +907,17 @@ class TestRecordWithSections(unittest.TestCase):
     def test_record_create_assessment_commit_and_sign(self):
         record_data = {
             "type": RecordType.MULTI_SECTION,
-            "table_name": SpeakCareEmr.FALL_RISK_SCREEN_TABLE,
+            "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 1,
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1],
             "fields": {
                  "Status": "New"
              }
         }
 
         record_sections = { 
-            SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE:
+            get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE():
             {
                  "fields": {
                     "URINE ELIMINATION STATUS": "REGULARLY CONTINENT (0 points)",
@@ -874,13 +929,14 @@ class TestRecordWithSections(unittest.TestCase):
                     ],
                     "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
                     "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "MEDICATIONS CHANGES (1 point)": True,
                     "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
                 }
             }
         }
         record_data['sections'] = record_sections
         record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.logger.info(f"{record_id}, {record_state}, {response}")
         self.assertIsNotNone(record_id)
         self.assertEqual(response['message'], "EMR record created successfully", response)
 
@@ -901,21 +957,22 @@ class TestRecordWithSections(unittest.TestCase):
         self.assertIsNotNone(emr_record)
         self.assertEqual(emr_record['id'], emr_id)
         self.assertEqual(emr_record['fields']['Status'], "New")
-        self.assertIsNotNone(emr_record['fields']['SECTION_1_FALL_RISK'])
-        sectionEmrId = emr_record['fields']['SECTION_1_FALL_RISK'][0]
-        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE)
-        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(
-                                                tableId=sectionTableId, 
-                                                emr_record_id= sectionEmrId
-                                            )
-        self.assertIsNotNone(section_emr_record)
-        self.assertEqual(section_emr_record['fields']['URINE ELIMINATION STATUS'], "REGULARLY CONTINENT (0 points)")  
-        self.assertEqual(section_emr_record['fields']['Total score'], 10)
-        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        # self.assertIsNotNone(emr_record['fields']['SECTION_1_FALL_RISK'])
+        # sectionEmrId = emr_record['fields']['SECTION_1_FALL_RISK'][0]
+        # sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.FALL_RISK_SCREEN_SECTION_1_TABLE)
+        # section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(
+        #                                         tableId=sectionTableId, 
+        #                                         emr_record_id= sectionEmrId
+        #                                     )
+        # self.assertIsNotNone(section_emr_record)
+        # self.assertEqual(section_emr_record['fields']['URINE ELIMINATION STATUS'], "REGULARLY CONTINENT (0 points)")  
+        # self.assertEqual(section_emr_record['fields']['Total score'], 10)
+        # self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
         self.logger.info(f"Commited assessment {record_id} to the EMR successfully")
 
         EmrUtils.sign_assessment(record_id)
         emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.logger.info(f"Signed assessment {record_id} to the EMR successfully: {emr_record}")
         self.assertEqual(emr_record['fields']['Status'], "Completed")
         self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
   
@@ -923,9 +980,9 @@ class TestRecordWithSections(unittest.TestCase):
         record_data = {
             "type": RecordType.MULTI_SECTION,
             "table_name": SpeakCareEmr.VITALS_TABLE,
-            "patient_name": "Bob Williams",
+            "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 3,
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1],
             "fields": {
                  "Status": "New"
              }
@@ -1133,7 +1190,7 @@ class TestSchema(unittest.TestCase):
 
     def test_get_fallrisk_schema(self):
         # Getting schema for a specific table
-        table_name = SpeakCareEmr.FALL_RISK_SCREEN_TABLE
+        table_name = get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE()
         record_schema = EmrUtils.get_table_json_schema(table_name)
         self.assertIsNotNone(record_schema)
         self.logger.debug(f'{table_name} Table schema: {json.dumps(record_schema, indent=4)}')

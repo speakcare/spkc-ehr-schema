@@ -330,10 +330,10 @@ class EmrUtils:
         if not isValid:
             _state = RecordState.ERRORS
 
-        if sections and table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS:  
+        if sections and table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS():  
             for section_name, section in sections.items():
                 section_fields = section.get('fields', None)
-                if not section_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS[table_name]:
+                if not section_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS()[table_name]:
                     err = f"Section '{section_name}' not found in table '{table_name}'"
                     logger.error(err)
                     _errors.append(err)
@@ -362,7 +362,7 @@ class EmrUtils:
                 else:
                     logger.debug(f"Section '{section_name}' has no fields. Skipping it.")
 
-        elif sections and not table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS:
+        elif sections and not table_name in get_emr_api_instance(SpeakCareEmrApiconfig).TABLE_SECTIONS():
                 #create a list from sections field 'table_name'
                 _sections_names = [section_name for section_name, _ in sections.items()]
                 err = f"Sections '{_sections_names}' provided for table '{table_name}' that has no sections"
