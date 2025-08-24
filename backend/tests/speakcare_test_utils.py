@@ -74,6 +74,12 @@ class SpeakcareTestUtils:
 
         SpeakcareEnv.load_env()
 
+        emrTables = SpeakCareEmrTables()
+        if not emrTables.is_test_env():
+            return
+
+        test_utils_logger.info(f"Initializing test environment")
+
         with open('tests/doctors.json', 'r') as f:
             table = json.load(f)
             test_utils_logger.info(f"Creating and clearing doctors table")
@@ -108,6 +114,18 @@ class SpeakcareTestUtils:
             table = json.load(f)
             test_utils_logger.info(f"Creating and clearing blood-preassures table")
             test_utils_logger.debug(f"blood-preassures table: {table}")
+            cls.create_and_clear_table(table)
+
+        with open('tests/fall_risk_screen.json', 'r') as f:
+            table = json.load(f)
+            test_utils_logger.info(f"Creating and clearing fall-risk-screen-section-1 table")
+            test_utils_logger.debug(f"fall-risk-screen-section-1 table: {table}")
+            cls.create_and_clear_table(table)
+
+        with open('tests/fall_risk_screen_section_1.json', 'r') as f:
+            table = json.load(f)
+            test_utils_logger.info(f"Creating and clearing fall-risk-screen-section-1 table")
+            test_utils_logger.debug(f"fall-risk-screen-section-1 table: {table}")
             cls.create_and_clear_table(table)
 
 class AirtableUtils():
