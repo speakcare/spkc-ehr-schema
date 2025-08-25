@@ -749,7 +749,7 @@ class TestRecordWithSections(unittest.TestCase):
                     ],
                     "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
                     "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "MEDICATIONS CHANGES (1 point)": True,
                     "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
                 }
             }
@@ -774,7 +774,7 @@ class TestRecordWithSections(unittest.TestCase):
             "table_name": get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_TABLE(),
             "patient_name": "James Brown",
             "nurse_name": "Sara Foster",
-            "patient_id": 1,
+            "patient_id": EmrUtils.lookup_patient("James Brown")[1],
             "fields": {
                  "Status": "New"
              }
@@ -792,7 +792,7 @@ class TestRecordWithSections(unittest.TestCase):
                     ],
                     "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
                     "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "MEDICATIONS CHANGES (1 point)": True,
                     "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
                 }
             }
@@ -837,7 +837,7 @@ class TestRecordWithSections(unittest.TestCase):
                     ],
                     "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
                     "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "MEDICATIONS CHANGES (1 point)": True,
                     "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
                 }
             }
@@ -853,7 +853,7 @@ class TestRecordWithSections(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.ERRORS, f'Errors: {record.errors}')
-        self.assertTrue("Sections '['Fall Risk Screen: SECTION 1']' provided for table 'Weights' that has no sections" in record.errors[0])
+        self.assertTrue(f"Sections '['{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}']' provided for table '{get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE()}' that has no sections" in record.errors[0])
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
         
 
@@ -882,7 +882,7 @@ class TestRecordWithSections(unittest.TestCase):
                     ],
                     "MEDICATIONS": "NONE of these medications taken currently or within last 7 days (0 points)",
                     "PREDISPOSING DISEASES": "NONE PRESENT (0 points)",
-                    "MEDICATIONS CHANGES": "Yes (1 additional point)",
+                    "MEDICATIONS CHANGES (1 point)": True,
                     "HISTORY OF FALLS (Past 3 Months)": "NO FALLS in past 3 months (0 points)"
                 }
             }
@@ -898,10 +898,10 @@ class TestRecordWithSections(unittest.TestCase):
         self.assertIsNotNone(record)
         self.assertEqual(record.id, record_id)
         self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
-        self.assertTrue("Section 'Fall Risk Screen: SECTION 1' validation failed with errors" in record.errors[0], record.errors)
-        self.assertTrue("Validation error for a required field 'Total score' in table Fall Risk Screen: SECTION 1: Value 'ten' cannot be converted to a number."\
-                         in record.sections['Fall Risk Screen: SECTION 1']['errors'], 
-                         json.dumps(record.sections['Fall Risk Screen: SECTION 1'], indent=4))
+        self.assertTrue(f"Section '{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}' validation failed with errors" in record.errors[0], record.errors)
+        self.assertTrue(f"Validation error for a required field 'Total score' in table {get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}: Value 'ten' cannot be converted to a number."\
+                         in record.sections[f'{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}']['errors'], 
+                         json.dumps(record.sections[f'{get_emr_api_instance(SpeakCareEmrApiconfig).FALL_RISK_SCREEN_SECTION_1_TABLE()}'], indent=4))
         self.logger.info(f"Created record {record_id} with errors:{record.errors}")
     
     def test_record_create_assessment_commit_and_sign(self):
@@ -974,7 +974,10 @@ class TestRecordWithSections(unittest.TestCase):
         emr_record, err = EmrUtils.get_emr_record(record_id)
         self.logger.info(f"Signed assessment {record_id} to the EMR successfully: {emr_record}")
         self.assertEqual(emr_record['fields']['Status'], "Completed")
-        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            self.assertEqual(emr_record['fields']['SignedBy'], EmrUtils.lookup_nurse("Sara Foster")[2])
+        else:
+            self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
   
     def test_record_create_vitals_commit_and_sign(self):
         record_data = {
@@ -1084,7 +1087,10 @@ class TestRecordWithSections(unittest.TestCase):
         EmrUtils.sign_assessment(record_id)
         emr_record, err = EmrUtils.get_emr_record(record_id)
         self.assertEqual(emr_record['fields']['Status'], "Completed")
-        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+            self.assertEqual(emr_record['fields']['SignedBy'], "Sara Foster")
+        else:
+            self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
   
 
 

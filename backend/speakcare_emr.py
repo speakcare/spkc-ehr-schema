@@ -303,7 +303,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         if assessment:
             record = {}
             record['Status'] = 'Completed'
-            record['SignedBy'] = [signedByNurseEmrId]
+            record['SignedBy'] = ','.join(signedByNurseEmrId) if isinstance(signedByNurseEmrId, list) else signedByNurseEmrId
             self.logger.debug(f'Sign assessment section in table {assessmentTableName} with record {record}')
             record = self.update_record(assessmentTableName, assessmentId, record)
             return record, None

@@ -140,7 +140,15 @@ class EmrUtils:
         """
         logger.debug(f"lookup_patient: {name}")
         return get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(name)
-    
+
+    @staticmethod
+    def lookup_nurse(name):
+        """
+        lookup_nurse
+        """
+        logger.debug(f"lookup_nurse: {name}")
+        return get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(name)
+
     @staticmethod
     def add_patient(patient: dict):
         logger.debug(f"add_patient:\n {patient}")
