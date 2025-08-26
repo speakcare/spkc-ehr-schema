@@ -335,3 +335,5 @@ class AirtableUtils():
             error_msg = f"Error getting records from table '{table_name}': {str(e)}"
             test_utils_logger.error(error_msg)
             return False, [], error_msg
+
+SpeakcareTestUtils.initialize_test_env()

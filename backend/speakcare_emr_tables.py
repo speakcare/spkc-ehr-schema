@@ -69,10 +69,13 @@ class SpeakCareEmrTables:
     ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
 
     # Fall Risk Screen
-    def FALL_RISK_SCREEN_TABLE(self):
+    def TEST_FALL_RISK_SCREEN_TABLE(self):
         return f'{self.get_person_table_prefix()}_Fall Risk Screen' if self.get_person_table_prefix() else 'Fall Risk Screen'
-    def FALL_RISK_SCREEN_SECTION_1_TABLE(self):
+    def TEST_FALL_RISK_SCREEN_SECTION_1_TABLE(self):
         return f'{self.get_person_table_prefix()}_Fall Risk Screen: SECTION 1' if self.get_person_table_prefix() else 'Fall Risk Screen: SECTION 1'
+    
+    FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
+    FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
 
 
     # Harmony (Holy Name) tables
@@ -154,7 +157,7 @@ class SpeakCareEmrTables:
             self.EPISODES_TABLE, 
             self.PROGRESS_NOTES_TABLE,
             self.ADMISSION_TABLE,
-            self.FALL_RISK_SCREEN_TABLE(),
+            self.FALL_RISK_SCREEN_TABLE,
             self.VITALS_TABLE,
             self.HARMONY_VITALS_TABLE,
             self.LABOR_ADMISSION_SECTION_1_TABLE,
@@ -226,7 +229,8 @@ class SpeakCareEmrTables:
                 self.ADMISSION_SECTION_7_DISCHARGE_TABLE,
                 self.ADMISSION_SECTION_8_FACILITY_TABLE
             ],            
-            self.FALL_RISK_SCREEN_TABLE(): [self.FALL_RISK_SCREEN_SECTION_1_TABLE()],
+            self.FALL_RISK_SCREEN_TABLE: [self.FALL_RISK_SCREEN_SECTION_1_TABLE],
+            self.TEST_FALL_RISK_SCREEN_TABLE(): [self.TEST_FALL_RISK_SCREEN_SECTION_1_TABLE()],
             self.VITALS_TABLE: [
                 self.WEIGHTS_TABLE,
                 self.BLOOD_PRESSURES_TABLE,
