@@ -2,19 +2,14 @@ import os, sys
 
 from dotenv.main import logger
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from pyairtable import Api as AirtableApi
 import json
 import logging
 import requests
-from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
 from backend.speakcare_env import SpeakcareEnv
-
-# Load the .env file
-SpeakcareEnv.load_env()
-AIRTABLE_APP_BASE_ID = os.getenv('AIRTABLE_APP_BASE_ID')
-AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
+from speakcare_schema import AirtableSchema
+from pyairtable import Api as AirtableApi
 
 class SpeakCareAirtableApi():
 
@@ -26,7 +21,8 @@ class SpeakCareAirtableApi():
     PERSON_FIELDS = ['Patient', 'Nurse', 'Doctor', 'CreatedBy']
 
     def __init__(self,config, logger: logging.Logger):
-        self.apiKey = AIRTABLE_API_KEY
+        # Load the .env file
+        self.apiKey = AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
         self.api = AirtableApi(self.apiKey)
         self.appBaseId = config.get('baseId')
         self.logger = logger
@@ -58,9 +54,6 @@ class SpeakCareAirtableApi():
                 }
         response = self._api_post(baseUrl= self.tablesSchemaUrl, dictBody=table, headers=_headers)
         return response.json()
-
-    # def get_table(self, table):
-    #     return self.api.table(self.appBaseId, table)
 
     def get_table_records(self, tableId):
         if tableId not in self.tables:
