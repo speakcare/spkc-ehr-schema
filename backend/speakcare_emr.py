@@ -289,13 +289,19 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.logger.debug(f'Creating assessment section in table {sectionTableName} with record {record}')
         record, url = self.create_record(sectionTableName, record)
         return record, url, None
+
+    def get_signing_assessment_nurse(self, signedByNurseEmrId):
+        if self.is_test_env():
+            return ','.join(signedByNurseEmrId) if isinstance(signedByNurseEmrId, list) else signedByNurseEmrId
+        else:
+            return signedByNurseEmrId if isinstance(signedByNurseEmrId, list) else [signedByNurseEmrId]
     
     def sign_assessment(self, assessmentTableName, assessmentId, signedByNurseEmrId):
         assessment = self.api.get_record(assessmentTableName, assessmentId)
         if assessment:
             record = {}
             record['Status'] = 'Completed'
-            record['SignedBy'] = ','.join(signedByNurseEmrId) if isinstance(signedByNurseEmrId, list) else signedByNurseEmrId
+            record['SignedBy'] = self.get_signing_assessment_nurse(signedByNurseEmrId)
             self.logger.debug(f'Sign assessment section in table {assessmentTableName} with record {record}')
             record = self.update_record(assessmentTableName, assessmentId, record)
             return record, None
