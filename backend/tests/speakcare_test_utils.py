@@ -67,11 +67,6 @@ class SpeakcareTestUtils:
 
     @classmethod
     def initialize_test_env(cls):
-        # Add any one-time setup code here
-        # Create test tables. If they exist, delete them and create new ones
-        # tables to create: Patients, Nurses
-        # Create nurses table with actual fields used in tests
-
         SpeakcareEnv.load_env()
 
         emrTables = SpeakCareEmrTables()
@@ -80,21 +75,13 @@ class SpeakcareTestUtils:
 
         test_utils_logger.info(f"Initializing test environment")
 
-        with open('tests/doctors.json', 'r') as f:
-            table = json.load(f)
-            test_utils_logger.info(f"Creating and clearing doctors table")
-            test_utils_logger.debug(f"doctors table: {table}")
-            cls.create_and_clear_table(table)
-
-        cls.populate_test_table_from_original(table)
-
         with open('tests/nurses.json', 'r') as f:
             table = json.load(f)
             test_utils_logger.info(f"Creating and clearing nurses table")
             test_utils_logger.debug(f"nurses table: {table}")
             cls.create_and_clear_table(table)
 
-        cls.populate_test_table_from_original(table)
+            cls.populate_test_table_from_original(table)
         
         with open('tests/patients.json', 'r') as f:
             table = json.load(f)
@@ -102,7 +89,7 @@ class SpeakcareTestUtils:
             test_utils_logger.debug(f"patients table: {table}")
             cls.create_and_clear_table(table)
 
-        cls.populate_test_table_from_original(table)
+            cls.populate_test_table_from_original(table)
 
         with open('tests/weights.json', 'r') as f:
             table = json.load(f)
@@ -151,30 +138,13 @@ class AirtableUtils():
             success = True
             record_deletion_required = True
         elif response.status_code == 200:
-            test_utils_logger.info("✅ Airtable Table created successfully.")
+            test_utils_logger.info(f"✅ Airtable Table {table_name} created successfully.")
             success = True
             record_deletion_required = False
         else:
-            test_utils_logger.info(f"❌ Error creating table: {response.status_code}")
+            test_utils_logger.info(f"❌ Error creating table {table_name}: {response.status_code}")
             test_utils_logger.info(response.text)
             return False, False
-
-        # # configure id field to be autonumber
-        # body = {
-        #     "type": "autoNumber",
-        #     "name": id_field_name
-        # }
-        # url = f"https://api.airtable.com/v0/meta/bases/{base_id}/tables/{table_name}/fields"
-        # headers = {
-        #     "Authorization": f"Bearer {airtable_token}",
-        #     "Content-Type": "application/json"
-        # }
-        # response = requests.post(url, headers=headers, json=body)
-        # if response.status_code == 200:
-        #     test_utils_logger.info(f"✅ ID field '{id_field_name}' configured as autonumber")
-        # else:
-        #     test_utils_logger.info(f"❌ Error configuring id field '{id_field_name}' as autonumber: {response.status_code}")
-        #     test_utils_logger.info(response.text)
 
         return success, record_deletion_required
 
@@ -261,80 +231,73 @@ class AirtableUtils():
             "Authorization": f"Bearer {airtable_token}",
             "Content-Type": "application/json"
         }
+       
+        # First, get all records from the source table
+        source_url = f"https://api.airtable.com/v0/{base_id}/{source_table_name}"
+        test_utils_logger.info(f"Getting all records from source table '{source_table_name}'")
         
-        # try:
-        if 1:
-            # First, get all records from the source table
-            source_url = f"https://api.airtable.com/v0/{base_id}/{source_table_name}"
-            test_utils_logger.info(f"Getting all records from source table '{source_table_name}'")
+        response = requests.get(source_url, headers=headers)
+        if response.status_code != 200:
+            error_msg = f"Failed to get records from source table '{source_table_name}': {response.status_code}"
+            test_utils_logger.error(error_msg)
+            return False, 0, error_msg
+        
+        source_records = response.json().get('records', [])
+        if not source_records:
+            test_utils_logger.info(f"Source table '{source_table_name}' is empty")
+            return True, 0, "Source table is empty"
+        
+        test_utils_logger.info(f"Found {len(source_records)} records in source table '{source_table_name}'")
+        test_utils_logger.debug(f"fields_to_keep: {fields_to_keep}")
+        test_utils_logger.debug(f"source_records: {source_records}")
+        
+        # Transform records if field mapping is provided
+        transformed_records = []
+        for record in source_records:
+            fields = record.get('fields', {})
             
-            response = requests.get(source_url, headers=headers)
-            if response.status_code != 200:
-                error_msg = f"Failed to get records from source table '{source_table_name}': {response.status_code}"
-                test_utils_logger.error(error_msg)
-                return False, 0, error_msg
-            
-            source_records = response.json().get('records', [])
-            if not source_records:
-                test_utils_logger.info(f"Source table '{source_table_name}' is empty")
-                return True, 0, "Source table is empty"
-            
-            test_utils_logger.info(f"Found {len(source_records)} records in source table '{source_table_name}'")
-            test_utils_logger.info(f"fields_to_keep: {fields_to_keep}")
-            test_utils_logger.info(f"source_records: {source_records}")
-            
-            # Transform records if field mapping is provided
-            transformed_records = []
-            for record in source_records:
-                fields = record.get('fields', {})
-                
-                if fields_to_keep:
-                    # Apply field mapping
-                    transformed_fields = {}
-                    for field in fields:
-                        if field in fields_to_keep:
-                            if field in fields_to_strip and isinstance(fields[field], list):
-                                stripped_value = ",".join(fields[field])
-                                transformed_fields[field] = stripped_value
-                            else:
-                                transformed_fields[field] = fields[field]
+            if fields_to_keep:
+                # Apply field mapping
+                transformed_fields = {}
+                for field in fields:
+                    if field in fields_to_keep:
+                        if field in fields_to_strip and isinstance(fields[field], list):
+                            stripped_value = ",".join(fields[field])
+                            transformed_fields[field] = stripped_value
                         else:
-                            # skip unknonw fields
-                            pass            
-                else:
-                    # Use fields as-is
-                    transformed_fields = fields.copy()
-                
-                transformed_records.append({"fields": transformed_fields})
+                            transformed_fields[field] = fields[field]
+                    else:
+                        # skip unknonw fields
+                        pass            
+            else:
+                # Use fields as-is
+                transformed_fields = fields.copy()
             
-            # Create records in batches in the target table
-            target_url = f"https://api.airtable.com/v0/{base_id}/{target_table_name}"
-            records_created = 0
+            transformed_records.append({"fields": transformed_fields})
+        
+        # Create records in batches in the target table
+        target_url = f"https://api.airtable.com/v0/{base_id}/{target_table_name}"
+        records_created = 0
+        
+        for i in range(0, len(transformed_records), batch_size):
+            batch = transformed_records[i:i + batch_size]
+            test_utils_logger.info(f"Creating batch {i//batch_size + 1} with {len(batch)} records")
             
-            for i in range(0, len(transformed_records), batch_size):
-                batch = transformed_records[i:i + batch_size]
-                test_utils_logger.info(f"Creating batch {i//batch_size + 1} with {len(batch)} records")
-                
-                payload = {"records": batch}
-                create_response = requests.post(target_url, headers=headers, json=payload)
-                
-                if create_response.status_code == 200:
-                    batch_results = create_response.json().get('records', [])
-                    records_created += len(batch_results)
-                    test_utils_logger.info(f"Successfully created batch {i//batch_size + 1}: {len(batch_results)} records")
-                else:
-                    error_msg = f"Failed to create batch {i//batch_size + 1}: {create_response.status_code} - {create_response.text}"
-                    test_utils_logger.error(error_msg)
-                    return False, records_created, error_msg
+            payload = {"records": batch}
+            create_response = requests.post(target_url, headers=headers, json=payload)
             
-            test_utils_logger.info(f"Successfully populated table '{target_table_name}' with {records_created} records from '{source_table_name}'")
-            return True, records_created, ""
+            if create_response.status_code == 200:
+                batch_results = create_response.json().get('records', [])
+                records_created += len(batch_results)
+                test_utils_logger.info(f"Successfully created batch {i//batch_size + 1}: {len(batch_results)} records")
+            else:
+                error_msg = f"Failed to create batch {i//batch_size + 1}: {create_response.status_code} - {create_response.text}"
+                test_utils_logger.error(error_msg)
+                return False, records_created, error_msg
+        
+        test_utils_logger.info(f"Successfully populated table '{target_table_name}' with {records_created} records from '{source_table_name}'")
+        return True, records_created, ""
             
-        # except Exception as e:
-        #     error_msg = f"Error populating table '{target_table_name}' from '{source_table_name}': {str(e)}"
-        #     test_utils_logger.error(error_msg)
-        #     return False, records_created, error_msg
-
     @staticmethod
     def get_table_records(base_id, airtable_token, table_name):
         """

@@ -41,13 +41,13 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.load_patients()
         self.load_nurses()
     
-    def __writable_fields(self, tableSchema, allow_writable_id_field=False):
+    def __writable_fields(self, tableSchema):
         fields = []
         primaryFieldId = tableSchema['primaryFieldId']
         for field in tableSchema['fields']:
             if field['name'] not in self.INTERNAL_FIELDS and\
                field['type'] not in self.READONLY_FIELD_TYPES and\
-               (allow_writable_id_field == True or field['id'] != primaryFieldId):
+               (self.is_test_env() == True or field['id'] != primaryFieldId):
                      _field = copy.deepcopy(field)
                      fields.append(_field)
         
@@ -80,7 +80,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 # Create writeable schema by copy from table
                 writeableSchema = copy.deepcopy(table)
                 # replace the fields with the writable fields
-                writeableSchema['fields'] = self.__writable_fields(table, allow_writable_id_field=self.is_test_env())
+                writeableSchema['fields'] = self.__writable_fields(table)
                 # create the EmrTableSchema object
                 is_person_table = tableName in self.PERSON_TABLES()
                 emrSchema = AirtableSchema(table_name=tableName, table_schema=writeableSchema, is_person_table=is_person_table)
@@ -486,7 +486,6 @@ def get_emr_api_instance(config=None):
         if config is None:
             raise ValueError("Configuration is required for the initial creation of the SpeakCareEmrApi instance.")
         else:
-            baseId = config.get('baseId')
             logger = config.get('logger')
             __singletonInstance = SpeakCareEmr(config, logger=logger)
     return __singletonInstance

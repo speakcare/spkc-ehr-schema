@@ -34,8 +34,8 @@ class SpeakCareEmrTables:
         return f'{self.get_person_table_prefix()}_Patients' if self.get_person_table_prefix() else 'Patients'
     def NURSES_TABLE(self):
         return f'{self.get_person_table_prefix()}_Nurses' if self.get_person_table_prefix() else 'Nurses'
-    def DOCTORS_TABLE(self):
-        return f'{self.get_person_table_prefix()}_Doctors' if self.get_person_table_prefix() else 'Doctors'
+
+    DOCTORS_TABLE = 'Doctors'
     
     ### Medical Records ###
     VITALS_TABLE = 'Vitals'
@@ -150,7 +150,7 @@ class SpeakCareEmrTables:
         return [
             self.PATIENTS_TABLE(),
             self.NURSES_TABLE(),
-            self.DOCTORS_TABLE(),
+            self.DOCTORS_TABLE,
             self.EPISODES_TABLE, 
             self.PROGRESS_NOTES_TABLE,
             self.ADMISSION_TABLE,
@@ -268,5 +268,5 @@ class SpeakCareEmrTables:
     }
 
     def PERSON_TABLES(self):
-        return [self.PATIENTS_TABLE(), self.NURSES_TABLE(), self.DOCTORS_TABLE()]
+        return [self.PATIENTS_TABLE(), self.NURSES_TABLE(), self.DOCTORS_TABLE]
     
