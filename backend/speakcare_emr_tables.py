@@ -12,10 +12,13 @@ class SpeakCareEmrTables:
     @classmethod
     def is_test_env(cls):
         return len(cls.get_person_table_prefix()) > 0
+
+    @classmethod
+    def is_test_table_rewrite_required(cls):
+        return os.getenv('PERSON_TEST_TABLE_REWRITE', 'false').lower() == 'true'
     
     @classmethod
     def get_person_table_prefix(cls):
-        # print(f"get_person_table_prefix: {os.getenv('PERSON_TEST_TABLE_PREFIX')}")
         return os.getenv('PERSON_TEST_TABLE_PREFIX', 'Test')
     
     # Table names

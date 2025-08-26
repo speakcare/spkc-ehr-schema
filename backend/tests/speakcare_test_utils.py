@@ -21,7 +21,7 @@ class SpeakcareTestUtils:
         emrTables = SpeakCareEmrTables()
         table_prefix = emrTables.get_person_table_prefix()
         table_name = table_prefix + "_" + table['name']
-        test_table_rewrite_required = os.getenv('PERSON_TEST_TABLE_REWRITE', 'false').lower() == 'true'
+        test_table_rewrite_required = SpeakCareEmrTables.is_test_table_rewrite_required()
 
         success, record_deletion_required = AirtableUtils.create_airtable_table(
             base_id=AIRTABLE_APP_BASE_ID, 

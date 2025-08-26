@@ -63,7 +63,7 @@ class TestRecords(unittest.TestCase):
 
     @classmethod
     def __create_patient_and_nurse_record(cls):
-        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env() and get_emr_api_instance(SpeakCareEmrApiconfig).is_test_table_rewrite_required():
             patient_data = {
                 "id": generate_random_id(),
                 "FullName": "James Brown",
@@ -89,7 +89,7 @@ class TestRecords(unittest.TestCase):
 
     @classmethod
     def __delete_patient_and_nurse_record(cls):
-        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env() and get_emr_api_instance(SpeakCareEmrApiconfig).is_test_table_rewrite_required():
             # delete the nurse
             delete_record = EmrUtils.delete_nurse(cls._nurse_id)
             cls.logger.info(f"Deleted nurse {cls._nurse_id}")
@@ -688,7 +688,7 @@ class TestRecordWithSections(unittest.TestCase):
 
     @classmethod
     def __create_patient_and_nurse_record(cls):
-        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env() and get_emr_api_instance(SpeakCareEmrApiconfig).is_test_table_rewrite_required():
             patient_data = {
                 "id": generate_random_id(),
                 "FullName": "James Brown",
@@ -714,7 +714,7 @@ class TestRecordWithSections(unittest.TestCase):
 
     @classmethod
     def __delete_patient_and_nurse_record(cls):
-        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
+        if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env() and get_emr_api_instance(SpeakCareEmrApiconfig).is_test_table_rewrite_required():
             # delete the nurse
             delete_record = EmrUtils.delete_nurse(cls._nurse_id)
             cls.logger.info(f"Deleted nurse {cls._nurse_id}")
