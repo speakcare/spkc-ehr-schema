@@ -14,6 +14,7 @@ from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_get_filename_without_ext, os_concat_current_time
 from speakcare_demo import speakcare_demo_record_and_process_audio
+import speakcare_airtable_api
 
 SpeakcareEnv.load_env()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")

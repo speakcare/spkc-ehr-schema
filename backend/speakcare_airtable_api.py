@@ -7,11 +7,13 @@ import logging
 import requests
 import copy
 from typing import Dict
+from config import SpeakCareEmrApiconfig, register_emr_api
 from backend.speakcare_env import SpeakcareEnv
 from speakcare_schema import AirtableSchema
 from pyairtable import Api as AirtableApi
+from backend.speakcare_emr_api import EmrApi
 
-class SpeakCareAirtableApi():
+class SpeakCareAirtableApi(EmrApi):
 
 
     METADATA_BASE_URL = 'https://api.airtable.com/v0/meta/bases'
@@ -145,3 +147,22 @@ class SpeakCareAirtableApi():
             self.logger.error(f'API: GET to endpoint \"{url}\" with payload {body} returned status code {response.status_code} response: {response.text}')
 
         return response
+
+__singletonInstance = None
+def get_api_instance(config=None):
+    """
+    Provides access to the singleton instance of SpeakCareAirtableApi.
+    Initializes the instance if it hasn't been created yet.
+    :param config: Optional configuration dictionary for initializing the instance.
+    :return: Singleton instance of SpeakCareAirtableApi.
+    """
+    global __singletonInstance
+    if __singletonInstance is None:
+        if config is None:
+            raise ValueError("Configuration is required for the initial creation of the SpeakCareAirtableApi instance.")
+        else:
+            logger = config.get('logger')
+            __singletonInstance = SpeakCareAirtableApi(config, logger=logger)
+    return __singletonInstance
+
+register_emr_api(get_api_instance(config=SpeakCareEmrApiconfig))

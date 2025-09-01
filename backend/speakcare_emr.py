@@ -14,6 +14,7 @@ from typing import Dict
 from speakcare_emr_tables import SpeakCareEmrTables
 from backend.speakcare_env import SpeakcareEnv
 from backend.speakcare_airtable_api import SpeakCareAirtableApi
+from backend.speakcare_emr_api import EmrApi
 from config import SpeakCareEmrApiconfig
 
 # Load the .env file
@@ -29,10 +30,10 @@ class SpeakCareEmr(SpeakCareEmrTables):
                             'formula', 'lastModifiedTime', 'lastModifiedBy', 'multipleCollaborators', 'multipleLookupValues',
                             'multipleRecordLinks', 'rollup', 'singleCollaborator', 'multipleAttachments']
 
-    def __init__(self, config, logger: logging.Logger):
+    def __init__(self, config, emrApi: EmrApi, logger: logging.Logger):
         self.logger = logger
         self.tables = None
-        self.api = SpeakCareAirtableApi(config, logger=logger)
+        self.api = emrApi
         self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=75)
         self.initialze()
 
@@ -105,7 +106,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         return self.tables
     
     def get_emr_table_names(self):
-        return get_emr_api_instance(SpeakCareEmrApiconfig).EMR_TABLES()
+        return self.EMR_TABLES()
    
     def get_emr_table_section_names(self, tableName=None):
         if not tableName:
@@ -482,16 +483,19 @@ class SpeakCareEmr(SpeakCareEmrTables):
 __singletonInstance = None
 def get_emr_api_instance(config=None):
     """
-    Provides access to the singleton instance of EMRAPI.
+    Provides access to the singleton instance of SpeakCareEmr.
     Initializes the instance if it hasn't been created yet.
     :param config: Optional configuration dictionary for initializing the instance.
-    :return: Singleton instance of EMRAPI.
+    :return: Singleton instance of SpeakCareEmr.
     """
     global __singletonInstance
     if __singletonInstance is None:
         if config is None:
-            raise ValueError("Configuration is required for the initial creation of the SpeakCareEmrApi instance.")
+            raise ValueError("Configuration is required for the initial creation of the SpeakCareEmr instance.")
         else:
             logger = config.get('logger')
-            __singletonInstance = SpeakCareEmr(config, logger=logger)
+            emrApi = config.get('emr_api')
+            if not emrApi:
+                raise ValueError(f"Missing EMR API Configuration: {'emr_api'}")
+            __singletonInstance = SpeakCareEmr(config, emrApi=emrApi, logger=logger)
     return __singletonInstance

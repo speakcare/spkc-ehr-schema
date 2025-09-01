@@ -92,7 +92,7 @@ class EmrUtils:
 
     @staticmethod
     def get_raw_table_schema(tableName: str):
-        return get_emr_api_instance(SpeakCareEmrApiconfig).get_raw_table_schema(tableName=tableName)
+        return emr_api.get_raw_table_schema(tableName=tableName)
 
     @staticmethod
     def get_table_json_schema(tableName: str):
@@ -139,7 +139,7 @@ class EmrUtils:
         lookup_patient
         """
         logger.debug(f"lookup_patient: {name}")
-        return get_emr_api_instance(SpeakCareEmrApiconfig).match_patient(name)
+        return emr_api.match_patient(name)
 
     @staticmethod
     def lookup_nurse(name):
@@ -147,7 +147,7 @@ class EmrUtils:
         lookup_nurse
         """
         logger.debug(f"lookup_nurse: {name}")
-        return get_emr_api_instance(SpeakCareEmrApiconfig).match_nurse(name)
+        return emr_api.match_nurse(name)
 
     @staticmethod
     def add_patient(patient: dict):

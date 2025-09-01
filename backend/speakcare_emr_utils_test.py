@@ -3,6 +3,7 @@ from requests import get
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 import backend.tests.speakcare_test_utils
 from speakcare_emr_utils import EmrUtils
+import speakcare_airtable_api
 from speakcare_emr import SpeakCareEmr, get_emr_api_instance
 from config import SpeakCareEmrApiconfig
 from speakcare_logging import SpeakcareLogger
@@ -376,6 +377,7 @@ class TestRecords(unittest.TestCase):
             }
             alice_johnson_record, message  = EmrUtils.add_patient(patient_data)
             alice_johnson_id = alice_johnson_record['id']
+            should_delete_patient = True
 
         # Create a record with non-existent patient id
         james_brown_id = EmrUtils.lookup_patient('James Brown')[1]
@@ -417,7 +419,7 @@ class TestRecords(unittest.TestCase):
         self.logger.info(f"Updated record {record_id} successfully")
 
         # cleanup - delete the patient
-        if alice_johnson_id:
+        if should_delete_patient and alice_johnson_id:
             EmrUtils.delete_patient(alice_johnson_id)
 
     def test_record_create_and_commit_record(self):
@@ -989,117 +991,117 @@ class TestRecordWithSections(unittest.TestCase):
   
     def test_record_create_vitals_commit_and_sign(self):
         if not get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
-            record_data = {
-                "type": RecordType.MULTI_SECTION,
-                "table_name": SpeakCareEmr.VITALS_TABLE,
-                "patient_name": "James Brown",
-                "nurse_name": "Sara Foster",
-                "patient_id": EmrUtils.lookup_patient("James Brown")[1],
-                "fields": {
-                    "Status": "New"
-                }
+            # skip this test in test environment
+            return
+
+        record_data = {
+            "type": RecordType.MULTI_SECTION,
+            "table_name": SpeakCareEmr.VITALS_TABLE,
+            "patient_name": "Bob Williams",
+            "nurse_name": "Sara Foster",
+            "patient_id": 3,
+            "fields": {
+                 "Status": "New"
+             }
+        }
+        record_sections = {
+            SpeakCareEmr.WEIGHTS_TABLE:
+            {
+                "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+            },
+            SpeakCareEmr.BLOOD_PRESSURES_TABLE:
+            {
+                "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
+            },
+            SpeakCareEmr.TEMPERATURES_TABLE:
+            {
+                "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+            },
+            SpeakCareEmr.HEIGHTS_TABLE:
+            {
+                "fields": {"Height": 168, "Units": "Centimeters", "Method": "Wing span"}
             }
-            record_sections = {
-                get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE():
-                {
-                    "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
-                },
-                get_emr_api_instance(SpeakCareEmrApiconfig).TEST_BLOOD_PRESSURES_TABLE():
-                {
-                    "fields": {"Systolic": 130, "Diastolic": 85, "Position": "Sitting", "Arm": "Left", "Notes": "no answer"}
-                },
-                SpeakCareEmr.TEMPERATURES_TABLE:
-                {
-                    "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
-                },
-                SpeakCareEmr.HEIGHTS_TABLE:
-                {
-                    "fields": {"Height": 168, "Units": "Centimeters", "Method": "Wing span"}
-                }
-            }
+        }
 
 
-            record_data['sections'] = record_sections
-            record_id, record_state, response = EmrUtils.create_record(record_data)
-            self.assertIsNotNone(record_id)
-            self.assertEqual(response['message'], "EMR record created successfully")
+        record_data['sections'] = record_sections
+        record_id, record_state, response = EmrUtils.create_record(record_data)
+        self.assertIsNotNone(record_id)
+        self.assertEqual(response['message'], "EMR record created successfully")
 
-            record: Optional[MedicalRecords] = {}
-            record, err = EmrUtils.get_record(record_id)
-            self.assertIsNotNone(record)
-            self.assertEqual(record.id, record_id)
-            self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
-            self.assertEqual(len(record.sections), 4)  
-            self.logger.info(f"Created record {record_id}")
+        record: Optional[MedicalRecords] = {}
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.id, record_id)
+        self.assertEqual(record.state, RecordState.PENDING, f'Errors: {record.errors}')
+        self.assertEqual(len(record.sections), 4)  
+        self.logger.info(f"Created record {record_id}")
 
-            emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
-            record, err = EmrUtils.get_record(record_id)
-            self.assertIsNotNone(emr_id)
-            self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
-            self.assertEqual(record.state, RecordState.COMMITTED)
-            emr_record, err = EmrUtils.get_emr_record(record_id)
-            self.assertIsNotNone(emr_record)
-            self.assertEqual(emr_record['id'], emr_id)
-            self.assertEqual(emr_record['fields']['Status'], "New")
+        emr_id, record_state, response = EmrUtils.commit_record_to_emr(record_id)
+        record, err = EmrUtils.get_record(record_id)
+        self.assertIsNotNone(emr_id)
+        self.assertEqual(response['message'], f"Record {record_id} commited successfully to the EMR.")
+        self.assertEqual(record.state, RecordState.COMMITTED)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertIsNotNone(emr_record)
+        self.assertEqual(emr_record['id'], emr_id)
+        self.assertEqual(emr_record['fields']['Status'], "New")
 
-            # Check the blood pressure section
-            self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
-            sectionEmrId = emr_record['fields']['Blood Pressure'][0]
-            sectionTableId = EmrUtils.get_table_id(get_emr_api_instance(SpeakCareEmrApiconfig).TEST_BLOOD_PRESSURES_TABLE(),)
-            section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-            self.assertIsNotNone(section_emr_record)
-            self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
-            self.assertEqual(section_emr_record['fields']['Diastolic'], 85)
-            self.assertEqual(section_emr_record['fields']['Position'], "Sitting")
-            self.assertEqual(section_emr_record['fields']['Arm'], "Left")
-            self.assertEqual(section_emr_record['fields']['Notes'], "no answer")
-            self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        # Check the blood pressure section
+        self.assertIsNotNone(emr_record['fields']['Blood Pressure'])
+        sectionEmrId = emr_record['fields']['Blood Pressure'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.BLOOD_PRESSURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Systolic'], 130)  
+        self.assertEqual(section_emr_record['fields']['Diastolic'], 85)
+        self.assertEqual(section_emr_record['fields']['Position'], "Sitting")
+        self.assertEqual(section_emr_record['fields']['Arm'], "Left")
+        self.assertEqual(section_emr_record['fields']['Notes'], "no answer")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
 
-            # Check the temperature section
-            # "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
-            self.assertIsNotNone(emr_record['fields']['Temperature'])
-            sectionEmrId = emr_record['fields']['Temperature'][0]
-            sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.TEMPERATURES_TABLE)
-            section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-            self.assertIsNotNone(section_emr_record)
-            self.assertEqual(section_emr_record['fields']['Degrees'], 99.9)  
-            self.assertEqual(section_emr_record['fields']['Units'], "Fahrenheit")
-            self.assertEqual(section_emr_record['fields']['Route'], "Oral")
-            self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        # Check the temperature section
+        # "fields": {"Degrees": 99.9, "Route": "Oral", "Units": "Fahrenheit"}
+        self.assertIsNotNone(emr_record['fields']['Temperature'])
+        sectionEmrId = emr_record['fields']['Temperature'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.TEMPERATURES_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Degrees'], 99.9)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Fahrenheit")
+        self.assertEqual(section_emr_record['fields']['Route'], "Oral")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
 
-            # Check the weight section
-            # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
-            self.assertIsNotNone(emr_record['fields']['Weight'])
-            sectionEmrId = emr_record['fields']['Weight'][0]
-            sectionTableId = EmrUtils.get_table_id(get_emr_api_instance(SpeakCareEmrApiconfig).TEST_WEIGHTS_TABLE())
-            section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-            self.assertIsNotNone(section_emr_record)
-            self.assertEqual(section_emr_record['fields']['Weight'], 120)  
-            self.assertEqual(section_emr_record['fields']['Units'], "Lbs")
-            self.assertEqual(section_emr_record['fields']['Scale'], "Bath")
-            self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        # Check the weight section
+        # "fields": {"Units": "Lbs", "Weight": 120, "Scale": "Bath"}
+        self.assertIsNotNone(emr_record['fields']['Weight'])
+        sectionEmrId = emr_record['fields']['Weight'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.WEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Weight'], 120)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Lbs")
+        self.assertEqual(section_emr_record['fields']['Scale'], "Bath")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
 
-            # Check the height section
-            self.assertIsNotNone(emr_record['fields']['Height'])
-            sectionEmrId = emr_record['fields']['Height'][0]
-            sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.HEIGHTS_TABLE)
-            section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
-            self.assertIsNotNone(section_emr_record)
-            self.assertEqual(section_emr_record['fields']['Height'], 168)  
-            self.assertEqual(section_emr_record['fields']['Units'], "Centimeters")
-            self.assertEqual(section_emr_record['fields']['Method'], "Wing span")
-            self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
+        # Check the height section
+        self.assertIsNotNone(emr_record['fields']['Height'])
+        sectionEmrId = emr_record['fields']['Height'][0]
+        sectionTableId = EmrUtils.get_table_id(SpeakCareEmr.HEIGHTS_TABLE)
+        section_emr_record, err = EmrUtils.get_emr_record_by_emr_record_id(tableId=sectionTableId, emr_record_id= sectionEmrId)
+        self.assertIsNotNone(section_emr_record)
+        self.assertEqual(section_emr_record['fields']['Height'], 168)  
+        self.assertEqual(section_emr_record['fields']['Units'], "Centimeters")
+        self.assertEqual(section_emr_record['fields']['Method'], "Wing span")
+        self.assertEqual(section_emr_record['fields']['CreatedByName (from CreatedBy)'], ["Sara Foster"])
 
 
-            self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
+        self.logger.info(f"Commited vitals {record_id} to the EMR successfully")
 
-            EmrUtils.sign_assessment(record_id)
-            emr_record, err = EmrUtils.get_emr_record(record_id)
-            self.assertEqual(emr_record['fields']['Status'], "Completed")
-            if get_emr_api_instance(SpeakCareEmrApiconfig).is_test_env():
-                self.assertEqual(emr_record['fields']['SignedBy'], "Sara Foster")
-            else:
-                self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
+        EmrUtils.sign_assessment(record_id)
+        emr_record, err = EmrUtils.get_emr_record(record_id)
+        self.assertEqual(emr_record['fields']['Status'], "Completed")
+        self.assertEqual(emr_record['fields']['SignedByName (from SignedBy)'], ["Sara Foster"])
   
 
 
