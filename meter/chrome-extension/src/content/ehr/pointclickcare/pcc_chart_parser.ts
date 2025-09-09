@@ -380,3 +380,8 @@ function extractOrderName(): string | null {
   const selectedOption = selectElement ? selectElement.querySelector('option[selected]') : null;
   return selectedOption ? selectedOption.textContent?.trim() || null : null;
 }
+
+// Alon-To-Do (Sep09-2025)
+
+// Clinical -> EMAR -> 
+// How much time they spend on each TAB (Mar/Tar / etc)
