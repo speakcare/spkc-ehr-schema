@@ -61,6 +61,5 @@ torch
 typing
 typing_extensions
 urllib3
-wave
 webrtcvad
 yt_dlp
