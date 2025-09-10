@@ -30,6 +30,7 @@ class SpeakCareCustomerStack(Stack):
                  acm_cert_arn: str,
                 #  hosted_zone_id: str,
                  customer_domain: str,
+                 aws_profile: str = None,
                  **kwargs):
         super().__init__(scope, id, **kwargs)
 
@@ -72,6 +73,7 @@ class SpeakCareCustomerStack(Stack):
 
         # --- Grant permissions to the lambda role ---
         s3_bucket.grant_put(lambda_role, "recording/*")
+        s3_bucket.grant_put(lambda_role, "telemetry/*")
         enrollments_table.grant_write_data(lambda_role)
         sessions_table.grant_write_data(lambda_role)
         
@@ -108,6 +110,23 @@ class SpeakCareCustomerStack(Stack):
             timeout=Duration.seconds(30),
             memory_size=128,
         )
+        
+        # Telemetry handler lambda
+        telemetry_handler = lambda_.Function(
+            self, f"{customer_name}-telemetry-handler",
+            function_name=f"speakcare-{customer_name}-telemetry-handler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="telemetry_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/telemetry_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "S3_BUCKET": s3_bucket.bucket_name,
+                "S3_TELEMETRY_DIR": "telemetry",
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
         # TODO: need code update and config update
 
         # --- API Gateway ---
@@ -127,6 +146,9 @@ class SpeakCareCustomerStack(Stack):
         enrollment_id = enrollment.add_resource("{recordingId}")
         session = recording.add_resource("session")
         session_id = session.add_resource("{recordingId}")
+        
+        # Telemetry resource
+        telemetry = rest_api.root.add_resource("telemetry")
 
         # Methods + Proxy Integration
         enrollment.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
@@ -135,13 +157,21 @@ class SpeakCareCustomerStack(Stack):
         session.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
         session_id.add_method("PATCH", apigw.LambdaIntegration(recording_update_handler), 
                               request_parameters={"method.request.path.recordingId": True}, api_key_required=True)
+        
+        # Telemetry endpoint
+        telemetry.add_method("POST", apigw.LambdaIntegration(telemetry_handler), api_key_required=True)
 
 
         # ------------------------------------------------------------
         # Create-or-reuse a Secrets Manager entry for the *value*
         # ------------------------------------------------------------
         secret_name = f"speakcare/{customer_name}/api-key"
-        sm  = boto3.client("secretsmanager", region_name=self.region) 
+        # Use the same AWS profile that was validated in app.py
+        if aws_profile:
+            session = boto3.Session(profile_name=aws_profile, region_name=self.region)
+        else:
+            session = boto3.Session(region_name=self.region)
+        sm = session.client("secretsmanager")
         api_key_secret = None
         secret_id = f"{customer_name}-api-key-secret"
         try:
