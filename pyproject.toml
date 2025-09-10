@@ -1,0 +1,214 @@
+[tool.poetry]
+name = "speakcare-demo"
+version = "0.1.0"
+description = "SpeakCare Demo - AI-powered healthcare voice processing system"
+authors = ["SpeakCare Team"]
+readme = "README.md"
+packages = [{include = "backend"}]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+aiofiles = "*"
+aniso8601 = "*"
+annotated-types = "*"
+anyio = "*"
+asgi-csrf = "*"
+asgiref = "*"
+attrs = "*"
+audioop-lts = "*"
+audioread = "*"
+blinker = "*"
+boto3 = "*"
+botocore = "*"
+build = "*"
+cachetools = "*"
+certifi = "*"
+cffi = "*"
+charset-normalizer = "*"
+click = "*"
+click-default-group = "*"
+cryptography = "*"
+datasette = "*"
+decorator = "*"
+deepdiff = "*"
+dill = "*"
+distro = "*"
+dnslib = "*"
+dnspython = "*"
+ffmpeg-python = "*"
+filelock = "*"
+flask = "*"
+flask-cors = "*"
+flask-restx = "*"
+flexcache = "*"
+flexparser = "*"
+fsspec = "*"
+future = "*"
+fuzzy = "*"
+google-api-core = "*"
+google-api-python-client = "*"
+google-auth = "*"
+google-auth-httplib2 = "*"
+google-auth-oauthlib = "*"
+googleapis-common-protos = "*"
+gtts = "*"
+gunicorn = "*"
+h11 = "*"
+hf-xet = "*"
+httpcore = "*"
+httplib2 = "*"
+httpx = "*"
+huggingface-hub = "*"
+hupper = "*"
+hyperpyyaml = "*"
+idna = "*"
+importlib-resources = "*"
+inflection = "*"
+iniconfig = "*"
+itsdangerous = "*"
+janus = "*"
+jellyfish = "*"
+jinja2 = "*"
+jiter = "*"
+jmespath = "*"
+joblib = "*"
+jsonpickle = "*"
+jsonschema = "*"
+jsonschema-specifications = "*"
+lazy-loader = "*"
+librosa = "*"
+llvmlite = "*"
+localstack = "*"
+localstack-core = "*"
+localstack-ext = "*"
+markdown-it-py = "*"
+markupsafe = "*"
+mdurl = "*"
+mergedeep = "*"
+mpmath = "*"
+msgpack = "*"
+networkx = "*"
+numba = "*"
+numpy = "1.26.4"
+oauthlib = "*"
+openai = "*"
+orderly-set = "*"
+packaging = "*"
+platformdirs = "*"
+pluggy = "*"
+plux = "*"
+pooch = "*"
+proto-plus = "*"
+protobuf = "*"
+psutil = "*"
+pyairtable = "*"
+pyasn1 = "*"
+pyasn1-modules = "*"
+pyaudio = "*"
+pycparser = "*"
+pydantic = "*"
+pydantic-core = "*"
+pydub = "*"
+pygments = "*"
+pyjwt = "*"
+pyotp = "*"
+pyparsing = "*"
+pyproject-hooks = "*"
+python-dateutil = "*"
+python-dotenv = "*"
+python-multipart = "*"
+pytz = "*"
+pyyaml = "*"
+rapidfuzz = "*"
+referencing = "*"
+requests = "*"
+requests-oauthlib = "*"
+rich = "*"
+rpds-py = "*"
+rsa = "*"
+ruamel-yaml = "*"
+ruamel-yaml-clib = "*"
+s3transfer = "*"
+scikit-learn = "*"
+scipy = "*"
+semver = "*"
+sentencepiece = "*"
+setuptools = "*"
+six = "*"
+sniffio = "*"
+soundfile = "*"
+soxr = "*"
+speechbrain = "*"
+sqlalchemy = "*"
+standard-aifc = "*"
+standard-chunk = "*"
+standard-sunau = "*"
+sympy = "*"
+tabulate = "*"
+tailer = "*"
+threadpoolctl = "*"
+torch = "*"
+torchaudio = "*"
+tqdm = "*"
+typing = "*"
+typing-inspection = "*"
+typing-extensions = "*"
+uritemplate = "*"
+urllib3 = "*"
+uvicorn = "*"
+webrtcvad = "*"
+werkzeug = "*"
+yt-dlp = "*"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.4.2"
+pytest-cov = "*"
+pytest-mock = "*"
+black = "*"
+flake8 = "*"
+mypy = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["backend"]
+python_files = ["*_test.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
