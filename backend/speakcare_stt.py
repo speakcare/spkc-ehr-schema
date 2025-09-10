@@ -6,7 +6,7 @@ import argparse
 from datetime import datetime, timezone
 import os
 from speakcare_audio import audio_record, audio_is_wav, audio_convert_to_wav
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_sanitize_name

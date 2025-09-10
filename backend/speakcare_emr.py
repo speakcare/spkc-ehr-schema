@@ -4,7 +4,7 @@ from pyairtable import Api as AirtableApi
 import logging
 import requests
 import time
-from name_matching import NameMatcher
+from speakcare_common import NameMatcher
 from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict

@@ -3,7 +3,7 @@ from decimal import Decimal
 from enum import Enum as PyEnum
 from datetime import datetime
 from botocore.exceptions import ClientError
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from boto3_session import Boto3Session
 from backend.speakcare_voice_embedder import VoiceEmbedder
 

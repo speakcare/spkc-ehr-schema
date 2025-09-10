@@ -2,7 +2,7 @@
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from typing import Optional
 import json
 import os

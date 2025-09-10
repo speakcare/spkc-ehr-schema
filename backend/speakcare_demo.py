@@ -2,7 +2,7 @@
 
 from typing import List
 import os
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_charting import create_chart_completion
 from speakcare_emr_utils import EmrUtils

@@ -1,4 +1,4 @@
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from pydub import AudioSegment
 from abc import ABC, abstractmethod
 import torch

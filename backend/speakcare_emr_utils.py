@@ -7,7 +7,7 @@ from models import MedicalRecords, Transcripts, RecordType, RecordState, Transcr
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.exc import SQLAlchemyError

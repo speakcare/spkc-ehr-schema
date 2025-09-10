@@ -5,7 +5,7 @@ from openai import OpenAI
 from datetime import datetime, timezone
 from os_utils import Timer
 import os
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from speakcare_emr_utils import EmrUtils
 from models import RecordState, TranscriptState
 import copy
