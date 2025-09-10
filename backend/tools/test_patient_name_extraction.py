@@ -19,31 +19,43 @@ SpeakcareEnv.load_env()
 logger = SpeakcareLogger(__name__)
 
 
-def test_patient_name_extraction(s3_json_transcript_path: str, table_name: str = 'MHCS.Neurological_Evaluation'):
+def test_patient_name_extraction(json_transcript_path: str, table_name: str = 'MHCS.Neurological_Evaluation'):
     """
     Test patient name extraction following the exact speakcare_process.py flow:
-    1. Read the original JSON transcript from S3 (AWS Transcribe output)
+    1. Read the original JSON transcript (local file or S3 path)
     2. Convert it to diarized text format (all speakers as Unknown, like real system)
     3. Send diarized transcript to chart completion to extract patient name
     """
     try:
         logger.info(f"Testing patient name extraction:")
-        logger.info(f"  S3 JSON transcript: {s3_json_transcript_path}")
+        logger.info(f"  JSON transcript: {json_transcript_path}")
         logger.info(f"  Table: {table_name}")
         
-        # Read JSON transcript from S3 and convert to diarized format
-        boto3Session = Boto3Session.get_single_instance()
-        json_content = boto3Session.get_s3_or_local_file_content(s3_json_transcript_path)
-        
-        if not json_content:
-            raise Exception(f"Failed to read JSON transcript from S3: {s3_json_transcript_path}")
+        # Determine if it's a local file or S3 path and read accordingly
+        if json_transcript_path.startswith('s3://'):
+            # S3 path - use boto3 session
+            logger.info("Reading from S3...")
+            boto3Session = Boto3Session.get_single_instance()
+            json_content = boto3Session.get_s3_or_local_file_content(json_transcript_path)
             
+            if not json_content:
+                raise Exception(f"Failed to read JSON transcript from S3: {json_transcript_path}")
+        else:
+            # Local file path
+            logger.info("Reading from local file...")
+            if not os.path.exists(json_transcript_path):
+                raise Exception(f"Local file not found: {json_transcript_path}")
+                
+            with open(json_transcript_path, 'r') as f:
+                json_content = f.read()
+        
         transcript_data = json.loads(json_content)
         
         diarized_transcript_content = convert_json_to_diarized_text(transcript_data)
         logger.info(f"Diarized transcript length: {len(diarized_transcript_content)} characters")
         
         # Upload diarized transcript to S3 (simulating what real system does)
+        boto3Session = Boto3Session.get_single_instance()
         test_s3_key = f"tests/test_diarized_transcript_{os.getpid()}.txt"
         
         try:
@@ -152,15 +164,15 @@ def convert_json_to_diarized_text(transcript_data):
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='Test patient name extraction from AWS Transcribe JSON in S3')
-    parser.add_argument('s3_json_transcript_path', help='S3 path to the AWS Transcribe JSON transcript file (e.g., s3://bucket/transcriptions/file.json)')
+    parser = argparse.ArgumentParser(description='Test patient name extraction from AWS Transcribe JSON (local file or S3)')
+    parser.add_argument('json_transcript_path', help='Path to AWS Transcribe JSON file (local path or s3://bucket/path)')
     parser.add_argument('--table', default='MHCS.Neurological_Evaluation', 
                        help='EMR table name (default: MHCS.Neurological_Evaluation)')
     
     args = parser.parse_args()
     
     # Test patient name extraction
-    patient_name = test_patient_name_extraction(args.s3_json_transcript_path, args.table)
+    patient_name = test_patient_name_extraction(args.json_transcript_path, args.table)
     
     if patient_name:
         print(f"\n✅ SUCCESS: Found patient name '{patient_name}'")
