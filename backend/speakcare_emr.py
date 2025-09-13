@@ -4,7 +4,7 @@ from pyairtable import Api as AirtableApi
 import logging
 import requests
 import time
-from name_matching import NameMatcher
+from speakcare_common import NameMatcher
 from speakcare_schema import AirtableSchema
 import copy
 from typing import Dict
@@ -37,7 +37,7 @@ class SpeakCareEmr(SpeakCareEmrTables):
         self.apiBaseUrl = f'{self.API_BASE_URL}/{baseId}/'
         self.webBaseUrl = f'{self.WEB_APP_BASE_URL}/{baseId}/'
         self.tables = None
-        self.nameMatcher = NameMatcher(primary_threshold=90, secondary_threshold=75)
+        self.nameMatcher = NameMatcher(high_confidence_threshold=75, medium_confidence_threshold=55, min_confidence=35)
         self.initialze()
 
     def initialze(self):
@@ -356,16 +356,29 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
 # Patients methods
     def load_patients(self):
+        # Load patients with structured name data (FirstName, LastName, Nickname)
         self.patientsTable = self.api.table(self.appBaseId, self.PATIENTS_TABLE)
-        self.patientNames=[]
-        self.patientEmrIds=[]
-        self.patientIds=[]
+        self.patientNamesDict = {}  # Structured format: {PatientID: {name: str, nickname: str, lastname: str}}
+        self.patientEmrIds = []
+        self.patientIds = []
         patients = self.patientsTable.all()
         for patient in patients:
-            self.patientNames.append(patient['fields']['FullName'])
+            patient_id = patient['fields']['PatientID']
+            first_name = patient['fields'].get('FirstName', '').strip()
+            last_name = patient['fields'].get('LastName', '').strip()
+            nickname = patient['fields'].get('Nickname', '').strip()  # Will be available in future
+            
+            # Store structured name data
+            self.patientNamesDict[patient_id] = {
+                'name': first_name,
+                'nickname': nickname,
+                'lastname': last_name
+            }
+            
             self.patientEmrIds.append(patient['id'])
-            self.patientIds.append(patient['fields']['PatientID'])
-        self.logger.debug(f'Loaded patients. Patients names: {self.patientNames}')
+            self.patientIds.append(patient_id)
+        
+        self.logger.debug(f'Loaded {len(self.patientNamesDict)} patients with structured names: {list(self.patientNamesDict.keys())}')
 
     def get_patients(self):
         return self.patientsTable.all()
@@ -381,9 +394,21 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
 
     def __match_patient(self, patientName):
-        matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name= patientName, names_to_match= self.patientNames)
-        if matchedName:
-            return matchedName, self.patientIds[matchedIndex], self.patientEmrIds[matchedIndex]
+        match_result = self.nameMatcher.get_best_match(input_name=patientName, names_to_match=self.patientNamesDict)
+        if match_result.primary_match and match_result.primary_match.confidence_score >= self.nameMatcher.min_confidence:
+            primary_match = match_result.primary_match
+            # Find the corresponding EMR ID for this patient ID
+            try:
+                patient_index = self.patientIds.index(primary_match.matched_id)
+                patient_emr_id = self.patientEmrIds[patient_index]
+                
+                # Logging is handled by NameMatcher, just log the final result
+                self.logger.debug(f"Patient match for '{patientName}': {primary_match.matched_name} ({primary_match.confidence_score:.1f}%)")
+                
+                return primary_match.matched_name, primary_match.matched_id, patient_emr_id
+            except ValueError:
+                self.logger.error(f"Patient ID {primary_match.matched_id} not found in patientIds list")
+                return None, None, None
         else:
             return None, None, None
     
@@ -397,24 +422,42 @@ class SpeakCareEmr(SpeakCareEmrTables):
     def lookup_patient_by_id(self, patient_id):
         for index, patienId in enumerate(self.patientIds): 
             if patient_id == patienId:
-                return self.patientNames[index], self.patientEmrIds[index]
+                # Get the full name from the structured data
+                patient_data = self.patientNamesDict.get(patient_id, {})
+                first_name = patient_data.get('name', '')
+                last_name = patient_data.get('lastname', '')
+                full_name = f"{first_name} {last_name}".strip()
+                return full_name, self.patientEmrIds[index]
         return None, None
 
     def add_patient(self, patient):
         patient_name = patient.get('FullName')
-        if patient_name in self.patientNames:
-            patientId = self.patientIds[self.patientNames.index(patient_name)]
-            self.logger.warning(f"Patient '{patient_name}' already exists with id {patientId}")
-            return None
+        # Check if patient already exists by searching through patientNamesDict
+        for patient_id, data in self.patientNamesDict.items():
+            full_name = f"{data['name']} {data['lastname']}".strip()
+            if patient_name == full_name:
+                self.logger.warning(f"Patient '{patient_name}' already exists with id {patient_id}")
+                return None
+        
         patient_record = self.patientsTable.create(patient)
         if not patient_record:
             self.logger.error(f'Failed to create patient {patient}')
             return None
         else:
-            self.patientNames.append(patient_record['fields']['FullName'])
+            # Add to structured data
+            patient_id = patient_record['fields']['PatientID']
+            first_name = patient_record['fields'].get('FirstName', '').strip()
+            last_name = patient_record['fields'].get('LastName', '').strip()
+            nickname = patient_record['fields'].get('Nickname', '').strip()
+            
+            self.patientNamesDict[patient_id] = {
+                'name': first_name,
+                'nickname': nickname,
+                'lastname': last_name
+            }
             self.patientEmrIds.append(patient_record['id'])
-            self.patientIds.append(patient_record['fields']['PatientID'])
-            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_record['fields']['PatientID']}")
+            self.patientIds.append(patient_id)
+            self.logger.info(f"Created patient '{patient_name}' with id PatientID '{patient_id}")
             return patient_record
 
     def update_patient(self, patientEmrId, patient):
@@ -425,9 +468,13 @@ class SpeakCareEmr(SpeakCareEmrTables):
         try:
             idx = self.patientEmrIds.index(patientEmrId)
             recDeleted = self.patientsTable.delete(patientEmrId)
+            patient_id = self.patientIds[idx]
+            
+            # Remove from all data structures
             self.patientIds.pop(idx)
             self.patientEmrIds.pop(idx)
-            self.patientNames.pop(idx)
+            if patient_id in self.patientNamesDict:
+                del self.patientNamesDict[patient_id]
             return recDeleted
         except Exception as e:
             self.logger.error(f'Failed to delete patient {patientEmrId} with error {e}')
@@ -436,15 +483,38 @@ class SpeakCareEmr(SpeakCareEmrTables):
 # Nurses methods 
     def load_nurses(self):
         self.nursesTable = self.api.table(self.appBaseId, self.NURSES_TABLE)
-        self.nurseNames = []
+        self.nurseNamesDict = {}  # Structured format: {NurseID: {name: str, nickname: str, lastname: str}}
         self.nurseEmrIds = []
         self.nurseIds = []
         nurses = self.nursesTable.all()
         for nurse in nurses:
-            self.nurseNames.append(nurse['fields']['Name'])
+            nurse_id = nurse['fields']['NurseID']
+            # For nurses, 'Name' field might contain full name - we'll parse it
+            full_name = nurse['fields'].get('Name', '').strip()
+            first_name = nurse['fields'].get('FirstName', '').strip()
+            last_name = nurse['fields'].get('LastName', '').strip()
+            nickname = nurse['fields'].get('Nickname', '').strip()  # Will be available in future
+            
+            # If we don't have separate FirstName/LastName, parse the full Name field
+            if not first_name and not last_name and full_name:
+                name_parts = full_name.split()
+                if len(name_parts) >= 2:
+                    first_name = name_parts[0]
+                    last_name = ' '.join(name_parts[1:])
+                elif len(name_parts) == 1:
+                    first_name = name_parts[0]
+            
+            # Store structured name data
+            self.nurseNamesDict[nurse_id] = {
+                'name': first_name,
+                'nickname': nickname,
+                'lastname': last_name
+            }
+            
             self.nurseEmrIds.append(nurse['id'])
-            self.nurseIds.append(nurse['fields']['NurseID'])
-        self.logger.debug(f'Loaded nurses. Nurses names: {self.nurseNames}')
+            self.nurseIds.append(nurse_id)
+        
+        self.logger.debug(f'Loaded {len(self.nurseNamesDict)} nurses with structured names: {list(self.nurseNamesDict.keys())}')
 
     def get_nurses(self):
         return self.nursesTable.all()
@@ -459,9 +529,21 @@ class SpeakCareEmr(SpeakCareEmrTables):
                 return self.nursesTable.get(nurseEmrId)
     
     def __match_nurse(self, nurseName):
-        matchedName, matchedIndex, score = self.nameMatcher.get_best_match(input_name=  nurseName, names_to_match=  self.nurseNames)
-        if matchedName:
-            return matchedName, self.nurseIds[matchedIndex], self.nurseEmrIds[matchedIndex]
+        match_result = self.nameMatcher.get_best_match(input_name=nurseName, names_to_match=self.nurseNamesDict)
+        if match_result.primary_match and match_result.primary_match.confidence_score >= self.nameMatcher.min_confidence:
+            primary_match = match_result.primary_match
+            # Find the corresponding EMR ID for this nurse ID
+            try:
+                nurse_index = self.nurseIds.index(primary_match.matched_id)
+                nurse_emr_id = self.nurseEmrIds[nurse_index]
+                
+                # Logging is handled by NameMatcher, just log the final result
+                self.logger.debug(f"Nurse match for '{nurseName}': {primary_match.matched_name} ({primary_match.confidence_score:.1f}%)")
+                
+                return primary_match.matched_name, primary_match.matched_id, nurse_emr_id
+            except ValueError:
+                self.logger.error(f"Nurse ID {primary_match.matched_id} not found in nurseIds list")
+                return None, None, None
         else:
             return None, None, None
         
@@ -474,7 +556,12 @@ class SpeakCareEmr(SpeakCareEmrTables):
     def lookup_nurse_by_id(self, nurse_id):
         for index, nurseId in enumerate(self.nurseIds): 
             if nurse_id == nurseId:
-                return self.nurseNames[index], self.nurseEmrIds[index]
+                # Get the full name from the structured data
+                nurse_data = self.nurseNamesDict.get(nurse_id, {})
+                first_name = nurse_data.get('name', '')
+                last_name = nurse_data.get('lastname', '')
+                full_name = f"{first_name} {last_name}".strip()
+                return full_name, self.nurseEmrIds[index]
         return None, None
     
     def get_nurses_table_json_schema(self):
@@ -482,19 +569,43 @@ class SpeakCareEmr(SpeakCareEmrTables):
 
     def add_nurse(self, nurse):
         nurse_name = nurse.get('Name')
-        if nurse_name in self.nurseNames:
-            nurseId = self.nurseIds[self.nurseNames.index(nurse_name)]
-            self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurseId}")
-            return None
+        # Check if nurse already exists by searching through nurseNamesDict
+        for nurse_id, data in self.nurseNamesDict.items():
+            full_name = f"{data['name']} {data['lastname']}".strip()
+            if nurse_name == full_name:
+                self.logger.warning(f"Nurse '{nurse_name}' already exists with id {nurse_id}")
+                return None
+        
         nurse_record = self.nursesTable.create(nurse)
         if not nurse_record:
             self.logger.error(f'Failed to create nurse {nurse}')
             return None
         else:
-            self.nurseNames.append(nurse_record['fields']['Name'])
+            # Add to structured data
+            nurse_id = nurse_record['fields']['NurseID']
+            # Parse the Name field to get first/last names
+            full_name = nurse_record['fields'].get('Name', '').strip()
+            first_name = nurse_record['fields'].get('FirstName', '').strip()
+            last_name = nurse_record['fields'].get('LastName', '').strip()
+            nickname = nurse_record['fields'].get('Nickname', '').strip()
+            
+            # If we don't have separate FirstName/LastName, parse the full Name field
+            if not first_name and not last_name and full_name:
+                name_parts = full_name.split()
+                if len(name_parts) >= 2:
+                    first_name = name_parts[0]
+                    last_name = ' '.join(name_parts[1:])
+                elif len(name_parts) == 1:
+                    first_name = name_parts[0]
+            
+            self.nurseNamesDict[nurse_id] = {
+                'name': first_name,
+                'nickname': nickname,
+                'lastname': last_name
+            }
             self.nurseEmrIds.append(nurse_record['id'])
-            self.nurseIds.append(nurse_record['fields']['NurseID'])
-            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_record['fields']['NurseID']}")
+            self.nurseIds.append(nurse_id)
+            self.logger.info(f"Created nurse '{nurse_name}' with id NurseID '{nurse_id}")
             return nurse_record
     
     def update_nurse(self, nurseEmrId, nurse):
@@ -505,9 +616,13 @@ class SpeakCareEmr(SpeakCareEmrTables):
         try:
             idx = self.nurseEmrIds.index(nurseEmrId)
             recDeleted = self.nursesTable.delete(nurseEmrId)
+            nurse_id = self.nurseIds[idx]
+            
+            # Remove from all data structures
             self.nurseIds.pop(idx)
             self.nurseEmrIds.pop(idx)
-            self.nurseNames.pop(idx)
+            if nurse_id in self.nurseNamesDict:
+                del self.nurseNamesDict[nurse_id]
             return recDeleted
         except Exception as e:
             self.logger.error(f'Failed to delete nurse {nurseEmrId} with error {e}')

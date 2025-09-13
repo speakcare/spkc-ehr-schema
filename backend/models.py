@@ -8,7 +8,7 @@ from sqlalchemy.types import JSON
 import os
 import atexit
 from os_utils import os_ensure_directory_exists
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 
 # Define the base class for declarative models
 

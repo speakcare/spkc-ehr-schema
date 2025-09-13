@@ -7,7 +7,7 @@ from models import MedicalRecords, Transcripts, RecordType, RecordState, Transcr
 from sqlalchemy.orm import sessionmaker, Session
 import sys
 import json
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from typing import Optional
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.exc import SQLAlchemyError
@@ -287,8 +287,13 @@ class EmrUtils:
             elif foundPatientByPatientId != foundPatientByName: # if found patient by id, it must match name found by name
                 _errors.append(f"Patient name '{foundPatientByPatientId}' found by patient ID {patient_id} does not match the name '{foundPatientByName}' found by name '{patient_name}'.")
                 _state = RecordState.ERRORS
-            else: # all good
-                _patient_name = foundPatientByPatientId
+            else: # all good - but we need to validate that the provided name exactly matches the patient's name
+                # When both patient_name and patient_id are provided, require exact match
+                if patient_name.lower().strip() != foundPatientByPatientId.lower().strip():
+                    _errors.append(f"Provided patient name '{patient_name}' does not exactly match the name '{foundPatientByPatientId}' for patient ID {patient_id}.")
+                    _state = RecordState.ERRORS
+                else:
+                    _patient_name = foundPatientByPatientId
         else: # only patient name is provided
             _patient_name = foundPatientByName
             _patient_id = foundPatientIdByName

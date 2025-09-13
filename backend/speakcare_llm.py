@@ -2,7 +2,7 @@ import os
 import json
 import openai
 from openai import OpenAI
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from backend.speakcare_env import SpeakcareEnv  
 
 SpeakcareEnv.load_env()

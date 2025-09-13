@@ -580,7 +580,7 @@ class TestJsonSchema(unittest.TestCase):
                         "type": "string", "const": "test_table", "description": "The name of the Airtable table"
                     },
                     "patient_name": {
-                        "type": ["string", "null"], "description": "The name of the patient"
+                        "type": ["string", "null"], "description": "The name of the patient - should be the full name: first name and last name separated by a space. If you are not sure - you may provide only the first name or the last name, without any other information (such as MR, MRs, etc)"
                     },
                     "fields": {
                         "type": ["object", "null"],
@@ -682,7 +682,7 @@ class TestJsonSchema(unittest.TestCase):
                         "type": "string", "const": "test_table", "description": "The name of the Airtable table"
                     },
                     "patient_name": {
-                        "type": ["string", "null"], "description": "The name of the patient"
+                        "type": ["string", "null"], "description": "The name of the patient - should be the full name: first name and last name separated by a space. If you are not sure - you may provide only the first name or the last name, without any other information (such as MR, MRs, etc)"
                     },
                     "sections": {
                         "type": "object",

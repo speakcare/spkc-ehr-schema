@@ -3,7 +3,7 @@ import openai
 from openai import OpenAI
 import os
 import argparse
-from backend.speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from backend.speakcare_env import SpeakcareEnv
 
 SpeakcareEnv.load_env()

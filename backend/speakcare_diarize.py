@@ -3,7 +3,7 @@ import json
 import argparse
 import warnings
 from boto3_session import Boto3Session
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_get_filename_without_ext, os_concat_current_time
 from speakcare_stt import SpeakcareAWSTranscribe

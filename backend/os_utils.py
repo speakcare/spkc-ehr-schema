@@ -1,5 +1,5 @@
 import os
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 import time
 from datetime import datetime, timezone
 

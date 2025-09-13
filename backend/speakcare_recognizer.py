@@ -5,7 +5,7 @@ import shutil
 import time
 from boto3_session import Boto3Session
 from collections import defaultdict
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from os_utils import os_ensure_directory_exists, os_get_filename_without_ext
 from pydantic import BaseModel, ValidationError
 from typing import List

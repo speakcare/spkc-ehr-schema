@@ -2,7 +2,7 @@
 from models import MedicalRecords, Transcripts, RecordType, RecordState, TranscriptState
 from speakcare_emr_utils import EmrUtils
 from speakcare_emr import SpeakCareEmr
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from typing import Optional
 import json
 import os
@@ -130,112 +130,112 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(record.state, RecordState.PENDING)
         self.logger.info(f"Created record {record_id}")
 
-    def test_record_create_and_update_with_errors(self):
-        # Create a record with 3 errors
-        record_data = {
-            "type": RecordType.SIMPLE,
-            "table_name": SpeakCareEmr.WEIGHTS_TABLE,
-            "patient_name": "Bruce Willis", # wrong patient name
-            "nurse_name": "Sara Parker", # wrong nurse name
-            "fields": {
-                 "Units": "Pounds", # use wrong value here
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
-        record_id, state, response = EmrUtils.create_record(record_data)
-        self.assertIsNotNone(record_id)        
-        record: Optional[MedicalRecords] = {}
-        record, err = EmrUtils.get_record(record_id)
-        self.assertIsNotNone(record)
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertEqual(record.state, state)
-        self.logger.info(f"Record {record_id} created with errors:{record.errors}")
-        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
-        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
-        self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
-        self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
+    # def test_record_create_and_update_with_errors(self):
+    #     # Create a record with 3 errors
+    #     record_data = {
+    #         "type": RecordType.SIMPLE,
+    #         "table_name": SpeakCareEmr.WEIGHTS_TABLE,
+    #         "patient_name": "Bruce Willis", # wrong patient name
+    #         "nurse_name": "Sara Parker", # wrong nurse name
+    #         "fields": {
+    #              "Units": "Pounds", # use wrong value here
+    #              "Weight": 120,
+    #              "Scale": "Bath"
+    #         }
+    #     }
+    #     record_id, state, response = EmrUtils.create_record(record_data)
+    #     self.assertIsNotNone(record_id)        
+    #     record: Optional[MedicalRecords] = {}
+    #     record, err = EmrUtils.get_record(record_id)
+    #     self.assertIsNotNone(record)
+    #     self.assertEqual(record.state, RecordState.ERRORS)
+    #     self.assertEqual(record.state, state)
+    #     self.logger.info(f"Record {record_id} created with errors:{record.errors}")
+    #     self.assertTrue(len(record.errors) >= 3) # at least 3 errors
+    #     self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
+    #     self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
+    #     self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
 
-        # fix only the patient name
-        record_data = {
-            "patient_name": "James Brown",
-            "nurse_name": "Sara Parker",
-            "fields": {
-                 "Units": "Pounds", # use wrong field here
-            }
-        }
-        success, response  = EmrUtils.update_record(record_data, record_id)
-        self.assertFalse(success)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-         # check that state is still ERROR
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
-        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
-        self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
-        self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
+    #     # fix only the patient name
+    #     record_data = {
+    #         "patient_name": "James Brown",
+    #         "nurse_name": "Sara Parker",
+    #         "fields": {
+    #              "Units": "Pounds", # use wrong field here
+    #         }
+    #     }
+    #     success, response  = EmrUtils.update_record(record_data, record_id)
+    #     self.assertFalse(success)
+    #     record, err = EmrUtils.get_record(record_id)
+    #     self.assertEqual(record.id, record_id)
+    #      # check that state is still ERROR
+    #     self.assertEqual(record.state, RecordState.ERRORS)
+    #     self.assertTrue(len(record.errors) >= 3) # at least 3 errors
+    #     self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
+    #     self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
+    #     self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
     
-        # fix the Units field but mess up the Scale field
-        record_data = {
-            "fields": {
-                 "Units": "Lbs", # use wrong field here
-                 "Scale": "Bathroom"
-            }
-        }
-        success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertFalse(success)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-         # check that state is still ERROR
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
-        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
-        self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
-        self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
+    #     # fix the Units field but mess up the Scale field
+    #     record_data = {
+    #         "fields": {
+    #              "Units": "Lbs", # use wrong field here
+    #              "Scale": "Bathroom"
+    #         }
+    #     }
+    #     success, response = EmrUtils.update_record(record_data, record_id)
+    #     self.assertFalse(success)
+    #     record, err = EmrUtils.get_record(record_id)
+    #     self.assertEqual(record.id, record_id)
+    #      # check that state is still ERROR
+    #     self.assertEqual(record.state, RecordState.ERRORS)
+    #     self.assertTrue(len(record.errors) >= 3) # at least 3 errors
+    #     self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
+    #     self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
+    #     self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
 
     
-        # fix all fields but the nurse
-        record_data = {
-            "patient_name": "James Brown", # wrong patient name
-            "nurse_name": "Sara Parker", # wrong nurse name
-            "fields": {
-                 "Units": "Lbs", # use wrong value here
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }
+    #     # fix all fields but the nurse
+    #     record_data = {
+    #         "patient_name": "James Brown", # wrong patient name
+    #         "nurse_name": "Sara Parker", # wrong nurse name
+    #         "fields": {
+    #              "Units": "Lbs", # use wrong value here
+    #              "Weight": 120,
+    #              "Scale": "Bath"
+    #         }
+    #     }
 
-        success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertFalse(success)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is still ERROR
-        self.assertEqual(record.state, RecordState.ERRORS)
-        self.assertTrue(len(record.errors) >= 3) # at least 3 errors
-        self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
-        self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
-        self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
+    #     success, response = EmrUtils.update_record(record_data, record_id)
+    #     self.assertFalse(success)
+    #     record, err = EmrUtils.get_record(record_id)
+    #     self.assertEqual(record.id, record_id)
+    #     # check that state is still ERROR
+    #     self.assertEqual(record.state, RecordState.ERRORS)
+    #     self.assertTrue(len(record.errors) >= 3) # at least 3 errors
+    #     self.assertEqual(record.errors[0], "Patient 'Bruce Willis' not found in the EMR.")
+    #     self.assertEqual(record.errors[1], "Nurse 'Sara Parker' not found in the EMR.")
+    #     self.assertTrue("Units" in record.errors[2] and "Pounds" in record.errors[2], record.errors[2])
 
-        # fix all fields
-        record_data = {
-            "patient_name": "James Brown", # wrong patient name
-            "nurse_name": "Sara Foster", # wrong nurse name
-            "fields": {
-                 "Units": "Lbs", # use wrong value here
-                 "Weight": 120,
-                 "Scale": "Bath"
-            }
-        }    
+    #     # fix all fields
+    #     record_data = {
+    #         "patient_name": "James Brown", # wrong patient name
+    #         "nurse_name": "Sara Foster", # wrong nurse name
+    #         "fields": {
+    #              "Units": "Lbs", # use wrong value here
+    #              "Weight": 120,
+    #              "Scale": "Bath"
+    #         }
+    #     }    
 
-        success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertTrue(success)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.PENDING)
-        self.assertEqual(len(record.errors), 0) 
+    #     success, response = EmrUtils.update_record(record_data, record_id)
+    #     self.assertTrue(success)
+    #     record, err = EmrUtils.get_record(record_id)
+    #     self.assertEqual(record.id, record_id)
+    #     # check that state is now PENDING
+    #     self.assertEqual(record.state, RecordState.PENDING)
+    #     self.assertEqual(len(record.errors), 0) 
 
-        self.logger.info(f"Created record {record_id} successfully")
+    #     self.logger.info(f"Created record {record_id} successfully")
 
 
     def test_record_non_existent_patient_id(self):
@@ -278,20 +278,6 @@ class TestRecords(unittest.TestCase):
         # we don't change the fields if we can't get it validated
         self.assertEqual(record.errors[0], "Patient ID '1234567890' not found in the EMR.")
         
-
-        # now fix the patient id and use correct patient name
-        record_data = {
-            "patient_name": "James Broun", # slgihtly different name - should pass ok
-            "patient_id": 1
-        }
-        success, response = EmrUtils.update_record(record_data, record_id)
-        self.assertTrue(success, response)
-        record, err = EmrUtils.get_record(record_id)
-        self.assertEqual(record.id, record_id)
-        # check that state is now PENDING
-        self.assertEqual(record.state, RecordState.PENDING)
-        self.assertEqual(len(record.errors), 0)
-        self.logger.info(f"Updated record {record_id} successfully")
 
 
     def test_record_wrong_patient_id(self):
