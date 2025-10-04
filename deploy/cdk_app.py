@@ -15,6 +15,8 @@ environment = app.node.try_get_context("environment")
 account = app.node.try_get_context("account")
 region = app.node.try_get_context("region")
 aws_profile = app.node.try_get_context("aws_profile")
+version = app.node.try_get_context("version") or "v1"  # Default to v1
+space = app.node.try_get_context("space") or "tenants"  # Default to tenants
 
 # Validate required context values
 if not all([customer_name, environment, account, region]):
@@ -39,6 +41,8 @@ SpeakCareCustomerStack(
     acm_cert_arn=acm_cert_arn,
     customer_domain=customer_domain,
     aws_profile=aws_profile,
+    version=version,
+    space=space,
     env=aws_cdk.Environment(
         account=account,
         region=region,

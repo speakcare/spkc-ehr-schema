@@ -2,6 +2,7 @@ import json
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as lambda_,
@@ -19,8 +20,7 @@ from constructs import Construct
 import secrets
 from botocore.exceptions import ClientError
 import boto3
-
-
+from .swagger_html_generator import SwaggerHtmlGenerator
 
 
 class SpeakCareCustomerStack(Stack):
@@ -31,8 +31,16 @@ class SpeakCareCustomerStack(Stack):
                 #  hosted_zone_id: str,
                  customer_domain: str,
                  aws_profile: str = None,
+                 version: str = "v1",
+                 space: str = "tenants",
                  **kwargs):
         super().__init__(scope, id, **kwargs)
+
+        # Store parameters
+        self.customer_name = customer_name
+        self.env_ = environment
+        self.version = version
+        self.space = space
 
         # --- S3 Bucket ---
         s3_bucket = s3.Bucket(
@@ -127,14 +135,92 @@ class SpeakCareCustomerStack(Stack):
             timeout=Duration.seconds(30),
             memory_size=128,
         )
-        # TODO: need code update and config update
+        
+        # New lambda handlers for watch endpoints
+        nurse_handler = lambda_.Function(
+            self, f"{customer_name}-nurse-handler",
+            function_name=f"speakcare-{customer_name}-nurse-handler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="nurse_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/nurse_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        user_handler = lambda_.Function(
+            self, f"{customer_name}-user-handler",
+            function_name=f"speakcare-{customer_name}-user-handler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="user_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/user_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        shift_handler = lambda_.Function(
+            self, f"{customer_name}-shift-handler",
+            function_name=f"speakcare-{customer_name}-shift-handler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="shift_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/shift_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        # Generate Swagger UI HTML and upload to S3
+        swagger_html_key = "docs/swagger-ui.html"
+        
+        # Create a custom construct to generate Swagger HTML
+        swagger_generator = SwaggerHtmlGenerator(
+            self, f"{customer_name}-swagger-generator",
+            s3_bucket=s3_bucket,
+            html_key=swagger_html_key,
+            version=version,
+            space=space,
+            tenant=customer_name
+        )
+        
+        # Docs handler for Swagger UI
+        docs_handler = lambda_.Function(
+            self, f"{customer_name}-docs-handler",
+            function_name=f"speakcare-{customer_name}-docs-handler",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="docs_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/docs_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "S3_BUCKET": s3_bucket.bucket_name,
+                "SWAGGER_HTML_S3_KEY": swagger_html_key,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        # Grant docs handler read access to the S3 bucket
+        s3_bucket.grant_read(docs_handler)
+        
+        # Ensure the Swagger HTML is generated before the Lambda is created
+        docs_handler.node.add_dependency(swagger_generator)
 
         # --- API Gateway ---
         rest_api = apigw.RestApi(
             self, f"{customer_name}-api",
             rest_api_name=f"speakcare-{customer_name}-api",
             endpoint_types=[apigw.EndpointType.REGIONAL],
-            deploy_options=apigw.StageOptions(stage_name=environment),
+            deploy_options=apigw.StageOptions(stage_name=self.env_),
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
@@ -160,6 +246,49 @@ class SpeakCareCustomerStack(Stack):
         
         # Telemetry endpoint
         telemetry.add_method("POST", apigw.LambdaIntegration(telemetry_handler), api_key_required=True)
+
+        # --- New Structured API Gateway Paths ---
+        # /api/{version}/{space}/{tenant}/...
+        
+        # Create the structured API resources
+        api = rest_api.root.add_resource("api")
+        version = api.add_resource("{version}")
+        space = version.add_resource("{space}")
+        tenant = space.add_resource("{tenant}")
+        
+        # Nurses endpoint
+        nurses = tenant.add_resource("nurses")
+        nurses.add_method("GET", apigw.LambdaIntegration(nurse_handler), api_key_required=True)
+        
+        # Users endpoints
+        users = tenant.add_resource("users")
+        users_actions = users.add_resource("actions")
+        users_enroll = users_actions.add_resource("enroll")
+        users_enroll_user = users_enroll.add_resource("{userId}")
+        users_enroll_user.add_method("POST", apigw.LambdaIntegration(user_handler), api_key_required=True)
+        
+        # Shifts endpoints
+        shifts = tenant.add_resource("shifts")
+        shifts_actions = shifts.add_resource("actions")
+        shifts_start = shifts_actions.add_resource("start")
+        shifts_start.add_method("POST", apigw.LambdaIntegration(shift_handler), api_key_required=True)
+        shifts_end = shifts_actions.add_resource("end")
+        shifts_end_user = shifts_end.add_resource("{userId}")
+        shifts_end_user.add_method("POST", apigw.LambdaIntegration(shift_handler), api_key_required=True)
+        
+        # Recording endpoints (new structured versions)
+        recording_structured = tenant.add_resource("recording")
+        recording_structured.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
+        recording_structured_id = recording_structured.add_resource("{recordingId}")
+        recording_structured_id.add_method("PATCH", apigw.LambdaIntegration(recording_update_handler), api_key_required=True)
+        
+        # Telemetry endpoint (new structured version)
+        telemetry_structured = tenant.add_resource("telemetry")
+        telemetry_structured.add_method("POST", apigw.LambdaIntegration(telemetry_handler), api_key_required=True)
+        
+        # Documentation endpoint (Swagger UI) - no API key required for docs
+        docs = tenant.add_resource("docs")
+        docs.add_method("GET", apigw.LambdaIntegration(docs_handler), api_key_required=False)
 
 
         # ------------------------------------------------------------
@@ -236,7 +365,7 @@ class SpeakCareCustomerStack(Stack):
         # zone = route53.HostedZone.from_hosted_zone_id(self, "hosted-zone", hosted_zone_id)
         zone = route53.HostedZone.from_lookup(
             self, "hosted-zone",
-            domain_name=f"{environment}.speakcare.ai"
+            domain_name=f"{self.env_}.speakcare.ai"
         )
         domain_name = apigw.DomainName(
             self, f"{customer_name}-domain",

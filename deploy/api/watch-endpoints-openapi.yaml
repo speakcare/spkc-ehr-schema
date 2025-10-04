@@ -3,13 +3,13 @@ info:
   title: Watch Endpoints API
   version: 1.0.0
 paths:
-  /api/{version}/{scope}/{tenant}/nurses:
+  /api/{version}/{space}/{tenant}/nurses:
     get:
       summary: List nurses
       operationId: listNurses
       parameters:
         - $ref: '#/components/parameters/version'
-        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/space'
         - $ref: '#/components/parameters/tenant'
         - $ref: '#/components/parameters/facilityId'
       responses:
@@ -21,15 +21,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/nurse'
-  /api/{version}/{scope}/{tenant}/users/actions/enroll/{userId}:
+  /api/{version}/{space}/{tenant}/users/actions/enroll/{userId}:
     post:
       summary: Enroll user with recording file
       operationId: enrollUser
       parameters:
         - $ref: '#/components/parameters/version'
-        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/space'
         - $ref: '#/components/parameters/tenant'
-        - $ref: '#/components/parameters/facilityId'
         - $ref: '#/components/parameters/userId'
       requestBody:
         required: true
@@ -66,15 +65,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/errorResponse'
-  /api/{version}/{scope}/{tenant}/shifts/actions/start:
+  /api/{version}/{space}/{tenant}/shifts/actions/start:
     post:
       summary: Start shift with recording file
       operationId: startShift
       parameters:
         - $ref: '#/components/parameters/version'
-        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/space'
         - $ref: '#/components/parameters/tenant'
-        - $ref: '#/components/parameters/faciityId'
+        - $ref: '#/components/parameters/facilityId'
       requestBody:
         required: true
         content:
@@ -110,15 +109,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/errorResponse'
-  /api/{version}/{scope}/{tenant}/shifts/actions/end/{userId}:
+  /api/{version}/{space}/{tenant}/shifts/actions/end/{userId}:
     post:
       summary: End shift
       operationId: endShift
       parameters:
         - $ref: '#/components/parameters/version'
-        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/space'
         - $ref: '#/components/parameters/tenant'
-        - $ref: '#/components/parameters/faciityId'
         - $ref: '#/components/parameters/userId'
       responses:
         '200':
@@ -141,6 +139,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/errorResponse'
+  /api/{version}/{space}/{tenant}/recording:
+    post:
+      summary: Create recording session
+      operationId: createRecording
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/space'
+        - $ref: '#/components/parameters/tenant'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/recordingRequest'
+      responses:
+        '201':
+          description: Recording session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/recordingResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+  /api/{version}/{space}/{tenant}/telemetry:
+    post:
+      summary: Submit telemetry data
+      operationId: submitTelemetry
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/space'
+        - $ref: '#/components/parameters/tenant'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/telemetryRequest'
+      responses:
+        '200':
+          description: Telemetry data processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/telemetryResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+  /api/{version}/{space}/{tenant}/recording/{recordingId}:
+    patch:
+      summary: Update recording status
+      operationId: updateRecording
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/space'
+        - $ref: '#/components/parameters/tenant'
+        - name: recordingId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Recording identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/recordingUpdateRequest'
+      responses:
+        '200':
+          description: Recording updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/recordingUpdateResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+        '404':
+          description: Recording not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
 components:
   parameters:
     version:
@@ -150,13 +259,13 @@ components:
       schema:
         type: string
       description: API version
-    scope:
-      name: scope
+    space:
+      name: space
       in: path
       required: true
       schema:
         type: string
-      description: Scope [tenants | sandboxes] - Tenants are used for production, sandboxes are used for development
+      description: Space [tenants | sandboxes] - Tenants are used for production, sandboxes are used for development
     tenant:
       name: tenant
       in: path
@@ -231,4 +340,172 @@ components:
           type: string
       required:
         - message
+    recordingRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          description: Name of the recording file
+        userId:
+          type: string
+          description: User identifier (required for watch)
+        username:
+          type: string
+          description: Username (optional, for backwards compatibility)
+        customerId:
+          type: string
+          description: Customer ID (optional, tenant is used from path)
+        deviceType:
+          type: string
+          description: Type of device making the recording
+          default: unknown
+        deviceUniqueId:
+          type: string
+          description: Unique identifier of the device
+          default: unknown
+        startTime:
+          type: string
+          description: Start time of the recording
+        endTime:
+          type: string
+          description: End time of the recording
+        status:
+          type: string
+          description: Status of the recording
+          default: PENDING_UPLOAD
+      required:
+        - fileName
+        - userId
+    recordingResponse:
+      type: object
+      properties:
+        recordingId:
+          type: string
+          description: Unique identifier for the recording
+        status:
+          type: string
+          description: Current status of the recording
+        uploadUrl:
+          type: string
+          description: Presigned URL for uploading the recording file
+        expiresAt:
+          type: integer
+          description: Unix timestamp when the upload URL expires
+      required:
+        - recordingId
+        - status
+        - uploadUrl
+        - expiresAt
+    recordingUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UPLOADED, PROCESSED, ERROR]
+          description: New status of the recording
+        md5sum:
+          type: string
+          description: MD5 checksum of the uploaded file (required when status is UPLOADED)
+      required:
+        - status
+    recordingUpdateResponse:
+      type: object
+      properties:
+        recordingId:
+          type: string
+          description: Recording identifier
+        status:
+          type: string
+          description: Updated status of the recording
+      required:
+        - recordingId
+        - status
+    telemetryRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User identifier (required for watch)
+        username:
+          type: string
+          description: Username (optional, for backwards compatibility)
+        customerId:
+          type: string
+          description: Customer ID (optional, tenant is used from path)
+        deviceType:
+          type: string
+          description: Type of device sending telemetry
+          default: unknown
+        deviceUniqueId:
+          type: string
+          description: Unique identifier of the device
+          default: unknown
+        telemetryData:
+          type: array
+          description: Array of telemetry data points
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                description: Timestamp of the data point
+              sensorType:
+                type: string
+                description: Type of sensor
+              sensorMac:
+                type: string
+                description: MAC address of the sensor
+              sensorId:
+                type: string
+                description: ID of the sensor
+              sensorDeviceName:
+                type: string
+                description: Name of the sensor device
+              readings:
+                type: array
+                description: Array of sensor readings
+                items:
+                  type: object
+                  additionalProperties: true
+            required:
+              - sensorType
+              - timestamp
+      required:
+        - userId
+        - telemetryData
+    telemetryResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+        uploadedFiles:
+          type: array
+          description: List of uploaded files
+          items:
+            type: object
+            properties:
+              sensorType:
+                type: string
+                description: Type of sensor
+              filename:
+                type: string
+                description: Name of the uploaded file
+              s3Key:
+                type: string
+                description: S3 key of the uploaded file
+              recordCount:
+                type: integer
+                description: Number of records in the file
+        totalFiles:
+          type: integer
+          description: Total number of files uploaded
+        timestamp:
+          type: integer
+          description: Unix timestamp of the operation
+      required:
+        - message
+        - uploadedFiles
+        - totalFiles
+        - timestamp
 
