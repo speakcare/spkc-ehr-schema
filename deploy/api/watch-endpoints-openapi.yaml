@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Watch Endpoints API
+  version: 1.0.0
+paths:
+  /api/{version}/{scope}/{tenant}/nurses:
+    get:
+      summary: List nurses
+      operationId: listNurses
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/tenant'
+        - $ref: '#/components/parameters/facilityId'
+      responses:
+        '200':
+          description: List of nurses for a given tenant and facility
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/nurse'
+  /api/{version}/{scope}/{tenant}/users/actions/enroll/{userId}:
+    post:
+      summary: Enroll user with recording file
+      operationId: enrollUser
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/tenant'
+        - $ref: '#/components/parameters/facilityId'
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                recording:
+                  type: string
+                  format: binary
+              required:
+                - recording
+      responses:
+        '200':
+          description: Enrollment accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/actionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+              example:
+                message: Unknown user id
+                errorCodes:
+                  - NAME_NOT_FOUND
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+  /api/{version}/{scope}/{tenant}/shifts/actions/start:
+    post:
+      summary: Start shift with recording file
+      operationId: startShift
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/tenant'
+        - $ref: '#/components/parameters/faciityId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                recording:
+                  type: string
+                  format: binary
+              required:
+                - recording
+      responses:
+        '200':
+          description: Shift started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/actionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+              example:
+                message: Recording unclear
+                errorCodes:
+                  - VOICE_NOT_MATCHED
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+  /api/{version}/{scope}/{tenant}/shifts/actions/end/{userId}:
+    post:
+      summary: End shift
+      operationId: endShift
+      parameters:
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/scope'
+        - $ref: '#/components/parameters/tenant'
+        - $ref: '#/components/parameters/faciityId'
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200':
+          description: Shift ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/actionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/badRequestErrorResponse'
+              example:
+                message: Recording unclear
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+components:
+  parameters:
+    version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+      description: API version
+    scope:
+      name: scope
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Scope [tenants | sandboxes] - Tenants are used for production, sandboxes are used for development
+    tenant:
+      name: tenant
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Tenant or sandbox name
+    facilityId:
+      name: facilityId
+      in: query
+      required: true
+      schema:
+        type: integer
+      description: Facility identifier within the tenant. Required for tenants, optional for sandboxes.
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User identifier within the tenant / sandbox.
+  schemas:
+    nurse:
+      type: object
+      properties:
+        userId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nickname:
+          type: string
+      required:
+        - userId
+        - firstName
+        - lastName
+    actionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        message:
+          type: string
+          example: Operation succeeded
+        userId:
+          type: string
+          description: User identifier of the user who started the shift
+    badRequestErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errorCodes:
+          type: array
+          items:
+            type: string
+            enum:
+              - VOICE_NOT_MATCHED
+              - NAME_NOT_FOUND
+              - NAME_NOT_MATCHED
+              - SHIFT_ERROR
+              - CORRIDOR_ERROR
+      required:
+        - message
+        - errorCodes
+    errorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
