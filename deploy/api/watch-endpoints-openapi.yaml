@@ -87,8 +87,8 @@ paths:
               required:
                 - recording
       responses:
-        '200':
-          description: Shift started
+        '201':
+          description: Shift started successfully
           content:
             application/json:
               schema:
@@ -109,7 +109,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/errorResponse'
-  /api/{version}/{space}/{tenant}/shifts/actions/end/{userId}:
+  /api/{version}/{space}/{tenant}/shifts/actions/end/{shiftId}:
     post:
       summary: End shift
       operationId: endShift
@@ -117,7 +117,7 @@ paths:
         - $ref: '#/components/parameters/version'
         - $ref: '#/components/parameters/space'
         - $ref: '#/components/parameters/tenant'
-        - $ref: '#/components/parameters/userId'
+        - $ref: '#/components/parameters/shiftId'
       responses:
         '200':
           description: Shift ended
@@ -287,6 +287,13 @@ components:
       schema:
         type: string
       description: User identifier within the tenant / sandbox.
+    shiftId:
+      name: shiftId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Shift identifier.
   schemas:
     nurse:
       type: object
@@ -315,6 +322,9 @@ components:
         userId:
           type: string
           description: User identifier of the user who started the shift
+        shiftId:
+          type: string
+          description: Unique identifier for the started shift
     badRequestErrorResponse:
       type: object
       properties:
@@ -330,6 +340,9 @@ components:
               - NAME_NOT_MATCHED
               - SHIFT_ERROR
               - CORRIDOR_ERROR
+              - AUDIO_INVALID
+              - TRANSCRIPTION_FAILED
+              - EXTRACTION_FAILED
       required:
         - message
         - errorCodes

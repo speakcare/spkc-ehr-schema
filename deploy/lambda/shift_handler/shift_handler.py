@@ -5,6 +5,7 @@ import time
 import boto3
 import os
 import base64
+from audio_processor import AudioProcessor
 
 # Initialize DynamoDB
 dynamo = boto3.resource('dynamodb')
@@ -48,23 +49,51 @@ def handle_start_shift(event, context, tenant):
         facility_id = query_params.get('facilityId')
         
         if not facility_id:
-            return create_error_response(400, 'Missing facilityId query parameter')
+            return create_error_response(400, 'Missing facilityId query parameter', ['AUDIO_INVALID'])
         
         # Parse multipart form data for recording file
         recording_data = parse_multipart_form_data(event)
         
         if not recording_data:
-            return create_error_response(400, 'No recording file found in request')
+            return create_error_response(400, 'No recording file found in request', ['AUDIO_INVALID'])
         
-        # Process shift start
-        result = start_shift(tenant, facility_id, recording_data)
+        # Initialize audio processor
+        audio_processor = AudioProcessor()
+        
+        # Validate audio file
+        is_valid, validation_message = audio_processor.validate_audio(recording_data['content'])
+        if not is_valid:
+            return create_error_response(400, validation_message, ['AUDIO_INVALID'])
+        
+        # Transcribe audio
+        transcription_success, transcription_message, transcription_text = audio_processor.transcribe_audio(recording_data['content'])
+        if not transcription_success:
+            return create_error_response(400, transcription_message, ['TRANSCRIPTION_FAILED'])
+        
+        # Extract shift data from transcription
+        extraction_success, extraction_message, shift_data = audio_processor.extract_shift_data(transcription_text)
+        if not extraction_success:
+            return create_error_response(400, extraction_message, ['EXTRACTION_FAILED'])
+        
+        # Generate stub response
+        shift_id = f"shift_{int(time.time())}"
         
         return {
-            'statusCode': 200,
+            'statusCode': 201,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
             'body': json.dumps({
-                'status': 'ok',
-                'message': 'Shift started successfully',
-                'userId': result['userId']
+                'status': 'success',
+                'message': 'Shift started',
+                'userId': 'nurse001',  # Stub value
+                'shiftId': shift_id,
+                'extractedData': {
+                    'fullName': shift_data.fullName,
+                    'shift': shift_data.shift,
+                    'corridor': shift_data.corridor
+                }
             })
         }
         
@@ -76,22 +105,26 @@ def handle_start_shift(event, context, tenant):
 def handle_end_shift(event, context, tenant):
     """Handle shift end operation"""
     try:
-        # Parse path parameters to extract userId
+        # Parse path parameters to extract shiftId
         path_params = event.get('pathParameters', {})
-        user_id = path_params.get('userId')
+        shift_id = path_params.get('shiftId')
         
-        if not user_id:
-            return create_error_response(400, 'Missing userId in path')
+        if not shift_id:
+            return create_error_response(400, 'Missing shiftId in path')
         
         # Process shift end
-        result = end_shift(user_id, tenant)
+        result = end_shift(shift_id, tenant)
         
         return {
             'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
             'body': json.dumps({
-                'status': 'ok',
+                'status': 'success',
                 'message': 'Shift ended successfully',
-                'userId': user_id
+                'shiftId': shift_id
             })
         }
         
@@ -171,35 +204,43 @@ def start_shift(tenant, facility_id, recording_data):
         'facilityId': facility_id
     }
 
-def end_shift(user_id, tenant):
+def end_shift(shift_id, tenant):
     """
-    End a shift for the specified user.
+    End a shift for the specified shift ID.
     This is a placeholder implementation - you'll need to implement
     the actual shift end logic based on your requirements.
     """
     # TODO: Implement actual shift end logic
     # This could involve:
-    # 1. Finding the active shift for the user
+    # 1. Finding the shift by shiftId
     # 2. Updating the shift record with end time
     # 3. Calculating shift duration
     # 4. Generating shift summary
     
-    print(f"Ending shift for user {user_id} in tenant {tenant}")
+    print(f"Ending shift {shift_id} in tenant {tenant}")
     
     # Placeholder - replace with actual implementation
     return {
-        'userId': user_id,
-        'shiftId': f"shift_{int(time.time())}",
+        'shiftId': shift_id,
         'endTime': int(time.time())
     }
 
-def create_error_response(status_code, message):
+def create_error_response(status_code, message, error_codes=None):
     """
     Create standardized error response
     """
+    error_body = {
+        'message': message
+    }
+    
+    if error_codes:
+        error_body['errorCodes'] = error_codes
+    
     return {
         'statusCode': status_code,
-        'body': json.dumps({
-            'error': message
-        })
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps(error_body)
     }

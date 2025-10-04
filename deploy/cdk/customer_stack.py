@@ -1,4 +1,7 @@
 import json
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
@@ -35,6 +38,14 @@ class SpeakCareCustomerStack(Stack):
                  space: str = "tenants",
                  **kwargs):
         super().__init__(scope, id, **kwargs)
+
+        # Load environment variables from .env file
+        env_file_path = Path(__file__).parent.parent / '.env'
+        if env_file_path.exists():
+            load_dotenv(env_file_path)
+            print(f"Loaded environment variables from {env_file_path}")
+        else:
+            print(f"No .env file found at {env_file_path}")
 
         # Store parameters
         self.customer_name = customer_name
@@ -173,6 +184,12 @@ class SpeakCareCustomerStack(Stack):
             code=lambda_.Code.from_asset("lambda/shift_handler"),
             environment={
                 "CUSTOMER_NAME": customer_name,
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
+                "OPENAI_STT_MODEL": os.getenv("OPENAI_STT_MODEL", "whisper-1"),
+                "OPENAI_MODEL": os.getenv("OPENAI_MODEL", "gpt-4.1-nano-2025-04-14"),
+                "OPENAI_TEMPERATURE": os.getenv("OPENAI_TEMPERATURE", "0.2"),
+                "OPENAI_MAX_COMPLETION_TOKENS": os.getenv("OPENAI_MAX_COMPLETION_TOKENS", "4096"),
+                "MAX_AUDIO_SIZE_BYTES": os.getenv("MAX_AUDIO_SIZE_BYTES", "102400"),
             },
             role=lambda_role,
             timeout=Duration.seconds(30),
