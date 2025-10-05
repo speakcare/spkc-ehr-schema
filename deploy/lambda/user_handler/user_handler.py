@@ -44,7 +44,8 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'status': 'ok',
                 'message': 'User enrolled successfully',
-                'userId': user_id
+                'userId': user_id,
+                'username': f"user.{user_id}"  # Generate username from userId
             })
         }
         

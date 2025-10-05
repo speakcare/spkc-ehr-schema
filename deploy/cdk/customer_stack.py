@@ -17,7 +17,8 @@ from aws_cdk import (
     Duration,
     SecretValue,
     RemovalPolicy,
-    CfnOutput
+    CfnOutput,
+    BundlingOptions
 )
 from constructs import Construct
 import secrets
@@ -153,7 +154,13 @@ class SpeakCareCustomerStack(Stack):
             function_name=f"speakcare-{customer_name}-nurse-handler",
             runtime=lambda_.Runtime.PYTHON_3_11,
             handler="nurse_handler.lambda_handler",
-            code=lambda_.Code.from_asset("lambda/nurse_handler"),
+            code=lambda_.Code.from_asset("lambda/nurse_handler", bundling=BundlingOptions(
+                image=lambda_.Runtime.PYTHON_3_11.bundling_image,
+                command=[
+                    "bash", "-c",
+                    "cp -r /asset-input/* /asset-output/ && cp -r /asset-input/../shared/* /asset-output/"
+                ]
+            )),
             environment={
                 "CUSTOMER_NAME": customer_name,
             },
@@ -181,7 +188,13 @@ class SpeakCareCustomerStack(Stack):
             function_name=f"speakcare-{customer_name}-shift-handler",
             runtime=lambda_.Runtime.PYTHON_3_11,
             handler="shift_handler.lambda_handler",
-            code=lambda_.Code.from_asset("lambda/shift_handler"),
+            code=lambda_.Code.from_asset("lambda/shift_handler", bundling=BundlingOptions(
+                image=lambda_.Runtime.PYTHON_3_11.bundling_image,
+                command=[
+                    "bash", "-c",
+                    "cp -r /asset-input/* /asset-output/ && cp -r /asset-input/../shared/* /asset-output/"
+                ]
+            )),
             environment={
                 "CUSTOMER_NAME": customer_name,
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
@@ -189,7 +202,10 @@ class SpeakCareCustomerStack(Stack):
                 "OPENAI_MODEL": os.getenv("OPENAI_MODEL", "gpt-4.1-nano-2025-04-14"),
                 "OPENAI_TEMPERATURE": os.getenv("OPENAI_TEMPERATURE", "0.2"),
                 "OPENAI_MAX_COMPLETION_TOKENS": os.getenv("OPENAI_MAX_COMPLETION_TOKENS", "4096"),
-                "MAX_AUDIO_SIZE_BYTES": os.getenv("MAX_AUDIO_SIZE_BYTES", "102400"),
+                # Sign-in audio size limit and STT language controls
+                "MAX_SIGN_IN_AUDIO_SIZE_BYTES": os.getenv("MAX_SIGN_IN_AUDIO_SIZE_BYTES", "512000"),
+                "OPENAI_STT_LANGUAGE": os.getenv("OPENAI_STT_LANGUAGE", "en"),
+                "OPENAI_STT_TRANSLATE_TO_EN": os.getenv("OPENAI_STT_TRANSLATE_TO_EN", "true"),
             },
             role=lambda_role,
             timeout=Duration.seconds(30),
