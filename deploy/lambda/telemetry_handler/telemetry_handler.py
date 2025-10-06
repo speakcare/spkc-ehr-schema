@@ -1,6 +1,7 @@
 # telemetry_handler.py
 
 import json
+import logging
 import csv
 import io
 import time
@@ -14,8 +15,31 @@ customer = os.environ['CUSTOMER_NAME']
 bucket = os.environ['S3_BUCKET']
 telemetry_dir = os.environ['S3_TELEMETRY_DIR']
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
+def _sanitize_event_for_log(event: dict) -> dict:
+    try:
+        redacted = dict(event or {})
+        body = redacted.get('body')
+        if body:
+            if isinstance(body, str):
+                redacted['body'] = body[:100] + '...<truncated>' if len(body) > 100 else body
+            else:
+                redacted['body'] = '<binary body>'
+        # Optionally truncate headers if huge
+        headers = redacted.get('headers') or {}
+        if isinstance(headers, dict) and len(json.dumps(headers)) > 1024:
+            redacted['headers'] = {'info': 'headers truncated'}
+        return redacted
+    except Exception:
+        return {'message': 'failed to sanitize event for log'}
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
+    logger.info("Received event: %s", _sanitize_event_for_log(event))
+    logger.debug("Received event: %s", event)
     
     # Route to appropriate handler based on path
     path = event.get("path", "")
@@ -51,7 +75,7 @@ def handle_legacy_telemetry_api(event, context):
         return create_error_response(400, f'Invalid JSON in request body: {str(e)}')
     except Exception as e:
         error_msg = f'Unexpected error processing telemetry data: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def handle_new_telemetry_api(event, context):
@@ -86,7 +110,7 @@ def handle_new_telemetry_api(event, context):
         return create_error_response(400, f'Invalid JSON in request body: {str(e)}')
     except Exception as e:
         error_msg = f'Unexpected error processing telemetry data: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def process_telemetry_internal(body, customer_id, username):
@@ -103,7 +127,7 @@ def process_telemetry_internal(body, customer_id, username):
     for data_point in telemetry_data:
         sensor_type = data_point.get('sensorType')
         if not sensor_type:
-            print(f"Warning: Skipping data point without sensorType: {data_point}")
+            logger.warning("Skipping data point without sensorType: %s", data_point)
             continue
         sensor_groups[sensor_type].append(data_point)
     
@@ -142,11 +166,11 @@ def process_telemetry_internal(body, customer_id, username):
                 'recordCount': len(data_points)
             })
             
-            print(f"Successfully uploaded {len(data_points)} records for sensorType '{sensor_type}' to {s3_key}")
+            logger.info("Uploaded %s records for sensorType '%s' to %s", len(data_points), sensor_type, s3_key)
             
         except Exception as e:
             error_msg = f"Error processing sensorType '{sensor_type}': {str(e)}"
-            print(error_msg)
+            logger.exception(error_msg)
             # Continue processing other sensor types even if one fails
             continue
     

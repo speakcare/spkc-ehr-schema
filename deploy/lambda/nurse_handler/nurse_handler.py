@@ -1,10 +1,8 @@
 # nurse_handler.py
 
 import json
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from shared.shared_config import get_nurses_for_facility as get_shared_nurses
+import logging
+from shared_config import get_nurses_for_facility as get_shared_nurses
 import boto3
 import os
 
@@ -12,8 +10,13 @@ import os
 dynamo = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
+    logger.info("Received event: %s", event)
     
     try:
         # Parse path parameters to extract tenant and facilityId
@@ -43,7 +46,7 @@ def lambda_handler(event, context):
         
     except Exception as e:
         error_msg = f'Unexpected error getting nurses: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 

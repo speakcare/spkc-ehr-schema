@@ -3,16 +3,42 @@
 import json
 import time
 import boto3
-import os
+import os, sys
 import base64
 import uuid
+import logging
+vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+sys.path.insert(0, vendor_path)   
+from requests_toolbelt.multipart import decoder as multipart_decoder
+from shared_config import get_nurses_for_facility
+
+#TODO: align enroll and shift start errors to the openapi yaml
 
 # Initialize DynamoDB
 dynamo = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 
+def _sanitize_event_for_log(event: dict) -> dict:
+    try:
+        redacted = dict(event or {})
+        body = redacted.get('body')
+        if body:
+            # If base64 string, truncate to first 50 bytes worth of chars
+            if isinstance(body, str):
+                redacted['body'] = body[:50] + '...<truncated>' if len(body) > 50 else body
+            else:
+                redacted['body'] = '<binary body>'
+        return redacted
+    except Exception:
+        return {'message': 'failed to sanitize event for log'}
+
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
+    logger.info("Received event: %s", _sanitize_event_for_log(event))
     
     try:
         # Parse path parameters to extract tenant and userId
@@ -39,59 +65,74 @@ def lambda_handler(event, context):
         # Process user enrollment
         result = enroll_user(user_id, tenant, recording_data)
         
+        # Get username from shared config
+        nurses = get_nurses_for_facility("default")  # TODO: get actual facility
+        username = f"user.{user_id}"  # Default fallback
+        for nurse in nurses:
+            if nurse['userId'] == user_id:
+                username = nurse['username']
+                break
+        
         return {
             'statusCode': 200,
             'body': json.dumps({
                 'status': 'ok',
                 'message': 'User enrolled successfully',
                 'userId': user_id,
-                'username': f"user.{user_id}"  # Generate username from userId
+                'username': username
             })
         }
         
     except Exception as e:
         error_msg = f'Unexpected error enrolling user: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def parse_multipart_form_data(event):
     """
-    Parse multipart/form-data from API Gateway event.
-    This is a simplified implementation - in production you might want to use
-    a proper multipart parser library.
+    Robustly parse API Gateway multipart/form-data events and return raw bytes.
     """
     try:
-        # Get the content type and body
-        content_type = event.get('headers', {}).get('content-type', '')
+        headers = event.get('headers', {}) or {}
+        headers = {k.lower(): v for k, v in headers.items()}
+        content_type = headers.get('content-type', '')
         body = event.get('body', '')
-        
+
         if not body:
             return None
-        
-        # Check if it's multipart/form-data
+
         if 'multipart/form-data' not in content_type:
-            print(f"Expected multipart/form-data, got: {content_type}")
+            logger.warning("Expected multipart/form-data, got: %s", content_type)
             return None
-        
-        # For API Gateway, the body might be base64 encoded
-        if event.get('isBase64Encoded', False):
-            body = base64.b64decode(body).decode('utf-8')
-        
-        # Simple multipart parsing (this is basic - consider using a proper library)
-        # Look for the recording file in the multipart data
-        if 'filename=' in body and 'recording' in body.lower():
-            # Extract the file content (simplified)
-            # In a real implementation, you'd use a proper multipart parser
+
+        is_b64 = event.get('isBase64Encoded', False)
+        raw_bytes = base64.b64decode(body) if is_b64 else (body.encode('utf-8') if isinstance(body, str) else body)
+
+        try:
+            multipart_data = multipart_decoder.MultipartDecoder(raw_bytes, content_type)
+        except Exception as e:
+            logger.exception("Multipart decoding failed: %s", e)
+            return None
+
+        for part in multipart_data.parts:
+            content_disposition = part.headers.get(b'Content-Disposition', b'').decode('utf-8', errors='ignore')
+            if 'name="recording"' not in content_disposition:
+                continue
+            filename = 'recording.wav'
+            for token in content_disposition.split(';'):
+                token = token.strip()
+                if token.startswith('filename='):
+                    filename = token.split('=', 1)[1].strip('"')
+                    break
+            content_type_hdr = part.headers.get(b'Content-Type', b'audio/wav').decode('utf-8', errors='ignore')
             return {
-                'filename': 'recording.wav',  # Extract actual filename
-                'content': body,  # This would be the actual file content
-                'content_type': 'audio/wav'  # Extract actual content type
+                'filename': filename,
+                'content': part.content,  # bytes
+                'content_type': content_type_hdr
             }
-        
         return None
-        
     except Exception as e:
-        print(f"Error parsing multipart form data: {str(e)}")
+        logger.exception("Error parsing multipart form data: %s", e)
         return None
 
 def enroll_user(user_id, tenant, recording_data):
@@ -107,8 +148,12 @@ def enroll_user(user_id, tenant, recording_data):
     # 3. Storing enrollment data in DynamoDB
     # 4. Calling external voice recognition services
     
-    print(f"Enrolling user {user_id} for tenant {tenant}")
-    print(f"Recording file: {recording_data['filename']}, size: {len(recording_data['content'])} bytes")
+    logger.info("Enrolling user %s for tenant %s", user_id, tenant)
+    try:
+        size = len(recording_data['content']) if recording_data and recording_data.get('content') is not None else 0
+    except Exception:
+        size = 0
+    logger.debug("Recording file: %s, size: %s bytes", recording_data.get('filename'), size)
     
     # Placeholder - replace with actual implementation
     # Example of what you might do:

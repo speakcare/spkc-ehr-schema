@@ -2,6 +2,8 @@ openapi: 3.0.3
 info:
   title: Watch Endpoints API
   version: 1.0.0
+security:
+  - ApiKeyAuth: []
 paths:
   /api/{version}/{space}/{tenant}/nurses:
     get:
@@ -183,9 +185,11 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          application/gzip:
             schema:
-              $ref: '#/components/schemas/telemetryRequest'
+              type: string
+              format: binary
+            description: Gzipped JSON body of telemetryRequest schema
       responses:
         '200':
           description: Telemetry data processed successfully
@@ -251,6 +255,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/errorResponse'
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
   parameters:
     version:
       name: version

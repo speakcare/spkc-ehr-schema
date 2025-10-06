@@ -5,25 +5,23 @@ from dotenv import load_dotenv
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
-    aws_s3_deployment as s3deploy,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as lambda_,
+    aws_logs as logs,
     aws_apigateway as apigw,
     aws_secretsmanager as secretsmanager,
     aws_certificatemanager as acm,
     aws_route53 as route53,
     aws_route53_targets as targets,
     Duration,
-    SecretValue,
     RemovalPolicy,
     CfnOutput,
-    BundlingOptions
 )
 from constructs import Construct
-import secrets
 from botocore.exceptions import ClientError
 import boto3
+import logging
 from .swagger_html_generator import SwaggerHtmlGenerator
 
 
@@ -42,11 +40,12 @@ class SpeakCareCustomerStack(Stack):
 
         # Load environment variables from .env file
         env_file_path = Path(__file__).parent.parent / '.env'
+        logger = logging.getLogger(__name__)
         if env_file_path.exists():
             load_dotenv(env_file_path)
-            print(f"Loaded environment variables from {env_file_path}")
+            logger.info("Loaded environment variables from %s", env_file_path)
         else:
-            print(f"No .env file found at {env_file_path}")
+            logger.info("No .env file found at %s", env_file_path)
 
         # Store parameters
         self.customer_name = customer_name
@@ -108,7 +107,7 @@ class SpeakCareCustomerStack(Stack):
         recording_handler = lambda_.Function(
             self, f"{customer_name}-recording-handler",
             function_name=f"speakcare-{customer_name}-recording-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="recording_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/recording_handler"),
             environment=lambda_env,
@@ -119,7 +118,7 @@ class SpeakCareCustomerStack(Stack):
         recording_update_handler = lambda_.Function(
             self, f"{customer_name}-recording-update-handler",
             function_name=f"speakcare-{customer_name}-recording-update-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="recording_update_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/recording_update_handler"),
             environment={
@@ -135,7 +134,7 @@ class SpeakCareCustomerStack(Stack):
         telemetry_handler = lambda_.Function(
             self, f"{customer_name}-telemetry-handler",
             function_name=f"speakcare-{customer_name}-telemetry-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="telemetry_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/telemetry_handler"),
             environment={
@@ -152,15 +151,9 @@ class SpeakCareCustomerStack(Stack):
         nurse_handler = lambda_.Function(
             self, f"{customer_name}-nurse-handler",
             function_name=f"speakcare-{customer_name}-nurse-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="nurse_handler.lambda_handler",
-            code=lambda_.Code.from_asset("lambda/nurse_handler", bundling=BundlingOptions(
-                image=lambda_.Runtime.PYTHON_3_11.bundling_image,
-                command=[
-                    "bash", "-c",
-                    "cp -r /asset-input/* /asset-output/ && cp -r /asset-input/../shared/* /asset-output/"
-                ]
-            )),
+            code=lambda_.Code.from_asset("lambda/nurse_handler"),
             environment={
                 "CUSTOMER_NAME": customer_name,
             },
@@ -172,7 +165,7 @@ class SpeakCareCustomerStack(Stack):
         user_handler = lambda_.Function(
             self, f"{customer_name}-user-handler",
             function_name=f"speakcare-{customer_name}-user-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="user_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/user_handler"),
             environment={
@@ -186,15 +179,9 @@ class SpeakCareCustomerStack(Stack):
         shift_handler = lambda_.Function(
             self, f"{customer_name}-shift-handler",
             function_name=f"speakcare-{customer_name}-shift-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="shift_handler.lambda_handler",
-            code=lambda_.Code.from_asset("lambda/shift_handler", bundling=BundlingOptions(
-                image=lambda_.Runtime.PYTHON_3_11.bundling_image,
-                command=[
-                    "bash", "-c",
-                    "cp -r /asset-input/* /asset-output/ && cp -r /asset-input/../shared/* /asset-output/"
-                ]
-            )),
+            code=lambda_.Code.from_asset("lambda/shift_handler"),
             environment={
                 "CUSTOMER_NAME": customer_name,
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
@@ -229,7 +216,7 @@ class SpeakCareCustomerStack(Stack):
         docs_handler = lambda_.Function(
             self, f"{customer_name}-docs-handler",
             function_name=f"speakcare-{customer_name}-docs-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="docs_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/docs_handler"),
             environment={
@@ -249,16 +236,65 @@ class SpeakCareCustomerStack(Stack):
         docs_handler.node.add_dependency(swagger_generator)
 
         # --- API Gateway ---
+        # CloudWatch logging for API Gateway
+        apigw_log_group = logs.LogGroup(
+            self, f"{customer_name}-apigw-logs",
+            retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Optionally ensure API Gateway account-level CloudWatch Logs role is configured
+        # Can't read existing account settings during synth; allow opt-out via env var
+        setup_apigw_logs = os.getenv("SETUP_APIGW_LOGS", "false").lower() in ("1", "true", "yes")
+        apigw_account = None
+        if setup_apigw_logs:
+            apigw_log_role = iam.Role(
+                self, f"{customer_name}-apigw-cw-role",
+                assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
+                description="Role for API Gateway to push logs to CloudWatch"
+            )
+            apigw_log_role.add_managed_policy(
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonAPIGatewayPushToCloudWatchLogs")
+            )
+            apigw_account = apigw.CfnAccount(
+                self, f"{customer_name}-apigw-account",
+                cloud_watch_role_arn=apigw_log_role.role_arn,
+            )
+
         rest_api = apigw.RestApi(
             self, f"{customer_name}-api",
             rest_api_name=f"speakcare-{customer_name}-api",
             endpoint_types=[apigw.EndpointType.REGIONAL],
-            deploy_options=apigw.StageOptions(stage_name=self.env_),
+            deploy_options=apigw.StageOptions(
+                stage_name=self.env_,
+                logging_level=apigw.MethodLoggingLevel.INFO,
+                data_trace_enabled=True if self.env_ == 'dev' else False,
+                metrics_enabled=True,
+                access_log_destination=apigw.LogGroupLogDestination(apigw_log_group),
+                access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
+                    caller=True,
+                    http_method=True,
+                    ip=True,
+                    protocol=True,
+                    request_time=True,
+                    resource_path=True,
+                    response_length=True,
+                    status=True,
+                    user=True,
+                ),
+            ),
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
             ),
+            binary_media_types=[
+                'multipart/form-data',
+                'application/octet-stream',
+                'audio/*',
+            ],
         )
+        # Ensure the account-level logs role is applied before stage update
+        if apigw_account is not None and rest_api.deployment_stage is not None:
+            rest_api.deployment_stage.node.add_dependency(apigw_account)
         # Resources
         recording = rest_api.root.add_resource("recording")
         enrollment = recording.add_resource("enrollment")

@@ -6,8 +6,14 @@ import base64
 from pathlib import Path
 from dotenv import load_dotenv
 
+vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+if os.environ.get('AWS_EXECUTION_ENV'):  # running in Lambda
+    sys.path.insert(0, vendor_path)      # prefer Linux wheels
+else:
+    sys.path.append(vendor_path)  
+
 # Add the lambda directory to Python path
-sys.path.insert(0, os.path.dirname(__file__))
+#sys.path.insert(0, os.path.dirname(__file__))
 
 # Load environment variables from .env file
 env_file_path = Path(__file__).parent.parent.parent / '.env'

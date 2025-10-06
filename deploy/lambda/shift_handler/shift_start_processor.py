@@ -1,5 +1,6 @@
 # audio_processor.py
-import os
+import os, sys
+import logging
 import tempfile
 from typing import Tuple, Optional
 from openai import OpenAI
@@ -8,6 +9,10 @@ import json
 
 class ShiftStartProcessor:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        if not self.logger.handlers:
+            logging.basicConfig(level=logging.INFO)
+        self.logger.setLevel(logging.INFO)
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.stt_model = os.getenv("OPENAI_STT_MODEL", "whisper-1")
         # Force Whisper output language (default English) and optional translation
@@ -65,7 +70,7 @@ class ShiftStartProcessor:
                 
                 # Pretty-print the STT result text
                 try:
-                    print("Whisper transcription text:\n" + json.dumps(transcription.text, ensure_ascii=False, indent=4))
+                    self.logger.debug("Whisper transcription text: %s", transcription.text)
                 except Exception:
                     pass
 
@@ -117,7 +122,7 @@ class ShiftStartProcessor:
                     "max_completion_tokens": self.max_tokens,
                     "response_format": json_schema,
                 }
-                print("OpenAI chat.completions args:\n" + json.dumps(printable_args, ensure_ascii=False, indent=4))
+                self.logger.debug("OpenAI chat.completions args: %s", json.dumps(printable_args, ensure_ascii=False))
             except Exception:
                 pass
             completion_response = self.openai_client.chat.completions.create(**chat_completion_args)
@@ -129,7 +134,7 @@ class ShiftStartProcessor:
                 
                 # Print LLM raw response before normalization
                 try:
-                    print("LLM raw response:\n" + json.dumps(response_data, ensure_ascii=False, indent=4))
+                    self.logger.debug("LLM raw response: %s", json.dumps(response_data, ensure_ascii=False))
                 except Exception:
                     pass
                 
@@ -152,11 +157,11 @@ class ShiftStartProcessor:
                 is_valid, validation_message = shift_data.validate_extraction(allowed_shifts, allowed_corridors)
                 if not is_valid:
                     try:
-                        print("LLM raw response before post-check:\n" + json.dumps(response_data, ensure_ascii=False, indent=4))
-                        print("Post-check adjusted response:\n" + json.dumps(shift_data.model_dump(), ensure_ascii=False, indent=4))
-                        print("Validation failed with message:\n" + validation_message)
-                        print("Allowed shifts:\n" + json.dumps(allowed_shifts, ensure_ascii=False, indent=4))
-                        print("Allowed corridors:\n" + json.dumps(allowed_corridors, ensure_ascii=False, indent=4))
+                        self.logger.debug("LLM raw response before post-check: %s", json.dumps(response_data, ensure_ascii=False))
+                        self.logger.debug("Post-check adjusted response: %s", json.dumps(shift_data.model_dump(), ensure_ascii=False))
+                        self.logger.debug("Validation failed with message: %s", validation_message)
+                        self.logger.debug("Allowed shifts: %s", json.dumps(allowed_shifts, ensure_ascii=False))
+                        self.logger.debug("Allowed corridors: %s", json.dumps(allowed_corridors, ensure_ascii=False))
                     except Exception:
                         pass
                     return False, f"Extraction validation failed: {validation_message}", None
@@ -165,7 +170,7 @@ class ShiftStartProcessor:
                 
             except json.JSONDecodeError as e:
                 try:
-                    print("Invalid JSON from LLM. Raw content:\n" + response_content)
+                    self.logger.warning("Invalid JSON from LLM. Raw content: %s", response_content)
                 except Exception:
                     pass
                 return False, f"Invalid JSON response: {str(e)}", None
@@ -173,4 +178,5 @@ class ShiftStartProcessor:
                 return False, f"Data validation failed: {str(e)}", None
                 
         except Exception as e:
+            self.logger.exception("Extraction failed: %s", e)
             return False, f"Extraction failed: {str(e)}", None

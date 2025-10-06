@@ -3,13 +3,21 @@
 import json
 import time
 import boto3
-import os
+import os, sys
+import logging
+vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+if os.environ.get('AWS_EXECUTION_ENV'):  # running in Lambda
+    sys.path.insert(0, vendor_path)      # prefer Linux wheels
+else:
+    sys.path.append(vendor_path)  
+
+#sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'vendor'))
 import base64
 from requests_toolbelt.multipart import decoder as multipart_decoder
 from shift_start_processor import ShiftStartProcessor
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from shared.shared_config import get_allowed_shifts, get_allowed_corridors, find_nurse_by_name, get_nurses_for_facility
+from shared_config import get_allowed_shifts, get_allowed_corridors, find_nurse_by_name, get_nurses_for_facility
+
+#TODO: align enroll and shift start errors to the openapi yaml
 
 # Initialize DynamoDB
 dynamo = boto3.resource('dynamodb')
@@ -28,8 +36,13 @@ def _sanitize_event_for_log(event: dict) -> dict:
         return {'message': 'unable to sanitize event for log'}
 
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {_sanitize_event_for_log(event)}")
+    logger.info("Received event: %s", _sanitize_event_for_log(event))
     
     try:
         # Parse path parameters to extract tenant
@@ -55,7 +68,7 @@ def lambda_handler(event, context):
         
     except Exception as e:
         error_msg = f'Unexpected error in shift handler: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def handle_start_shift(event, context, tenant):
@@ -143,7 +156,7 @@ def handle_start_shift(event, context, tenant):
         
     except Exception as e:
         error_msg = f'Error starting shift: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def handle_end_shift(event, context, tenant):
@@ -174,7 +187,7 @@ def handle_end_shift(event, context, tenant):
         
     except Exception as e:
         error_msg = f'Error ending shift: {str(e)}'
-        print(error_msg)
+        logger.exception(error_msg)
         return create_error_response(500, error_msg)
 
 def parse_multipart_form_data(event):
@@ -196,7 +209,7 @@ def parse_multipart_form_data(event):
         
         # Check if it's multipart/form-data
         if 'multipart/form-data' not in content_type:
-            print(f"Expected multipart/form-data, got: {content_type}")
+            logger.warning("Expected multipart/form-data, got: %s", content_type)
             return None
         
         # For API Gateway, the body might be base64 encoded
@@ -208,7 +221,7 @@ def parse_multipart_form_data(event):
             try:
                 multipart_data = multipart_decoder.MultipartDecoder(raw_bytes, content_type)
             except Exception as e:
-                print(f"Multipart decoding failed: {e}")
+                logger.exception("Multipart decoding failed: %s", e)
                 return None
             for part in multipart_data.parts:
                 content_disposition = part.headers.get(b'Content-Disposition', b'').decode('utf-8', errors='ignore')
@@ -231,7 +244,7 @@ def parse_multipart_form_data(event):
         return None
         
     except Exception as e:
-        print(f"Error parsing multipart form data: {str(e)}")
+        logger.exception("Error parsing multipart form data: %s", e)
         return None
 
 def start_shift(tenant, facility_id, recording_data):
@@ -247,10 +260,11 @@ def start_shift(tenant, facility_id, recording_data):
     # 3. Creating shift record in DynamoDB
     # 4. Returning the identified userId
     
-    print(f"Starting shift for tenant {tenant}, facility {facility_id}")
+    logger.info("Starting shift for tenant %s, facility %s", tenant, facility_id)
     content = recording_data['content']
     preview = content[:100] if isinstance(content, (bytes, bytearray)) else bytes(str(content), 'utf-8')[:100]
-    print(f"Recording file: {recording_data['filename']} | type: {recording_data.get('content_type')} | size: {len(content)} bytes | preview(100): {preview!r}")
+    logger.debug("Recording file: %s | type: %s | size: %s bytes | preview(100): %r",
+                 recording_data['filename'], recording_data.get('content_type'), len(content), preview)
     
     # Placeholder - replace with actual implementation
     # In reality, this would process the voice recording and return the identified userId
@@ -279,7 +293,7 @@ def end_shift(user_id, tenant):
     # 3. Calculating shift duration
     # 4. Generating shift summary
     
-    print(f"Ending shift for user {user_id} in tenant {tenant}")
+    logger.info("Ending shift for user %s in tenant %s", user_id, tenant)
     
     # Placeholder - replace with actual implementation
     return {

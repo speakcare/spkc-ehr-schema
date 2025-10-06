@@ -1,4 +1,13 @@
 # models.py
+import os, sys
+import os, sys
+vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+if os.environ.get('AWS_EXECUTION_ENV'):  # running in Lambda
+    sys.path.insert(0, vendor_path)      # prefer Linux wheels
+else:
+    sys.path.append(vendor_path)   
+
+#sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'vendor'))
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import json

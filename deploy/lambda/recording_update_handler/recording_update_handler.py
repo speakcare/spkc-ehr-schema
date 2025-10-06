@@ -2,14 +2,20 @@
 
 import os
 import json
+import logging
 import boto3
 import re
 
 dynamo   = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
+    logger.info("Received event: %s", event)
     
     # Route to appropriate handler based on path
     path = event.get("path", "")

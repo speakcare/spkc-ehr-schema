@@ -1,6 +1,7 @@
 # recording_handler.py
 
 import json
+import logging
 import uuid
 import time
 import boto3
@@ -14,8 +15,13 @@ recordingDir = os.environ['S3_RECORDING_DIR']
 uploadExpires = int(os.environ['UPLOAD_EXPIRES'])
 presignUrlExpires = int(os.environ['PRESIGN_URL_EXPIRES'])
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
+    logger.info("Received event: %s", event)
     
     # Route to appropriate handler based on path
     path = event.get("path", "")
