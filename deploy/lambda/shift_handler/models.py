@@ -85,25 +85,29 @@ class ShiftStartData(BaseModel):
             "strict": True
         }
 
-    def validate_extraction(self, allowed_shifts: List[str], allowed_corridors: List[str]) -> tuple[bool, str]:
-        """Validate that all required fields are present and valid using provided allowed lists"""
+    def validate_extraction(self, allowed_shifts: List[str], allowed_corridors: List[str]) -> tuple[bool, str, str]:
+        """Validate that all required fields are present and valid using provided allowed lists.
+        
+        Returns:
+            tuple: (is_valid, error_message, error_code)
+        """
         try:
             # Check if fullName is not empty
             if self.fullName is None or not self.fullName.strip():
-                return False, "Full name is missing or empty"
+                return False, "Full name is missing or empty", "NAME_NOT_FOUND"
 
             # Validate against dynamic lists
             if self.shift is None:
-                return False, "Shift is missing"
+                return False, "Shift is missing", "SHIFT_ERROR"
             if self.shift not in allowed_shifts:
-                return False, f"Shift '{self.shift}' is not one of: {', '.join(allowed_shifts)}"
+                return False, f"Shift '{self.shift}' is not one of: {', '.join(allowed_shifts)}", "SHIFT_ERROR"
 
             if self.corridor is None or not self.corridor.strip():
-                return False, "Corridor name is missing or empty"
+                return False, "Corridor name is missing or empty", "CORRIDOR_ERROR"
             if self.corridor not in allowed_corridors:
-                return False, f"Corridor '{self.corridor}' is not one of: {', '.join(allowed_corridors)}"
+                return False, f"Corridor '{self.corridor}' is not one of: {', '.join(allowed_corridors)}", "CORRIDOR_ERROR"
 
-            return True, "All fields are valid"
+            return True, "All fields are valid", ""
 
         except Exception as e:
-            return False, f"Validation error: {str(e)}"
+            return False, f"Validation error: {str(e)}", "EXTRACTION_FAILED"

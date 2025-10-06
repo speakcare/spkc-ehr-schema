@@ -170,6 +170,7 @@ class SpeakCareCustomerStack(Stack):
             code=lambda_.Code.from_asset("lambda/user_handler"),
             environment={
                 "CUSTOMER_NAME": customer_name,
+                "MAX_SIGN_IN_AUDIO_SIZE_BYTES": os.getenv("MAX_SIGN_IN_AUDIO_SIZE_BYTES", "10485760"),
             },
             role=lambda_role,
             timeout=Duration.seconds(30),

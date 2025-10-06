@@ -1,1 +1,0 @@
-+ [ ] align enroll and shift start errors to the openapi yaml

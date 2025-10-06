@@ -340,6 +340,19 @@ components:
           type: array
           items:
             type: string
+            # Error Code Usage Summary:
+            # | Error Code           | Where Used                  | Trigger Conditions                 |
+            # |----------------------|-----------------------------|------------------------------------|
+            # | USER_ID_NOT_FOUND    | user_handler                | Invalid userId during enrollment   |
+            # | MISSING_PARAM        | shift_handler               | Missing path or query parameters   |
+            # | AUDIO_INVALID        | user_handler, shift_handler | Audio file issues, size limits     |
+            # | VOICE_NOT_MATCHED    | user_handler                | Voice quality issues               |
+            # | NAME_NOT_FOUND       | shift_handler               | Missing nurse name in extraction   |
+            # | NAME_NOT_MATCHED     | shift_handler               | Nurse name doesn't match system    |
+            # | SHIFT_ERROR          | shift_handler               | Invalid shift values               |
+            # | CORRIDOR_ERROR       | shift_handler               | Invalid corridor values            |
+            # | TRANSCRIPTION_FAILED | shift_handler               | Whisper API failures               |
+            # | EXTRACTION_FAILED    | shift_handler               | LLM extraction failures            |
             enum:
               - VOICE_NOT_MATCHED
               - NAME_NOT_FOUND
@@ -349,6 +362,8 @@ components:
               - AUDIO_INVALID
               - TRANSCRIPTION_FAILED
               - EXTRACTION_FAILED
+              - USER_ID_NOT_FOUND
+              - MISSING_PARAM
       required:
         - message
         - errorCodes

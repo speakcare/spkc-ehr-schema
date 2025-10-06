@@ -11,8 +11,8 @@ vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
 sys.path.insert(0, vendor_path)   
 from requests_toolbelt.multipart import decoder as multipart_decoder
 from shared_config import get_nurses_for_facility
+from audio_validator import validate_audio_comprehensive
 
-#TODO: align enroll and shift start errors to the openapi yaml
 
 # Initialize DynamoDB
 dynamo = boto3.resource('dynamodb')
@@ -60,18 +60,26 @@ def lambda_handler(event, context):
         recording_data = parse_multipart_form_data(event)
         
         if not recording_data:
-            return create_error_response(400, 'No recording file found in request')
+            return create_error_response(400, 'No recording file found in request', ['AUDIO_INVALID'])
         
         # Process user enrollment
-        result = enroll_user(user_id, tenant, recording_data)
+        enrollment_success, enrollment_message, error_code = enroll_user(user_id, tenant, recording_data)
+        if not enrollment_success:
+            return create_error_response(400, enrollment_message, [error_code])
         
         # Get username from shared config
         nurses = get_nurses_for_facility("default")  # TODO: get actual facility
         username = f"user.{user_id}"  # Default fallback
+        nurse_found = False
         for nurse in nurses:
             if nurse['userId'] == user_id:
                 username = nurse['username']
+                nurse_found = True
                 break
+        
+        # Validate that userId exists in the system
+        if not nurse_found:
+            return create_error_response(400, f"User ID '{user_id}' not found in system", ['USER_ID_NOT_FOUND'])
         
         return {
             'statusCode': 200,
@@ -138,8 +146,9 @@ def parse_multipart_form_data(event):
 def enroll_user(user_id, tenant, recording_data):
     """
     Enroll a user with voice recording.
-    This is a placeholder implementation - you'll need to implement
-    the actual enrollment logic based on your requirements.
+    
+    Returns:
+        tuple: (success, message, error_code)
     """
     # TODO: Implement actual enrollment logic
     # This could involve:
@@ -149,11 +158,24 @@ def enroll_user(user_id, tenant, recording_data):
     # 4. Calling external voice recognition services
     
     logger.info("Enrolling user %s for tenant %s", user_id, tenant)
+    
+    # Validate audio using shared validator    
+    is_valid, validation_message, error_code = validate_audio_comprehensive(recording_data)
+    if not is_valid:
+        return False, validation_message, error_code
+    
     try:
         size = len(recording_data['content']) if recording_data and recording_data.get('content') is not None else 0
     except Exception:
         size = 0
     logger.debug("Recording file: %s, size: %s bytes", recording_data.get('filename'), size)
+    
+    # TODO: Add voice quality validation here
+    # This could check for:
+    # - Background noise levels
+    # - Speech clarity
+    # - Minimum duration
+    # - Voice recognition confidence
     
     # Placeholder - replace with actual implementation
     # Example of what you might do:
@@ -161,20 +183,20 @@ def enroll_user(user_id, tenant, recording_data):
     # 2. Process with voice recognition service
     # 3. Store embeddings in DynamoDB
     
-    return {
-        'userId': user_id,
-        'status': 'enrolled',
-        'timestamp': int(time.time()),
-        'recordingProcessed': True
-    }
+    return True, "User enrolled successfully", ""
 
-def create_error_response(status_code, message):
+def create_error_response(status_code, message, error_codes=None):
     """
     Create standardized error response
     """
+    error_body = {
+        'message': message
+    }
+    
+    if error_codes:
+        error_body['errorCodes'] = error_codes
+    
     return {
         'statusCode': status_code,
-        'body': json.dumps({
-            'error': message
-        })
+        'body': json.dumps(error_body)
     }

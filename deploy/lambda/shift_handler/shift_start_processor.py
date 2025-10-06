@@ -82,8 +82,12 @@ class ShiftStartProcessor:
         except Exception as e:
             return False, f"Transcription failed: {str(e)}", None
 
-    def extract_shift_data(self, transcription_text: str, allowed_shifts: list[str], allowed_corridors: list[str], nurse_names: list[str]) -> Tuple[bool, str, Optional[ShiftStartData]]:
-        """Extract shift start data from transcription using OpenAI Chat Completion"""
+    def extract_shift_data(self, transcription_text: str, allowed_shifts: list[str], allowed_corridors: list[str], nurse_names: list[str]) -> Tuple[bool, str, Optional[ShiftStartData], str]:
+        """Extract shift start data from transcription using OpenAI Chat Completion
+        
+        Returns:
+            tuple: (success, message, shift_data, error_code)
+        """
         try:
             system_prompt = "You are a text-based sign-in agent. You are provided with a text and your job is to extract sign-in features from the text."
             user_prompt = f'''Here is the text from the user: '{transcription_text}'\n\nExtract the nurse's full name, shift name and corridor name from this text.
@@ -154,7 +158,7 @@ class ShiftStartProcessor:
                     shift_data.corridor = None
                 
                 # Validate the extracted data
-                is_valid, validation_message = shift_data.validate_extraction(allowed_shifts, allowed_corridors)
+                is_valid, validation_message, error_code = shift_data.validate_extraction(allowed_shifts, allowed_corridors)
                 if not is_valid:
                     try:
                         self.logger.debug("LLM raw response before post-check: %s", json.dumps(response_data, ensure_ascii=False))
@@ -164,19 +168,20 @@ class ShiftStartProcessor:
                         self.logger.debug("Allowed corridors: %s", json.dumps(allowed_corridors, ensure_ascii=False))
                     except Exception:
                         pass
-                    return False, f"Extraction validation failed: {validation_message}", None
+                    
+                    return False, f"Extraction validation failed: {validation_message}", None, error_code
                 
-                return True, "Extraction successful", shift_data
+                return True, "Extraction successful", shift_data, ""
                 
             except json.JSONDecodeError as e:
                 try:
                     self.logger.warning("Invalid JSON from LLM. Raw content: %s", response_content)
                 except Exception:
                     pass
-                return False, f"Invalid JSON response: {str(e)}", None
+                return False, f"Invalid JSON response: {str(e)}", None, "EXTRACTION_FAILED"
             except Exception as e:
-                return False, f"Data validation failed: {str(e)}", None
+                return False, f"Data validation failed: {str(e)}", None, "EXTRACTION_FAILED"
                 
         except Exception as e:
             self.logger.exception("Extraction failed: %s", e)
-            return False, f"Extraction failed: {str(e)}", None
+            return False, f"Extraction failed: {str(e)}", None, "EXTRACTION_FAILED"

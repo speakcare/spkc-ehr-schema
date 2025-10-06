@@ -16,11 +16,8 @@ import base64
 from requests_toolbelt.multipart import decoder as multipart_decoder
 from shift_start_processor import ShiftStartProcessor
 from shared_config import get_allowed_shifts, get_allowed_corridors, find_nurse_by_name, get_nurses_for_facility
+from audio_validator import validate_audio_comprehensive
 
-#TODO: align enroll and shift start errors to the openapi yaml
-
-# Initialize DynamoDB
-dynamo = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 
 def _sanitize_event_for_log(event: dict) -> dict:
@@ -79,7 +76,7 @@ def handle_start_shift(event, context, tenant):
         facility_id = query_params.get('facilityId')
         
         if not facility_id:
-            return create_error_response(400, 'Missing facilityId query parameter', ['AUDIO_INVALID'])
+            return create_error_response(400, 'Missing facilityId query parameter', ['MISSING_PARAM'])
         
         # Parse multipart form data for recording file
         recording_data = parse_multipart_form_data(event)
@@ -88,15 +85,15 @@ def handle_start_shift(event, context, tenant):
             return create_error_response(400, 'No recording file found in request', ['AUDIO_INVALID'])
         
         # Initialize audio processor
-        audio_processor = ShiftStartProcessor()
+        shift_processor = ShiftStartProcessor()
         
-        # Validate audio file
-        is_valid, validation_message = audio_processor.validate_audio(recording_data['content'])
+        # Validate audio using shared validator
+        is_valid, validation_message, error_code = validate_audio_comprehensive(recording_data)
         if not is_valid:
-            return create_error_response(400, validation_message, ['AUDIO_INVALID'])
+            return create_error_response(400, validation_message, [error_code])
         
         # Transcribe audio
-        transcription_success, transcription_message, transcription_text = audio_processor.transcribe_audio(
+        transcription_success, transcription_message, transcription_text = shift_processor.transcribe_audio(
             recording_data['content'], 
             recording_data.get('filename')
         )
@@ -113,23 +110,30 @@ def handle_start_shift(event, context, tenant):
         nurse_names = [f"{nurse['firstName']} {nurse['lastName']}" for nurse in nurses]
 
         # Extract shift data from transcription
-        extraction_success, extraction_message, shift_data = audio_processor.extract_shift_data(
+        extraction_success, extraction_message, shift_data, error_code = shift_processor.extract_shift_data(
             transcription_text,
             allowed_shifts,
             allowed_corridors,
             nurse_names
         )
         if not extraction_success:
-            return create_error_response(400, extraction_message, ['EXTRACTION_FAILED'])
+            return create_error_response(400, extraction_message, [error_code])
+        
+        # Additional validation for shift and corridor
+        if shift_data.shift and shift_data.shift not in allowed_shifts:
+            return create_error_response(400, f"Invalid shift '{shift_data.shift}'", ['SHIFT_ERROR'])
+        
+        if shift_data.corridor and shift_data.corridor not in allowed_corridors:
+            return create_error_response(400, f"Invalid corridor '{shift_data.corridor}'", ['CORRIDOR_ERROR'])
         
         # Validate nurse name and get user details
         if not shift_data.fullName:
-            return create_error_response(400, "Nurse name is required", ['MISSING_NURSE_NAME'])
+            return create_error_response(400, "Nurse name is required", ['NAME_NOT_FOUND'])
         
         # Find nurse by name
         nurse = find_nurse_by_name(shift_data.fullName)
         if not nurse:
-            return create_error_response(400, f"Nurse '{shift_data.fullName}' not found in system", ['NURSE_NOT_FOUND'])
+            return create_error_response(400, f"Nurse '{shift_data.fullName}' not found in system", ['NAME_NOT_MATCHED'])
         
         # Use actual nurse data
         user_id = nurse['userId']
@@ -167,7 +171,20 @@ def handle_end_shift(event, context, tenant):
         user_id = path_params.get('userId')
         
         if not user_id:
-            return create_error_response(400, 'Missing userId in path')
+            return create_error_response(400, 'Missing userId in path', ['MISSING_PARAM'])
+        
+        # Validate that userId exists in the nurse list
+        nurses = get_nurses_for_facility("default")  # TODO: get actual facility
+        nurse_found = False
+        username = f"user.{user_id}"  # Default fallback
+        for nurse in nurses:
+            if nurse['userId'] == user_id:
+                username = nurse['username']
+                nurse_found = True
+                break
+        
+        if not nurse_found:
+            return create_error_response(400, f"User ID '{user_id}' not found in system", ['USER_ID_NOT_FOUND'])
         
         # Process shift end
         result = end_shift(user_id, tenant)
@@ -181,7 +198,8 @@ def handle_end_shift(event, context, tenant):
             'body': json.dumps({
                 'status': 'success',
                 'message': 'Shift ended successfully',
-                'userId': user_id
+                'userId': user_id,
+                'username': username
             }, ensure_ascii=False, indent=4)
         }
         
