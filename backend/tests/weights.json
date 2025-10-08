@@ -1,0 +1,98 @@
+{
+    "name": "Weights",
+    "fields": [
+        {
+            "type": "singleLineText",
+            "name": "id"
+        },
+        {
+            "type": "multilineText",
+            "name": "Patient"
+        },
+        {
+            "type": "multilineText",
+            "name": "CreatedBy"
+        },
+        {
+            "type": "singleSelect",
+            "options": {
+                "choices": [
+                    {
+                        "name": "Lbs",
+                        "color": "blueLight2"
+                    },
+                    {
+                        "name": "Kg",
+                        "color": "cyanLight2"
+                    }
+                ]
+            },
+            "name": "Units",
+            "description": "(required)"
+        },
+        {
+            "type": "number",
+            "options": {
+                "precision": 1
+            },
+            "name": "Weight",
+            "description": "(required)"
+        },
+        {
+            "type": "singleSelect",
+            "options": {
+                "choices": [
+                    {
+                        "name": "Standing",
+                        "color": "blueLight2"
+                    },
+                    {
+                        "name": "Wheelchair",
+                        "color": "cyanLight2"
+                    },
+                    {
+                        "name": "Sitting",
+                        "color": "tealLight2"
+                    },
+                    {
+                        "name": "Bath",
+                        "color": "greenLight2"
+                    },
+                    {
+                        "name": "Bed",
+                        "color": "yellowLight2"
+                    },
+                    {
+                        "name": "Mechanical Lift",
+                        "color": "orangeLight2"
+                    },
+                    {
+                        "name": "Hoyer",
+                        "color": "redLight2"
+                    }
+                ]
+            },
+            "name": "Scale"
+        },
+        {
+            "type": "singleSelect",
+            "options": {
+                "choices": [
+                    {
+                        "name": "Draft",
+                        "color": "redBright"
+                    },
+                    {
+                        "name": "Approved",
+                        "color": "greenBright"
+                    },
+                    {
+                        "name": "Decline",
+                        "color": "grayBright"
+                    }
+                ]
+            },
+            "name": "SpeakCare"
+        }
+    ]
+}

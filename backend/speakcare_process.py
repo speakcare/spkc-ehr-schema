@@ -14,6 +14,7 @@ from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
 from os_utils import os_get_filename_without_ext, os_concat_current_time
 from speakcare_demo import speakcare_demo_record_and_process_audio
+import speakcare_airtable_api
 
 SpeakcareEnv.load_env()
 DB_DIRECTORY = os.getenv("DB_DIRECTORY", "db")
@@ -199,6 +200,8 @@ def main():
                         help='Transcribe only')
     parser.add_argument('-e', '--emr-record', type=str,
                         help='Name of EMR record file to process. If provided, we skip the recording and transciption and use this file directly.')
+    parser.add_argument('--dump-schema', type=str,
+                        help='Name of the table to dump schema for')
     # Parse arguments
     args = parser.parse_args()
 
@@ -210,6 +213,14 @@ def main():
 
     if args.emr_record:
         record_id, error = speakcare_create_emr_record(chart_filename=args.emr_record)
+        exit(0)
+
+    if args.dump_schema:
+        table_name = args.dump_schema
+        if table_name not in supported_tables:
+            parser.error(f"Invalid table name: {table_name}. Supported tables: {supported_tables}")
+        schema = EmrUtils.get_raw_table_schema(table_name)
+        print(json.dumps(schema, indent=4))
         exit(0)
 
     # Ensure --table is always provided if --list-devices is not used

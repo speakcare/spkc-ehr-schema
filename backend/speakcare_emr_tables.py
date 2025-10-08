@@ -1,5 +1,27 @@
+import os, sys
+
+from dotenv.main import logger
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from backend.speakcare_env import SpeakcareEnv
+
+SpeakcareEnv.load_env()
+
+
 class SpeakCareEmrTables:
-        # Table names
+
+    @classmethod
+    def is_test_env(cls):
+        return len(cls.get_person_table_prefix()) > 0
+
+    @classmethod
+    def is_test_table_rewrite_required(cls):
+        return os.getenv('PERSON_TEST_TABLE_REWRITE', 'false').lower() == 'true'
+    
+    @classmethod
+    def get_person_table_prefix(cls):
+        return os.getenv('PERSON_TEST_TABLE_PREFIX', 'Test')
+    
+    # Table names
     
     """
       The followoing are table names as they appear in the Airtable database 
@@ -8,14 +30,23 @@ class SpeakCareEmrTables:
       #TODO: load tables dynamically from the API
     """
     ### People ###
-    PATIENTS_TABLE = 'Patients'
-    NURSES_TABLE = 'Nurses'
+    def PATIENTS_TABLE(self): 
+        return f'{self.get_person_table_prefix()}_Patients' if self.get_person_table_prefix() else 'Patients'
+    def NURSES_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Nurses' if self.get_person_table_prefix() else 'Nurses'
+
     DOCTORS_TABLE = 'Doctors'
     
     ### Medical Records ###
     VITALS_TABLE = 'Vitals'
-    WEIGHTS_TABLE = 'Weights'
+    def TEST_WEIGHTS_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Weights' if self.get_person_table_prefix() else 'Weights'
+
+    def TEST_BLOOD_PRESSURES_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Blood Pressures' if self.get_person_table_prefix() else 'Blood Pressures'
+        
     BLOOD_PRESSURES_TABLE = 'Blood Pressures'
+    WEIGHTS_TABLE = 'Weights'
     BLOOD_SUGARS_TABLE = 'Blood Sugars'
     HEIGHTS_TABLE = 'Heights'
     TEMPERATURES_TABLE = 'Temperatures'
@@ -38,6 +69,11 @@ class SpeakCareEmrTables:
     ADMISSION_SECTION_8_FACILITY_TABLE      = 'Admission: SECTION 8. ORIENTATION TO FACILITY'
 
     # Fall Risk Screen
+    def TEST_FALL_RISK_SCREEN_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Fall Risk Screen' if self.get_person_table_prefix() else 'Fall Risk Screen'
+    def TEST_FALL_RISK_SCREEN_SECTION_1_TABLE(self):
+        return f'{self.get_person_table_prefix()}_Fall Risk Screen: SECTION 1' if self.get_person_table_prefix() else 'Fall Risk Screen: SECTION 1'
+    
     FALL_RISK_SCREEN_TABLE = 'Fall Risk Screen'
     FALL_RISK_SCREEN_SECTION_1_TABLE = 'Fall Risk Screen: SECTION 1'
 
@@ -113,100 +149,103 @@ class SpeakCareEmrTables:
       In order for a table to be accessed by the API, it should be added to this list
       # TODO: Table and sections names need to be loaded dyanically from the API
     """
-    EMR_TABLES = [
-        PATIENTS_TABLE,
-        NURSES_TABLE,
-        DOCTORS_TABLE,
-        EPISODES_TABLE, 
-        PROGRESS_NOTES_TABLE,
-        ADMISSION_TABLE,
-        FALL_RISK_SCREEN_TABLE,
-        VITALS_TABLE,
-        HARMONY_VITALS_TABLE,
-        LABOR_ADMISSION_SECTION_1_TABLE,
-        #LABOR_ADMISSION_SECTION_2_TABLE,
-        LABOR_ADMISSION_SECTION_3_TABLE,
-        LABOR_ADMISSION_SECTION_4_TABLE,
-        LABOR_ADMISSION_SECTION_5_TABLE,
-        MED_SRG_NURSING_ASSESSMENT_TABLE,
-        CRITICAL_CARE_NURSING_ASSESSMENT_TABLE,
-        SPORT_PERFORMANCE_ASSESSMENT_1,
-        SPORT_PERFORMANCE_ASSESSMENT_2,
-        SPORT_PERFORMANCE_ASSESSMENT_3,
-        SPORT_PERFORMANCE_ASSESSMENT_4,
-        SPORT_2_TEST,
-        SPORT_3_TEST,
+    def EMR_TABLES(self):
+        return [
+            self.PATIENTS_TABLE(),
+            self.NURSES_TABLE(),
+            self.DOCTORS_TABLE,
+            self.EPISODES_TABLE, 
+            self.PROGRESS_NOTES_TABLE,
+            self.ADMISSION_TABLE,
+            self.FALL_RISK_SCREEN_TABLE,
+            self.VITALS_TABLE,
+            self.HARMONY_VITALS_TABLE,
+            self.LABOR_ADMISSION_SECTION_1_TABLE,
+            # self.LABOR_ADMISSION_SECTION_2_TABLE,
+            self.LABOR_ADMISSION_SECTION_3_TABLE,
+            self.LABOR_ADMISSION_SECTION_4_TABLE,
+            self.LABOR_ADMISSION_SECTION_5_TABLE,
+            self.MED_SRG_NURSING_ASSESSMENT_TABLE,
+            self.CRITICAL_CARE_NURSING_ASSESSMENT_TABLE,
+            self.SPORT_PERFORMANCE_ASSESSMENT_1,
+            self.SPORT_PERFORMANCE_ASSESSMENT_2,
+            self.SPORT_PERFORMANCE_ASSESSMENT_3,
+            self.SPORT_PERFORMANCE_ASSESSMENT_4,
+            self.SPORT_2_TEST,
+            self.SPORT_3_TEST,
 
-        # Harmony
-        HARMONY_EXAM_SECTION_1_TABLE,
-        HARMONY_EXAM_SECTION_2_TABLE,
-        HARMONY_EXAM_SECTION_3_TABLE,
-        HARMONY_SAFETY_STATUS_SECTION_TABLE,
-        HARMONY_TREATMENTS_SECTION_TABLE,
-        
-        # Grove
-        GROVE_ASSESSMENT_DETAILS_TABLE,
-        GROVE_ASSESSMENT_DETAILS_FALL_TABLE,
-        MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
-        MHCS_ADMISSION_DETAILS_TABLE,
-        MHCS_EINTERACT_EVALUATION_TABLE,
-        MHCS_NEUROLOGICAL_EVALUATION_TABLE,
-        MHCS_ADMISSION_AIMS_TABLE,
-        MHCS_ADMISSION_ALCOHOL_TOBACCO_USE_TABLE,
-        MHCS_ADMISSION_BRADEN_TABLE,
-        MHCS_ADMISSION_EDUCATION_TABLE,
-        MHCS_ADMISSION_ELOPEMENT_TABLE,
-        MHCS_ADMISSION_ENABLER_BED_RAIL_SCREEN_TABLE,
-        MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_1,
-        MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_2,
-        MHCS_ADMISSION_FALL_SCREEN_TABLE,
-        MHCS_ADMISSION_INFECTIONS_TABLE,
-        MHCS_ADMISSION_INTERVENOUS_ACCESS_DEVICES_TABLE,
-        MHCS_ADMISSION_MEDICATIONS_TABLE,
-        MHCS_ADMISSION_PAIN_TABLE,
-        
-        # WEIGHTS_TABLE, 
-        # BLOOD_PRESSURES_TABLE, 
-        # BLOOD_SUGARS_TABLE, 
-        # HEIGHTS_TABLE, 
-        # TEMPERATURES_TABLE,
-        # O2_SATURATIONS_TABLE,
-        # PULSES_TABLE,
-        # RESPIRATION_TABLE
-    ]
+            # Harmony
+            self.HARMONY_EXAM_SECTION_1_TABLE,
+            self.HARMONY_EXAM_SECTION_2_TABLE,
+            self.HARMONY_EXAM_SECTION_3_TABLE,
+            self.HARMONY_SAFETY_STATUS_SECTION_TABLE,
+            self.HARMONY_TREATMENTS_SECTION_TABLE,
+            
+            # Grove
+            self.GROVE_ASSESSMENT_DETAILS_TABLE,
+            self.GROVE_ASSESSMENT_DETAILS_FALL_TABLE,
+            self.MHCS_NURSING_DAILY_SKILLED_NOTE_TABLE,
+            self.MHCS_ADMISSION_DETAILS_TABLE,
+            self.MHCS_EINTERACT_EVALUATION_TABLE,
+            self.MHCS_NEUROLOGICAL_EVALUATION_TABLE,
+            self.MHCS_ADMISSION_AIMS_TABLE,
+            self.MHCS_ADMISSION_ALCOHOL_TOBACCO_USE_TABLE,
+            self.MHCS_ADMISSION_BRADEN_TABLE,
+            self.MHCS_ADMISSION_EDUCATION_TABLE,
+            self.MHCS_ADMISSION_ELOPEMENT_TABLE,
+            self.MHCS_ADMISSION_ENABLER_BED_RAIL_SCREEN_TABLE,
+            self.MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_1,
+            self.MHCS_ADMISSION_EVALUATION_OF_BODY_SYSTEMS_TABLE_2,
+            self.MHCS_ADMISSION_FALL_SCREEN_TABLE,
+            self.MHCS_ADMISSION_INFECTIONS_TABLE,
+            self.MHCS_ADMISSION_INTERVENOUS_ACCESS_DEVICES_TABLE,
+            self.MHCS_ADMISSION_MEDICATIONS_TABLE,
+            self.MHCS_ADMISSION_PAIN_TABLE,
+            
+            # WEIGHTS_TABLE, 
+            # BLOOD_PRESSURES_TABLE, 
+            # BLOOD_SUGARS_TABLE, 
+            # HEIGHTS_TABLE, 
+            # TEMPERATURES_TABLE,
+            # O2_SATURATIONS_TABLE,
+            # PULSES_TABLE,
+            # RESPIRATION_TABLE
+        ]
 
     """
       The followoing are the dictionary of multi-section tables.
       A table that has sections should be added to this dict with its sections as a list.
       #TODO: load tables dynamically from the API
     """
-    TABLE_SECTIONS = { 
-            ADMISSION_TABLE: [
-                ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
-                ADMISSION_SECTION_2_VITALS_TABLE, 
-                ADMISSION_SECTION_3_SKIN_TABLE, 
-                ADMISSION_SECTION_4_PHYSICAL_TABLE, 
-                ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
-                ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
-                ADMISSION_SECTION_7_DISCHARGE_TABLE,
-                ADMISSION_SECTION_8_FACILITY_TABLE
+    def TABLE_SECTIONS(self):
+        return { 
+            self.ADMISSION_TABLE: [
+                self.ADMISSION_SECTION_1_DEMOGRAPHCS_TABLE, 
+                self.ADMISSION_SECTION_2_VITALS_TABLE, 
+                self.ADMISSION_SECTION_3_SKIN_TABLE, 
+                self.ADMISSION_SECTION_4_PHYSICAL_TABLE, 
+                self.ADMISSION_SECTION_5_BOWEL_BLADDER_TABLE, 
+                self.ADMISSION_SECTION_6_PSYCHOSOCIAL_TABLE,
+                self.ADMISSION_SECTION_7_DISCHARGE_TABLE,
+                self.ADMISSION_SECTION_8_FACILITY_TABLE
             ],            
-            FALL_RISK_SCREEN_TABLE: [FALL_RISK_SCREEN_SECTION_1_TABLE],
-            VITALS_TABLE: [
-                WEIGHTS_TABLE,
-                BLOOD_PRESSURES_TABLE,
-                BLOOD_SUGARS_TABLE,
-                HEIGHTS_TABLE,
-                TEMPERATURES_TABLE,
-                O2_SATURATIONS_TABLE,
-                PULSES_TABLE,
-                RESPIRATION_TABLE
+            self.FALL_RISK_SCREEN_TABLE: [self.FALL_RISK_SCREEN_SECTION_1_TABLE],
+            self.TEST_FALL_RISK_SCREEN_TABLE(): [self.TEST_FALL_RISK_SCREEN_SECTION_1_TABLE()],
+            self.VITALS_TABLE: [
+                self.WEIGHTS_TABLE,
+                self.BLOOD_PRESSURES_TABLE,
+                self.BLOOD_SUGARS_TABLE,
+                self.HEIGHTS_TABLE,
+                self.TEMPERATURES_TABLE,
+                self.O2_SATURATIONS_TABLE,
+                self.PULSES_TABLE,
+                self.RESPIRATION_TABLE
             ],
-            SPORT_2_TEST: [
-                STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_FOOT_REACH,
-                STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_FOOT_REACH,
-                HAND_STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_HAND_REACH,
-                HAND_STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_HAND_REACH,
+            self.SPORT_2_TEST: [
+                self.STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_FOOT_REACH,
+                self.STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_FOOT_REACH,
+                self.HAND_STAR_EXCURSION_BALANCE_TEST_L_FOOT_BALANCE_R_HAND_REACH,
+                self.HAND_STAR_EXCURSION_BALANCE_TEST_R_FOOT_BALANCE_L_HAND_REACH,
             ],
 
             # SPORT_PERFORMANCE_ASSESSMENT_2: [
@@ -217,13 +256,13 @@ class SpeakCareEmrTables:
             # ],
             
             # SPORT_PERFORMANCE_ASSESSMENT_3: [
-            SPORT_3_TEST: [
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ANTERIOR,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_OS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_SS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_POSTERIOR,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_OS,
-                GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_SS,
+            self.SPORT_3_TEST: [
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ANTERIOR,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_OS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_LATERAL_SS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_POSTERIOR,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_OS,
+                self.GLOBAL_INTEGRATED_ASSESSMENT_3DMAPS_LIMITING_AREAS_ROTATIONAL_SS,
             ],
             # SPORT_PERFORMANCE_ASSESSMENT_4: [
             #     LOCAL_ASSESSMENT_ENDURANCE,
@@ -232,4 +271,6 @@ class SpeakCareEmrTables:
             # ]
     }
 
-    PERSON_TABLES = [PATIENTS_TABLE, NURSES_TABLE, DOCTORS_TABLE]
+    def PERSON_TABLES(self):
+        return [self.PATIENTS_TABLE(), self.NURSES_TABLE(), self.DOCTORS_TABLE]
+    

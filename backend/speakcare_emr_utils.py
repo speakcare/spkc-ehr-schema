@@ -91,6 +91,10 @@ class EmrUtils:
         return section_names
 
     @staticmethod
+    def get_raw_table_schema(tableName: str):
+        return emr_api.get_raw_table_schema(tableName=tableName)
+
+    @staticmethod
     def get_table_json_schema(tableName: str):
         """
         get_table_writable_schema 
@@ -136,14 +140,22 @@ class EmrUtils:
         """
         logger.debug(f"lookup_patient: {name}")
         return emr_api.match_patient(name)
-    
+
+    @staticmethod
+    def lookup_nurse(name):
+        """
+        lookup_nurse
+        """
+        logger.debug(f"lookup_nurse: {name}")
+        return emr_api.match_nurse(name)
+
     @staticmethod
     def add_patient(patient: dict):
         logger.debug(f"add_patient:\n {patient}")
         errors = []
         patient_name = patient.get('FullName', None)
         logger.info(f"add_patient: {patient_name}")
-        isValid, validPatientFields = EmrUtils.validate_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        isValid, validPatientFields = EmrUtils.validate_record(emr_api.PATIENTS_TABLE(), patient, errors)
         if isValid:
             logger.info(f"add_patient: valid patient fields:\n {validPatientFields}")
             record = emr_api.add_patient(validPatientFields)
@@ -161,7 +173,7 @@ class EmrUtils:
     def update_patient(patientEmrId, patient):
         logger.info(f"update_patient: {patientEmrId}:\n {patient}")
         errors = []
-        isValid, validPatientFields = EmrUtils.validate_partial_record(SpeakCareEmr.PATIENTS_TABLE, patient, errors)
+        isValid, validPatientFields = EmrUtils.validate_partial_record(emr_api.PATIENTS_TABLE(), patient, errors)
         if isValid:
             logger.info(f"update_patient: valid patient fields:\n {validPatientFields}")
             record = emr_api.update_patient(patientEmrId, validPatientFields)
@@ -188,18 +200,18 @@ class EmrUtils:
         
     @staticmethod
     def get_patients_table_schema():
-        return EmrUtils.get_table_json_schema(SpeakCareEmr.PATIENTS_TABLE)
+        return EmrUtils.get_table_json_schema(emr_api.PATIENTS_TABLE())
     
     @staticmethod
     def get_patients_table_fields():
-        return EmrUtils.get_table_schema_fields(SpeakCareEmr.PATIENTS_TABLE)
+        return EmrUtils.get_table_schema_fields(emr_api.PATIENTS_TABLE())
      
     @staticmethod
     def add_nurse(nurse: dict):
         logger.info(f"add_nurse:\n {nurse}")
         errors = []
         nurse_name = nurse.get('Name', None)
-        isValid, validNurseFields = EmrUtils.validate_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        isValid, validNurseFields = EmrUtils.validate_record(emr_api.NURSES_TABLE(), nurse, errors)
         if isValid:
             logger.info(f"add_nurse: valid nurse fields:\n {validNurseFields}")
             record = emr_api.add_nurse(validNurseFields)
@@ -217,7 +229,7 @@ class EmrUtils:
     def update_nurse(nurseEmrId, nurse):
         logger.info(f"update_nurse: {nurseEmrId}:\n {nurse}")
         errors = []
-        isValid, validNurseFields = EmrUtils.validate_partial_record(SpeakCareEmr.NURSES_TABLE, nurse, errors)
+        isValid, validNurseFields = EmrUtils.validate_partial_record(emr_api.NURSES_TABLE(), nurse, errors)
         if isValid:
             logger.info(f"update_nurse: valid nurse fields:\n {validNurseFields}")
             record = emr_api.update_nurse(nurseEmrId, validNurseFields)
@@ -244,11 +256,11 @@ class EmrUtils:
         
     @staticmethod
     def get_nurses_table_schema():
-        return EmrUtils.get_table_json_schema(SpeakCareEmr.NURSES_TABLE)
+        return EmrUtils.get_table_json_schema(emr_api.NURSES_TABLE())
     
     @staticmethod
     def get_nurses_table_fields():
-        return EmrUtils.get_table_schema_fields(SpeakCareEmr.NURSES_TABLE)
+        return EmrUtils.get_table_schema_fields(emr_api.NURSES_TABLE())
     
 
     @staticmethod
@@ -331,10 +343,10 @@ class EmrUtils:
         if not isValid:
             _state = RecordState.ERRORS
 
-        if sections and table_name in SpeakCareEmr.TABLE_SECTIONS:  
+        if sections and table_name in emr_api.TABLE_SECTIONS():  
             for section_name, section in sections.items():
                 section_fields = section.get('fields', None)
-                if not section_name in SpeakCareEmr.TABLE_SECTIONS[table_name]:
+                if not section_name in emr_api.TABLE_SECTIONS()[table_name]:
                     err = f"Section '{section_name}' not found in table '{table_name}'"
                     logger.error(err)
                     _errors.append(err)
@@ -363,7 +375,7 @@ class EmrUtils:
                 else:
                     logger.debug(f"Section '{section_name}' has no fields. Skipping it.")
 
-        elif sections and not table_name in SpeakCareEmr.TABLE_SECTIONS:
+        elif sections and not table_name in emr_api.TABLE_SECTIONS():
                 #create a list from sections field 'table_name'
                 _sections_names = [section_name for section_name, _ in sections.items()]
                 err = f"Sections '{_sections_names}' provided for table '{table_name}' that has no sections"
@@ -474,7 +486,7 @@ class EmrUtils:
             _table_id = EmrUtils.get_table_id(_table_name)
             if not _table_id:
                 raise ValueError(f"Table name {_table_name} not found in the EMR.")
-
+            logger.debug(f"Creating record {_table_name} with patient {_patient_name} and nurse {_nurse_name}")
                 # fields data integrity check is done inside the create_record function - no need to do it here
             _state, _errors, _patient_name, _patient_id, _nurse_name, _nurse_id, _validated_fields, _validated_sections =\
                 EmrUtils.__record_validation_helper(table_name= _table_name, patient_name= _patient_name, nurse_name=_nurse_name, 
