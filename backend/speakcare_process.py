@@ -5,7 +5,7 @@ from typing import List
 import os
 import json
 from speakcare_audio import audio_check_input_device, audio_print_input_devices, audio_get_devices_string,audio_convert_to_wav, audio_is_wav
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_diarize import SpeakcareDiarize
 from speakcare_charting import create_chart_completion

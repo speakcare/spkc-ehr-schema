@@ -8,7 +8,7 @@ from werkzeug.datastructures import FileStorage
 from speakcare_emr_utils import EmrUtils
 from speakcare_audio import audio_get_input_devices
 from speakcare_demo import speakcare_demo_process_audio, speakcare_demo_record_and_process_audio
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from backend.speakcare_env import SpeakcareEnv
 
 SpeakcareEnv.load_env()

@@ -9,7 +9,7 @@ from speakcare_emr_utils import EmrUtils
 from boto3_session import Boto3Session
 from backend.speakcare_env import SpeakcareEnv
 from speakcare_audio import audio_convert_to_wav, audio_is_wav
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 from os_utils import os_ensure_file_directory_exists, os_get_file_extension, os_sanitize_name
 from speakcare_stt import SpeakcareOpenAIWhisper
 from speakcare_llm import openai_complete_schema_from_transcription

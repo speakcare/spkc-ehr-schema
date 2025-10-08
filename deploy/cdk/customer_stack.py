@@ -1,26 +1,28 @@
 import json
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as lambda_,
+    aws_logs as logs,
     aws_apigateway as apigw,
     aws_secretsmanager as secretsmanager,
     aws_certificatemanager as acm,
     aws_route53 as route53,
     aws_route53_targets as targets,
     Duration,
-    SecretValue,
     RemovalPolicy,
-    CfnOutput
+    CfnOutput,
 )
 from constructs import Construct
-import secrets
 from botocore.exceptions import ClientError
 import boto3
-
-
+import logging
+from .swagger_html_generator import SwaggerHtmlGenerator
 
 
 class SpeakCareCustomerStack(Stack):
@@ -30,8 +32,26 @@ class SpeakCareCustomerStack(Stack):
                  acm_cert_arn: str,
                 #  hosted_zone_id: str,
                  customer_domain: str,
+                 aws_profile: str = None,
+                 version: str = "v1",
+                 space: str = "tenants",
                  **kwargs):
         super().__init__(scope, id, **kwargs)
+
+        # Load environment variables from .env file
+        env_file_path = Path(__file__).parent.parent / '.env'
+        logger = logging.getLogger(__name__)
+        if env_file_path.exists():
+            load_dotenv(env_file_path)
+            logger.info("Loaded environment variables from %s", env_file_path)
+        else:
+            logger.info("No .env file found at %s", env_file_path)
+
+        # Store parameters
+        self.customer_name = customer_name
+        self.env_ = environment
+        self.version = version
+        self.space = space
 
         # --- S3 Bucket ---
         s3_bucket = s3.Bucket(
@@ -72,6 +92,7 @@ class SpeakCareCustomerStack(Stack):
 
         # --- Grant permissions to the lambda role ---
         s3_bucket.grant_put(lambda_role, "recording/*")
+        s3_bucket.grant_put(lambda_role, "telemetry/*")
         enrollments_table.grant_write_data(lambda_role)
         sessions_table.grant_write_data(lambda_role)
         
@@ -86,7 +107,7 @@ class SpeakCareCustomerStack(Stack):
         recording_handler = lambda_.Function(
             self, f"{customer_name}-recording-handler",
             function_name=f"speakcare-{customer_name}-recording-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="recording_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/recording_handler"),
             environment=lambda_env,
@@ -97,7 +118,7 @@ class SpeakCareCustomerStack(Stack):
         recording_update_handler = lambda_.Function(
             self, f"{customer_name}-recording-update-handler",
             function_name=f"speakcare-{customer_name}-recording-update-handler",
-            runtime=lambda_.Runtime.PYTHON_3_11,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             handler="recording_update_handler.lambda_handler",
             code=lambda_.Code.from_asset("lambda/recording_update_handler"),
             environment={
@@ -108,25 +129,182 @@ class SpeakCareCustomerStack(Stack):
             timeout=Duration.seconds(30),
             memory_size=128,
         )
-        # TODO: need code update and config update
+        
+        # Telemetry handler lambda
+        telemetry_handler = lambda_.Function(
+            self, f"{customer_name}-telemetry-handler",
+            function_name=f"speakcare-{customer_name}-telemetry-handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="telemetry_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/telemetry_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "S3_BUCKET": s3_bucket.bucket_name,
+                "S3_TELEMETRY_DIR": "telemetry",
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        # New lambda handlers for watch endpoints
+        nurse_handler = lambda_.Function(
+            self, f"{customer_name}-nurse-handler",
+            function_name=f"speakcare-{customer_name}-nurse-handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="nurse_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/nurse_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        user_handler = lambda_.Function(
+            self, f"{customer_name}-user-handler",
+            function_name=f"speakcare-{customer_name}-user-handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="user_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/user_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "MAX_SIGN_IN_AUDIO_SIZE_BYTES": os.getenv("MAX_SIGN_IN_AUDIO_SIZE_BYTES", "10485760"),
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        shift_handler = lambda_.Function(
+            self, f"{customer_name}-shift-handler",
+            function_name=f"speakcare-{customer_name}-shift-handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="shift_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/shift_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
+                "OPENAI_STT_MODEL": os.getenv("OPENAI_STT_MODEL", "whisper-1"),
+                "OPENAI_MODEL": os.getenv("OPENAI_MODEL", "gpt-4.1-nano-2025-04-14"),
+                "OPENAI_TEMPERATURE": os.getenv("OPENAI_TEMPERATURE", "0.2"),
+                "OPENAI_MAX_COMPLETION_TOKENS": os.getenv("OPENAI_MAX_COMPLETION_TOKENS", "4096"),
+                # Sign-in audio size limit and STT language controls
+                "MAX_SIGN_IN_AUDIO_SIZE_BYTES": os.getenv("MAX_SIGN_IN_AUDIO_SIZE_BYTES", "512000"),
+                "OPENAI_STT_LANGUAGE": os.getenv("OPENAI_STT_LANGUAGE", "en"),
+                "OPENAI_STT_TRANSLATE_TO_EN": os.getenv("OPENAI_STT_TRANSLATE_TO_EN", "true"),
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        # Generate Swagger UI HTML and upload to S3
+        swagger_html_key = "docs/swagger-ui.html"
+        
+        # Create a custom construct to generate Swagger HTML
+        swagger_generator = SwaggerHtmlGenerator(
+            self, f"{customer_name}-swagger-generator",
+            s3_bucket=s3_bucket,
+            html_key=swagger_html_key,
+            version=version,
+            space=space,
+            tenant=customer_name
+        )
+        
+        # Docs handler for Swagger UI
+        docs_handler = lambda_.Function(
+            self, f"{customer_name}-docs-handler",
+            function_name=f"speakcare-{customer_name}-docs-handler",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="docs_handler.lambda_handler",
+            code=lambda_.Code.from_asset("lambda/docs_handler"),
+            environment={
+                "CUSTOMER_NAME": customer_name,
+                "S3_BUCKET": s3_bucket.bucket_name,
+                "SWAGGER_HTML_S3_KEY": swagger_html_key,
+            },
+            role=lambda_role,
+            timeout=Duration.seconds(30),
+            memory_size=128,
+        )
+        
+        # Grant docs handler read access to the S3 bucket
+        s3_bucket.grant_read(docs_handler)
+        
+        # Ensure the Swagger HTML is generated before the Lambda is created
+        docs_handler.node.add_dependency(swagger_generator)
 
         # --- API Gateway ---
+        # CloudWatch logging for API Gateway
+        apigw_log_group = logs.LogGroup(
+            self, f"{customer_name}-apigw-logs",
+            retention=logs.RetentionDays.ONE_WEEK
+        )
+
+        # Optionally ensure API Gateway account-level CloudWatch Logs role is configured
+        # Can't read existing account settings during synth; allow opt-out via env var
+        setup_apigw_logs = os.getenv("SETUP_APIGW_LOGS", "false").lower() in ("1", "true", "yes")
+        apigw_account = None
+        if setup_apigw_logs:
+            apigw_log_role = iam.Role(
+                self, f"{customer_name}-apigw-cw-role",
+                assumed_by=iam.ServicePrincipal("apigateway.amazonaws.com"),
+                description="Role for API Gateway to push logs to CloudWatch"
+            )
+            apigw_log_role.add_managed_policy(
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonAPIGatewayPushToCloudWatchLogs")
+            )
+            apigw_account = apigw.CfnAccount(
+                self, f"{customer_name}-apigw-account",
+                cloud_watch_role_arn=apigw_log_role.role_arn,
+            )
+
         rest_api = apigw.RestApi(
             self, f"{customer_name}-api",
             rest_api_name=f"speakcare-{customer_name}-api",
             endpoint_types=[apigw.EndpointType.REGIONAL],
-            deploy_options=apigw.StageOptions(stage_name=environment),
+            deploy_options=apigw.StageOptions(
+                stage_name=self.env_,
+                logging_level=apigw.MethodLoggingLevel.INFO,
+                data_trace_enabled=True if self.env_ == 'dev' else False,
+                metrics_enabled=True,
+                access_log_destination=apigw.LogGroupLogDestination(apigw_log_group),
+                access_log_format=apigw.AccessLogFormat.json_with_standard_fields(
+                    caller=True,
+                    http_method=True,
+                    ip=True,
+                    protocol=True,
+                    request_time=True,
+                    resource_path=True,
+                    response_length=True,
+                    status=True,
+                    user=True,
+                ),
+            ),
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
             ),
+            binary_media_types=[
+                'multipart/form-data',
+                'application/octet-stream',
+                'audio/*',
+            ],
         )
+        # Ensure the account-level logs role is applied before stage update
+        if apigw_account is not None and rest_api.deployment_stage is not None:
+            rest_api.deployment_stage.node.add_dependency(apigw_account)
         # Resources
         recording = rest_api.root.add_resource("recording")
         enrollment = recording.add_resource("enrollment")
         enrollment_id = enrollment.add_resource("{recordingId}")
         session = recording.add_resource("session")
         session_id = session.add_resource("{recordingId}")
+        
+        # Telemetry resource
+        telemetry = rest_api.root.add_resource("telemetry")
 
         # Methods + Proxy Integration
         enrollment.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
@@ -135,13 +313,64 @@ class SpeakCareCustomerStack(Stack):
         session.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
         session_id.add_method("PATCH", apigw.LambdaIntegration(recording_update_handler), 
                               request_parameters={"method.request.path.recordingId": True}, api_key_required=True)
+        
+        # Telemetry endpoint
+        telemetry.add_method("POST", apigw.LambdaIntegration(telemetry_handler), api_key_required=True)
+
+        # --- New Structured API Gateway Paths ---
+        # /api/{version}/{space}/{tenant}/...
+        
+        # Create the structured API resources
+        api = rest_api.root.add_resource("api")
+        version = api.add_resource("{version}")
+        space = version.add_resource("{space}")
+        tenant = space.add_resource("{tenant}")
+        
+        # Nurses endpoint
+        nurses = tenant.add_resource("nurses")
+        nurses.add_method("GET", apigw.LambdaIntegration(nurse_handler), api_key_required=True)
+        
+        # Users endpoints
+        users = tenant.add_resource("users")
+        users_actions = users.add_resource("actions")
+        users_enroll = users_actions.add_resource("enroll")
+        users_enroll_user = users_enroll.add_resource("{userId}")
+        users_enroll_user.add_method("POST", apigw.LambdaIntegration(user_handler), api_key_required=True)
+        
+        # Shifts endpoints
+        shifts = tenant.add_resource("shifts")
+        shifts_actions = shifts.add_resource("actions")
+        shifts_start = shifts_actions.add_resource("start")
+        shifts_start.add_method("POST", apigw.LambdaIntegration(shift_handler), api_key_required=True)
+        shifts_end = shifts_actions.add_resource("end")
+        shifts_end_user = shifts_end.add_resource("{userId}")
+        shifts_end_user.add_method("POST", apigw.LambdaIntegration(shift_handler), api_key_required=True)
+        
+        # Recording endpoints (new structured versions)
+        recording_structured = tenant.add_resource("recording")
+        recording_structured.add_method("POST", apigw.LambdaIntegration(recording_handler), api_key_required=True)
+        recording_structured_id = recording_structured.add_resource("{recordingId}")
+        recording_structured_id.add_method("PATCH", apigw.LambdaIntegration(recording_update_handler), api_key_required=True)
+        
+        # Telemetry endpoint (new structured version)
+        telemetry_structured = tenant.add_resource("telemetry")
+        telemetry_structured.add_method("POST", apigw.LambdaIntegration(telemetry_handler), api_key_required=True)
+        
+        # Documentation endpoint (Swagger UI) - no API key required for docs
+        docs = tenant.add_resource("docs")
+        docs.add_method("GET", apigw.LambdaIntegration(docs_handler), api_key_required=False)
 
 
         # ------------------------------------------------------------
         # Create-or-reuse a Secrets Manager entry for the *value*
         # ------------------------------------------------------------
         secret_name = f"speakcare/{customer_name}/api-key"
-        sm  = boto3.client("secretsmanager", region_name=self.region) 
+        # Use the same AWS profile that was validated in app.py
+        if aws_profile:
+            session = boto3.Session(profile_name=aws_profile, region_name=self.region)
+        else:
+            session = boto3.Session(region_name=self.region)
+        sm = session.client("secretsmanager")
         api_key_secret = None
         secret_id = f"{customer_name}-api-key-secret"
         try:
@@ -206,7 +435,7 @@ class SpeakCareCustomerStack(Stack):
         # zone = route53.HostedZone.from_hosted_zone_id(self, "hosted-zone", hosted_zone_id)
         zone = route53.HostedZone.from_lookup(
             self, "hosted-zone",
-            domain_name=f"{environment}.speakcare.ai"
+            domain_name=f"{self.env_}.speakcare.ai"
         )
         domain_name = apigw.DomainName(
             self, f"{customer_name}-domain",

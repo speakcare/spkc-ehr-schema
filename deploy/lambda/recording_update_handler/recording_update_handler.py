@@ -2,15 +2,33 @@
 
 import os
 import json
+import logging
 import boto3
 import re
 
 dynamo   = boto3.resource('dynamodb')
 customer = os.environ['CUSTOMER_NAME']
 
+logger = logging.getLogger()
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
 def lambda_handler(event, context):
-    print(f"Received event: {event}")
-    # 1) Parse path parameters
+    logger.info("Received event: %s", event)
+    
+    # Route to appropriate handler based on path
+    path = event.get("path", "")
+    
+    # Check if this is the new structured API path
+    if "/api/" in path and "/recording/" in path:
+        return handle_new_recording_update_api(event, context)
+    else:
+        return handle_legacy_recording_update_api(event, context)
+
+def handle_legacy_recording_update_api(event, context):
+    """Handle legacy /recording/session/{recordingId} and /recording/enrollment/{recordingId} paths"""
+    # Parse path parameters
     path = event.get("path", "")
 
     # Check if the path matches the expected patterns
@@ -31,7 +49,7 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'Missing recordingId in path'})
         }
 
-    # 2) Parse body
+    # Parse body
     try:
         body = json.loads(event.get('body','{}'))
     except json.JSONDecodeError:
@@ -40,7 +58,53 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'Invalid JSON body'})
         }
 
-    # 2) Validate required fields
+    # Call the internal function
+    return update_recording_internal(recordingType, recordingId, body)
+
+def handle_new_recording_update_api(event, context):
+    """Handle new structured API /api/{version}/{space}/{tenant}/recording/{recordingId}"""
+    # Parse path parameters to extract tenant and recordingId
+    path_params = event.get('pathParameters', {})
+    tenant = path_params.get('tenant')
+    recordingId = path_params.get('recordingId')
+    
+    if not tenant:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Missing tenant in path'})
+        }
+    
+    if not recordingId:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Missing recordingId in path'})
+        }
+    
+    # Validate tenant matches customer
+    if tenant != customer:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Invalid tenant'})
+        }
+    
+    # Parse body
+    try:
+        body = json.loads(event.get('body','{}'))
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Invalid JSON body'})
+        }
+
+    # New API only handles sessions (no enrollments)
+    recordingType = "session"
+    
+    # Call the internal function
+    return update_recording_internal(recordingType, recordingId, body)
+
+def update_recording_internal(recordingType, recordingId, body):
+    """Internal function that handles the core recording update logic"""
+    # Validate required fields
     status = body.get('status')
     if status not in ('UPLOADED','PROCESSED','ERROR'):
         return {
@@ -50,14 +114,11 @@ def lambda_handler(event, context):
             })
         }
 
-
-    # 3) Derive table name
-    # enrollment table is "<customer>-recordings-enrollments"
-    # session table is "<customer>-recordings-sessions"
+    # Derive table name
     tableName = f"{customer}-recordings-{'enrollments' if recordingType=='enrollment' else 'sessions'}"
     table = dynamo.Table(tableName)
 
-    # 4) Perform the update: set status, remove expiresAt so TTL no longer applies
+    # Perform the update: set status, remove expiresAt so TTL no longer applies
     try:
         if status == 'UPLOADED':
             # When status is uploaded, include the md5sum field
@@ -86,7 +147,7 @@ def lambda_handler(event, context):
             'body': json.dumps({'error': 'Recording not found'})
         }
 
-    # 5) Return the updated resource
+    # Return the updated resource
     return {
         'statusCode': 200,
         'body': json.dumps({

@@ -4,5 +4,5 @@ portaudio #installed with homebrew or use the portaudio wheels
 ffmpeg
 google-cloud-sdk
 poppler
-
-
+mysql-client
+python3.12

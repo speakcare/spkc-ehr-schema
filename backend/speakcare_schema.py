@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 import copy
 import json
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 import traceback
 
 
@@ -135,7 +135,7 @@ class AirtableSchema:
             # regular record add person names here
             self.json_schema['properties']['patient_name'] = {
                 "type": [JsonSchemaTypes.STRING.value, JsonSchemaTypes.NULL.value],
-                "description": "The name of the patient"
+                "description": "The name of the patient - should be the full name: first name and last name separated by a space. If you are not sure - you may provide only the first name or the last name, without any other information (such as MR, MRs, etc)"
             }
             self.json_schema['required'].append('patient_name')
             # add here nurses when I am ready
