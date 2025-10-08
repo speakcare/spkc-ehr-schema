@@ -4,7 +4,7 @@ import os
 import requests
 from backend.speakcare_emr_tables import SpeakCareEmrTables
 from backend.speakcare_env import SpeakcareEnv
-from speakcare_logging import SpeakcareLogger
+from speakcare_common import SpeakcareLogger
 
 # Logger setup
 test_utils_logger = SpeakcareLogger('test.utils')

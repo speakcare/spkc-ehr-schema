@@ -11,6 +11,8 @@ import json
 import os
 import uuid
 from backend.speakcare_env import SpeakcareEnv
+from config import SpeakCareEmrApiconfig
+from speakcare_emr import get_emr_api_instance
 
 run_skipped_tests = False
 SpeakcareEnv.load_env()
