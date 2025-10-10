@@ -245,14 +245,15 @@ def parse_multipart_form_data(event):
                 content_disposition = part.headers.get(b'Content-Disposition', b'').decode('utf-8', errors='ignore')
                 if 'name="recording"' not in content_disposition:
                     continue
-                # Extract filename
-                filename = 'recording.wav'
+                # Extract filename (do not assume extension)
+                filename = 'recording'
                 for token in content_disposition.split(';'):
                     token = token.strip()
                     if token.startswith('filename='):
                         filename = token.split('=', 1)[1].strip('"')
                         break
-                content_type_hdr = part.headers.get(b'Content-Type', b'audio/wav').decode('utf-8', errors='ignore')
+                # Do not assume audio/wav; fall back to generic binary
+                content_type_hdr = part.headers.get(b'Content-Type', b'application/octet-stream').decode('utf-8', errors='ignore')
                 return {
                     'filename': filename,
                     'content': part.content,
