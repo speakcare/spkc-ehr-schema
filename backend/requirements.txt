@@ -63,3 +63,4 @@ typing_extensions
 urllib3
 webrtcvad
 yt_dlp
+jsonschema>=4.25.1
