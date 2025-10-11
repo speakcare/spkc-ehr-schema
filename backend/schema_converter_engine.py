@@ -155,11 +155,57 @@ json_schema = engine.get_json_schema("mds_assessment")
 is_valid, errors = engine.validate("mds_assessment", data)
 ```
 
+### Custom Validators:
+
+Validators can access the original field schema to perform complex validation:
+
+```python
+def custom_single_select_validator(engine, value, field_metadata):
+    '''Validate single select against field-specific options.'''
+    # Access the original field schema
+    field_schema = field_metadata.get("field_schema", {})
+    
+    # For Airtable: {"type": "singleSelect", "options": {"choices": [...]}}
+    options = field_schema.get("options", {})
+    choices = [c["name"] for c in options.get("choices", [])]
+    
+    if value not in choices:
+        return False, f"Value '{value}' not in allowed choices: {choices}"
+    
+    return True, ""
+
+# Register the validator (instance-specific, overrides global)
+engine.register_validator("singleSelect", custom_single_select_validator)
+```
+
+### Custom Schema Field Builders:
+
+Instance builders can access the complete field schema for complex JSON schema generation:
+
+```python
+def checkbox_yes_no_builder(engine, target_type, prop, nullable):
+    '''Build Yes/No enum for checkbox fields (PointClickCare style).'''
+    # Access field details if needed
+    field_name = prop.get("questionText", "Checkbox")
+    
+    return {
+        "type": ["string", "null"] if nullable else "string",
+        "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
+        "description": f"{field_name}: Select Yes or No"
+    }
+
+# Register the builder (instance-specific, overrides global)
+engine.register_schema_field_builder("checkbox", checkbox_yes_no_builder)
+```
+
 Notes:
 - Max tables per engine instance: 1000 (re-registration allowed; replaces previous
   table with same id and logs info).
 - Level keys are captured at every nesting level for reverse conversion.
 - Options can be simple list[str] or complex (requiring extractor function).
+- Validator signature: `(engine, value, field_metadata) -> (is_valid: bool, error: str)`
+- Global builder signature: `(engine, target_type, enum_values, nullable) -> Dict[str, Any]`
+- Instance builder signature: `(engine, target_type, field_schema, nullable) -> Dict[str, Any]`
 - The engine stores both `key` and `id` for bottom-level fields (for reverse mapping).
 """
 
@@ -184,14 +230,14 @@ MAX_TABLES_PER_ENGINE = 1000
 MAX_NESTING_LEVELS = 5
 
 # Function registries for schema builders and validators
-_schema_builder_registry: Dict[str, Callable] = {}
+_schema_field_builders_registry: Dict[str, Callable] = {}
 _validator_registry: Dict[str, Callable] = {}
 
 
-def register_schema_builder(internal_type: str):
+def register_schema_field_builder(internal_type: str):
     """Decorator to register a schema builder function for an internal field type."""
     def decorator(func: Callable):
-        _schema_builder_registry[internal_type] = func
+        _schema_field_builders_registry[internal_type] = func
         return func
     return decorator
 
@@ -204,9 +250,9 @@ def register_validator(internal_type: str):
     return decorator
 
 
-def get_schema_builder(internal_type: str) -> Optional[Callable]:
+def get_schema_field_builder(internal_type: str) -> Optional[Callable]:
     """Get the schema builder function for an internal field type."""
-    return _schema_builder_registry.get(internal_type)
+    return _schema_field_builders_registry.get(internal_type)
 
 
 def get_validator(internal_type: str) -> Optional[Callable]:
@@ -229,6 +275,8 @@ class SchemaConverterEngine:
         
         self._meta_schema = meta_schema_language
         self._options_extractor_registry: Dict[str, Callable] = {}
+        self._instance_validator_registry: Dict[str, Callable] = {}
+        self._instance_schema_field_builder_registry: Dict[str, Callable] = {}
 
         # Table registry: table_id -> registry record
         self._tables: Dict[str, Dict[str, Any]] = {}
@@ -238,6 +286,60 @@ class SchemaConverterEngine:
     def register_options_extractor(self, extractor_name: str, extractor_func: Callable[[Any], List[str]]) -> None:
         """Register an options extractor function."""
         self._options_extractor_registry[extractor_name] = extractor_func
+
+    def register_validator(self, target_type: str, validator_func: Callable) -> None:
+        """Register a custom validator for a target type (instance-specific).
+        
+        Validator signature: func(engine, value, field_metadata) -> (is_valid: bool, error: str)
+        - is_valid: True if valid, False otherwise
+        - error: Empty string if valid, error message otherwise
+        - field_metadata contains: key, name, level_keys, target_type, field_schema
+        
+        Instance validators override global validators for this engine instance only.
+        
+        Args:
+            target_type: The target type (e.g., "singleSelect", "percent", "boolean")
+            validator_func: Validation function
+            
+        Example:
+            def my_percent_validator(engine, value, field_metadata):
+                if not isinstance(value, (int, float)):
+                    return False, "Percent must be a number"
+                if not (0 <= value <= 100):
+                    return False, f"Percent must be 0-100, got {value}"
+                return True, ""
+            
+            engine.register_validator("percent", my_percent_validator)
+        """
+        self._instance_validator_registry[target_type] = validator_func
+        logger.debug(f"Registered instance validator for target_type='{target_type}'")
+
+    def register_schema_field_builder(self, target_type: str, builder_func: Callable) -> None:
+        """Register a custom JSON schema field builder for a target type (instance-specific).
+        
+        Builder signature: func(engine, target_type, field_schema, nullable) -> Dict[str, Any]
+        - field_schema: The original external field definition (contains type, options, etc.)
+        - nullable: Whether the field should allow null values
+        - Returns: JSON schema dict for this field
+        
+        Instance builders override global builders for this engine instance only.
+        
+        Args:
+            target_type: The target type (e.g., "checkbox", "percent")
+            builder_func: Schema builder function
+            
+        Example (PointClickCare checkbox as Yes/No enum):
+            def checkbox_yes_no_builder(engine, target_type, field_schema, nullable):
+                return {
+                    "type": ["string", "null"] if nullable else "string",
+                    "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
+                    "description": "Select Yes or No"
+                }
+            
+            engine.register_schema_field_builder("checkbox", checkbox_yes_no_builder)
+        """
+        self._instance_schema_field_builder_registry[target_type] = builder_func
+        logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
 
     def register_table(self, table_id: str, external_schema: Dict[str, Any]) -> None:
         """Register (or re-register) a table schema.
@@ -274,17 +376,83 @@ class SchemaConverterEngine:
         return rec["json_schema"]
 
     def validate(self, table_id: str, data: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        """Validate data against the registered JSON schema.
-
+        """Validate data against registered JSON schema and custom validators.
+        
         Returns (is_valid, errors).
+        - is_valid: True if all validations pass
+        - errors: List of error messages
         """
         rec = self._tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
+        
         schema = rec["json_schema"]
+        field_index = rec["field_index"]
+        
+        # Step 1: JSON schema validation (structure, types, required fields, enums)
         validator = DefaultValidator(schema)
         errors = [self._format_validation_error(e) for e in validator.iter_errors(data)]
-        return (len(errors) == 0), errors
+        
+        if errors:
+            return False, errors
+        
+        # Step 2: Custom validators (instance overrides global)
+        validation_errors = []
+        self._apply_custom_validators(data, field_index, validation_errors)
+        
+        is_valid = len(validation_errors) == 0
+        all_errors = errors + validation_errors
+        return is_valid, all_errors
+
+    def _apply_custom_validators(self, data: Dict[str, Any], field_index: List[Dict[str, Any]], errors: List[str]) -> None:
+        """Apply custom validators to each field (no value transformation)."""
+        for field_meta in field_index:
+            field_path = self._build_field_path(field_meta)
+            value = self._get_nested_value(data, field_path)
+            
+            if value is None:
+                continue  # Skip null values (already validated by JSON schema)
+            
+            target_type = field_meta.get("target_type")
+            if not target_type:
+                continue
+            
+            # Get validator (instance overrides global)
+            validator = self._instance_validator_registry.get(target_type) or get_validator(target_type)
+            
+            if validator:
+                try:
+                    # Instance validators use: (engine, value, field_metadata)
+                    # Global validators use: (engine, value)
+                    if target_type in self._instance_validator_registry:
+                        is_valid, error_msg = validator(self, value, field_meta)
+                    else:
+                        is_valid, error_msg = validator(self, value)
+                    
+                    if not is_valid and error_msg:
+                        field_path_str = '.'.join(str(p) for p in field_path)
+                        errors.append(f"{field_path_str}: {error_msg}")
+                        
+                except Exception as e:
+                    field_path_str = '.'.join(str(p) for p in field_path)
+                    logger.error(f"Validator error for {field_path_str}: {e}")
+                    errors.append(f"{field_path_str}: Validator exception: {str(e)}")
+
+    def _build_field_path(self, field_meta: Dict[str, Any]) -> List[str]:
+        """Build path to field from metadata (e.g., ['fields', 'Patient Name'])."""
+        level_keys = field_meta.get("level_keys", [])
+        field_name = field_meta.get("name") or field_meta.get("key")
+        return level_keys + [field_name]
+
+    def _get_nested_value(self, data: Dict[str, Any], path: List[str]) -> Any:
+        """Get value from nested dictionary using path."""
+        current = data
+        for key in path:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
 
     # --------------------------- Schema building ------------------------------
 
@@ -319,8 +487,8 @@ class SchemaConverterEngine:
         if not isinstance(properties_array, list):
             raise ValueError(f"Expected array at '{properties_name}', got {type(properties_array)}")
 
-        # Use unified property processing
-        item_properties, field_index = self._process_properties(properties_array, property_def, [])
+        # Use unified property processing with properties_name as level_keys
+        item_properties, field_index = self._process_properties(properties_array, property_def, level_keys=[properties_name])
 
         # Create root object with properties_name container (same as nested structure)
         root: Dict[str, Any] = {
@@ -328,6 +496,11 @@ class SchemaConverterEngine:
             "additionalProperties": False,
             "title": table_title,  # Add title from schema_name field
             "properties": {
+                "table_name": {
+                    "type": "string",
+                    "const": table_title,
+                    "description": "The name of the table"
+                },
                 properties_name: {
                     "type": "object",
                     "additionalProperties": False,
@@ -335,7 +508,7 @@ class SchemaConverterEngine:
                     "required": list(item_properties.keys())
                 }
             },
-            "required": [properties_name],
+            "required": ["table_name", properties_name],
         }
 
         return root, field_index
@@ -366,8 +539,15 @@ class SchemaConverterEngine:
             "type": "object",
             "additionalProperties": False,
             "title": table_title,  # Add title from schema_name field
-            "properties": root_properties,
-            "required": root_required,
+            "properties": {
+                "table_name": {
+                    "type": "string",
+                    "const": table_title,
+                    "description": "The name of the table"
+                },
+                **root_properties
+            },
+            "required": ["table_name"] + root_required,
         }
 
         return root, field_index
@@ -386,14 +566,16 @@ class SchemaConverterEngine:
             # Get field name for JSON schema property name (use name if available, fallback to key)
             field_name = prop.get(property_def.get("name", ""), field_key)
             
-            # Build field schema
-            field_schema = self._build_property_schema(prop, property_def)
-            properties[field_name] = field_schema
+            # Build field schema (returns tuple of json_schema and target_type)
+            json_schema, target_type = self._build_property_schema(prop, property_def)
+            properties[field_name] = json_schema
             
             # Collect field metadata using meta-schema field names
             field_metadata = {
                 "key": field_key,
                 "level_keys": level_keys.copy(),
+                "target_type": target_type,
+                "field_schema": prop,
                 # Add optional fields if they exist in meta-schema using dictionary comprehension
                 **{k: prop.get(property_def[k], "") for k in ["id", "name", "title"] if k in property_def}
             }
@@ -431,23 +613,26 @@ class SchemaConverterEngine:
                 if "name" in object_def:
                     current_level_name = item.get(object_def["name"])
                 
-                # Create property name using key.name format
-                if current_level_key and current_level_name:
-                    property_name = f"{current_level_key}.{current_level_name}"
-                elif current_level_key:
-                    property_name = current_level_key
-                else:
-                    continue  # Skip items without key
+                # Early exit: Skip items without key
+                if not current_level_key:
+                    continue
                 
-                # Update level keys for property processing
-                updated_level_keys = level_keys.copy()
-                if current_level_key:
-                    updated_level_keys.append(current_level_key)
-                
-                # Get the properties array from this item
+                # Early exit: Skip items without properties array
                 properties_array = item.get(properties_name, [])
                 if not isinstance(properties_array, list):
                     continue
+                
+                # Create property name using key.name format
+                if current_level_name:
+                    property_name = f"{current_level_key}.{current_level_name}"
+                else:
+                    property_name = current_level_key
+                
+                # Update level keys for property processing
+                updated_level_keys = level_keys.copy()
+                updated_level_keys.append(current_level_key)
+                # Add properties_name to level_keys for consistency
+                updated_level_keys.append(properties_name)
                 
                 # Use unified property processing with updated level keys
                 item_properties, item_field_index = self._process_properties(properties_array, property_def, updated_level_keys)
@@ -529,8 +714,12 @@ class SchemaConverterEngine:
 
         return container_obj, collected
 
-    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Dict[str, Any]:
-        """Build JSON schema for a single property."""
+    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+        """Build JSON schema for a single property.
+        
+        Returns:
+            Tuple of (json_schema, target_type)
+        """
         # Get field type from property
         type_field = property_def["type"]
         field_type = prop.get(type_field)
@@ -582,14 +771,30 @@ class SchemaConverterEngine:
             else:
                 raise ValueError(f"Field type '{field_type}' requires options but no extractor provided")
 
-        # Build schema using registry
-        schema_builder = get_schema_builder(target_type)
-        if schema_builder:
+        # Build schema using registry (instance overrides global)
+        # Check instance registry first
+        instance_builder = self._instance_schema_field_builder_registry.get(target_type)
+        
+        if instance_builder:
+            # Instance builders use: (engine, target_type, field_schema, nullable)
             try:
-                return schema_builder(self, target_type, enum_values, True)  # Always nullable
+                json_schema = instance_builder(self, target_type, prop, True)  # Always nullable
+                return json_schema, target_type
             except Exception as e:
-                logger.error(f"Schema builder error for type '{target_type}': {e}")
-                raise ValueError(f"Schema builder error for type '{target_type}': {e}")
+                logger.error(f"Instance schema builder error for type '{target_type}': {e}")
+                raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
+        
+        # Fall back to global registry
+        global_builder = get_schema_field_builder(target_type)
+        
+        if global_builder:
+            # Global builders use: (engine, target_type, enum_values, nullable)
+            try:
+                json_schema = global_builder(self, target_type, enum_values, True)  # Always nullable
+                return json_schema, target_type
+            except Exception as e:
+                logger.error(f"Global schema builder error for type '{target_type}': {e}")
+                raise ValueError(f"Global schema builder error for type '{target_type}': {e}")
         else:
             raise ValueError(f"No schema builder found for target type '{target_type}'")
 
@@ -719,48 +924,48 @@ class SchemaConverterEngine:
 
 # ----------------------------- Default Schema Builders -----------------------------
 
-@register_schema_builder("string")
+@register_schema_field_builder("string")
 def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default string schema builder - always nullable."""
     return {"type": ["string", "null"]}
 
 
-@register_schema_builder("integer")
+@register_schema_field_builder("integer")
 def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default integer schema builder - always nullable."""
     return {"type": ["integer", "null"]}
 
 
-@register_schema_builder("number")
+@register_schema_field_builder("number")
 def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default number schema builder - always nullable."""
     return {"type": ["number", "null"]}
 
-@register_schema_builder("percent")
+@register_schema_field_builder("percent")
 def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Percent schema builder - nullable number constrained to 0..100."""
     return {"type": ["number", "null"], "minimum": 0, "maximum": 100}
 
 
-@register_schema_builder("boolean")
+@register_schema_field_builder("boolean")
 def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default boolean schema builder - always nullable."""
     return {"type": ["boolean", "null"]}
 
 
-@register_schema_builder("date")
+@register_schema_field_builder("date")
 def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default date schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date", "description": "ISO 8601 date (YYYY-MM-DD)"}
 
 
-@register_schema_builder("datetime")
+@register_schema_field_builder("datetime")
 def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default datetime schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date-time", "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"}
 
 
-@register_schema_builder("singleSelect")
+@register_schema_field_builder("singleSelect")
 def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default singleSelect schema builder - always nullable."""
     base = {"type": ["string", "null"], "description": "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"}
@@ -769,7 +974,7 @@ def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: st
     return base
 
 
-@register_schema_builder("multipleSelect")
+@register_schema_field_builder("multipleSelect")
 def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default multipleSelect schema builder - always nullable."""
     base = {
@@ -781,20 +986,20 @@ def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: 
         base["items"]["enum"] = enum_values
     return base
 
-@register_schema_builder("currency")
+@register_schema_field_builder("currency")
 def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Currency schema builder - nullable number with hint about precision."""
     # We don't encode precision constraints here; description guides the model.
     return {"type": ["number", "null"], "description": "Currency - must be a number with up to 2 decimal precision"}
 
 
-@register_schema_builder("array")
+@register_schema_field_builder("array")
 def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default array schema builder - always nullable."""
     return {"type": ["array", "null"]}
 
 
-@register_schema_builder("object")
+@register_schema_field_builder("object")
 def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default object schema builder - always nullable."""
     return {"type": ["object", "null"]}

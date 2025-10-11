@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "backend"}]
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.12"
 aiofiles = "24.1.0"
 aniso8601 = "10.0.1"
 annotated-types = "0.7.0"
@@ -15,7 +15,7 @@ anyio = "4.10.0"
 asgi-csrf = "0.11"
 asgiref = "3.9.1"
 attrs = "25.3.0"
-audioop-lts = "0.2.2"
+audioop-lts = { version = "^0.2.2", markers = 'python_version >= "3.13"' }
 audioread = "3.0.1"
 blinker = "1.9.0"
 boto3 = "1.40.27"
@@ -159,7 +159,7 @@ uvicorn = "0.35.0"
 webrtcvad = "2.0.10"
 werkzeug = "3.1.3"
 yt-dlp = "2025.9.5"
-speakcare-common = {git = "https://github.com/speakcare/speakcare-common.git", tag = "v1.0.0"}
+speakcare-common = {git = "https://github.com/speakcare/speakcare-common.git", branch = "main"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.4.2"

@@ -16,6 +16,7 @@ Tests cover:
 import unittest
 from unittest.mock import patch
 import logging
+import copy
 from typing import List, Dict, Any
 
 from schema_converter_engine import SchemaConverterEngine
@@ -204,7 +205,13 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(schema["type"], "object")
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["title"], "Patient Assessment")
-        self.assertEqual(list(schema["required"]), ["fields"])
+        self.assertEqual(set(schema["required"]), {"table_name", "fields"})
+        
+        # Verify table_name field
+        table_name_field = schema["properties"]["table_name"]
+        self.assertEqual(table_name_field["type"], "string")
+        self.assertEqual(table_name_field["const"], "Patient Assessment")
+        self.assertEqual(table_name_field["description"], "The name of the table")
         
         # Verify fields container structure
         fields_container = schema["properties"]["fields"]
@@ -319,7 +326,13 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(schema["type"], "object")
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["title"], "MDS 2.0 Full Assessment")
-        self.assertEqual(list(schema["required"]), ["sections"])
+        self.assertEqual(set(schema["required"]), {"table_name", "sections"})
+        
+        # Verify table_name field
+        table_name_field = schema["properties"]["table_name"]
+        self.assertEqual(table_name_field["type"], "string")
+        self.assertEqual(table_name_field["const"], "MDS 2.0 Full Assessment")
+        self.assertEqual(table_name_field["description"], "The name of the table")
         
         # Verify sections container structure
         sections = schema["properties"]["sections"]
@@ -488,7 +501,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(field_info["key"], "AA1")
         self.assertEqual(field_info["id"], "1")
         self.assertEqual(field_info["name"], "Test question")
-        self.assertEqual(field_info["level_keys"], ["AA", "1"])
+        self.assertEqual(field_info["level_keys"], ["AA", "1", "questions"])
 
     def test_validation_success(self):
         """Test successful data validation."""
@@ -524,6 +537,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Valid data
         valid_data = {
+            "table_name": "Validation Test",
             "fields": {
                 "Full name": "John Doe",
                 "Age in years": 30,
@@ -569,6 +583,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Invalid data
         invalid_data = {
+            "table_name": "Validation Test",
             "fields": {
                 "Full name": "John Doe",
                 "Age in years": "not_a_number",  # Wrong type
@@ -604,6 +619,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Valid date
         valid_data = {
+            "table_name": "Date Test",
             "fields": {"Birth date": "1990-01-15"}
         }
         is_valid, errors = self.flat_engine.validate("date_test", valid_data)
@@ -611,11 +627,14 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Invalid date (jsonschema doesn't validate format by default)
         invalid_data = {
+            "table_name": "Date Test",
             "fields": {"Birth date": "not-a-date"}
         }
         is_valid, errors = self.flat_engine.validate("date_test", invalid_data)
-        # Note: jsonschema doesn't validate format by default, so this will pass
-        self.assertTrue(is_valid)
+        # Note: jsonschema doesn't validate format by default, but our custom validator does
+        # So this will fail validation due to custom date validator
+        self.assertFalse(is_valid)
+        self.assertIn("Invalid ISO date format", errors[0])
 
     def test_unknown_table_errors(self):
         """Test errors for unknown table operations."""
@@ -890,7 +909,13 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(schema["type"], "object")
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["title"], "Comprehensive Deep Nested Assessment Form")
-        self.assertEqual(list(schema["required"]), ["level1s"])
+        self.assertEqual(set(schema["required"]), {"table_name", "level1s"})
+        
+        # Verify table_name field
+        table_name_field = schema["properties"]["table_name"]
+        self.assertEqual(table_name_field["type"], "string")
+        self.assertEqual(table_name_field["const"], "Comprehensive Deep Nested Assessment Form")
+        self.assertEqual(table_name_field["description"], "The name of the table")
         
         # Verify level1s container
         level1s = schema["properties"]["level1s"]
@@ -948,7 +973,303 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(field1_info["key"], "field1")
         self.assertEqual(field1_info["id"], "1")
         self.assertEqual(field1_info["name"], "First field")
-        self.assertEqual(field1_info["level_keys"], ["L1A", "L2A1", "L3A1a", "L4A1a1"])
+        self.assertEqual(field1_info["level_keys"], ["L1A", "L2A1", "L3A1a", "L4A1a1", "level5s"])
+
+    def test_instance_validator_override(self):
+        """Test that instance validators can be registered and override global validators."""
+        # Register instance-specific validator for string type (which has no global validator)
+        def strict_string_validator(engine, value, field_metadata):
+            if not isinstance(value, str):
+                return False, "Must be string"
+            if len(value) < 5:
+                return False, f"String too short, must be at least 5 chars, got {len(value)}"
+            return True, ""
+        
+        self.flat_engine.register_validator("string", strict_string_validator)
+        
+        # Register a test table with string field
+        test_schema = {
+            "table_name": "Test String",
+            "fields": [
+                {
+                    "field_id": "name",
+                    "field_number": "1",
+                    "field_name": "Name Field",
+                    "field_title": "Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        self.flat_engine.register_table("test_string_table", test_schema)
+        
+        # Value "abc" passes JSON schema but fails custom validator
+        data = {
+            "table_name": "Test String",
+            "fields": {"Name Field": "abc"}
+        }
+        
+        is_valid, errors = self.flat_engine.validate("test_string_table", data)
+        # The custom validator should be called and should fail
+        self.assertFalse(is_valid, f"Expected validation to fail, but got errors: {errors}")
+        self.assertTrue(len(errors) > 0, "Expected at least one error")
+        self.assertIn("String too short", errors[0])
+
+    def test_instance_schema_field_builder_override(self):
+        """Test that instance builders override global builders."""
+        # Create a new engine for this test with checkbox type mapping
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        # Add checkbox type mapping to meta-schema BEFORE creating engine
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["checkbox"] = {
+            "target_type": "boolean",
+            "requires_options": False
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register custom checkbox builder (Yes/No instead of boolean)
+        def checkbox_yes_no_builder(engine, target_type, field_schema, nullable):
+            return {
+                "type": ["string", "null"] if nullable else "string",
+                "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
+                "description": "Select Yes or No"
+            }
+        
+        engine.register_schema_field_builder("boolean", checkbox_yes_no_builder)
+        
+        # Register table with boolean field
+        table_schema = {
+            "name": "Test Table",
+            "fields": [
+                {"field_name": "active", "field_type": "checkbox", "field_id": "active_id"}
+            ]
+        }
+        
+        engine.register_table("test_checkbox_table", table_schema)
+        json_schema = engine.get_json_schema("test_checkbox_table")
+        
+        # Verify custom builder was used
+        active_field = json_schema["properties"]["fields"]["properties"]["active"]
+        self.assertEqual(active_field["enum"], ["Yes", "No", None])
+        self.assertIn("Select Yes or No", active_field["description"])
+
+    def test_custom_validator_with_field_schema_access(self):
+        """Test that custom validators can access field_schema for validation."""
+        def single_select_validator_with_options(engine, value, field_metadata):
+            # Access the original field schema
+            field_schema = field_metadata.get("field_schema", {})
+            
+            # Extract options from field schema
+            options = field_schema.get("field_options", [])
+            
+            if value not in options:
+                return False, f"Value '{value}' not in allowed choices: {options}"
+            
+            return True, ""
+        
+        # Register the validator
+        self.flat_engine.register_validator("singleSelect", single_select_validator_with_options)
+        
+        # Register a test table with singleSelect field
+        test_schema = {
+            "table_name": "Test Single Select",
+            "fields": [
+                {
+                    "field_id": "priority",
+                    "field_number": "1",
+                    "field_name": "Priority Level",
+                    "field_title": "Priority",
+                    "field_type": "rad",
+                    "field_options": ["High", "Medium", "Low"]
+                }
+            ]
+        }
+        
+        self.flat_engine.register_table("test_single_select", test_schema)
+        
+        # Test with valid choice
+        valid_data = {
+            "table_name": "Test Single Select",
+            "fields": {"Priority Level": "High"}
+        }
+        
+        is_valid, errors = self.flat_engine.validate("test_single_select", valid_data)
+        self.assertTrue(is_valid)
+        self.assertEqual(len(errors), 0)
+        
+        # Test with invalid choice
+        invalid_data = {
+            "table_name": "Test Single Select", 
+            "fields": {"Priority Level": "Unknown"}  # Not in choices
+        }
+        
+        is_valid, errors = self.flat_engine.validate("test_single_select", invalid_data)
+        self.assertFalse(is_valid)
+        self.assertIn("'Unknown' is not one of ['High', 'Medium', 'Low']", errors[0])
+
+    def test_custom_builder_with_field_schema_access(self):
+        """Test that custom builders can access field_schema for schema generation."""
+        def percent_with_precision_builder(engine, target_type, field_schema, nullable):
+            # Access field details from schema
+            field_name = field_schema.get("field_name", "Percent")  # Use field_name from meta-schema
+            precision = field_schema.get("precision", 2)  # Default 2 decimal places
+            
+            return {
+                "type": ["number", "null"] if nullable else "number",
+                "minimum": 0,
+                "maximum": 100,
+                "multipleOf": 10 ** -precision,
+                "description": f"{field_name}: Percentage with {precision} decimal precision"
+            }
+        
+        # Create new engine and register custom builder
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        engine = SchemaConverterEngine(test_meta)
+        engine.register_schema_field_builder("percent", percent_with_precision_builder)
+        
+        # Register table with percent field that has precision info
+        table_schema = {
+            "name": "Test Table",
+            "fields": [
+                {"field_name": "accuracy", "field_type": "percent", "precision": 3, "field_id": "accuracy_id"}
+            ]
+        }
+        
+        engine.register_table("test_percent_table", table_schema)
+        json_schema = engine.get_json_schema("test_percent_table")
+        
+        # Verify custom builder was used with field-specific precision
+        accuracy_field = json_schema["properties"]["fields"]["properties"]["accuracy"]
+        self.assertEqual(accuracy_field["multipleOf"], 0.001)  # 10^-3
+        self.assertIn("accuracy: Percentage with 3 decimal precision", accuracy_field["description"])
+
+    def test_custom_properties_name_field_path(self):
+        """Test that field paths use the correct properties_name from meta-schema."""
+        # Create meta-schema with custom properties_name
+        custom_meta = copy.deepcopy(self.flat_meta_schema)
+        custom_meta["properties"]["properties_name"] = "custom_fields"  # Change from "fields"
+        
+        engine = SchemaConverterEngine(custom_meta)
+        
+        # Register a simple test table with a field that we know works
+        table_schema = {
+            "name": "Test Custom Properties",
+            "custom_fields": [  # Use custom_fields to match our custom properties_name
+                {
+                    "field_id": "test_field",
+                    "field_number": "1", 
+                    "field_name": "Test Field",
+                    "field_title": "Test",
+                    "field_type": "text"  # Use text which is in allowed_types
+                }
+            ]
+        }
+        
+        engine.register_table("test_custom_props", table_schema)
+        
+        # Check that the field was registered
+        field_index = engine._tables["test_custom_props"]["field_index"]
+        self.assertEqual(len(field_index), 1, f"Expected 1 field, got {len(field_index)}")
+        
+        # Check that the field path uses custom_fields
+        field_meta = field_index[0]
+        expected_path = ["custom_fields", "Test Field"]
+        
+        # Test the _build_field_path method directly
+        actual_path = engine._build_field_path(field_meta)
+        self.assertEqual(actual_path, expected_path, f"Expected path {expected_path}, got {actual_path}")
+
+    def test_global_validator_fallback(self):
+        """Test that global validators are used when no instance validator is registered."""
+        # Don't register any instance validator for "string" type
+        
+        # Register a simple test table
+        test_schema = {
+            "table_name": "Test Text",
+            "fields": [
+                {
+                    "field_id": "text_field",
+                    "field_number": "1",
+                    "field_name": "Text Field",
+                    "field_title": "Text",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        self.flat_engine.register_table("test_text_table", test_schema)
+        
+        # Test with valid string data
+        valid_data = {
+            "table_name": "Test Text",
+            "fields": {"Text Field": "Some text"}
+        }
+        
+        is_valid, errors = self.flat_engine.validate("test_text_table", valid_data)
+        self.assertTrue(is_valid)
+        self.assertEqual(len(errors), 0)
+        
+        # Test with invalid string data (should fail JSON schema validation)
+        invalid_data = {
+            "table_name": "Test Text",
+            "fields": {"Text Field": 123}  # Wrong type
+        }
+        
+        is_valid, errors = self.flat_engine.validate("test_text_table", invalid_data)
+        self.assertFalse(is_valid)
+        self.assertIn("is not of type 'string'", errors[0])
+
+    def test_global_builder_fallback(self):
+        """Test that global builders are used when no instance builder is registered."""
+        # Don't register any instance builder for "string" type
+        
+        # Register a simple table with string field
+        table_schema = {
+            "name": "Test Vital Signs",
+            "fields": [
+                {"field_name": "title", "field_type": "text", "field_id": "title_id"}
+            ]
+        }
+        
+        self.flat_engine.register_table("test_text_table", table_schema)
+        json_schema = self.flat_engine.get_json_schema("test_text_table")
+        
+        # Verify global builder was used (should be simple string type)
+        title_field = json_schema["properties"]["fields"]["properties"]["title"]
+        self.assertEqual(title_field["type"], ["string", "null"])
+
+    def test_field_metadata_completeness(self):
+        """Test that field metadata contains all expected fields."""
+        # Register a simple test table first
+        test_schema = {
+            "table_name": "Test Metadata",
+            "fields": [
+                {
+                    "field_id": "test_field",
+                    "field_number": "1",
+                    "field_name": "Test Field",
+                    "field_title": "Test",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        self.flat_engine.register_table("test_metadata_table", test_schema)
+        
+        # Get field index from the registered table
+        field_index = self.flat_engine._tables["test_metadata_table"]["field_index"]
+        
+        # Find a field with all metadata
+        field_meta = field_index[0]  # First field
+        
+        # Verify all expected metadata fields are present
+        expected_fields = {"key", "level_keys", "target_type", "field_schema"}
+        self.assertTrue(expected_fields.issubset(set(field_meta.keys())))
+        
+        # Verify field_schema contains original field definition
+        field_schema = field_meta["field_schema"]
+        self.assertIn("field_name", field_schema)
+        self.assertIn("field_type", field_schema)
 
 
 if __name__ == "__main__":

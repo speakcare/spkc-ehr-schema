@@ -6,26 +6,26 @@ This project is a demo for the SpeakCare product, demonstrating nursing charting
 
 ### Prerequisites
 
-1. **Install Python 3.13**:
+1. **Install Python 3.12**:
    ```bash
    # On macOS with Homebrew
-   brew install python@3.13
+   brew install python@3.12
    
    # Or download from https://www.python.org/downloads/
    # Verify installation
-   python3.13 --version
+   python3.12 --version
 
-   # Add Python 3.13 as 'python3'
+   # Add Python 3.12 as 'python3'
    export PATH="/Library/Frameworks/Python.framework/Versions/3.13/bin:$PATH"
    ```
 
 2. **Install Poetry**:
    ```bash
    # Install Poetry using the official installer
-   curl -sSL https://install.python-poetry.org | python3.13 -
+   curl -sSL https://install.python-poetry.org | python3.12 -
    
    # Or install via pip (if you prefer)
-   python3.13 -m pip install poetry
+   python3.12 -m pip install poetry
    
    # Add Poetry to your PATH
    export PATH="$HOME/.local/bin:$PATH"
@@ -39,7 +39,7 @@ If you get "command not found" errors, add these to your shell configuration:
 
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
-export PATH="/Library/Frameworks/Python.framework/Versions/3.13/bin:$PATH"
+export PATH="/Library/Frameworks/Python.framework/Versions/3.12/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
