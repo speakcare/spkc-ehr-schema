@@ -55,9 +55,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
                                 "requires_options": False
                             },
                             "rad": {
-                                "target_type": "singleSelect",
+                                "target_type": "single_select",
                                 "requires_options": True,
-                                "options_field": "field_options"
+                                "options_field": "field_options",
+                                "options_extractor": "multi_select_extractor"
                             },
                             "checkbox": {
                                 "target_type": "boolean",
@@ -68,9 +69,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
                                 "requires_options": False
                             },
                             "complex_select": {
-                                "target_type": "singleSelect",
+                                "target_type": "single_select",
                                 "requires_options": True,
                                 "options_field": "field_options",
+                                "options_extractor": "multi_select_extractor",
                                 "options_extractor": "extract_complex_options"
                             }
                         }
@@ -109,7 +111,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
                                                 "requires_options": False
                                             },
                                             "rad": {
-                                                "target_type": "singleSelect",
+                                                "target_type": "single_select",
                                                 "requires_options": True,
                                                 "options_field": "responseOptions",
                                                 "options_extractor": "response_options_extractor"
@@ -193,13 +195,15 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.flat_engine.register_table("patient_assessment", external_schema)
+        table_id, table_name = self.flat_engine.register_table(1, external_schema)
+        self.assertEqual(table_id, 1)
+        self.assertEqual(table_name, "Patient Assessment")
         
         # Check table is registered
-        self.assertIn("patient_assessment", self.flat_engine.list_tables())
+        self.assertIn(1, self.flat_engine.list_tables())
         
         # Get JSON schema
-        schema = self.flat_engine.get_json_schema("patient_assessment")
+        schema = self.flat_engine.get_json_schema(1)
         
         # Verify root structure (flat schema with properties_name wrapper)
         self.assertEqual(schema["type"], "object")
@@ -235,7 +239,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Gender (nullable string with enum)
         self.assertEqual(props["Patient gender"]["type"], ["string", "null"])
-        self.assertEqual(props["Patient gender"]["enum"], ["Male", "Female", "Other"])
+        self.assertEqual(props["Patient gender"]["enum"], ["Male", "Female", "Other", None])
 
     def test_nested_table_registration(self):
         """Test registering a nested table with object-based structure."""
@@ -318,9 +322,9 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.nested_engine.register_table("mds_assessment", external_schema)
+        self.nested_engine.register_table(1, external_schema)
         
-        schema = self.nested_engine.get_json_schema("mds_assessment")
+        schema = self.nested_engine.get_json_schema(1)
         
         # Verify root structure
         self.assertEqual(schema["type"], "object")
@@ -376,7 +380,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         gender_props = gender_questions["properties"]
         # The field name comes from questionText
         self.assertEqual(gender_props["Gender selection"]["type"], ["string", "null"])
-        self.assertEqual(gender_props["Gender selection"]["enum"], ["Male", "Female"])
+        self.assertEqual(gender_props["Gender selection"]["enum"], ["Male", "Female", None])
 
     def test_complex_options_extraction(self):
         """Test complex options extraction with custom extractor."""
@@ -400,14 +404,14 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.flat_engine.register_table("complex_test", external_schema)
+        self.flat_engine.register_table(1, external_schema)
         
-        schema = self.flat_engine.get_json_schema("complex_test")
+        schema = self.flat_engine.get_json_schema(1)
         fields_container = schema["properties"]["fields"]
         priority_field = fields_container["properties"]["Priority Level"]
         
         self.assertEqual(priority_field["type"], ["string", "null"])
-        self.assertEqual(priority_field["enum"], ["High", "Medium", "Low"])
+        self.assertEqual(priority_field["enum"], ["High", "Medium", "Low", None])
 
     def test_re_registration_and_logging(self):
         """Test re-registration behavior and logging."""
@@ -425,15 +429,15 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
 
         # First registration
-        self.flat_engine.register_table("test_table", external_schema)
+        self.flat_engine.register_table(1, external_schema)
         
         # Re-registration should log info and replace
         with patch('schema_converter_engine.logger') as mock_logger:
-            self.flat_engine.register_table("test_table", external_schema)
-            mock_logger.info.assert_called_with("Re-registering table_id=%s; replacing previous schema", "test_table")
+            self.flat_engine.register_table(1, external_schema)
+            mock_logger.info.assert_called_with("Re-registering table_id=%d (table_name=%s); replacing previous schema", 1, "Test Table")
         
         # Verify replacement
-        schema = self.flat_engine.get_json_schema("test_table")
+        schema = self.flat_engine.get_json_schema(1)
         self.assertEqual(schema["title"], "Test Table")
 
     def test_table_limit_enforcement(self):
@@ -489,11 +493,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.nested_engine.register_table("key_test", external_schema)
+        self.nested_engine.register_table(1, external_schema)
         
         # Get field index
-        table_record = self.nested_engine._tables["key_test"]
-        field_index = table_record["field_index"]
+        field_index = self.nested_engine.get_field_metadata(1)#table_record["field_index"]
         
         # Verify level keys are captured
         self.assertEqual(len(field_index), 1)
@@ -533,7 +536,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.flat_engine.register_table("validation_test", external_schema)
+        self.flat_engine.register_table(1, external_schema)
         
         # Valid data
         valid_data = {
@@ -545,7 +548,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             }
         }
         
-        is_valid, errors = self.flat_engine.validate("validation_test", valid_data)
+        is_valid, errors = self.flat_engine.validate(1, valid_data)
         self.assertTrue(is_valid)
         self.assertEqual(len(errors), 0)
 
@@ -579,7 +582,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.flat_engine.register_table("validation_test", external_schema)
+        self.flat_engine.register_table(1, external_schema)
         
         # Invalid data
         invalid_data = {
@@ -591,7 +594,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             }
         }
         
-        is_valid, errors = self.flat_engine.validate("validation_test", invalid_data)
+        is_valid, errors = self.flat_engine.validate(1, invalid_data)
         self.assertFalse(is_valid)
         self.assertGreater(len(errors), 0)
         
@@ -615,14 +618,14 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        self.flat_engine.register_table("date_test", external_schema)
+        self.flat_engine.register_table(1, external_schema)
         
         # Valid date
         valid_data = {
             "table_name": "Date Test",
             "fields": {"Birth date": "1990-01-15"}
         }
-        is_valid, errors = self.flat_engine.validate("date_test", valid_data)
+        is_valid, errors = self.flat_engine.validate(1, valid_data)
         self.assertTrue(is_valid)
         
         # Invalid date (jsonschema doesn't validate format by default)
@@ -630,7 +633,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "table_name": "Date Test",
             "fields": {"Birth date": "not-a-date"}
         }
-        is_valid, errors = self.flat_engine.validate("date_test", invalid_data)
+        is_valid, errors = self.flat_engine.validate(1, invalid_data)
         # Note: jsonschema doesn't validate format by default, but our custom validator does
         # So this will fail validation due to custom date validator
         self.assertFalse(is_valid)
@@ -638,10 +641,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_unknown_table_errors(self):
         """Test errors for unknown table operations."""
-        with self.assertRaises(KeyError):
+        with self.assertRaises(ValueError):
             self.flat_engine.get_json_schema("unknown_table")
         
-        with self.assertRaises(KeyError):
+        with self.assertRaises(ValueError):
             self.flat_engine.validate("unknown_table", {})
 
     def test_unknown_field_type_error(self):
@@ -660,7 +663,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
 
         with self.assertRaises(ValueError) as context:
-            self.flat_engine.register_table("error_test", external_schema)
+            self.flat_engine.register_table(1, external_schema)
         
         self.assertIn("Field type 'unknown_type' not in allowed types", str(context.exception))
 
@@ -780,7 +783,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
                                                         'type_constraints': {
                                                             'text': {'target_type': 'string', 'requires_options': False},
                                                             'number': {'target_type': 'number', 'requires_options': False},
-                                                            'rad': {'target_type': 'singleSelect', 'requires_options': True, 'options_field': 'level5_options'},
+                                                            'rad': {'target_type': 'single_select', 'requires_options': True, 'options_field': 'level5_options'},
                                                             'chk': {'target_type': 'boolean', 'requires_options': False}
                                                         }
                                                     }
@@ -902,8 +905,8 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
 
-        engine.register_table('comprehensive_nested_form', external_schema)
-        schema = engine.get_json_schema('comprehensive_nested_form')
+        engine.register_table(1, external_schema)
+        schema = engine.get_json_schema(1)
         
         # Verify root structure
         self.assertEqual(schema["type"], "object")
@@ -961,11 +964,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(field_props["First field"]["type"], ["string", "null"])
         self.assertEqual(field_props["Second field"]["type"], ["number", "null"])
         self.assertEqual(field_props["Third field"]["type"], ["string", "null"])
-        self.assertEqual(field_props["Third field"]["enum"], ["Option A1", "Option A2", "Option A3"])
+        self.assertEqual(field_props["Third field"]["enum"], ["Option A1", "Option A2", "Option A3", None])
         
         # Verify field metadata collection
-        table_record = engine._tables["comprehensive_nested_form"]
-        field_index = table_record["field_index"]
+        field_index = engine.get_field_metadata(1)
         self.assertEqual(len(field_index), 6)  # Total fields across all containers
         
         # Check specific field metadata
@@ -1001,7 +1003,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        self.flat_engine.register_table("test_string_table", test_schema)
+        self.flat_engine.register_table(1, test_schema)
         
         # Value "abc" passes JSON schema but fails custom validator
         data = {
@@ -1009,7 +1011,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "fields": {"Name Field": "abc"}
         }
         
-        is_valid, errors = self.flat_engine.validate("test_string_table", data)
+        is_valid, errors = self.flat_engine.validate(1, data)
         # The custom validator should be called and should fail
         self.assertFalse(is_valid, f"Expected validation to fail, but got errors: {errors}")
         self.assertTrue(len(errors) > 0, "Expected at least one error")
@@ -1045,8 +1047,8 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        engine.register_table("test_checkbox_table", table_schema)
-        json_schema = engine.get_json_schema("test_checkbox_table")
+        engine.register_table(1, table_schema)
+        json_schema = engine.get_json_schema(1)
         
         # Verify custom builder was used
         active_field = json_schema["properties"]["fields"]["properties"]["active"]
@@ -1068,9 +1070,9 @@ class TestSchemaConverterEngine(unittest.TestCase):
             return True, ""
         
         # Register the validator
-        self.flat_engine.register_validator("singleSelect", single_select_validator_with_options)
+        self.flat_engine.register_validator("single_select", single_select_validator_with_options)
         
-        # Register a test table with singleSelect field
+        # Register a test table with single_select field
         test_schema = {
             "table_name": "Test Single Select",
             "fields": [
@@ -1085,7 +1087,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        self.flat_engine.register_table("test_single_select", test_schema)
+        self.flat_engine.register_table(1, test_schema)
         
         # Test with valid choice
         valid_data = {
@@ -1093,7 +1095,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "fields": {"Priority Level": "High"}
         }
         
-        is_valid, errors = self.flat_engine.validate("test_single_select", valid_data)
+        is_valid, errors = self.flat_engine.validate(1, valid_data)
         self.assertTrue(is_valid)
         self.assertEqual(len(errors), 0)
         
@@ -1103,9 +1105,9 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "fields": {"Priority Level": "Unknown"}  # Not in choices
         }
         
-        is_valid, errors = self.flat_engine.validate("test_single_select", invalid_data)
+        is_valid, errors = self.flat_engine.validate(1, invalid_data)
         self.assertFalse(is_valid)
-        self.assertIn("'Unknown' is not one of ['High', 'Medium', 'Low']", errors[0])
+        self.assertIn("'Unknown' is not one of ['High', 'Medium', 'Low', None]", errors[0])
 
     def test_custom_builder_with_field_schema_access(self):
         """Test that custom builders can access field_schema for schema generation."""
@@ -1135,8 +1137,8 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        engine.register_table("test_percent_table", table_schema)
-        json_schema = engine.get_json_schema("test_percent_table")
+        engine.register_table(1, table_schema)
+        json_schema = engine.get_json_schema(1)
         
         # Verify custom builder was used with field-specific precision
         accuracy_field = json_schema["properties"]["fields"]["properties"]["accuracy"]
@@ -1165,10 +1167,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        engine.register_table("test_custom_props", table_schema)
+        engine.register_table(1, table_schema)
         
         # Check that the field was registered
-        field_index = engine._tables["test_custom_props"]["field_index"]
+        field_index = engine.get_field_metadata(1)
         self.assertEqual(len(field_index), 1, f"Expected 1 field, got {len(field_index)}")
         
         # Check that the field path uses custom_fields
@@ -1197,7 +1199,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        self.flat_engine.register_table("test_text_table", test_schema)
+        self.flat_engine.register_table(1, test_schema)
         
         # Test with valid string data
         valid_data = {
@@ -1205,7 +1207,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "fields": {"Text Field": "Some text"}
         }
         
-        is_valid, errors = self.flat_engine.validate("test_text_table", valid_data)
+        is_valid, errors = self.flat_engine.validate(1, valid_data)
         self.assertTrue(is_valid)
         self.assertEqual(len(errors), 0)
         
@@ -1215,7 +1217,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "fields": {"Text Field": 123}  # Wrong type
         }
         
-        is_valid, errors = self.flat_engine.validate("test_text_table", invalid_data)
+        is_valid, errors = self.flat_engine.validate(1, invalid_data)
         self.assertFalse(is_valid)
         self.assertIn("is not of type 'string'", errors[0])
 
@@ -1231,8 +1233,8 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        self.flat_engine.register_table("test_text_table", table_schema)
-        json_schema = self.flat_engine.get_json_schema("test_text_table")
+        self.flat_engine.register_table(1, table_schema)
+        json_schema = self.flat_engine.get_json_schema(1)
         
         # Verify global builder was used (should be simple string type)
         title_field = json_schema["properties"]["fields"]["properties"]["title"]
@@ -1254,10 +1256,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
             ]
         }
         
-        self.flat_engine.register_table("test_metadata_table", test_schema)
+        self.flat_engine.register_table(1, test_schema)
         
         # Get field index from the registered table
-        field_index = self.flat_engine._tables["test_metadata_table"]["field_index"]
+        field_index = self.flat_engine.get_field_metadata(1)
         
         # Find a field with all metadata
         field_meta = field_index[0]  # First field
@@ -1270,6 +1272,634 @@ class TestSchemaConverterEngine(unittest.TestCase):
         field_schema = field_meta["field_schema"]
         self.assertIn("field_name", field_schema)
         self.assertIn("field_type", field_schema)
+
+    def test_multiple_select_type(self):
+        """Test multiple_select field type with options."""
+        # Create meta-schema with multiple_select type mapping
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        # Add multi_select to allowed_types
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("multi_select")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["multi_select"] = {
+            "target_type": "multiple_select",
+            "requires_options": True,
+            "options_field": "field_options",
+            "options_extractor": "multi_select_extractor"
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register options extractor for multi_select fields
+        def multi_select_extractor(options: List[Dict[str, Any]]) -> List[str]:
+            """Extract option names from multi_select field options."""
+            return [option["name"] for option in options]
+        
+        engine.register_options_extractor("multi_select_extractor", multi_select_extractor)
+        
+        # Register a test table with multiple_select field
+        table_schema = {
+            "name": "Test Multiple Select",
+            "fields": [
+                {
+                    "field_id": "hobbies",
+                    "field_number": "1",
+                    "field_name": "Hobbies",
+                    "field_title": "Select Hobbies",
+                    "field_type": "multi_select",
+                    "field_options": [
+                        {"name": "Reading", "value": "reading"},
+                        {"name": "Sports", "value": "sports"},
+                        {"name": "Music", "value": "music"},
+                        {"name": "Cooking", "value": "cooking"}
+                    ]
+                }
+            ]
+        }
+        
+        engine.register_table(1, table_schema)
+        
+        # Test JSON schema generation
+        json_schema = engine.get_json_schema(1)
+        
+        # Verify the multiple_select field schema
+        hobbies_field = json_schema["properties"]["fields"]["properties"]["Hobbies"]
+        self.assertEqual(hobbies_field["type"], ["array", "null"])
+        self.assertEqual(hobbies_field["items"]["type"], ["string", "null"])
+        self.assertEqual(hobbies_field["items"]["enum"], ["Reading", "Sports", "Music", "Cooking", None])
+        self.assertIn("Select one or more of the valid enum options", hobbies_field["description"])
+        
+        # Test validation with valid data
+        valid_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Hobbies": ["Reading", "Sports"]}
+        }
+        is_valid, errors = engine.validate(1, valid_data)
+        self.assertTrue(is_valid, f"Expected validation to pass, but got errors: {errors}")
+        
+        # Test validation with invalid data (invalid enum value)
+        invalid_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Hobbies": ["Reading", "InvalidHobby"]}
+        }
+        is_valid, errors = engine.validate(1, invalid_data)
+        self.assertFalse(is_valid, "Expected validation to fail with invalid enum value")
+        self.assertTrue(len(errors) > 0, "Expected at least one error")
+        self.assertIn("InvalidHobby", errors[0])
+        
+        # Test validation with null value (should pass)
+        null_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Hobbies": None}
+        }
+        is_valid, errors = engine.validate(1, null_data)
+        self.assertTrue(is_valid, f"Expected null value to pass, but got errors: {errors}")
+        
+        # Test validation with empty array (should pass)
+        empty_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Hobbies": []}
+        }
+        is_valid, errors = engine.validate(1, empty_data)
+        self.assertTrue(is_valid, f"Expected empty array to pass, but got errors: {errors}")
+        
+        # Test field metadata collection
+        field_index = engine.get_field_metadata(1)
+        self.assertEqual(len(field_index), 1)
+        
+        field_meta = field_index[0]
+        self.assertEqual(field_meta["key"], "hobbies")
+        self.assertEqual(field_meta["name"], "Hobbies")
+        self.assertEqual(field_meta["target_type"], "multiple_select")
+        self.assertEqual(field_meta["level_keys"], ["fields"])
+        
+        # Verify field_schema contains original field definition
+        field_schema = field_meta["field_schema"]
+        self.assertEqual(field_schema["field_type"], "multi_select")
+        self.assertEqual(len(field_schema["field_options"]), 4)
+        self.assertEqual(field_schema["field_options"][0]["name"], "Reading")
+
+    def test_multiple_select_custom_validator(self):
+        """Test multiple_select with custom validator."""
+        # Create meta-schema with multiple_select type mapping
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        # Add multi_select to allowed_types
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("multi_select")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["multi_select"] = {
+            "target_type": "multiple_select",
+            "requires_options": True,
+            "options_field": "field_options",
+            "options_extractor": "multi_select_extractor"
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register options extractor for multi_select fields
+        def multi_select_extractor(options: List[Dict[str, Any]]) -> List[str]:
+            """Extract option names from multi_select field options."""
+            return [option["name"] for option in options]
+        
+        engine.register_options_extractor("multi_select_extractor", multi_select_extractor)
+        
+        # Register custom validator for multiple_select
+        def strict_multiple_select_validator(engine, value, field_metadata):
+            """Custom validator that enforces minimum 2 selections."""
+            if not isinstance(value, list):
+                return False, "Must be an array"
+            
+            if len(value) < 2:
+                return False, f"Must select at least 2 items, got {len(value)}"
+            
+            return True, ""
+        
+        engine.register_validator("multiple_select", strict_multiple_select_validator)
+        
+        # Register test table
+        table_schema = {
+            "name": "Test Strict Multiple Select",
+            "fields": [
+                {
+                    "field_id": "skills",
+                    "field_number": "1",
+                    "field_name": "Skills",
+                    "field_title": "Select Skills",
+                    "field_type": "multi_select",
+                    "field_options": [
+                        {"name": "Python", "value": "python"},
+                        {"name": "JavaScript", "value": "javascript"},
+                        {"name": "SQL", "value": "sql"}
+                    ]
+                }
+            ]
+        }
+        
+        engine.register_table(1, table_schema)
+        
+        # Test validation with insufficient selections (should fail custom validator)
+        insufficient_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Skills": ["Python"]}  # Only 1 selection
+        }
+        is_valid, errors = engine.validate(1, insufficient_data)
+        self.assertFalse(is_valid, "Expected validation to fail with insufficient selections")
+        self.assertIn("Must select at least 2 items", errors[0])
+        
+        # Test validation with sufficient selections (should pass)
+        sufficient_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {"Skills": ["Python", "JavaScript"]}  # 2 selections
+        }
+        is_valid, errors = engine.validate(1, sufficient_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with sufficient selections, but got errors: {errors}")
+
+    def test_positive_number_type(self):
+        """Test positive_number field type with JSON schema generation and validation."""
+        # Create meta-schema with positive_number type mapping
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        # Add positive_number to allowed_types
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("positive_number")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["positive_number"] = {
+            "target_type": "positive_number",
+            "requires_options": False
+        }
+        
+        # Create engine with updated meta-schema
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register a test table with positive_number field
+        table_schema = {
+            "name": "Test Positive Number",
+            "fields": [
+                {
+                    "field_id": "age",
+                    "field_number": "1", 
+                    "field_name": "Age",
+                    "field_title": "Patient Age",
+                    "field_type": "positive_number"
+                },
+                {
+                    "field_id": "weight",
+                    "field_number": "2",
+                    "field_name": "Weight",
+                    "field_title": "Patient Weight (kg)",
+                    "field_type": "positive_number"
+                }
+            ]
+        }
+        
+        engine.register_table(1, table_schema)
+        
+        # Get JSON schema
+        json_schema = engine.get_json_schema(1)
+        
+        # Verify the positive_number field schema
+        age_field = json_schema["properties"]["fields"]["properties"]["Age"]
+        self.assertEqual(age_field["type"], ["number", "null"])
+        self.assertEqual(age_field["minimum"], 0)
+        self.assertNotIn("maximum", age_field)  # No maximum constraint
+        
+        weight_field = json_schema["properties"]["fields"]["properties"]["Weight"]
+        self.assertEqual(weight_field["type"], ["number", "null"])
+        self.assertEqual(weight_field["minimum"], 0)
+        self.assertNotIn("maximum", weight_field)
+        
+        # Test validation with valid positive numbers
+        valid_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {
+                "Age": 25,
+                "Weight": 70.5
+            }
+        }
+        is_valid, errors = engine.validate(1, valid_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with valid positive numbers, but got errors: {errors}")
+        
+        # Test validation with zero (should pass)
+        zero_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": 0,
+                "Weight": 0.0
+            }
+        }
+        is_valid, errors = engine.validate(1, zero_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with zero values, but got errors: {errors}")
+        
+        # Test validation with negative numbers (should fail JSON schema validation)
+        negative_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": -5,
+                "Weight": -10.0
+            }
+        }
+        is_valid, errors = engine.validate(1, negative_data)
+        self.assertFalse(is_valid, "Expected validation to fail with negative numbers")
+        self.assertTrue(any("minimum" in error.lower() for error in errors), f"Expected minimum constraint error, got: {errors}")
+        
+        # Test validation with null values (should pass)
+        null_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": None,
+                "Weight": None
+            }
+        }
+        is_valid, errors = engine.validate(1, null_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with null values, but got errors: {errors}")
+        
+        # Test validation with invalid types (should fail JSON schema validation)
+        invalid_type_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": "not a number",
+                "Weight": ["array", "not", "number"]
+            }
+        }
+        is_valid, errors = engine.validate(1, invalid_type_data)
+        self.assertFalse(is_valid, "Expected validation to fail with invalid types")
+        
+        # Verify field metadata collection
+        field_index = engine.get_field_metadata(1)
+        self.assertEqual(len(field_index), 2)
+        
+        # Check Age field metadata
+        age_field_meta = next(field for field in field_index if field["key"] == "age")
+        self.assertEqual(age_field_meta["key"], "age")
+        self.assertEqual(age_field_meta["name"], "Age")
+        self.assertEqual(age_field_meta["target_type"], "positive_number")
+        self.assertEqual(age_field_meta["level_keys"], ["fields"])
+        
+        # Check Weight field metadata
+        weight_field_meta = next(field for field in field_index if field["key"] == "weight")
+        self.assertEqual(weight_field_meta["key"], "weight")
+        self.assertEqual(weight_field_meta["name"], "Weight")
+        self.assertEqual(weight_field_meta["target_type"], "positive_number")
+        self.assertEqual(weight_field_meta["level_keys"], ["fields"])
+
+    def test_positive_integer_type(self):
+        """Test positive_integer field type with JSON schema generation and validation."""
+        # Create meta-schema with positive_integer type mapping
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        # Add positive_integer to allowed_types
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("positive_integer")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["positive_integer"] = {
+            "target_type": "positive_integer",
+            "requires_options": False
+        }
+        
+        # Create engine with updated meta-schema
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register a test table with positive_integer field
+        table_schema = {
+            "name": "Test Positive Integer",
+            "fields": [
+                {
+                    "field_id": "age",
+                    "field_number": "1", 
+                    "field_name": "Age",
+                    "field_title": "Patient Age",
+                    "field_type": "positive_integer"
+                },
+                {
+                    "field_id": "count",
+                    "field_number": "2",
+                    "field_name": "Count",
+                    "field_title": "Item Count",
+                    "field_type": "positive_integer"
+                }
+            ]
+        }
+        
+        engine.register_table(1, table_schema)
+        
+        # Get JSON schema
+        json_schema = engine.get_json_schema(1)
+        
+        # Verify the positive_integer field schema
+        age_field = json_schema["properties"]["fields"]["properties"]["Age"]
+        self.assertEqual(age_field["type"], ["integer", "null"])
+        self.assertEqual(age_field["minimum"], 0)
+        self.assertNotIn("maximum", age_field)  # No maximum constraint
+        
+        count_field = json_schema["properties"]["fields"]["properties"]["Count"]
+        self.assertEqual(count_field["type"], ["integer", "null"])
+        self.assertEqual(count_field["minimum"], 0)
+        self.assertNotIn("maximum", count_field)
+        
+        # Test validation with valid positive integers
+        valid_data = {
+            "table_name": "Unknown Table",  # Must match the JSON schema const
+            "fields": {
+                "Age": 25,
+                "Count": 0
+            }
+        }
+        is_valid, errors = engine.validate(1, valid_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with valid positive integers, but got errors: {errors}")
+        
+        # Test validation with zero (should pass)
+        zero_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": 0,
+                "Count": 0
+            }
+        }
+        is_valid, errors = engine.validate(1, zero_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with zero values, but got errors: {errors}")
+        
+        # Test validation with negative integers (should fail JSON schema validation)
+        negative_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": -5,
+                "Count": -10
+            }
+        }
+        is_valid, errors = engine.validate(1, negative_data)
+        self.assertFalse(is_valid, "Expected validation to fail with negative integers")
+        self.assertTrue(any("minimum" in error.lower() for error in errors), f"Expected minimum constraint error, got: {errors}")
+        
+        # Test validation with floats (should fail JSON schema validation)
+        float_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": 25.5,
+                "Count": 1.7
+            }
+        }
+        is_valid, errors = engine.validate(1, float_data)
+        self.assertFalse(is_valid, "Expected validation to fail with float values")
+        
+        # Test validation with null values (should pass)
+        null_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": None,
+                "Count": None
+            }
+        }
+        is_valid, errors = engine.validate(1, null_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with null values, but got errors: {errors}")
+        
+        # Test validation with invalid types (should fail JSON schema validation)
+        invalid_type_data = {
+            "table_name": "Unknown Table",
+            "fields": {
+                "Age": "not a number",
+                "Count": ["array", "not", "number"]
+            }
+        }
+        is_valid, errors = engine.validate(1, invalid_type_data)
+        self.assertFalse(is_valid, "Expected validation to fail with invalid types")
+        
+        # Verify field metadata collection
+        field_index = engine.get_field_metadata(1)
+        self.assertEqual(len(field_index), 2)
+        
+        # Check Age field metadata
+        age_field_meta = next(field for field in field_index if field["key"] == "age")
+        self.assertEqual(age_field_meta["key"], "age")
+        self.assertEqual(age_field_meta["name"], "Age")
+        self.assertEqual(age_field_meta["target_type"], "positive_integer")
+        self.assertEqual(age_field_meta["level_keys"], ["fields"])
+        
+        # Check Count field metadata
+        count_field_meta = next(field for field in field_index if field["key"] == "count")
+        self.assertEqual(count_field_meta["key"], "count")
+        self.assertEqual(count_field_meta["name"], "Count")
+        self.assertEqual(count_field_meta["target_type"], "positive_integer")
+        self.assertEqual(count_field_meta["level_keys"], ["fields"])
+
+    def test_table_id_allocation(self):
+        """Test automatic table ID allocation and manual ID assignment."""
+        # Simple external schema for testing
+        simple_external_schema = {
+            "table_name": "Simple Test",
+            "fields": [
+                {
+                    "field_id": "name",
+                    "field_number": "1",
+                    "field_name": "Name",
+                    "field_title": "Full Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        # Test automatic ID allocation
+        table_id_1, table_name_1 = self.flat_engine.register_table(None, simple_external_schema)
+        self.assertIsInstance(table_id_1, int)
+        self.assertEqual(table_name_1, "Simple Test")
+        self.assertEqual(table_id_1, 1)  # First allocated ID should be 1
+        
+        # Test another automatic allocation
+        table_id_2, table_name_2 = self.flat_engine.register_table(None, simple_external_schema)
+        self.assertEqual(table_id_2, 2)  # Second allocated ID should be 2
+        self.assertEqual(table_name_2, "Simple Test")
+        
+        # Test manual ID assignment
+        table_id_manual, table_name_manual = self.flat_engine.register_table(100, simple_external_schema)
+        self.assertEqual(table_id_manual, 100)
+        self.assertEqual(table_name_manual, "Simple Test")
+        
+        # Test that manual ID doesn't affect allocation counter
+        table_id_3, table_name_3 = self.flat_engine.register_table(None, simple_external_schema)
+        self.assertEqual(table_id_3, 3)  # Should continue from last allocated
+        self.assertEqual(table_name_3, "Simple Test")
+        
+        # Test ID collision handling
+        table_id_4, table_name_4 = self.flat_engine.register_table(None, simple_external_schema)
+        self.assertEqual(table_id_4, 4)
+        self.assertEqual(table_name_4, "Simple Test")
+        
+        # Unregister table 2 and register new one - should skip 2 and use 5
+        self.flat_engine.unregister_table(2)
+        table_id_5, table_name_5 = self.flat_engine.register_table(None, simple_external_schema)
+        self.assertEqual(table_id_5, 5)  # Should skip the unregistered ID 2
+        self.assertEqual(table_name_5, "Simple Test")
+        
+        # Test that we can reuse unregistered ID manually
+        table_id_reuse, table_name_reuse = self.flat_engine.register_table(2, simple_external_schema)
+        self.assertEqual(table_id_reuse, 2)
+        self.assertEqual(table_name_reuse, "Simple Test")
+        
+        # Verify all tables are registered
+        registered_ids = self.flat_engine.list_tables()
+        self.assertIn(1, registered_ids)
+        self.assertIn(2, registered_ids)
+        self.assertIn(3, registered_ids)
+        self.assertIn(4, registered_ids)
+        self.assertIn(5, registered_ids)
+        self.assertIn(100, registered_ids)
+        self.assertEqual(len(registered_ids), 6)
+        
+        # Test that register_table returns the correct ID
+        table_id_200, table_name_200 = self.flat_engine.register_table(200, simple_external_schema)
+        self.assertEqual(table_id_200, 200)
+        self.assertEqual(table_name_200, "Simple Test")
+        
+        # Test re-registration with same ID
+        with self.assertLogs('schema_converter_engine', level='INFO') as cm:
+            returned_id, returned_name = self.flat_engine.register_table(200, simple_external_schema)
+            self.assertEqual(returned_id, 200)
+            self.assertEqual(returned_name, "Simple Test")
+            self.assertIn("Re-registering table_id=200", cm.output[0])
+
+    def test_table_name_lookup(self):
+        """Test lookup by table name vs table ID."""
+        external_schema = {
+            "table_name": "Test Assessment",
+            "fields": [
+                {
+                    "field_id": "name",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_title": "Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        # Register table
+        table_id, table_name = self.flat_engine.register_table(None, external_schema)
+        self.assertEqual(table_name, "Test Assessment")
+        
+        # Test lookup by ID
+        schema_by_id = self.flat_engine.get_json_schema(table_id)
+        self.assertEqual(schema_by_id["title"], "Test Assessment")
+        
+        # Test lookup by name
+        schema_by_name = self.flat_engine.get_json_schema(table_name)
+        self.assertEqual(schema_by_name["title"], "Test Assessment")
+        
+        # Verify both schemas are identical
+        self.assertEqual(schema_by_id, schema_by_name)
+        
+        # Test validation by ID
+        valid_data = {
+            "table_name": "Test Assessment",
+            "fields": {
+                "Patient Name": "John Doe"
+            }
+        }
+        is_valid_id, errors_id = self.flat_engine.validate(table_id, valid_data)
+        self.assertTrue(is_valid_id)
+        self.assertEqual(errors_id, [])
+        
+        # Test validation by name
+        is_valid_name, errors_name = self.flat_engine.validate(table_name, valid_data)
+        self.assertTrue(is_valid_name)
+        self.assertEqual(errors_name, [])
+        
+        # Test error cases
+        with self.assertRaises(ValueError) as cm:
+            self.flat_engine.get_json_schema("Unknown Table")
+        self.assertIn("Unknown table_name: Unknown Table", str(cm.exception))
+        
+        with self.assertRaises(ValueError) as cm:
+            self.flat_engine.get_json_schema(999)
+        self.assertIn("Unknown table_id: 999", str(cm.exception))
+        
+        with self.assertRaises(ValueError) as cm:
+            self.flat_engine.get_json_schema(None)
+        self.assertIn("Table identifier must be int or str", str(cm.exception))
+
+    def test_get_field_metadata(self):
+        """Test get_field_metadata method with both ID and name lookup."""
+        external_schema = {
+            "table_name": "Metadata Test",
+            "fields": [
+                {
+                    "field_id": "name",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_title": "Name",
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "age",
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_title": "Age",
+                    "field_type": "number"
+                }
+            ]
+        }
+        
+        # Register table
+        table_id, table_name = self.flat_engine.register_table(None, external_schema)
+        
+        # Test get_field_metadata by ID
+        metadata_by_id = self.flat_engine.get_field_metadata(table_id)
+        self.assertEqual(len(metadata_by_id), 2)
+        
+        # Test get_field_metadata by name
+        metadata_by_name = self.flat_engine.get_field_metadata(table_name)
+        self.assertEqual(len(metadata_by_name), 2)
+        
+        # Verify both return identical results
+        self.assertEqual(metadata_by_id, metadata_by_name)
+        
+        # Verify metadata structure
+        name_field = next(f for f in metadata_by_id if f["key"] == "name")
+        self.assertEqual(name_field["name"], "Patient Name")
+        self.assertEqual(name_field["target_type"], "string")
+        self.assertEqual(name_field["level_keys"], ["fields"])
+        
+        age_field = next(f for f in metadata_by_id if f["key"] == "age")
+        self.assertEqual(age_field["name"], "Patient Age")
+        self.assertEqual(age_field["target_type"], "number")
+        self.assertEqual(age_field["level_keys"], ["fields"])
+        
+        # Test error cases
+        with self.assertRaises(ValueError) as cm:
+            self.flat_engine.get_field_metadata("Unknown Table")
+        self.assertIn("Unknown table_name: Unknown Table", str(cm.exception))
+        
+        with self.assertRaises(ValueError) as cm:
+            self.flat_engine.get_field_metadata(999)
+        self.assertIn("Unknown table_id: 999", str(cm.exception))
 
 
 if __name__ == "__main__":

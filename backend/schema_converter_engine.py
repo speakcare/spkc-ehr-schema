@@ -9,7 +9,7 @@ Design highlights:
 - All bottom-level fields are listed in `required`. Optionality is expressed via
   union types that include "null". Objects always set `additionalProperties` to false.
 - Supports target field types: string, integer, number, boolean, date, datetime,
-  singleSelect, multipleSelect, array, object.
+  single_select, multiple_select, array, object.
 - Uses function registries for schema builders and validators (per target type).
 
 ## Meta-Schema Language Definition
@@ -110,13 +110,13 @@ This allows the engine to be truly database-agnostic by understanding any schema
                     "requires_options": false
                   },
                   "rad": {
-                    "target_type": "singleSelect",
+                    "target_type": "single_select",
                     "requires_options": true,
                     "options_field": "responseOptions",
                     "options_extractor": "extract_response_options"
                   },
                   "radh": {
-                    "target_type": "singleSelect",
+                    "target_type": "single_select",
                     "requires_options": true,
                     "options_field": "responseOptions",
                     "options_extractor": "extract_response_options_horizontal"
@@ -165,7 +165,7 @@ def custom_single_select_validator(engine, value, field_metadata):
     # Access the original field schema
     field_schema = field_metadata.get("field_schema", {})
     
-    # For Airtable: {"type": "singleSelect", "options": {"choices": [...]}}
+    # For Airtable: {"type": "single_select", "options": {"choices": [...]}}
     options = field_schema.get("options", {})
     choices = [c["name"] for c in options.get("choices", [])]
     
@@ -175,7 +175,7 @@ def custom_single_select_validator(engine, value, field_metadata):
     return True, ""
 
 # Register the validator (instance-specific, overrides global)
-engine.register_validator("singleSelect", custom_single_select_validator)
+engine.register_validator("single_select", custom_single_select_validator)
 ```
 
 ### Custom Schema Field Builders:
@@ -211,7 +211,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import logging
 
 try:
@@ -230,34 +230,34 @@ MAX_TABLES_PER_ENGINE = 1000
 MAX_NESTING_LEVELS = 5
 
 # Function registries for schema builders and validators
-_schema_field_builders_registry: Dict[str, Callable] = {}
-_validator_registry: Dict[str, Callable] = {}
+__schema_field_builders_registry: Dict[str, Callable] = {}
+__validator_registry: Dict[str, Callable] = {}
 
 
-def register_schema_field_builder(internal_type: str):
+def _register_schema_field_builder(internal_type: str):
     """Decorator to register a schema builder function for an internal field type."""
     def decorator(func: Callable):
-        _schema_field_builders_registry[internal_type] = func
+        __schema_field_builders_registry[internal_type] = func
         return func
     return decorator
 
 
-def register_validator(internal_type: str):
+def _register_validator(internal_type: str):
     """Decorator to register a validator function for an internal field type."""
     def decorator(func: Callable):
-        _validator_registry[internal_type] = func
+        __validator_registry[internal_type] = func
         return func
     return decorator
 
 
-def get_schema_field_builder(internal_type: str) -> Optional[Callable]:
+def _get_schema_field_builder(internal_type: str) -> Optional[Callable]:
     """Get the schema builder function for an internal field type."""
-    return _schema_field_builders_registry.get(internal_type)
+    return __schema_field_builders_registry.get(internal_type)
 
 
-def get_validator(internal_type: str) -> Optional[Callable]:
+def _get_validator(internal_type: str) -> Optional[Callable]:
     """Get the validator function for an internal field type."""
-    return _validator_registry.get(internal_type)
+    return __validator_registry.get(internal_type)
 
 
 class SchemaConverterEngine:
@@ -271,21 +271,24 @@ class SchemaConverterEngine:
             meta_schema_language: Meta-schema definition describing the external schema language structure.
         """
         # Validate meta-schema language structure
-        self._validate_meta_schema(meta_schema_language)
+        self.__validate_meta_schema(meta_schema_language)
         
-        self._meta_schema = meta_schema_language
-        self._options_extractor_registry: Dict[str, Callable] = {}
-        self._instance_validator_registry: Dict[str, Callable] = {}
-        self._instance_schema_field_builder_registry: Dict[str, Callable] = {}
+        self.__meta_schema = meta_schema_language
+        self.__options_extractor_registry: Dict[str, Callable] = {}
+        self.__instance_validator_registry: Dict[str, Callable] = {}
+        self.__instance_schema_field_builder_registry: Dict[str, Callable] = {}
 
         # Table registry: table_id -> registry record
-        self._tables: Dict[str, Dict[str, Any]] = {}
+        self.__tables: Dict[int, Dict[str, Any]] = {}
+        self.__last_allocated_id: int = 0
+        # Name-to-ID mapping for lookup by name
+        self.__table_names: Dict[str, int] = {}
 
     # ----------------------------- Public API ---------------------------------
 
     def register_options_extractor(self, extractor_name: str, extractor_func: Callable[[Any], List[str]]) -> None:
         """Register an options extractor function."""
-        self._options_extractor_registry[extractor_name] = extractor_func
+        self.__options_extractor_registry[extractor_name] = extractor_func
 
     def register_validator(self, target_type: str, validator_func: Callable) -> None:
         """Register a custom validator for a target type (instance-specific).
@@ -298,7 +301,7 @@ class SchemaConverterEngine:
         Instance validators override global validators for this engine instance only.
         
         Args:
-            target_type: The target type (e.g., "singleSelect", "percent", "boolean")
+            target_type: The target type (e.g., "single_select", "percent", "boolean")
             validator_func: Validation function
             
         Example:
@@ -311,7 +314,7 @@ class SchemaConverterEngine:
             
             engine.register_validator("percent", my_percent_validator)
         """
-        self._instance_validator_registry[target_type] = validator_func
+        self.__instance_validator_registry[target_type] = validator_func
         logger.debug(f"Registered instance validator for target_type='{target_type}'")
 
     def register_schema_field_builder(self, target_type: str, builder_func: Callable) -> None:
@@ -338,51 +341,153 @@ class SchemaConverterEngine:
             
             engine.register_schema_field_builder("checkbox", checkbox_yes_no_builder)
         """
-        self._instance_schema_field_builder_registry[target_type] = builder_func
+        self.__instance_schema_field_builder_registry[target_type] = builder_func
         logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
 
-    def register_table(self, table_id: str, external_schema: Dict[str, Any]) -> None:
+    def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
         """Register (or re-register) a table schema.
+
+        Args:
+            table_id: Integer table ID. If None, an ID will be automatically allocated.
+            external_schema: The external table schema dictionary.
+
+        Returns:
+            Tuple of (table_id, table_name).
 
         Re-registration replaces the previous entry with info logging.
         Enforces a maximum of 1000 tables per engine instance.
         """
-        if table_id in self._tables:
-            logger.info("Re-registering table_id=%s; replacing previous schema", table_id)
-        elif len(self._tables) >= MAX_TABLES_PER_ENGINE:
+        # Allocate ID if not provided
+        if table_id is None:
+            table_id = self._allocate_table_id()
+        
+        # Extract table name from external schema using meta-schema
+        schema_name_field = self.__meta_schema.get("schema_name")
+        table_name = external_schema.get(schema_name_field, "Unknown Table") if schema_name_field else "Unknown Table"
+        
+        if table_id in self.__tables:
+            # Remove old name mapping if it exists
+            old_record = self.__tables[table_id]
+            old_name = old_record.get("table_name")
+            if old_name and old_name in self.__table_names:
+                del self.__table_names[old_name]
+            logger.info("Re-registering table_id=%d (table_name=%s); replacing previous schema", table_id, table_name)
+        elif len(self.__tables) >= MAX_TABLES_PER_ENGINE:
             raise ValueError(f"Maximum number of tables reached: {MAX_TABLES_PER_ENGINE}")
 
         json_schema, field_index = self._build_table_schema(external_schema)
 
-        self._tables[table_id] = {
+        self.__tables[table_id] = {
             "external_schema": external_schema,
             "json_schema": json_schema,
             "field_index": field_index,  # list of {key, id, level_keys}
+            "table_name": table_name,
         }
+        
+        # Update name-to-ID mapping
+        self.__table_names[table_name] = table_id
+        
+        return table_id, table_name
 
-    def unregister_table(self, table_id: str) -> None:
-        self._tables.pop(table_id, None)
+    def _allocate_table_id(self) -> int:
+        """Allocate the next available table ID."""
+        # Start from last allocated ID + 1
+        candidate_id = self.__last_allocated_id + 1
+        
+        # Find next available ID
+        while candidate_id in self.__tables:
+            candidate_id += 1
+        
+        self.__last_allocated_id = candidate_id
+        return candidate_id
 
-    def list_tables(self) -> List[str]:
-        return list(self._tables.keys())
+    def _resolve_table_id(self, table_identifier: Union[int, str]) -> int:
+        """Resolve table identifier (name or ID) to integer table ID.
+        
+        Args:
+            table_identifier: Either an integer table ID or string table name
+            
+        Returns:
+            Integer table ID
+            
+        Raises:
+            ValueError: If table identifier is not found
+        """
+        if isinstance(table_identifier, int):
+            if table_identifier not in self.__tables:
+                raise ValueError(f"Unknown table_id: {table_identifier}")
+            return table_identifier
+        elif isinstance(table_identifier, str):
+            if table_identifier not in self.__table_names:
+                raise ValueError(f"Unknown table_name: {table_identifier}")
+            return self.__table_names[table_identifier]
+        else:
+            raise ValueError(f"Table identifier must be int or str, got {type(table_identifier)}")
+
+    def unregister_table(self, table_id: int) -> None:
+        """Unregister a table by its ID."""
+        if table_id in self.__tables:
+            # Clean up name mapping
+            table_name = self.__tables[table_id].get("table_name")
+            if table_name and table_name in self.__table_names:
+                del self.__table_names[table_name]
+            # Remove table
+            self.__tables.pop(table_id, None)
+
+    def list_tables(self) -> List[int]:
+        """List all registered table IDs."""
+        return list(self.__tables.keys())
+
+    def get_field_metadata(self, table_identifier: Union[int, str]) -> List[Dict[str, Any]]:
+        """Get field metadata for a registered table.
+        
+        Args:
+            table_identifier: Either an integer table ID or string table name
+            
+        Returns:
+            List of field metadata dictionaries
+        """
+        table_id = self._resolve_table_id(table_identifier)
+        rec = self.__tables.get(table_id)
+        if not rec:
+            raise KeyError(f"Unknown table_id: {table_id}")
+        return rec["field_index"]
 
     def clear(self) -> None:
-        self._tables.clear()
+        """Clear all registered tables and reset state."""
+        self.__tables.clear()
+        self.__table_names.clear()
+        self.__last_allocated_id = 0
 
-    def get_json_schema(self, table_id: str) -> Dict[str, Any]:
-        rec = self._tables.get(table_id)
+    def get_json_schema(self, table_identifier: Union[int, str]) -> Dict[str, Any]:
+        """Get the JSON schema for a registered table.
+        
+        Args:
+            table_identifier: Either an integer table ID or string table name
+            
+        Returns:
+            JSON schema dictionary
+        """
+        table_id = self._resolve_table_id(table_identifier)
+        rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
         return rec["json_schema"]
 
-    def validate(self, table_id: str, data: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def validate(self, table_identifier: Union[int, str], data: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """Validate data against registered JSON schema and custom validators.
         
-        Returns (is_valid, errors).
-        - is_valid: True if all validations pass
-        - errors: List of error messages
+        Args:
+            table_identifier: Either an integer table ID or string table name
+            data: Data to validate
+        
+        Returns:
+            Tuple of (is_valid, errors).
+            - is_valid: True if all validations pass
+            - errors: List of error messages
         """
-        rec = self._tables.get(table_id)
+        table_id = self._resolve_table_id(table_identifier)
+        rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
         
@@ -418,13 +523,13 @@ class SchemaConverterEngine:
                 continue
             
             # Get validator (instance overrides global)
-            validator = self._instance_validator_registry.get(target_type) or get_validator(target_type)
+            validator = self.__instance_validator_registry.get(target_type) or _get_validator(target_type)
             
             if validator:
                 try:
                     # Instance validators use: (engine, value, field_metadata)
                     # Global validators use: (engine, value)
-                    if target_type in self._instance_validator_registry:
+                    if target_type in self.__instance_validator_registry:
                         is_valid, error_msg = validator(self, value, field_meta)
                     else:
                         is_valid, error_msg = validator(self, value)
@@ -462,15 +567,15 @@ class SchemaConverterEngine:
             raise TypeError("external_schema must be a dict")
 
         # Get table metadata from external schema using meta-schema field names
-        schema_name_field = self._meta_schema.get("schema_name")
+        schema_name_field = self.__meta_schema.get("schema_name")
         table_name = external_schema.get(schema_name_field, "Unknown Table") if schema_name_field else "Unknown Table"
-        table_title = external_schema.get(schema_name_field, "Unknown Table") if schema_name_field else "Unknown Table"
+        table_title = table_name  # Title is the same as name for now
 
         # Check if this is a flat schema (direct properties) or nested schema (container)
-        if "properties" in self._meta_schema:
+        if "properties" in self.__meta_schema:
             # Flat schema - properties are at the root level
             return self._build_flat_schema(external_schema, table_name, table_title)
-        elif "container" in self._meta_schema:
+        elif "container" in self.__meta_schema:
             # Nested schema - properties are in containers
             return self._build_nested_schema(external_schema, table_name, table_title)
         else:
@@ -478,7 +583,7 @@ class SchemaConverterEngine:
 
     def _build_flat_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Build JSON schema for flat structure (no containers)."""
-        properties_def = self._meta_schema["properties"]
+        properties_def = self.__meta_schema["properties"]
         properties_name = properties_def["properties_name"]
         property_def = properties_def["property"]
         
@@ -515,7 +620,7 @@ class SchemaConverterEngine:
 
     def _build_nested_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Build JSON schema for nested structure (with containers) - object-based approach."""
-        container_def = self._meta_schema["container"]
+        container_def = self.__meta_schema["container"]
         container_name = container_def["container_name"]
         
         # Get the container array from external schema
@@ -762,7 +867,7 @@ class SchemaConverterEngine:
                 enum_values = options
             elif options_extractor_name:
                 # Use extractor function
-                extractor_func = self._options_extractor_registry.get(options_extractor_name)
+                extractor_func = self.__options_extractor_registry.get(options_extractor_name)
                 if not extractor_func:
                     raise ValueError(f"Extractor function '{options_extractor_name}' not registered")
                 enum_values = extractor_func(options)
@@ -773,7 +878,7 @@ class SchemaConverterEngine:
 
         # Build schema using registry (instance overrides global)
         # Check instance registry first
-        instance_builder = self._instance_schema_field_builder_registry.get(target_type)
+        instance_builder = self.__instance_schema_field_builder_registry.get(target_type)
         
         if instance_builder:
             # Instance builders use: (engine, target_type, field_schema, nullable)
@@ -785,7 +890,7 @@ class SchemaConverterEngine:
                 raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
         
         # Fall back to global registry
-        global_builder = get_schema_field_builder(target_type)
+        global_builder = _get_schema_field_builder(target_type)
         
         if global_builder:
             # Global builders use: (engine, target_type, enum_values, nullable)
@@ -800,7 +905,7 @@ class SchemaConverterEngine:
 
     # ----------------------------- Helpers ------------------------------------
 
-    def _validate_meta_schema(self, meta_schema: Dict[str, Any]) -> None:
+    def __validate_meta_schema(self, meta_schema: Dict[str, Any]) -> None:
         """Validate that the meta-schema language definition conforms to our syntax."""
         if not isinstance(meta_schema, dict):
             raise ValueError("Meta-schema must be a dictionary")
@@ -924,82 +1029,94 @@ class SchemaConverterEngine:
 
 # ----------------------------- Default Schema Builders -----------------------------
 
-@register_schema_field_builder("string")
+@_register_schema_field_builder("string")
 def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default string schema builder - always nullable."""
     return {"type": ["string", "null"]}
 
 
-@register_schema_field_builder("integer")
+@_register_schema_field_builder("integer")
 def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default integer schema builder - always nullable."""
     return {"type": ["integer", "null"]}
 
 
-@register_schema_field_builder("number")
+@_register_schema_field_builder("number")
 def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default number schema builder - always nullable."""
     return {"type": ["number", "null"]}
 
-@register_schema_field_builder("percent")
+@_register_schema_field_builder("positive_number")
+def _positive_number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+    """Default positive number schema builder - always nullable."""
+    return {"type": ["number", "null"], "minimum": 0}
+
+
+@_register_schema_field_builder("positive_integer")
+def _positive_integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+    """Default positive integer schema builder - always nullable, non-negative integers only."""
+    return {"type": ["integer", "null"], "minimum": 0}
+
+
+@_register_schema_field_builder("percent")
 def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Percent schema builder - nullable number constrained to 0..100."""
     return {"type": ["number", "null"], "minimum": 0, "maximum": 100}
 
 
-@register_schema_field_builder("boolean")
+@_register_schema_field_builder("boolean")
 def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default boolean schema builder - always nullable."""
     return {"type": ["boolean", "null"]}
 
 
-@register_schema_field_builder("date")
+@_register_schema_field_builder("date")
 def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default date schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date", "description": "ISO 8601 date (YYYY-MM-DD)"}
 
 
-@register_schema_field_builder("datetime")
+@_register_schema_field_builder("datetime")
 def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default datetime schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date-time", "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"}
 
 
-@register_schema_field_builder("singleSelect")
+@_register_schema_field_builder("single_select")
 def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
-    """Default singleSelect schema builder - always nullable."""
+    """Default single_select schema builder - always nullable."""
     base = {"type": ["string", "null"], "description": "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"}
     if enum_values is not None:
-        base["enum"] = enum_values
+        base["enum"] = enum_values + [None]  # Add None to enum values
     return base
 
 
-@register_schema_field_builder("multipleSelect")
+@_register_schema_field_builder("multiple_select")
 def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
-    """Default multipleSelect schema builder - always nullable."""
+    """Default multiple_select schema builder - always nullable."""
     base = {
         "type": ["array", "null"],
-        "items": {"type": "string"},
+        "items": {"type": ["string", "null"]},
         "description": "Select one or more of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"
     }
     if enum_values is not None:
-        base["items"]["enum"] = enum_values
+        base["items"]["enum"] = enum_values + [None]
     return base
 
-@register_schema_field_builder("currency")
+@_register_schema_field_builder("currency")
 def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Currency schema builder - nullable number with hint about precision."""
     # We don't encode precision constraints here; description guides the model.
     return {"type": ["number", "null"], "description": "Currency - must be a number with up to 2 decimal precision"}
 
 
-@register_schema_field_builder("array")
+@_register_schema_field_builder("array")
 def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default array schema builder - always nullable."""
     return {"type": ["array", "null"]}
 
 
-@register_schema_field_builder("object")
+@_register_schema_field_builder("object")
 def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
     """Default object schema builder - always nullable."""
     return {"type": ["object", "null"]}
@@ -1007,7 +1124,7 @@ def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum
 
 # ----------------------------- Default Validators -----------------------------
 
-@register_validator("date")
+@_register_validator("date")
 def _date_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
     """Validate ISO date format."""
     if not isinstance(value, str):
@@ -1020,7 +1137,7 @@ def _date_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, st
         return False, f"Invalid ISO date format: {value}"
 
 
-@register_validator("datetime")
+@_register_validator("datetime")
 def _datetime_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
     """Validate ISO datetime format."""
     if not isinstance(value, str):
@@ -1036,16 +1153,16 @@ def _datetime_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool
         return False, f"Invalid ISO datetime format: {value}"
 
 
-@register_validator("singleSelect")
+@_register_validator("single_select")
 def _single_select_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
-    """Validate singleSelect enum value."""
+    """Validate single_select enum value."""
     # JSON Schema already validates enum membership, so this is just for additional checks
     return True, ""
 
 
-@register_validator("multipleSelect")
+@_register_validator("multiple_select")
 def _multiple_select_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
-    """Validate multipleSelect array values."""
+    """Validate multiple_select array values."""
     # JSON Schema already validates array and enum membership, so this is just for additional checks
     return True, ""
 
