@@ -491,6 +491,74 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify it's in the required list
         self.assertIn("1.Instructions", questions["required"])
 
+    def test_computed_fields_skipped(self):
+        """Test that computed (cp) fields are skipped in JSON schema."""
+        assessment_with_computed = {
+            "assessmentDescription": "Test Assessment with Computed Fields",
+            "facId": 100,
+            "templateId": 1,
+            "templateVersion": "1.0",
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Test Section",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Test Group",
+                            "questions": [
+                                {
+                                    "questionKey": "COMP1",
+                                    "questionNumber": "1",
+                                    "questionText": "Computed total score",
+                                    "questionTitle": "Total Score",
+                                    "questionType": "cp"
+                                },
+                                {
+                                    "questionKey": "Q1",
+                                    "questionNumber": "2",
+                                    "questionText": "Patient height",
+                                    "questionTitle": "Height",
+                                    "questionType": "txt"
+                                },
+                                {
+                                    "questionKey": "COMP2",
+                                    "questionNumber": "3",
+                                    "questionText": "Computed BMI",
+                                    "questionTitle": "BMI",
+                                    "questionType": "cp"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = self.pcc_schema.register_assessment(None, assessment_with_computed)
+        json_schema = self.pcc_schema.get_json_schema(assessment_id)
+        
+        # Navigate to the questions - groupText is empty, so the key is just "1"
+        questions = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]
+        
+        # Verify computed fields are NOT in the schema
+        self.assertNotIn("Computed total score", questions["properties"])
+        self.assertNotIn("Computed BMI", questions["properties"])
+        
+        # Verify regular field IS in the schema
+        self.assertIn("Patient height", questions["properties"])
+        
+        # Verify computed fields are NOT in required list
+        self.assertNotIn("Computed total score", questions["required"])
+        self.assertNotIn("Computed BMI", questions["required"])
+        
+        # Verify regular field IS in required list
+        self.assertIn("Patient height", questions["required"])
+        
+        # Verify only 1 field in questions (not 3)
+        self.assertEqual(len(questions["properties"]), 1)
+        self.assertEqual(len(questions["required"]), 1)
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages

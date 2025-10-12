@@ -675,6 +675,10 @@ class SchemaConverterEngine:
             # Build field schema (returns tuple of property_key_override, json_schema, and target_type)
             property_key_override, json_schema, target_type = self._build_property_schema(prop, property_def)
             
+            # Skip this field entirely if builder returned None triplet (empty dict signal)
+            if property_key_override is None and json_schema is None and target_type is None:
+                continue
+            
             # Use override if provided, otherwise use field_name
             property_key = property_key_override if property_key_override else field_name
             
@@ -897,6 +901,11 @@ class SchemaConverterEngine:
                     property_key_override, json_schema = result
                 else:
                     property_key_override, json_schema = None, result
+                
+                # Check if builder returned empty dict (skip signal)
+                if json_schema == {}:
+                    return None, None, None  # Signal to skip this field
+                
                 return property_key_override, json_schema, target_type
             except Exception as e:
                 logger.error(f"Instance schema builder error for type '{target_type}': {e}")
@@ -914,6 +923,11 @@ class SchemaConverterEngine:
                     property_key_override, json_schema = result
                 else:
                     property_key_override, json_schema = None, result
+                
+                # Check if builder returned empty dict (skip signal)
+                if json_schema == {}:
+                    return None, None, None  # Signal to skip this field
+                
                 return property_key_override, json_schema, target_type
             except Exception as e:
                 logger.error(f"Global schema builder error for type '{target_type}': {e}")
@@ -1176,6 +1190,15 @@ def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str
     
     # Return tuple: (property_key_override, schema)
     return (property_key, schema)
+
+
+@_register_schema_field_builder("skip")
+def _skip_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Schema builder for skip fields - these fields are omitted from JSON schema.
+    Returns empty dict to signal that this field should be skipped.
+    """
+    return {}  # Return empty dict to signal skip
 
 
 # ----------------------------- Default Validators -----------------------------

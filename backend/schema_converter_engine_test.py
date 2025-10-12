@@ -1990,6 +1990,82 @@ class TestSchemaConverterEngine(unittest.TestCase):
         is_valid, errors = engine.validate(2, invalid_data)
         self.assertFalse(is_valid, "Expected validation to fail with non-matching const")
 
+    def test_skip_type(self):
+        """Test that skip type fields are omitted from JSON schema."""
+        # Create meta-schema with skip type
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("skip")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["skip"] = {
+            "target_type": "skip",
+            "requires_options": False
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register table with skip fields mixed with regular fields
+        table_schema = {
+            "name": "Test Skip Fields",
+            "fields": [
+                {
+                    "field_id": "skip1",
+                    "field_number": "1",
+                    "field_name": "Internal ID",
+                    "field_type": "skip"
+                },
+                {
+                    "field_id": "regular1",
+                    "field_number": "2",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "skip2",
+                    "field_number": "3",
+                    "field_name": "Computed Field",
+                    "field_type": "skip"
+                },
+                {
+                    "field_id": "regular2",
+                    "field_number": "4",
+                    "field_name": "Patient Age",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        json_schema = engine.get_json_schema(table_id)
+        
+        # Verify skip fields are NOT in the schema
+        fields_properties = json_schema["properties"]["fields"]["properties"]
+        self.assertNotIn("Internal ID", fields_properties)
+        self.assertNotIn("Computed Field", fields_properties)
+        
+        # Verify regular fields ARE in the schema
+        self.assertIn("Patient Name", fields_properties)
+        self.assertIn("Patient Age", fields_properties)
+        
+        # Verify skip fields are NOT in required list
+        required = json_schema["properties"]["fields"]["required"]
+        self.assertNotIn("Internal ID", required)
+        self.assertNotIn("Computed Field", required)
+        
+        # Verify regular fields ARE in required list
+        self.assertIn("Patient Name", required)
+        self.assertIn("Patient Age", required)
+        
+        # Verify only 2 fields in schema (not 4)
+        self.assertEqual(len(fields_properties), 2)
+        self.assertEqual(len(required), 2)
+        
+        # Verify field metadata still includes skip fields for completeness
+        # Note: Currently skip fields will NOT be in metadata since we continue
+        # before adding to field_index. This is intentional - skipped fields
+        # should not be tracked at all.
+        field_metadata = engine.get_field_metadata(table_id)
+        skip_fields = [f for f in field_metadata if f.get("target_type") == "skip"]
+        self.assertEqual(len(skip_fields), 0, "Skip fields should not be in metadata")
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages
