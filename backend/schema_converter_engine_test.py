@@ -1030,7 +1030,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         engine = SchemaConverterEngine(test_meta)
         
         # Register custom checkbox builder (Yes/No instead of boolean)
-        def checkbox_yes_no_builder(engine, target_type, field_schema, nullable):
+        def checkbox_yes_no_builder(engine, target_type, field_schema, nullable, property_def, field_schema_data):
             return {
                 "type": ["string", "null"] if nullable else "string",
                 "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
@@ -1111,7 +1111,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_custom_builder_with_field_schema_access(self):
         """Test that custom builders can access field_schema for schema generation."""
-        def percent_with_precision_builder(engine, target_type, field_schema, nullable):
+        def percent_with_precision_builder(engine, target_type, field_schema, nullable, property_def, field_schema_data):
             # Access field details from schema
             field_name = field_schema.get("field_name", "Percent")  # Use field_name from meta-schema
             precision = field_schema.get("precision", 2)  # Default 2 decimal places
@@ -1900,6 +1900,95 @@ class TestSchemaConverterEngine(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             self.flat_engine.get_field_metadata(999)
         self.assertIn("Unknown table_id: 999", str(cm.exception))
+
+    def test_instructions_type(self):
+        """Test instructions field type with title.name const value."""
+        # Create meta-schema with instructions type
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("inst")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["inst"] = {
+            "target_type": "instructions",
+            "requires_options": False
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Test case 1: Field with both title and name
+        table_schema_with_title = {
+            "name": "Test Instructions",
+            "fields": [
+                {
+                    "field_id": "instr1",
+                    "field_number": "1",
+                    "field_name": "Please read carefully",
+                    "field_title": "Section A Instructions",
+                    "field_type": "inst"
+                },
+                {
+                    "field_id": "field1",
+                    "field_number": "2",
+                    "field_name": "Patient Name",
+                    "field_title": "Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id_1, table_name_1 = engine.register_table(1, table_schema_with_title)
+        json_schema = engine.get_json_schema(1)
+        
+        # Verify instructions field schema - property key is now "1.Instructions"
+        instr_field = json_schema["properties"]["fields"]["properties"]["1.Instructions"]
+        self.assertEqual(instr_field["type"], "string")
+        self.assertEqual(instr_field["const"], "Section A Instructions.Please read carefully")
+        self.assertIn("context for other properties", instr_field["description"])
+        self.assertEqual(instr_field["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
+        
+        # Verify instructions field is in field_index
+        field_index = engine.get_field_metadata(1)
+        instr_metadata = next(f for f in field_index if f["key"] == "instr1")
+        self.assertEqual(instr_metadata["target_type"], "instructions")
+        
+        # Test case 2: Field with name only (no title)
+        table_schema_no_title = {
+            "name": "Test No Title",
+            "fields": [
+                {
+                    "field_id": "instr2",
+                    "field_number": "1",
+                    "field_name": "Answer all questions",
+                    "field_type": "inst"
+                }
+            ]
+        }
+        
+        table_id_2, table_name_2 = engine.register_table(2, table_schema_no_title)
+        json_schema2 = engine.get_json_schema(2)
+        
+        # Verify property key is "1.Instructions", const is the name
+        instr_field2 = json_schema2["properties"]["fields"]["properties"]["1.Instructions"]
+        self.assertEqual(instr_field2["const"], "Answer all questions")
+        self.assertEqual(instr_field2["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
+        
+        # Test case 3: Validation - const field should only accept its const value
+        valid_data = {
+            "table_name": table_name_2,  # Use the actual registered table name
+            "fields": {
+                "1.Instructions": "Answer all questions"  # Use new property key
+            }
+        }
+        is_valid, errors = engine.validate(2, valid_data)
+        self.assertTrue(is_valid, f"Expected validation to pass with matching const, got errors: {errors}")
+        
+        # Wrong value should fail
+        invalid_data = {
+            "table_name": table_name_2,  # Use the actual registered table name
+            "fields": {
+                "1.Instructions": "Different text"  # Use new property key
+            }
+        }
+        is_valid, errors = engine.validate(2, invalid_data)
+        self.assertFalse(is_valid, "Expected validation to fail with non-matching const")
 
 
 if __name__ == "__main__":

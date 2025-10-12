@@ -43,7 +43,7 @@ PCC_META_SCHEMA = {
                             "type": "questionType",
                             "options": "responseOptions",
                             "validation": {
-                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb"],
+                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst"],
                                 "type_constraints": {
                                     "txt": {
                                         "target_type": "string",
@@ -104,6 +104,10 @@ PCC_META_SCHEMA = {
                                         "requires_options": True,
                                         "options_field": "responseOptions",
                                         "options_extractor": "extract_response_options"
+                                    },
+                                    "inst": {
+                                        "target_type": "instructions",
+                                        "requires_options": False
                                     }
                                 }
                             }

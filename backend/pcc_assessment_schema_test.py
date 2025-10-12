@@ -439,6 +439,58 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(birthdate_meta["name"], "BIRTHDATE")
         self.assertEqual(birthdate_meta["target_type"], "date")
 
+    def test_instruction_fields(self):
+        """Test that instruction fields are properly mapped with const values."""
+        assessment_with_instructions = {
+            "assessmentDescription": "Test Assessment with Instructions",
+            "facId": 100,
+            "templateId": 1,
+            "templateVersion": "1.0",
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Test Section",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Test Group",
+                            "questions": [
+                                {
+                                    "questionKey": "INSTR1",
+                                    "questionNumber": "1",
+                                    "questionText": "Please answer the following questions based on observation",
+                                    "questionTitle": "Instructions",
+                                    "questionType": "inst"
+                                },
+                                {
+                                    "questionKey": "Q1",
+                                    "questionNumber": "2",
+                                    "questionText": "Patient height",
+                                    "questionTitle": "Height",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = self.pcc_schema.register_assessment(None, assessment_with_instructions)
+        json_schema = self.pcc_schema.get_json_schema(assessment_id)
+        
+        # Navigate to the questions - groupText is empty, so the key is just "1"
+        questions = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]
+        
+        # Verify instruction field - property key is "1.Instructions"
+        instr_field = questions["properties"]["1.Instructions"]
+        self.assertEqual(instr_field["type"], "string")
+        self.assertEqual(instr_field["const"], "Instructions.Please answer the following questions based on observation")
+        self.assertEqual(instr_field["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
+        
+        # Verify it's in the required list
+        self.assertIn("1.Instructions", questions["required"])
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages

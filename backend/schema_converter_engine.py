@@ -332,7 +332,7 @@ class SchemaConverterEngine:
             builder_func: Schema builder function
             
         Example (PointClickCare checkbox as Yes/No enum):
-            def checkbox_yes_no_builder(engine, target_type, field_schema, nullable):
+            def checkbox_yes_no_builder(engine, target_type, field_schema, nullable, property_def, field_schema_data):
                 return {
                     "type": ["string", "null"] if nullable else "string",
                     "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
@@ -593,7 +593,7 @@ class SchemaConverterEngine:
             raise ValueError(f"Expected array at '{properties_name}', got {type(properties_array)}")
 
         # Use unified property processing with properties_name as level_keys
-        item_properties, field_index = self._process_properties(properties_array, property_def, level_keys=[properties_name])
+        item_properties, item_required, field_index = self._process_properties(properties_array, property_def, level_keys=[properties_name])
 
         # Create root object with properties_name container (same as nested structure)
         root: Dict[str, Any] = {
@@ -610,7 +610,7 @@ class SchemaConverterEngine:
                     "type": "object",
                     "additionalProperties": False,
                     "properties": item_properties,
-                    "required": list(item_properties.keys())
+                    "required": item_required
                 }
             },
             "required": ["table_name", properties_name],
@@ -657,9 +657,10 @@ class SchemaConverterEngine:
 
         return root, field_index
 
-    def _process_properties(self, properties_array: List[Dict[str, Any]], property_def: Dict[str, Any], level_keys: List[str]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def _process_properties(self, properties_array: List[Dict[str, Any]], property_def: Dict[str, Any], level_keys: List[str]) -> Tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
         """Unified method to process properties array and build field schemas."""
         properties: Dict[str, Any] = {}
+        required: List[str] = []
         field_index: List[Dict[str, Any]] = []
 
         # Process each property
@@ -671,9 +672,14 @@ class SchemaConverterEngine:
             # Get field name for JSON schema property name (use name if available, fallback to key)
             field_name = prop.get(property_def.get("name", ""), field_key)
             
-            # Build field schema (returns tuple of json_schema and target_type)
-            json_schema, target_type = self._build_property_schema(prop, property_def)
-            properties[field_name] = json_schema
+            # Build field schema (returns tuple of property_key_override, json_schema, and target_type)
+            property_key_override, json_schema, target_type = self._build_property_schema(prop, property_def)
+            
+            # Use override if provided, otherwise use field_name
+            property_key = property_key_override if property_key_override else field_name
+            
+            properties[property_key] = json_schema
+            required.append(property_key)
             
             # Collect field metadata using meta-schema field names
             field_metadata = {
@@ -681,13 +687,14 @@ class SchemaConverterEngine:
                 "level_keys": level_keys.copy(),
                 "target_type": target_type,
                 "field_schema": prop,
+                "property_key": property_key,  # Add this for reverse mapping
                 # Add optional fields if they exist in meta-schema using dictionary comprehension
                 **{k: prop.get(property_def[k], "") for k in ["id", "name", "title"] if k in property_def}
             }
                 
             field_index.append(field_metadata)
 
-        return properties, field_index
+        return properties, required, field_index
 
     def _build_container_object(self, object_def: Dict[str, Any], container_array: List[Dict[str, Any]], level_keys: List[str]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Build JSON schema for container as object with key.name property names."""
@@ -740,7 +747,7 @@ class SchemaConverterEngine:
                 updated_level_keys.append(properties_name)
                 
                 # Use unified property processing with updated level keys
-                item_properties, item_field_index = self._process_properties(properties_array, property_def, updated_level_keys)
+                item_properties, item_required, item_field_index = self._process_properties(properties_array, property_def, updated_level_keys)
                 
                 # Create the item object with explicit properties container
                 item_obj = {
@@ -751,7 +758,7 @@ class SchemaConverterEngine:
                             "type": "object",
                             "additionalProperties": False,
                             "properties": item_properties,
-                            "required": list(item_properties.keys())
+                            "required": item_required
                         }
                     },
                     "required": [properties_name]
@@ -819,11 +826,12 @@ class SchemaConverterEngine:
 
         return container_obj, collected
 
-    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any], str]:
         """Build JSON schema for a single property.
         
         Returns:
-            Tuple of (json_schema, target_type)
+            Tuple of (property_key_override, json_schema, target_type)
+            property_key_override is None when no override is needed
         """
         # Get field type from property
         type_field = property_def["type"]
@@ -881,10 +889,15 @@ class SchemaConverterEngine:
         instance_builder = self.__instance_schema_field_builder_registry.get(target_type)
         
         if instance_builder:
-            # Instance builders use: (engine, target_type, field_schema, nullable)
+            # Instance builders use: (engine, target_type, field_schema, nullable, property_def, field_schema_data)
             try:
-                json_schema = instance_builder(self, target_type, prop, True)  # Always nullable
-                return json_schema, target_type
+                result = instance_builder(self, target_type, prop, True, property_def, prop)  # Always nullable
+                # Check if builder returned a tuple (property_key_override, schema)
+                if isinstance(result, tuple) and len(result) == 2:
+                    property_key_override, json_schema = result
+                else:
+                    property_key_override, json_schema = None, result
+                return property_key_override, json_schema, target_type
             except Exception as e:
                 logger.error(f"Instance schema builder error for type '{target_type}': {e}")
                 raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
@@ -893,10 +906,15 @@ class SchemaConverterEngine:
         global_builder = _get_schema_field_builder(target_type)
         
         if global_builder:
-            # Global builders use: (engine, target_type, enum_values, nullable)
+            # Global builders use: (engine, target_type, enum_values, nullable, property_def, field_schema)
             try:
-                json_schema = global_builder(self, target_type, enum_values, True)  # Always nullable
-                return json_schema, target_type
+                result = global_builder(self, target_type, enum_values, True, property_def, prop)  # Always nullable
+                # Check if builder returned a tuple (property_key_override, schema)
+                if isinstance(result, tuple) and len(result) == 2:
+                    property_key_override, json_schema = result
+                else:
+                    property_key_override, json_schema = None, result
+                return property_key_override, json_schema, target_type
             except Exception as e:
                 logger.error(f"Global schema builder error for type '{target_type}': {e}")
                 raise ValueError(f"Global schema builder error for type '{target_type}': {e}")
@@ -1030,60 +1048,60 @@ class SchemaConverterEngine:
 # ----------------------------- Default Schema Builders -----------------------------
 
 @_register_schema_field_builder("string")
-def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default string schema builder - always nullable."""
     return {"type": ["string", "null"]}
 
 
 @_register_schema_field_builder("integer")
-def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default integer schema builder - always nullable."""
     return {"type": ["integer", "null"]}
 
 
 @_register_schema_field_builder("number")
-def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default number schema builder - always nullable."""
     return {"type": ["number", "null"]}
 
 @_register_schema_field_builder("positive_number")
-def _positive_number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _positive_number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive number schema builder - always nullable."""
     return {"type": ["number", "null"], "minimum": 0}
 
 
 @_register_schema_field_builder("positive_integer")
-def _positive_integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _positive_integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive integer schema builder - always nullable, non-negative integers only."""
     return {"type": ["integer", "null"], "minimum": 0}
 
 
 @_register_schema_field_builder("percent")
-def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Percent schema builder - nullable number constrained to 0..100."""
     return {"type": ["number", "null"], "minimum": 0, "maximum": 100}
 
 
 @_register_schema_field_builder("boolean")
-def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default boolean schema builder - always nullable."""
     return {"type": ["boolean", "null"]}
 
 
 @_register_schema_field_builder("date")
-def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default date schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date", "description": "ISO 8601 date (YYYY-MM-DD)"}
 
 
 @_register_schema_field_builder("datetime")
-def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default datetime schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date-time", "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"}
 
 
 @_register_schema_field_builder("single_select")
-def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default single_select schema builder - always nullable."""
     base = {"type": ["string", "null"], "description": "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"}
     if enum_values is not None:
@@ -1092,7 +1110,7 @@ def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: st
 
 
 @_register_schema_field_builder("multiple_select")
-def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default multiple_select schema builder - always nullable."""
     base = {
         "type": ["array", "null"],
@@ -1104,22 +1122,60 @@ def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: 
     return base
 
 @_register_schema_field_builder("currency")
-def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Currency schema builder - nullable number with hint about precision."""
     # We don't encode precision constraints here; description guides the model.
     return {"type": ["number", "null"], "description": "Currency - must be a number with up to 2 decimal precision"}
 
 
 @_register_schema_field_builder("array")
-def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default array schema builder - always nullable."""
     return {"type": ["array", "null"]}
 
 
 @_register_schema_field_builder("object")
-def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool) -> Dict[str, Any]:
+def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default object schema builder - always nullable."""
     return {"type": ["object", "null"]}
+
+
+@_register_schema_field_builder("instructions")
+def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    """
+    Schema builder for instruction fields - creates const string field for context.
+    Returns a tuple (property_key, schema) to override the property key.
+    """
+    # Extract field names from meta-schema property definition
+    id_field = property_def.get("id", "")
+    title_field = property_def.get("title", "")
+    name_field = property_def.get("name", "")
+    
+    # Extract actual values from field schema
+    id_value = field_schema.get(id_field, "") if id_field else ""
+    title_value = field_schema.get(title_field, "") if title_field else ""
+    name_value = field_schema.get(name_field, "") if name_field else ""
+    
+    # Build property key: "<id>.Instructions" if id exists, else "Instructions"
+    if id_value:
+        property_key = f"{id_value}.Instructions"
+    else:
+        property_key = "Instructions"
+    
+    # Build const value from title.name
+    if title_value:
+        const_value = f"{title_value}.{name_value}"
+    else:
+        const_value = name_value
+    
+    schema = {
+        "type": "string",
+        "const": const_value,
+        "description": "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects."
+    }
+    
+    # Return tuple: (property_key_override, schema)
+    return (property_key, schema)
 
 
 # ----------------------------- Default Validators -----------------------------
