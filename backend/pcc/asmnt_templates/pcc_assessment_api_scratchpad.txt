@@ -53,3 +53,14 @@ investigate with Arielle.
 possibly each entry in the table is a#_<questionKey> indexed from 0 and the value b#<questionKey> but how do we get possible values?
  
 
+'bp'                 :    1 (  0.1%)  --> from vitals
+'diag'               :    1 (  0.1%)  --> text
+'gbdy'               :    1 (  0.1%)  --> body table
+'he'                 :    1 (  0.1%)  --> from vitals
+'num'                :    1 (  0.1%)  
+'o2'                 :    1 (  0.1%)  --> from vitals
+'pnl'                :    1 (  0.1%)  --> from vitals 
+'pulse'              :    1 (  0.1%)  --> from vitals
+'resp'               :    1 (  0.1%)  --> from vitals
+'temp'               :    1 (  0.1%)  --> from vitals
+'we'                 :    1 (  0.1%)  --> from vitals

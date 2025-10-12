@@ -50,8 +50,10 @@ This allows the engine to be truly database-agnostic by understanding any schema
           // and later provide reverse conversion function (true->Yes, false->No).
           
           "validation": {  // optional validation rules
-            "allowed_types": ["type1", "type2", ...], // mandatory
+            "allowed_types": ["type1", "type2", ...], // mandatory - types to process
+            "ignored_types": ["type3", "type4", ...], // optional - types to skip entirely (mutually exclusive with allowed_types)
             "type_constraints": { // mandatory
+              // Only need entries for allowed_types, not ignored_types
               "type1": {
                 "target_type": "<field_name_for_target_type>", // must be one of the target types supported by the engine - later maybe we will support external types
                 "requires_options": <boolean>, // mandatory
@@ -846,7 +848,12 @@ class SchemaConverterEngine:
         # Get validation rules from meta-schema
         validation = property_def.get("validation", {})
         allowed_types = validation.get("allowed_types", [])
+        ignored_types = validation.get("ignored_types", [])
         type_constraints = validation.get("type_constraints", {})
+
+        # Skip ignored types entirely
+        if ignored_types and field_type in ignored_types:
+            return None, None, None
 
         # Validate field type
         if allowed_types and field_type not in allowed_types:
@@ -1033,8 +1040,28 @@ class SchemaConverterEngine:
             if "allowed_types" not in validation:
                 raise ValueError("Validation rules must contain 'allowed_types'")
             
+            # Validate ignored_types if present
+            if "ignored_types" in validation:
+                ignored_types = validation["ignored_types"]
+                if not isinstance(ignored_types, list):
+                    raise ValueError("'ignored_types' must be a list")
+                
+                # Ensure mutual exclusion with allowed_types
+                allowed_types = validation["allowed_types"]
+                overlap = set(allowed_types) & set(ignored_types)
+                if overlap:
+                    raise ValueError(f"Types cannot be in both 'allowed_types' and 'ignored_types': {overlap}")
+            
             if "type_constraints" not in validation:
                 raise ValueError("Validation rules must contain 'type_constraints'")
+            
+            # After validating type_constraints structure, ensure ignored types are not in type_constraints
+            if "ignored_types" in validation:
+                ignored_types = validation["ignored_types"]
+                type_constraints = validation["type_constraints"]
+                overlap = set(ignored_types) & set(type_constraints.keys())
+                if overlap:
+                    raise ValueError(f"Ignored types should not have type_constraints defined: {overlap}")
             
             # Validate type constraints
             type_constraints = validation["type_constraints"]
@@ -1192,15 +1219,6 @@ def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str
     
     # Return tuple: (property_key_override, schema)
     return (property_key, schema)
-
-
-@_register_schema_field_builder("skip")
-def _skip_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Schema builder for skip fields - these fields are omitted from JSON schema.
-    Returns empty dict to signal that this field should be skipped.
-    """
-    return {}  # Return empty dict to signal skip
 
 
 # ----------------------------- Default Validators -----------------------------

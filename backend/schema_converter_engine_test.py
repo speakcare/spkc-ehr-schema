@@ -2011,21 +2011,17 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(instr_field3["const"], "Important Instructions")
         self.assertEqual(instr_field3["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
 
-    def test_skip_type(self):
-        """Test that skip type fields are omitted from JSON schema."""
-        # Create meta-schema with skip type
+    def test_ignored_types(self):
+        """Test that ignored_types fields are omitted from JSON schema."""
+        # Create meta-schema with ignored_types
         test_meta = copy.deepcopy(self.flat_meta_schema)
-        test_meta["properties"]["property"]["validation"]["allowed_types"].append("skip")
-        test_meta["properties"]["property"]["validation"]["type_constraints"]["skip"] = {
-            "target_type": "skip",
-            "requires_options": False
-        }
+        test_meta["properties"]["property"]["validation"]["ignored_types"] = ["skip"]
         
         engine = SchemaConverterEngine(test_meta)
         
-        # Register table with skip fields mixed with regular fields
+        # Register table with ignored fields mixed with regular fields
         table_schema = {
-            "name": "Test Skip Fields",
+            "name": "Test Ignored Fields",
             "fields": [
                 {
                     "field_id": "skip1",
@@ -2057,7 +2053,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         table_id, table_name = engine.register_table(1, table_schema)
         json_schema = engine.get_json_schema(table_id)
         
-        # Verify skip fields are NOT in the schema
+        # Verify ignored fields are NOT in the schema
         fields_properties = json_schema["properties"]["fields"]["properties"]
         self.assertNotIn("Internal ID", fields_properties)
         self.assertNotIn("Computed Field", fields_properties)
@@ -2066,7 +2062,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertIn("Patient Name", fields_properties)
         self.assertIn("Patient Age", fields_properties)
         
-        # Verify skip fields are NOT in required list
+        # Verify ignored fields are NOT in required list
         required = json_schema["properties"]["fields"]["required"]
         self.assertNotIn("Internal ID", required)
         self.assertNotIn("Computed Field", required)
@@ -2079,13 +2075,37 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(len(fields_properties), 2)
         self.assertEqual(len(required), 2)
         
-        # Verify field metadata still includes skip fields for completeness
-        # Note: Currently skip fields will NOT be in metadata since we continue
-        # before adding to field_index. This is intentional - skipped fields
-        # should not be tracked at all.
+        # Verify field metadata does not include ignored fields
         field_metadata = engine.get_field_metadata(table_id)
-        skip_fields = [f for f in field_metadata if f.get("target_type") == "skip"]
-        self.assertEqual(len(skip_fields), 0, "Skip fields should not be in metadata")
+        ignored_fields = [f for f in field_metadata if f.get("target_type") == "skip"]
+        self.assertEqual(len(ignored_fields), 0, "Ignored fields should not be in metadata")
+
+    def test_ignored_types_mutual_exclusion(self):
+        """Test that types cannot be in both allowed_types and ignored_types."""
+        invalid_meta = copy.deepcopy(self.flat_meta_schema)
+        invalid_meta["properties"]["property"]["validation"]["allowed_types"] = ["txt", "num", "dte"]
+        invalid_meta["properties"]["property"]["validation"]["ignored_types"] = ["txt", "skip"]  # "txt" is in both!
+        
+        with self.assertRaises(ValueError) as ctx:
+            SchemaConverterEngine(invalid_meta)
+        
+        self.assertIn("both 'allowed_types' and 'ignored_types'", str(ctx.exception))
+        self.assertIn("txt", str(ctx.exception))
+
+    def test_ignored_types_not_in_type_constraints(self):
+        """Test that ignored types should not have type_constraints defined."""
+        invalid_meta = copy.deepcopy(self.flat_meta_schema)
+        invalid_meta["properties"]["property"]["validation"]["ignored_types"] = ["skip"]
+        invalid_meta["properties"]["property"]["validation"]["type_constraints"]["skip"] = {
+            "target_type": "string",
+            "requires_options": False
+        }
+        
+        with self.assertRaises(ValueError) as ctx:
+            SchemaConverterEngine(invalid_meta)
+        
+        self.assertIn("Ignored types should not have type_constraints defined", str(ctx.exception))
+        self.assertIn("skip", str(ctx.exception))
 
 
 if __name__ == "__main__":
