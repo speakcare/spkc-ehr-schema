@@ -1,0 +1,115 @@
+{
+    "status": "success",
+    "data": [
+        {
+            "assessmentDescription": "MHCS Nursing Weekly Skin Check",
+            "facId": -1,
+            "templateId": 21244831,
+            "templateVersion": "",
+            "sections": [
+                {
+                    "sectionCode": "Cust",
+                    "sectionDescription": "",
+                    "sectionSequence": 1,
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "",
+                            "groupText": "",
+                            "groupTitle": "<b>Weekly Skin Check</b>",
+                            "questions": [
+                                {
+                                    "questionKey": "Cust__",
+                                    "questionNumber": "",
+                                    "questionText": "Each week, on the designated day, the nurse is to observe the resident's skin for any NEW skin impairments. If any NEW skin impairments are noted, the nurse must describe them below.  ",
+                                    "questionTitle": " <b>INSTRUCTIONS:</b> ",
+                                    "questionType": "inst",
+                                    "required": false,
+                                    "length": 50,
+                                    "range": ""
+                                }
+                            ]
+                        },
+                        {
+                            "groupNumber": "1",
+                            "groupText": "",
+                            "groupTitle": "<b>Skin Check Observations</b>",
+                            "questions": [
+                                {
+                                    "questionKey": "Cust_1_A",
+                                    "questionNumber": "A",
+                                    "questionTitle": "",
+                                    "questionType": "radh",
+                                    "required": true,
+                                    "range": "",
+                                    "responseOptions": [
+                                        {
+                                            "responseValue": "b"
+                                        },
+                                        {
+                                            "responseValue": "a"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "questionKey": "Cust_1_A",
+                                    "questionNumber": "A",
+                                    "questionTitle": "",
+                                    "questionType": "radh",
+                                    "required": true,
+                                    "range": "",
+                                    "responseOptions": [
+                                        {
+                                            "responseValue": "b"
+                                        },
+                                        {
+                                            "responseValue": "a"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "questionKey": "Cust_1_B",
+                                    "questionNumber": "B",
+                                    "questionTitle": "",
+                                    "questionType": "gbdy",
+                                    "required": false,
+                                    "length": 20,
+                                    "range": ""
+                                },
+                                {
+                                    "questionKey": "Cust_1_C",
+                                    "questionNumber": "C",
+                                    "questionTitle": "",
+                                    "questionType": "chk",
+                                    "required": false,
+                                    "range": ""
+                                },
+                                {
+                                    "questionKey": "Cust_1_D1",
+                                    "questionNumber": "D1",
+                                    "questionTitle": "",
+                                    "questionType": "txt",
+                                    "required": true,
+                                    "length": 50,
+                                    "range": "text, sp(50)"
+                                },
+                                {
+                                    "questionKey": "Cust_1_D2",
+                                    "questionNumber": "D2",
+                                    "questionTitle": "",
+                                    "questionType": "dte",
+                                    "required": true,
+                                    "range": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "requestParams": {
+        "templateIds": [
+            21244831
+        ]
+    }
+}

@@ -1,0 +1,55 @@
+8. Cognitive Orientation (multiple select): Cust_1_A_8
+9. Special Needs on Admission (radio):  Cust_1_A_9
+9.a Hospice Care Plan: Cust_1_A_9a
+Focus                   : Cust_1_A_9a-678697 Y
+Goal                    : Cust_1_A_9a_678717 N
+Intervention:	Coordinate: Cust_1_A_9a-678688 Y
+Intervention:	Monitor   : Cust_1_A_9a-678689 Y
+Intervention:	Notify    : Cust_1_A_9a-678690
+Intervention:	Review    : Cust_1_A_9a-678691
+
+10a.	MD contacted             : Cust_1_A_10a
+10b.	If "no" selected, explain: Cust_1_A_10b
+13.	Additional comments/observations: Cust_1_A_13
+
+Cust_1_A_2 
+147/72<space>Date: 7/11/2022 16:11<BR>Scale: Sitting r/arm  --> how to dill with that
+
+date
+Cust_3_M_4  20251008
+
+
+radio and multi select are passed as numbers.
+
+inst type ignore (check what it means)
+cp type check what it means, probalby checkbox.
+.
+
+
+
+gbdy -> may be a table need to investigate how to access it.
+investigate with Arielle.
+possibly each entry in the table is a#_<questionKey> indexed from 0 and the value b#<questionKey> but how do we get possible values?
+
+
+"MHCS Nursing Admission Assessment - V 5" (template id 21244981) Cust_3_E_1 appears 10 times !!! same for Cust_3_F_1, Cust_3_F_2, Cust_3_G_1.
+
+
+Summary of what I know.
+Checkboxes should pass 1 or dont pass. test tomrrow with Arielle Cust_2_D_2, 
+cmb (combo) beahves like single select test tomorrow with Arielle Cust_3_J_3 
+Select - pass the integer value
+Multi select - pass all integer values
+Text - pass the Text
+Dates - psss the date in YYYYMMDD
+for every field I pass pass the ack<questionKey> Y
+
+
+What I don't know and need to check.
+inst type. need to support ignore types.
+cp type (probably checkbox) - need to test with Arielle
+gbdy type -> may be a table need to investigate how to access it.
+investigate with Arielle.
+possibly each entry in the table is a#_<questionKey> indexed from 0 and the value b#<questionKey> but how do we get possible values?
+ 
+
