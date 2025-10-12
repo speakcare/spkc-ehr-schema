@@ -1037,7 +1037,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
                 "description": "Select Yes or No"
             }
         
-        engine.register_schema_field_builder("boolean", checkbox_yes_no_builder)
+        engine.register_field_schema_builder("boolean", checkbox_yes_no_builder)
         
         # Register table with boolean field
         table_schema = {
@@ -1127,7 +1127,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         # Create new engine and register custom builder
         test_meta = copy.deepcopy(self.flat_meta_schema)
         engine = SchemaConverterEngine(test_meta)
-        engine.register_schema_field_builder("percent", percent_with_precision_builder)
+        engine.register_field_schema_builder("percent", percent_with_precision_builder)
         
         # Register table with percent field that has precision info
         table_schema = {

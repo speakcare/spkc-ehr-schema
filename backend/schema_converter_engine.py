@@ -232,14 +232,14 @@ MAX_TABLES_PER_ENGINE = 1000
 MAX_NESTING_LEVELS = 5
 
 # Function registries for schema builders and validators
-__schema_field_builders_registry: Dict[str, Callable] = {}
+__field_schema_builders_registry: Dict[str, Callable] = {}
 __validator_registry: Dict[str, Callable] = {}
 
 
-def _register_schema_field_builder(internal_type: str):
+def _register_field_schema_builder(internal_type: str):
     """Decorator to register a schema builder function for an internal field type."""
     def decorator(func: Callable):
-        __schema_field_builders_registry[internal_type] = func
+        __field_schema_builders_registry[internal_type] = func
         return func
     return decorator
 
@@ -252,9 +252,9 @@ def _register_validator(internal_type: str):
     return decorator
 
 
-def _get_schema_field_builder(internal_type: str) -> Optional[Callable]:
+def _get_field_schema_builder(internal_type: str) -> Optional[Callable]:
     """Get the schema builder function for an internal field type."""
-    return __schema_field_builders_registry.get(internal_type)
+    return __field_schema_builders_registry.get(internal_type)
 
 
 def _get_validator(internal_type: str) -> Optional[Callable]:
@@ -278,7 +278,7 @@ class SchemaConverterEngine:
         self.__meta_schema = meta_schema_language
         self.__options_extractor_registry: Dict[str, Callable] = {}
         self.__instance_validator_registry: Dict[str, Callable] = {}
-        self.__instance_schema_field_builder_registry: Dict[str, Callable] = {}
+        self.__instance_field_schema_builder_registry: Dict[str, Callable] = {}
 
         # Table registry: table_id -> registry record
         self.__tables: Dict[int, Dict[str, Any]] = {}
@@ -319,7 +319,7 @@ class SchemaConverterEngine:
         self.__instance_validator_registry[target_type] = validator_func
         logger.debug(f"Registered instance validator for target_type='{target_type}'")
 
-    def register_schema_field_builder(self, target_type: str, builder_func: Callable) -> None:
+    def register_field_schema_builder(self, target_type: str, builder_func: Callable) -> None:
         """Register a custom JSON schema field builder for a target type (instance-specific).
         
         Builder signature: func(engine, target_type, field_schema, nullable) -> Dict[str, Any]
@@ -343,7 +343,7 @@ class SchemaConverterEngine:
             
             engine.register_schema_field_builder("checkbox", checkbox_yes_no_builder)
         """
-        self.__instance_schema_field_builder_registry[target_type] = builder_func
+        self.__instance_field_schema_builder_registry[target_type] = builder_func
         logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
 
     def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
@@ -897,7 +897,7 @@ class SchemaConverterEngine:
 
         # Build schema using registry (instance overrides global)
         # Check instance registry first
-        instance_builder = self.__instance_schema_field_builder_registry.get(target_type)
+        instance_builder = self.__instance_field_schema_builder_registry.get(target_type)
         
         if instance_builder:
             # Instance builders use: (engine, target_type, field_schema, nullable, property_def, field_schema_data)
@@ -919,7 +919,7 @@ class SchemaConverterEngine:
                 raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
         
         # Fall back to global registry
-        global_builder = _get_schema_field_builder(target_type)
+        global_builder = _get_field_schema_builder(target_type)
         
         if global_builder:
             # Global builders use: (engine, target_type, enum_values, nullable, property_def, field_schema)
@@ -1088,60 +1088,60 @@ class SchemaConverterEngine:
 
 # ----------------------------- Default Schema Builders -----------------------------
 
-@_register_schema_field_builder("string")
+@_register_field_schema_builder("string")
 def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default string schema builder - always nullable."""
     return {"type": ["string", "null"]}
 
 
-@_register_schema_field_builder("integer")
+@_register_field_schema_builder("integer")
 def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default integer schema builder - always nullable."""
     return {"type": ["integer", "null"]}
 
 
-@_register_schema_field_builder("number")
+@_register_field_schema_builder("number")
 def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default number schema builder - always nullable."""
     return {"type": ["number", "null"]}
 
-@_register_schema_field_builder("positive_number")
+@_register_field_schema_builder("positive_number")
 def _positive_number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive number schema builder - always nullable."""
     return {"type": ["number", "null"], "minimum": 0}
 
 
-@_register_schema_field_builder("positive_integer")
+@_register_field_schema_builder("positive_integer")
 def _positive_integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive integer schema builder - always nullable, non-negative integers only."""
     return {"type": ["integer", "null"], "minimum": 0}
 
 
-@_register_schema_field_builder("percent")
+@_register_field_schema_builder("percent")
 def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Percent schema builder - nullable number constrained to 0..100."""
     return {"type": ["number", "null"], "minimum": 0, "maximum": 100}
 
 
-@_register_schema_field_builder("boolean")
+@_register_field_schema_builder("boolean")
 def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default boolean schema builder - always nullable."""
     return {"type": ["boolean", "null"]}
 
 
-@_register_schema_field_builder("date")
+@_register_field_schema_builder("date")
 def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default date schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date", "description": "ISO 8601 date (YYYY-MM-DD)"}
 
 
-@_register_schema_field_builder("datetime")
+@_register_field_schema_builder("datetime")
 def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default datetime schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date-time", "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"}
 
 
-@_register_schema_field_builder("single_select")
+@_register_field_schema_builder("single_select")
 def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default single_select schema builder - always nullable."""
     base = {"type": ["string", "null"], "description": "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"}
@@ -1150,7 +1150,7 @@ def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: st
     return base
 
 
-@_register_schema_field_builder("multiple_select")
+@_register_field_schema_builder("multiple_select")
 def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default multiple_select schema builder - always nullable."""
     base = {
@@ -1162,26 +1162,26 @@ def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: 
         base["items"]["enum"] = enum_values + [None]
     return base
 
-@_register_schema_field_builder("currency")
+@_register_field_schema_builder("currency")
 def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Currency schema builder - nullable number with hint about precision."""
     # We don't encode precision constraints here; description guides the model.
     return {"type": ["number", "null"], "description": "Currency - must be a number with up to 2 decimal precision"}
 
 
-@_register_schema_field_builder("array")
+@_register_field_schema_builder("array")
 def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default array schema builder - always nullable."""
     return {"type": ["array", "null"]}
 
 
-@_register_schema_field_builder("object")
+@_register_field_schema_builder("object")
 def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default object schema builder - always nullable."""
     return {"type": ["object", "null"]}
 
 
-@_register_schema_field_builder("instructions")
+@_register_field_schema_builder("instructions")
 def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     """
     Schema builder for instruction fields - creates const string field for context.
