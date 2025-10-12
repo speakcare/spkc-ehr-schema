@@ -1989,6 +1989,27 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         is_valid, errors = engine.validate(2, invalid_data)
         self.assertFalse(is_valid, "Expected validation to fail with non-matching const")
+        
+        # Test case 4: Field with title but no name
+        table_schema_title_only = {
+            "name": "Test Title Only",
+            "fields": [
+                {
+                    "field_id": "instr3",
+                    "field_number": "1",
+                    "field_title": "Important Instructions",
+                    "field_type": "inst"
+                }
+            ]
+        }
+        
+        table_id_3, table_name_3 = engine.register_table(3, table_schema_title_only)
+        json_schema3 = engine.get_json_schema(3)
+        
+        # Verify const value is just the title when no name
+        instr_field3 = json_schema3["properties"]["fields"]["properties"]["1.Instructions"]
+        self.assertEqual(instr_field3["const"], "Important Instructions")
+        self.assertEqual(instr_field3["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
 
     def test_skip_type(self):
         """Test that skip type fields are omitted from JSON schema."""

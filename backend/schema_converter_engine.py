@@ -1177,8 +1177,10 @@ def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str
         property_key = "Instructions"
     
     # Build const value from title.name
-    if title_value:
+    if title_value and name_value:
         const_value = f"{title_value}.{name_value}"
+    elif title_value:
+        const_value = title_value
     else:
         const_value = name_value
     
