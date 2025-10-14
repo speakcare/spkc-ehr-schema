@@ -1,5 +1,5 @@
 """
-SchemaConverterEngine: database-agnostic schema conversion and validation engine.
+SchemaEngine: comprehensive schema operations engine for conversion, validation, enrichment, and reverse mapping.
 
 Design highlights:
 - One engine instance per external "schema language". All tables registered to an engine
@@ -10,7 +10,8 @@ Design highlights:
   union types that include "null". Objects always set `additionalProperties` to false.
 - Supports target field types: string, integer, number, boolean, date, datetime,
   single_select, multiple_select, array, object.
-- Uses function registries for schema builders and validators (per target type).
+- Uses function registries for schema builders, validators, and reverse formatters (per target type).
+- Provides schema enrichment, reverse conversion, and container grouping capabilities.
 
 ## Meta-Schema Language Definition
 
@@ -145,7 +146,7 @@ This allows the engine to be truly database-agnostic by understanding any schema
 ### Usage:
 ```python
 # Initialize engine with meta-schema language definition
-engine = SchemaConverterEngine(schema_language_definition)
+engine = SchemaEngine(schema_language_definition)
 
 # Register individual tables using the external schema language
 engine.register_table("mds_assessment", "MDS 2.0 Full Assessment", pointclickcare_schema)
@@ -155,6 +156,12 @@ json_schema = engine.get_json_schema("mds_assessment")
 
 # Validate data against the schema
 is_valid, errors = engine.validate("mds_assessment", data)
+
+# Enrich schema with additional descriptions
+engine.enrich_schema("mds_assessment", {"field_key": "Additional context"})
+
+# Convert model response back to original format
+result = engine.reverse_map("mds_assessment", model_response, group_by_containers=["sections"])
 ```
 
 ### Custom Validators:
@@ -277,7 +284,9 @@ Notes:
 - Validator signature: `(engine, value, field_metadata) -> (is_valid: bool, error: str)`
 - Global builder signature: `(engine, target_type, enum_values, nullable) -> Dict[str, Any]`
 - Instance builder signature: `(engine, target_type, field_schema, nullable) -> Dict[str, Any]`
+- Reverse formatter signature: `(engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]`
 - The engine stores both `key` and `id` for bottom-level fields (for reverse mapping).
+- Supports schema enrichment, reverse conversion, and container grouping.
 """
 
 from __future__ import annotations
@@ -355,12 +364,12 @@ def register_reverse_formatter(target_type: str, formatter: Callable) -> None:
     _reverse_formatters[target_type] = formatter
 
 
-class SchemaConverterEngine:
-    """Engine that converts external schemas to OpenAI-compatible JSON Schema and validates data."""
+class SchemaEngine:
+    """Engine for comprehensive schema operations including conversion, validation, enrichment, and reverse mapping."""
 
     def __init__(self, meta_schema_language: Dict[str, Any]) -> None:
         """
-        Initialize a schema conversion engine for one external "schema language".
+        Initialize a schema engine for one external "schema language".
 
         Args:
             meta_schema_language: Meta-schema definition describing the external schema language structure.

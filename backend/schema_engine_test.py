@@ -1,5 +1,5 @@
 """
-Tests for SchemaConverterEngine.
+Tests for SchemaEngine.
 
 Tests cover:
 - Flat table registration and JSON schema generation
@@ -19,11 +19,11 @@ import logging
 import copy
 from typing import List, Dict, Any
 
-from schema_converter_engine import SchemaConverterEngine
+from schema_engine import SchemaEngine
 
 
-class TestSchemaConverterEngine(unittest.TestCase):
-    """Test cases for SchemaConverterEngine."""
+class TestSchemaEngine(unittest.TestCase):
+    """Test cases for SchemaEngine."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -134,8 +134,8 @@ class TestSchemaConverterEngine(unittest.TestCase):
             }
         }
         
-        self.flat_engine = SchemaConverterEngine(self.flat_meta_schema)
-        self.nested_engine = SchemaConverterEngine(self.nested_meta_schema)
+        self.flat_engine = SchemaEngine(self.flat_meta_schema)
+        self.nested_engine = SchemaEngine(self.nested_meta_schema)
         
         # Register extractor function
         self.flat_engine.register_options_extractor("extract_complex_options", self._extract_complex_options)
@@ -432,7 +432,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.flat_engine.register_table(1, external_schema)
         
         # Re-registration should log info and replace
-        with patch('schema_converter_engine.logger') as mock_logger:
+        with patch('schema_engine.logger') as mock_logger:
             self.flat_engine.register_table(1, external_schema)
             mock_logger.info.assert_called_with("Re-registering table_id=%d (table_name=%s); replacing previous schema", 1, "Test Table")
         
@@ -688,7 +688,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         with self.assertRaises(ValueError) as context:
-            SchemaConverterEngine(invalid_meta_schema_1)
+            SchemaEngine(invalid_meta_schema_1)
         self.assertIn("Meta-schema must contain 'schema_name' field", str(context.exception))
         
         # Both properties and container (should be mutually exclusive)
@@ -718,7 +718,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         with self.assertRaises(ValueError) as context:
-            SchemaConverterEngine(invalid_meta_schema_2)
+            SchemaEngine(invalid_meta_schema_2)
         self.assertIn("Meta-schema cannot contain both 'properties' and 'container'", str(context.exception))
         
         # Missing mandatory property fields
@@ -741,7 +741,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         with self.assertRaises(ValueError) as context:
-            SchemaConverterEngine(invalid_meta_schema_3)
+            SchemaEngine(invalid_meta_schema_3)
         self.assertIn("Property definition must contain 'name' field", str(context.exception))
 
     def test_comprehensive_nested_schema(self):
@@ -799,7 +799,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             }
         }
 
-        engine = SchemaConverterEngine(meta_schema)
+        engine = SchemaEngine(meta_schema)
 
         # Comprehensive external schema with 2-3 containers at each level
         external_schema = {
@@ -1027,7 +1027,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "requires_options": False
         }
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register custom checkbox builder (Yes/No instead of boolean)
         def checkbox_yes_no_builder(engine, target_type, enum_values, nullable, property_def, prop):
@@ -1181,7 +1181,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         # Create new engine and register custom builder
         test_meta = copy.deepcopy(self.flat_meta_schema)
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         engine.register_field_schema_builder("percent", percent_with_precision_builder)
         
         # Register table with percent field that has precision info
@@ -1206,7 +1206,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         custom_meta = copy.deepcopy(self.flat_meta_schema)
         custom_meta["properties"]["properties_name"] = "custom_fields"  # Change from "fields"
         
-        engine = SchemaConverterEngine(custom_meta)
+        engine = SchemaEngine(custom_meta)
         
         # Register a simple test table with a field that we know works
         table_schema = {
@@ -1341,7 +1341,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "options_extractor": "multi_select_extractor"
         }
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register options extractor for multi_select fields
         def multi_select_extractor(options: List[Dict[str, Any]]) -> List[str]:
@@ -1445,7 +1445,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "options_extractor": "multi_select_extractor"
         }
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register options extractor for multi_select fields
         def multi_select_extractor(options: List[Dict[str, Any]]) -> List[str]:
@@ -1517,7 +1517,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         # Create engine with updated meta-schema
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register a test table with positive_number field
         table_schema = {
@@ -1642,7 +1642,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         # Create engine with updated meta-schema
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register a test table with positive_integer field
         table_schema = {
@@ -1835,7 +1835,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(table_name_200, "Simple Test")
         
         # Test re-registration with same ID
-        with self.assertLogs('schema_converter_engine', level='INFO') as cm:
+        with self.assertLogs('schema_engine', level='INFO') as cm:
             returned_id, returned_name = self.flat_engine.register_table(200, simple_external_schema)
             self.assertEqual(returned_id, 200)
             self.assertEqual(returned_name, "Simple Test")
@@ -1966,7 +1966,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "requires_options": False
         }
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Test case 1: Field with both title and name
         table_schema_with_title = {
@@ -2072,7 +2072,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         test_meta = copy.deepcopy(self.flat_meta_schema)
         test_meta["properties"]["property"]["validation"]["ignored_types"] = ["skip"]
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register table with ignored fields mixed with regular fields
         table_schema = {
@@ -2142,7 +2142,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         invalid_meta["properties"]["property"]["validation"]["ignored_types"] = ["txt", "skip"]  # "txt" is in both!
         
         with self.assertRaises(ValueError) as ctx:
-            SchemaConverterEngine(invalid_meta)
+            SchemaEngine(invalid_meta)
         
         self.assertIn("both 'allowed_types' and 'ignored_types'", str(ctx.exception))
         self.assertIn("txt", str(ctx.exception))
@@ -2157,7 +2157,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         }
         
         with self.assertRaises(ValueError) as ctx:
-            SchemaConverterEngine(invalid_meta)
+            SchemaEngine(invalid_meta)
         
         self.assertIn("Ignored types should not have type_constraints defined", str(ctx.exception))
         self.assertIn("skip", str(ctx.exception))
@@ -2172,7 +2172,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
             "requires_options": False
         }
         
-        engine = SchemaConverterEngine(test_meta)
+        engine = SchemaEngine(test_meta)
         
         # Register custom builder that returns (container_schema, virtual_children_metadata)
         def test_virtual_builder(eng, target_type, enum_values, nullable, property_def, prop):
@@ -2223,7 +2223,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_enrich_schema(self):
         """Test schema enrichment functionality."""
-        engine = SchemaConverterEngine(self.flat_meta_schema)
+        engine = SchemaEngine(self.flat_meta_schema)
         
         table_schema = {
             "table_name": "Test Table",
@@ -2269,7 +2269,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_reverse_map_flat(self):
         """Test flat reverse mapping."""
-        engine = SchemaConverterEngine(self.flat_meta_schema)
+        engine = SchemaEngine(self.flat_meta_schema)
         
         table_schema = {
             "table_name": "Test Table",
@@ -2312,7 +2312,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_reverse_map_with_nulls(self):
         """Test reverse mapping includes null values."""
-        engine = SchemaConverterEngine(self.flat_meta_schema)
+        engine = SchemaEngine(self.flat_meta_schema)
         
         table_schema = {
             "table_name": "Test Table",
@@ -2351,7 +2351,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_reverse_formatter_registration(self):
         """Test reverse formatter registration."""
-        engine = SchemaConverterEngine(self.flat_meta_schema)
+        engine = SchemaEngine(self.flat_meta_schema)
         
         # Test instance-level registration
         def custom_formatter(engine, field_meta, model_value, table_name):
