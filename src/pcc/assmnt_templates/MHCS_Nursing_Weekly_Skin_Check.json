@@ -1,0 +1,322 @@
+{
+    "assessmentDescription": "MHCS Nursing Weekly Skin Check",
+    "facId": -1,
+    "templateId": 21244831,
+    "templateVersion": "",
+    "sections": [
+        {
+            "sectionCode": "Cust",
+            "sectionDescription": "MHCS Nursing Weekly Skin Check",
+            "sectionSequence": 1,
+            "assessmentQuestionGroups": [
+                {
+                    "groupNumber": "",
+                    "groupText": "",
+                    "groupTitle": "<b>Weekly Skin Check</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust__",
+                            "questionNumber": "",
+                            "questionText": "Each week, on the designated day, the nurse is to observe the resident's skin for any NEW skin impairments. If any NEW skin impairments are noted, the nurse must describe them below.  ",
+                            "questionTitle": " <b>INSTRUCTIONS:</b> ",
+                            "questionType": "inst",
+                            "required": false,
+                            "length": 50,
+                            "range": ""
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "1",
+                    "groupText": "",
+                    "groupTitle": "<b>Skin Check Observations</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Does the resident have NEW skin impairment(s) that have not been previously noted?</b>",
+                            "questionTitle": "",
+                            "questionType": "radh",
+                            "required": true,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "No",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Yes- complete description below",
+                                    "responseValue": "b"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_B",
+                            "questionNumber": "B",
+                            "questionText": "Note any NEW skin conditions using the diagram below. Under description, indicate type of skin condition observed: <b>bruise, abrasion, surgical incision, open area, blister, rash, redness, skin tear, burn, etc</b>",
+                            "questionTitle": "",
+                            "questionType": "gbdy",
+                            "required": false,
+                            "length": 20,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Top of Scalp",
+                                    "responseValue": "0"
+                                },
+                                {
+                                    "responseText": "Right ear",
+                                    "responseValue": "1"
+                                },
+                                {
+                                    "responseText": "Left ear",
+                                    "responseValue": "2"
+                                },
+                                {
+                                    "responseText": "Face",
+                                    "responseValue": "3"
+                                },
+                                {
+                                    "responseText": "Back of head",
+                                    "responseValue": "4"
+                                },
+                                {
+                                    "responseText": "Right shoulder (front)",
+                                    "responseValue": "5"
+                                },
+                                {
+                                    "responseText": "Left shoulder (front)",
+                                    "responseValue": "6"
+                                },
+                                {
+                                    "responseText": "Right shoulder (rear)",
+                                    "responseValue": "7"
+                                },
+                                {
+                                    "responseText": "Left shoulder (rear)",
+                                    "responseValue": "8"
+                                },
+                                {
+                                    "responseText": "Right scapula",
+                                    "responseValue": "9"
+                                },
+                                {
+                                    "responseText": "Left scapula",
+                                    "responseValue": "10"
+                                },
+                                {
+                                    "responseText": "Chest",
+                                    "responseValue": "11"
+                                },
+                                {
+                                    "responseText": "Vertebrae (upper-mid)",
+                                    "responseValue": "12"
+                                },
+                                {
+                                    "responseText": "Abdomen",
+                                    "responseValue": "13"
+                                },
+                                {
+                                    "responseText": "Right antecubital",
+                                    "responseValue": "14"
+                                },
+                                {
+                                    "responseText": "Left antecubital",
+                                    "responseValue": "15"
+                                },
+                                {
+                                    "responseText": "Right elbow",
+                                    "responseValue": "16"
+                                },
+                                {
+                                    "responseText": "Left elbow",
+                                    "responseValue": "17"
+                                },
+                                {
+                                    "responseText": "Right iliac crest (front)",
+                                    "responseValue": "18"
+                                },
+                                {
+                                    "responseText": "Left iliac crest (front)",
+                                    "responseValue": "19"
+                                },
+                                {
+                                    "responseText": "Right iliac crest (rear)",
+                                    "responseValue": "20"
+                                },
+                                {
+                                    "responseText": "Left iliac crest (rear)",
+                                    "responseValue": "21"
+                                },
+                                {
+                                    "responseText": "Coccyx",
+                                    "responseValue": "22"
+                                },
+                                {
+                                    "responseText": "Groin",
+                                    "responseValue": "23"
+                                },
+                                {
+                                    "responseText": "Right trochanter (hip)",
+                                    "responseValue": "24"
+                                },
+                                {
+                                    "responseText": "Left trochanter (hip)",
+                                    "responseValue": "25"
+                                },
+                                {
+                                    "responseText": "Right hand (palm)",
+                                    "responseValue": "26"
+                                },
+                                {
+                                    "responseText": "Left hand (palm)",
+                                    "responseValue": "27"
+                                },
+                                {
+                                    "responseText": "Right hand (back)",
+                                    "responseValue": "28"
+                                },
+                                {
+                                    "responseText": "Left hand (back)",
+                                    "responseValue": "29"
+                                },
+                                {
+                                    "responseText": "Right buttock",
+                                    "responseValue": "30"
+                                },
+                                {
+                                    "responseText": "Left buttock",
+                                    "responseValue": "31"
+                                },
+                                {
+                                    "responseText": "Right thigh (front)",
+                                    "responseValue": "32"
+                                },
+                                {
+                                    "responseText": "Left thigh (front)",
+                                    "responseValue": "33"
+                                },
+                                {
+                                    "responseText": "Right thigh (rear)",
+                                    "responseValue": "34"
+                                },
+                                {
+                                    "responseText": "Left thigh (rear)",
+                                    "responseValue": "35"
+                                },
+                                {
+                                    "responseText": "Right knee (front)",
+                                    "responseValue": "36"
+                                },
+                                {
+                                    "responseText": "Left knee (front)",
+                                    "responseValue": "37"
+                                },
+                                {
+                                    "responseText": "Right knee (rear)",
+                                    "responseValue": "38"
+                                },
+                                {
+                                    "responseText": "Left knee (rear)",
+                                    "responseValue": "39"
+                                },
+                                {
+                                    "responseText": "Right lower leg (front)",
+                                    "responseValue": "40"
+                                },
+                                {
+                                    "responseText": "Left lower leg (front)",
+                                    "responseValue": "41"
+                                },
+                                {
+                                    "responseText": "Right lower leg (rear)",
+                                    "responseValue": "42"
+                                },
+                                {
+                                    "responseText": "Left lower leg (rear)",
+                                    "responseValue": "43"
+                                },
+                                {
+                                    "responseText": "Right ankle (inner)",
+                                    "responseValue": "44"
+                                },
+                                {
+                                    "responseText": "Left ankle (inner)",
+                                    "responseValue": "45"
+                                },
+                                {
+                                    "responseText": "Right ankle (outer)",
+                                    "responseValue": "46"
+                                },
+                                {
+                                    "responseText": "Left ankle (outer)",
+                                    "responseValue": "47"
+                                },
+                                {
+                                    "responseText": "Right heel",
+                                    "responseValue": "48"
+                                },
+                                {
+                                    "responseText": "Left heel",
+                                    "responseValue": "49"
+                                },
+                                {
+                                    "responseText": "Right toe(s)",
+                                    "responseValue": "50"
+                                },
+                                {
+                                    "responseText": "Left toe(s)",
+                                    "responseValue": "51"
+                                },
+                                {
+                                    "responseText": "Sacrum",
+                                    "responseValue": "52"
+                                },
+                                {
+                                    "responseText": "Left gluteal fold",
+                                    "responseValue": "53"
+                                },
+                                {
+                                    "responseText": "Right gluteal fold",
+                                    "responseValue": "54"
+                                },
+                                {
+                                    "responseText": "Other (specify)",
+                                    "responseValue": "55"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_C",
+                            "questionNumber": "C",
+                            "questionText": "<b>Refer to nurses notes for more information.</b>",
+                            "questionTitle": "",
+                            "questionType": "chk",
+                            "required": false,
+                            "range": ""
+                        },
+                        {
+                            "questionKey": "Cust_1_D1",
+                            "questionNumber": "D1",
+                            "questionText": "<B>Nurse Signature/Title:</b>",
+                            "questionTitle": "",
+                            "questionType": "txt",
+                            "required": true,
+                            "length": 50,
+                            "range": "text, sp(50)"
+                        },
+                        {
+                            "questionKey": "Cust_1_D2",
+                            "questionNumber": "D2",
+                            "questionText": "<b>Completion Date:</b>",
+                            "questionTitle": "",
+                            "questionType": "dte",
+                            "required": true,
+                            "range": ""
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
