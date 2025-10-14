@@ -9,7 +9,8 @@ from typing import Dict, Any
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
 from pcc.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
 
 

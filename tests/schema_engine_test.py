@@ -21,7 +21,8 @@ from typing import List, Dict, Any
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from schema_engine import SchemaEngine
 
 
