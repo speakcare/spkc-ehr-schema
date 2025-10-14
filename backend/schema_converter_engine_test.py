@@ -1055,6 +1055,61 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(active_field["enum"], ["Yes", "No", None])
         self.assertIn("Select Yes or No", active_field["description"])
 
+    def test_html_sanitization_engine(self):
+        """Engine strips HTML tags from names, titles, and enum options."""
+        external_schema = {
+            "assessmentDescription": "<b>Assessment</b>",
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "<i>Section</i>",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "<b>Group</b>",
+                            "questions": [
+                                {
+                                    "questionKey": "Q1",
+                                    "questionNumber": "1",
+                                    "questionText": "<b>Question</b> <i>Text</i>",
+                                    "questionTitle": "Title <br/> Here",
+                                    "questionType": "rad",
+                                    "responseOptions": [
+                                        {"responseText": "<b>Yes</b>"},
+                                        {"responseText": "No <i>maybe</i>"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # Register using nested engine (has response_options_extractor registered)
+        table_id, table_name = self.nested_engine.register_table(None, external_schema)
+        self.assertIsInstance(table_id, int)
+
+        schema = self.nested_engine.get_json_schema(table_id)
+        # Title sanitized
+        self.assertEqual(schema["title"], "Assessment")
+        # Section key.name uses sanitized name
+        self.assertIn("A.Section", schema["properties"]["sections"]["properties"])
+        groups = schema["properties"]["sections"]["properties"]["A.Section"]["properties"]["assessmentQuestionGroups"]
+        self.assertIn("1.Group", groups["properties"])  # groupTitle sanitized
+        questions = groups["properties"]["1.Group"]["properties"]["questions"]
+        # Question property key sanitized
+        self.assertIn("Question Text", questions["properties"])
+        qnode = questions["properties"]["Question Text"]
+        # Enum sanitized and includes None
+        self.assertIn("enum", qnode)
+        self.assertEqual(set(qnode["enum"]), {"Yes", "No maybe", None})
+        # Metadata sanitized
+        meta = self.nested_engine.get_field_metadata(table_id)
+        qmeta = next(f for f in meta if f.get("key") == "Q1")
+        self.assertEqual(qmeta["name"], "Question Text")
+        self.assertEqual(qmeta["title"], "Title Here")
+
     def test_custom_validator_with_field_schema_access(self):
         """Test that custom validators can access field_schema for validation."""
         def single_select_validator_with_options(engine, value, field_metadata):
@@ -2106,6 +2161,65 @@ class TestSchemaConverterEngine(unittest.TestCase):
         
         self.assertIn("Ignored types should not have type_constraints defined", str(ctx.exception))
         self.assertIn("skip", str(ctx.exception))
+
+    def test_virtual_container_metadata(self):
+        """Test that builders can return virtual children metadata for virtual containers."""
+        # Create meta-schema
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        test_meta["properties"]["property"]["validation"]["allowed_types"].append("virtual")
+        test_meta["properties"]["property"]["validation"]["type_constraints"]["virtual"] = {
+            "target_type": "test_virtual",
+            "requires_options": False
+        }
+        
+        engine = SchemaConverterEngine(test_meta)
+        
+        # Register custom builder that returns (container_schema, virtual_children_metadata)
+        def test_virtual_builder(eng, target_type, field_schema, nullable, property_def, field_schema_data):
+            container = eng.create_object_node(nullable=False)
+            eng.add_properties(container, {
+                "Child1": eng.build_field_node("string", field_schema=field_schema, nullable=True),
+                "Child2": eng.build_field_node("string", field_schema=field_schema, nullable=True),
+            })
+            eng.set_required(container, ["Child1", "Child2"])
+            virtual_children_metadata = [
+                {"child_property_name": "Child1", "child_index": 0},
+                {"child_property_name": "Child2", "child_index": 1},
+            ]
+            return (container, virtual_children_metadata)
+        
+        engine.register_field_schema_builder("test_virtual", test_virtual_builder)
+        
+        # Register table with a single virtual field
+        table_schema = {
+            "name": "Test Virtual Container",
+            "fields": [
+                {"field_id": "vc1", "field_number": "1", "field_name": "Container Field", "field_type": "virtual"}
+            ]
+        }
+        
+        table_id, _ = engine.register_table(None, table_schema)
+        
+        field_metadata = engine.get_field_metadata(table_id)
+        self.assertEqual(len(field_metadata), 3)  # 1 container + 2 children
+        
+        container_meta = field_metadata[0]
+        self.assertTrue(container_meta.get("is_virtual_container"))
+        self.assertEqual(container_meta.get("expanded_children"), ["Child1", "Child2"])
+        
+        child1 = field_metadata[1]
+        self.assertTrue(child1.get("is_virtual_container_child"))
+        self.assertEqual(child1.get("virtual_container_key"), "vc1")
+        self.assertEqual(child1.get("name"), "Child1")
+        self.assertEqual(child1.get("level_keys"), ["fields", "Container Field"])
+        
+        # Verify JSON schema
+        schema = engine.get_json_schema(table_id)
+        node = schema["properties"]["fields"]["properties"]["Container Field"]
+        self.assertEqual(node["type"], "object")
+        self.assertIn("Child1", node["properties"]) 
+        self.assertIn("Child2", node["properties"]) 
+        self.assertEqual(node["required"], ["Child1", "Child2"])
 
 
 if __name__ == "__main__":

@@ -200,10 +200,79 @@ def checkbox_yes_no_builder(engine, target_type, prop, nullable):
 engine.register_schema_field_builder("checkbox", checkbox_yes_no_builder)
 ```
 
+### Virtual Containers:
+
+Custom builders can create "virtual containers" - properties in the external
+schema that expand into nested objects with multiple child properties in the
+JSON schema.
+
+To create a virtual container, a builder should return a tuple:
+    (json_schema, additional_metadata)
+
+Where:
+- json_schema: Standard object schema with child properties
+- additional_metadata: List of metadata dicts for each child property
+
+The engine will:
+1. Mark the field as a virtual container with flags:
+   - "is_virtual_container": True
+   - "expanded_children": [list of child property keys]
+2. Add child metadata to field_index with proper level_keys
+3. Mark children with "is_virtual_container_child": True
+
+Example use case: PCC "gbdy" (grid/table) fields that expand one field
+with response options into an object with a property per option.
+
+```python
+def virtual_container_builder(engine, target_type, field_schema, nullable):
+    '''Build virtual container with child properties.'''
+    # Extract options from field schema
+    options = field_schema.get("responseOptions", [])
+    
+    # Build child properties
+    child_properties = {}
+    child_metadata = []
+    
+    for idx, option in enumerate(options):
+        response_text = option.get("responseText", "")
+        response_value = option.get("responseValue", "")
+        
+        # Add child property
+        child_properties[response_text] = {"type": ["string", "null"]}
+        
+        # Add child metadata
+        child_metadata.append({
+            "key": field_schema.get("questionKey", ""),
+            "name": response_text,
+            "target_type": "string",
+            "property_key": response_text,
+            "field_schema": field_schema,
+            "is_virtual_container_child": True,
+            "virtual_container_key": field_schema.get("questionKey", ""),
+            "response_value": response_value,
+            "child_index": idx
+        })
+    
+    # Build container schema
+    container_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": child_properties,
+        "required": list(child_properties.keys())
+    }
+    
+    return (container_schema, child_metadata)
+
+# Register the virtual container builder
+engine.register_schema_field_builder("virtual_container", virtual_container_builder)
+```
+
 Notes:
 - Max tables per engine instance: 1000 (re-registration allowed; replaces previous
   table with same id and logs info).
 - Level keys are captured at every nesting level for reverse conversion.
+- All HTML tags are automatically removed from names, titles, and enum options during
+  registration to ensure clean data for LLM consumption.
 - Options can be simple list[str] or complex (requiring extractor function).
 - Validator signature: `(engine, value, field_metadata) -> (is_valid: bool, error: str)`
 - Global builder signature: `(engine, target_type, enum_values, nullable) -> Dict[str, Any]`
@@ -215,6 +284,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import logging
+import re
 
 try:
     # Prefer modern validator if available
@@ -287,6 +357,14 @@ class SchemaConverterEngine:
         self.__table_names: Dict[str, int] = {}
 
     # ----------------------------- Public API ---------------------------------
+
+    @staticmethod
+    def _sanitize_html(text: Any) -> Any:
+        """Remove all HTML tags from a string; pass through non-strings unchanged."""
+        if not isinstance(text, str):
+            return text
+        clean_text = re.sub(r"<[^>]+>", "", text)
+        return " ".join(clean_text.split())
 
     def register_options_extractor(self, extractor_name: str, extractor_func: Callable[[Any], List[str]]) -> None:
         """Register an options extractor function."""
@@ -365,7 +443,7 @@ class SchemaConverterEngine:
         
         # Extract table name from external schema using meta-schema
         schema_name_field = self.__meta_schema.get("schema_name")
-        table_name = external_schema.get(schema_name_field, "Unknown Table") if schema_name_field else "Unknown Table"
+        table_name =  self._sanitize_html(external_schema.get(schema_name_field, "Unknown Table")) if schema_name_field else "Unknown Table"
         
         if table_id in self.__tables:
             # Remove old name mapping if it exists
@@ -377,7 +455,7 @@ class SchemaConverterEngine:
         elif len(self.__tables) >= MAX_TABLES_PER_ENGINE:
             raise ValueError(f"Maximum number of tables reached: {MAX_TABLES_PER_ENGINE}")
 
-        json_schema, field_index = self._build_table_schema(external_schema)
+        json_schema, field_index = self._build_table_schema(external_schema, table_name)
 
         self.__tables[table_id] = {
             "external_schema": external_schema,
@@ -563,14 +641,57 @@ class SchemaConverterEngine:
 
     # --------------------------- Schema building ------------------------------
 
-    def _build_table_schema(self, external_schema: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    # --------- Builder-facing helper APIs (to preserve encapsulation) ---------
+
+    def build_field_node(
+        self,
+        target_type: str,
+        *,
+        field_schema: Optional[Dict[str, Any]] = None,
+        enum_values: Optional[List[str]] = None,
+        nullable: bool = True,
+        property_def: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Build a field schema node via registered builders with proper precedence.
+        - Instance builders (if present) take precedence and receive field_schema.
+        - Otherwise falls back to global builder with enum_values.
+        - Never recurses into _build_property_schema (avoids recursion).
+        """
+        # Instance builder first
+        instance_builder = self.__instance_field_schema_builder_registry.get(target_type)
+        if instance_builder:
+            return instance_builder(self, target_type, field_schema or {}, nullable, property_def or {}, field_schema or {})
+
+        # Global builder fallback
+        global_builder = _get_field_schema_builder(target_type)
+        if not global_builder:
+            raise ValueError(f"No schema builder found for target type '{target_type}'")
+        return global_builder(self, target_type, enum_values, nullable, property_def or {}, field_schema or {})
+
+    def create_object_node(self, nullable: bool = False) -> Dict[str, Any]:
+        """Create a base object node with additionalProperties=false and empty properties/required."""
+        node: Dict[str, Any] = {
+            "type": ["object", "null"] if nullable else "object",
+            "additionalProperties": False,
+            "properties": {},
+            "required": [],
+        }
+        return node
+
+    def add_properties(self, node: Dict[str, Any], properties: Dict[str, Any]) -> None:
+        """Merge properties into an object node's properties."""
+        node.setdefault("properties", {})
+        node["properties"].update(properties)
+
+    def set_required(self, node: Dict[str, Any], required: List[str]) -> None:
+        """Set the required list on an object node."""
+        node["required"] = required
+
+    def _build_table_schema(self, external_schema: Dict[str, Any], table_name: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Build the table JSON schema and collect bottom-level field index."""
         if not isinstance(external_schema, dict):
             raise TypeError("external_schema must be a dict")
 
-        # Get table metadata from external schema using meta-schema field names
-        schema_name_field = self.__meta_schema.get("schema_name")
-        table_name = external_schema.get(schema_name_field, "Unknown Table") if schema_name_field else "Unknown Table"
         table_title = table_name  # Title is the same as name for now
 
         # Check if this is a flat schema (direct properties) or nested schema (container)
@@ -671,11 +792,14 @@ class SchemaConverterEngine:
             if not field_key:
                 raise ValueError(f"Property missing required key '{property_def['key']}'")
             
-            # Get field name for JSON schema property name (use name if available, fallback to key)
-            field_name = prop.get(property_def.get("name", ""), field_key)
+            # Get field name/title and sanitize (use name if available, fallback to key)
+            name_field_key = property_def.get("name", "")
+            title_field_key = property_def.get("title", "")
+            field_name = self._sanitize_html(prop.get(name_field_key, field_key))
+            field_title_value = self._sanitize_html(prop.get(title_field_key, "") if title_field_key else "")
             
-            # Build field schema (returns tuple of property_key_override, json_schema, and target_type)
-            property_key_override, json_schema, target_type = self._build_property_schema(prop, property_def)
+            # Build field schema (returns tuple including optional virtual_children_metadata)
+            property_key_override, json_schema, target_type, virtual_children_metadata = self._build_property_schema(prop, property_def)
             
             # Skip this field entirely if builder returned None triplet (empty dict signal)
             if property_key_override is None and json_schema is None and target_type is None:
@@ -688,17 +812,57 @@ class SchemaConverterEngine:
             required.append(property_key)
             
             # Collect field metadata using meta-schema field names
-            field_metadata = {
+            field_metadata: Dict[str, Any] = {
                 "key": field_key,
                 "level_keys": level_keys.copy(),
                 "target_type": target_type,
                 "field_schema": prop,
                 "property_key": property_key,  # Add this for reverse mapping
-                # Add optional fields if they exist in meta-schema using dictionary comprehension
-                **{k: prop.get(property_def[k], "") for k in ["id", "name", "title"] if k in property_def}
+                # Optional fields captured explicitly (sanitized for name/title)
+                "id": prop.get(property_def.get("id", ""), "") if "id" in property_def else "",
+                "name": field_name,
+                "title": field_title_value,
             }
-                
+            
+            # If builder returned virtual children, mark container
+            if virtual_children_metadata:
+                field_metadata["is_virtual_container"] = True
+                field_metadata["expanded_children"] = [m.get("child_property_name") for m in virtual_children_metadata if m.get("child_property_name")]
+
+            # Append container metadata first (so container appears before children)
             field_index.append(field_metadata)
+
+            # If virtual children present, compose and append child metadata
+            if virtual_children_metadata:
+                # Compute child level keys (include this container's property key)
+                virtual_container_level_keys = level_keys.copy()
+                virtual_container_level_keys.append(property_key)
+                
+                # Derive optional id/title from parent for consistency
+                parent_id_value = prop.get(property_def.get("id", ""), "") if "id" in property_def else ""
+                parent_title_value = prop.get(property_def.get("title", ""), "") if "title" in property_def else ""
+                
+                for child in virtual_children_metadata:
+                    child_name = child.get("child_property_name")
+                    if not child_name:
+                        continue
+                    child_meta: Dict[str, Any] = {
+                        "key": field_key,
+                        "level_keys": virtual_container_level_keys.copy(),
+                        "target_type": child.get("target_type", "string"),
+                        "field_schema": prop,  # reference parent field schema
+                        "property_key": child_name,
+                        "id": parent_id_value,
+                        "name": child_name,
+                        "title": parent_title_value,
+                        "is_virtual_container_child": True,
+                        "virtual_container_key": field_key,
+                    }
+                    # Merge custom child fields (e.g., response_value, child_index)
+                    for k, v in child.items():
+                        if k not in {"child_property_name", "target_type"}:
+                            child_meta[k] = v
+                    field_index.append(child_meta)
 
         return properties, required, field_index
 
@@ -729,7 +893,7 @@ class SchemaConverterEngine:
                 if "key" in object_def:
                     current_level_key = item.get(object_def["key"])
                 if "name" in object_def:
-                    current_level_name = item.get(object_def["name"])
+                    current_level_name = self._sanitize_html(item.get(object_def["name"]))
                 
                 # Early exit: Skip items without key
                 if not current_level_key:
@@ -790,7 +954,7 @@ class SchemaConverterEngine:
                 if "key" in object_def:
                     current_level_key = item.get(object_def["key"])
                 if "name" in object_def:
-                    current_level_name = item.get(object_def["name"])
+                    current_level_name = self._sanitize_html(item.get(object_def["name"]))
                 
                 # Create property name using key.name format
                 if current_level_key and current_level_name:
@@ -832,11 +996,11 @@ class SchemaConverterEngine:
 
         return container_obj, collected
 
-    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any], str]:
+    def _build_property_schema(self, prop: Dict[str, Any], property_def: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any], str, List[Dict[str, Any]]]:
         """Build JSON schema for a single property.
         
         Returns:
-            Tuple of (property_key_override, json_schema, target_type)
+            Tuple of (property_key_override, json_schema, target_type, virtual_children_metadata)
             property_key_override is None when no override is needed
         """
         # Get field type from property
@@ -853,7 +1017,7 @@ class SchemaConverterEngine:
 
         # Skip ignored types entirely
         if ignored_types and field_type in ignored_types:
-            return None, None, None
+            return None, None, None, []
 
         # Validate field type
         if allowed_types and field_type not in allowed_types:
@@ -883,7 +1047,7 @@ class SchemaConverterEngine:
             
             # Handle simple list[str] options directly
             if isinstance(options, list) and all(isinstance(item, str) for item in options):
-                enum_values = options
+                enum_values = [self._sanitize_html(v) for v in options]
             elif options_extractor_name:
                 # Use extractor function
                 extractor_func = self.__options_extractor_registry.get(options_extractor_name)
@@ -892,6 +1056,8 @@ class SchemaConverterEngine:
                 enum_values = extractor_func(options)
                 if not isinstance(enum_values, list) or not all(isinstance(v, str) for v in enum_values):
                     raise ValueError("Extractor function must return List[str]")
+                # Sanitize returned enum strings
+                enum_values = [self._sanitize_html(v) for v in enum_values]
             else:
                 raise ValueError(f"Field type '{field_type}' requires options but no extractor provided")
 
@@ -903,17 +1069,26 @@ class SchemaConverterEngine:
             # Instance builders use: (engine, target_type, field_schema, nullable, property_def, field_schema_data)
             try:
                 result = instance_builder(self, target_type, prop, True, property_def, prop)  # Always nullable
-                # Check if builder returned a tuple (property_key_override, schema)
+                property_key_override: Optional[str] = None
+                virtual_children_metadata: List[Dict[str, Any]] = []
                 if isinstance(result, tuple) and len(result) == 2:
-                    property_key_override, json_schema = result
+                    first, second = result
+                    # Distinguish (override_key, schema) vs (schema, virtual_children_metadata)
+                    if isinstance(first, str) and isinstance(second, dict):
+                        property_key_override, json_schema = first, second
+                    elif isinstance(first, dict) and isinstance(second, list):
+                        json_schema = first
+                        virtual_children_metadata = second
+                    else:
+                        json_schema = first if isinstance(first, dict) else second
                 else:
-                    property_key_override, json_schema = None, result
+                    json_schema = result
                 
                 # Check if builder returned empty dict (skip signal)
                 if json_schema == {}:
-                    return None, None, None  # Signal to skip this field
+                    return None, None, None, []  # Signal to skip this field
                 
-                return property_key_override, json_schema, target_type
+                return property_key_override, json_schema, target_type, virtual_children_metadata
             except Exception as e:
                 logger.error(f"Instance schema builder error for type '{target_type}': {e}")
                 raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
@@ -925,17 +1100,25 @@ class SchemaConverterEngine:
             # Global builders use: (engine, target_type, enum_values, nullable, property_def, field_schema)
             try:
                 result = global_builder(self, target_type, enum_values, True, property_def, prop)  # Always nullable
-                # Check if builder returned a tuple (property_key_override, schema)
+                property_key_override: Optional[str] = None
+                virtual_children_metadata: List[Dict[str, Any]] = []
                 if isinstance(result, tuple) and len(result) == 2:
-                    property_key_override, json_schema = result
+                    first, second = result
+                    if isinstance(first, str) and isinstance(second, dict):
+                        property_key_override, json_schema = first, second
+                    elif isinstance(first, dict) and isinstance(second, list):
+                        json_schema = first
+                        virtual_children_metadata = second
+                    else:
+                        json_schema = first if isinstance(first, dict) else second
                 else:
-                    property_key_override, json_schema = None, result
+                    json_schema = result
                 
                 # Check if builder returned empty dict (skip signal)
                 if json_schema == {}:
-                    return None, None, None  # Signal to skip this field
+                    return None, None, None, []  # Signal to skip this field
                 
-                return property_key_override, json_schema, target_type
+                return property_key_override, json_schema, target_type, virtual_children_metadata
             except Exception as e:
                 logger.error(f"Global schema builder error for type '{target_type}': {e}")
                 raise ValueError(f"Global schema builder error for type '{target_type}': {e}")

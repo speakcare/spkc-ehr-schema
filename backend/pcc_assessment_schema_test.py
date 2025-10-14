@@ -491,6 +491,48 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify it's in the required list
         self.assertIn("1.Instructions", questions["required"])
 
+    def test_gbdy_virtual_container(self):
+        """Test that gbdy fields expand into virtual containers."""
+        pcc = PCCAssessmentSchema()
+        assessment = {
+            "assessmentDescription": "Test Grid Field",
+            "templateId": 1,
+            "templateVersion": "1.0",
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Test Section",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Test Group",
+                            "questions": [
+                                {
+                                    "questionKey": "A1",
+                                    "questionNumber": "1",
+                                    "questionText": "Table of fruits",
+                                    "questionTitle": "Fruits",
+                                    "questionType": "gbdy",
+                                    "responseOptions": [
+                                        {"responseValue": "a", "responseText": "Apple"},
+                                        {"responseValue": "b", "responseText": "Banana"},
+                                        {"responseValue": "c", "responseText": "Cherry"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        assessment_id, _ = pcc.register_assessment(None, assessment)
+        json_schema = pcc.get_json_schema(assessment_id)
+        fruits_field = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]["properties"]["Table of fruits"]
+        self.assertEqual(fruits_field["type"], "object")
+        self.assertFalse(fruits_field["additionalProperties"])
+        self.assertIn("Apple", fruits_field["properties"])
+        self.assertEqual(fruits_field["properties"]["Apple"]["type"], ["string", "null"])
+
     def test_computed_fields_skipped(self):
         """Test that computed (cp) fields are skipped in JSON schema."""
         assessment_with_computed = {

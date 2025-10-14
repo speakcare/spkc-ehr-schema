@@ -43,7 +43,7 @@ PCC_META_SCHEMA = {
                             "type": "questionType",
                             "options": "responseOptions",
                             "validation": {
-                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag"],
+                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag", "gbdy"],
                                 "ignored_types": ["bp", "he", "o2", "pnl", "pulse", "resp", "temp", "we", "cp"],
                                 "type_constraints": {
                                     "txt": {
@@ -113,6 +113,12 @@ PCC_META_SCHEMA = {
                                     "diag": {
                                         "target_type": "string",
                                         "requires_options": False
+                                    },
+                                    "gbdy": {
+                                        "target_type": "virtual_container",
+                                        "requires_options": True,
+                                        "options_field": "responseOptions",
+                                        "options_extractor": "extract_response_options"
                                     }
                                 }
                             }
@@ -155,6 +161,33 @@ class PCCAssessmentSchema:
         
         # Register the options extractor
         self.engine.register_options_extractor("extract_response_options", extract_response_options)
+        
+        # Register virtual container builder for gbdy fields
+        def pcc_virtual_container_builder(engine: SchemaConverterEngine, target_type: str, field_schema: Dict[str, Any], nullable: bool, property_def: Dict[str, Any], field_schema_data: Dict[str, Any]):
+            # Build children from responseOptions
+            options = field_schema.get("responseOptions", []) or []
+            child_names: List[str] = []
+            properties: Dict[str, Any] = {}
+            virtual_children_metadata: List[Dict[str, Any]] = []
+            for idx, opt in enumerate(options):
+                name = opt.get("responseText")
+                if not name:
+                    continue
+                child_names.append(name)
+                # Build each child as nullable string via engine helper
+                properties[name] = engine.build_field_node("string", field_schema=field_schema, nullable=True)
+                virtual_children_metadata.append({
+                    "child_property_name": name,
+                    "child_index": idx,
+                    "response_value": opt.get("responseValue")
+                })
+            # Create container object (non-nullable)
+            container = engine.create_object_node(nullable=False)
+            engine.add_properties(container, properties)
+            engine.set_required(container, child_names)
+            return (container, virtual_children_metadata)
+        
+        self.engine.register_field_schema_builder("virtual_container", pcc_virtual_container_builder)
         
         logger.info("PCC Assessment Schema engine initialized")
     
