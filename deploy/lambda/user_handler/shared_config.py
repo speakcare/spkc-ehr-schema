@@ -1,1 +1,0 @@
-../shared/shared_config.py
