@@ -9,7 +9,7 @@
             "sections": [
                 {
                     "sectionCode": "Cust",
-                    "sectionDescription": "",
+                    "sectionDescription": "MHCS Nursing Weekly Skin Check",
                     "sectionSequence": 1,
                     "assessmentQuestionGroups": [
                         {
@@ -37,38 +37,45 @@
                                 {
                                     "questionKey": "Cust_1_A",
                                     "questionNumber": "A",
+                                    "questionText": "<b>Does the resident have NEW skin impairment(s) that have not been previously noted?</b>",
                                     "questionTitle": "",
                                     "questionType": "radh",
                                     "required": true,
                                     "range": "",
                                     "responseOptions": [
                                         {
-                                            "responseValue": "b"
+                                            "responseText": "No",
+                                            "responseValue": "a"
                                         },
                                         {
-                                            "responseValue": "a"
+                                            "responseText": "Yes- complete description below",
+                                            "responseValue": "b"
                                         }
                                     ]
                                 },
                                 {
                                     "questionKey": "Cust_1_A",
                                     "questionNumber": "A",
+                                    "questionText": "<b>Does the resident have NEW skin impairment(s) that have not been previously noted?</b>",
                                     "questionTitle": "",
                                     "questionType": "radh",
                                     "required": true,
                                     "range": "",
                                     "responseOptions": [
                                         {
-                                            "responseValue": "b"
+                                            "responseText": "No",
+                                            "responseValue": "a"
                                         },
                                         {
-                                            "responseValue": "a"
+                                            "responseText": "Yes- complete description below",
+                                            "responseValue": "b"
                                         }
                                     ]
                                 },
                                 {
                                     "questionKey": "Cust_1_B",
                                     "questionNumber": "B",
+                                    "questionText": "Note any NEW skin conditions using the diagram below. Under description, indicate type of skin condition observed: <b>bruise, abrasion, surgical incision, open area, blister, rash, redness, skin tear, burn, etc</b>",
                                     "questionTitle": "",
                                     "questionType": "gbdy",
                                     "required": false,
@@ -78,6 +85,7 @@
                                 {
                                     "questionKey": "Cust_1_C",
                                     "questionNumber": "C",
+                                    "questionText": "<b>Refer to nurses notes for more information.</b>",
                                     "questionTitle": "",
                                     "questionType": "chk",
                                     "required": false,
@@ -86,6 +94,7 @@
                                 {
                                     "questionKey": "Cust_1_D1",
                                     "questionNumber": "D1",
+                                    "questionText": "<B>Nurse Signature/Title:</b>",
                                     "questionTitle": "",
                                     "questionType": "txt",
                                     "required": true,
@@ -95,6 +104,7 @@
                                 {
                                     "questionKey": "Cust_1_D2",
                                     "questionNumber": "D2",
+                                    "questionText": "<b>Completion Date:</b>",
                                     "questionTitle": "",
                                     "questionType": "dte",
                                     "required": true,
