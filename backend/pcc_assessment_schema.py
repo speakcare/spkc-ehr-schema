@@ -163,9 +163,9 @@ class PCCAssessmentSchema:
         self.engine.register_options_extractor("extract_response_options", extract_response_options)
         
         # Register virtual container builder for gbdy fields
-        def pcc_virtual_container_builder(engine: SchemaConverterEngine, target_type: str, field_schema: Dict[str, Any], nullable: bool, property_def: Dict[str, Any], field_schema_data: Dict[str, Any]):
+        def pcc_virtual_container_builder(engine: SchemaConverterEngine, target_type: str, enum_values: List[str], nullable: bool, property_def: Dict[str, Any], prop: Dict[str, Any]):
             # Build children from responseOptions
-            options = field_schema.get("responseOptions", []) or []
+            options = prop.get("responseOptions", []) or []
             child_names: List[str] = []
             properties: Dict[str, Any] = {}
             virtual_children_metadata: List[Dict[str, Any]] = []
@@ -175,7 +175,7 @@ class PCCAssessmentSchema:
                     continue
                 child_names.append(name)
                 # Build each child as nullable string via engine helper
-                properties[name] = engine.build_field_node("string", field_schema=field_schema, nullable=True)
+                properties[name] = engine.build_property_node("string", prop=prop, nullable=True)
                 virtual_children_metadata.append({
                     "child_property_name": name,
                     "child_index": idx,

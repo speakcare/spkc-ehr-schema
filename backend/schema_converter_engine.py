@@ -643,30 +643,23 @@ class SchemaConverterEngine:
 
     # --------- Builder-facing helper APIs (to preserve encapsulation) ---------
 
-    def build_field_node(
+    def build_property_node(
         self,
         target_type: str,
         *,
-        field_schema: Optional[Dict[str, Any]] = None,
+        prop: Optional[Dict[str, Any]] = None,
         enum_values: Optional[List[str]] = None,
         nullable: bool = True,
         property_def: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Build a field schema node via registered builders with proper precedence.
-        - Instance builders (if present) take precedence and receive field_schema.
-        - Otherwise falls back to global builder with enum_values.
-        - Never recurses into _build_property_schema (avoids recursion).
+        """Build a property schema node via unified builder invocation (instance over global).
+        Note: This helper is intended for builders to construct child field nodes (e.g., primitives)
+        and must not participate in virtual-container expansion. We therefore intentionally ignore
+        the (property_key_override, virtual_children_metadata) returned by _invoke_schema_builder
+        to avoid any recursive expansion here; only the json_schema is returned to the caller.
         """
-        # Instance builder first
-        instance_builder = self.__instance_field_schema_builder_registry.get(target_type)
-        if instance_builder:
-            return instance_builder(self, target_type, field_schema or {}, nullable, property_def or {}, field_schema or {})
-
-        # Global builder fallback
-        global_builder = _get_field_schema_builder(target_type)
-        if not global_builder:
-            raise ValueError(f"No schema builder found for target type '{target_type}'")
-        return global_builder(self, target_type, enum_values, nullable, property_def or {}, field_schema or {})
+        _, json_schema, _ = self._invoke_schema_builder(target_type, enum_values, nullable, property_def or {}, prop or {})
+        return json_schema
 
     def create_object_node(self, nullable: bool = False) -> Dict[str, Any]:
         """Create a base object node with additionalProperties=false and empty properties/required."""
@@ -1061,69 +1054,63 @@ class SchemaConverterEngine:
             else:
                 raise ValueError(f"Field type '{field_type}' requires options but no extractor provided")
 
-        # Build schema using registry (instance overrides global)
-        # Check instance registry first
-        instance_builder = self.__instance_field_schema_builder_registry.get(target_type)
+        # Build schema using unified builder invocation (instance overrides global)
+        property_key_override, json_schema, virtual_children_metadata = self._invoke_schema_builder(
+            target_type, enum_values, True, property_def, prop
+        )
         
-        if instance_builder:
-            # Instance builders use: (engine, target_type, field_schema, nullable, property_def, field_schema_data)
-            try:
-                result = instance_builder(self, target_type, prop, True, property_def, prop)  # Always nullable
-                property_key_override: Optional[str] = None
-                virtual_children_metadata: List[Dict[str, Any]] = []
-                if isinstance(result, tuple) and len(result) == 2:
-                    first, second = result
-                    # Distinguish (override_key, schema) vs (schema, virtual_children_metadata)
-                    if isinstance(first, str) and isinstance(second, dict):
-                        property_key_override, json_schema = first, second
-                    elif isinstance(first, dict) and isinstance(second, list):
-                        json_schema = first
-                        virtual_children_metadata = second
-                    else:
-                        json_schema = first if isinstance(first, dict) else second
-                else:
-                    json_schema = result
-                
-                # Check if builder returned empty dict (skip signal)
-                if json_schema == {}:
-                    return None, None, None, []  # Signal to skip this field
-                
-                return property_key_override, json_schema, target_type, virtual_children_metadata
-            except Exception as e:
-                logger.error(f"Instance schema builder error for type '{target_type}': {e}")
-                raise ValueError(f"Instance schema builder error for type '{target_type}': {e}")
+        # Check if builder returned empty dict (skip signal)
+        if json_schema == {}:
+            return None, None, None, []
         
-        # Fall back to global registry
-        global_builder = _get_field_schema_builder(target_type)
-        
-        if global_builder:
-            # Global builders use: (engine, target_type, enum_values, nullable, property_def, field_schema)
-            try:
-                result = global_builder(self, target_type, enum_values, True, property_def, prop)  # Always nullable
-                property_key_override: Optional[str] = None
-                virtual_children_metadata: List[Dict[str, Any]] = []
-                if isinstance(result, tuple) and len(result) == 2:
-                    first, second = result
-                    if isinstance(first, str) and isinstance(second, dict):
-                        property_key_override, json_schema = first, second
-                    elif isinstance(first, dict) and isinstance(second, list):
-                        json_schema = first
-                        virtual_children_metadata = second
-                    else:
-                        json_schema = first if isinstance(first, dict) else second
-                else:
-                    json_schema = result
-                
-                # Check if builder returned empty dict (skip signal)
-                if json_schema == {}:
-                    return None, None, None, []  # Signal to skip this field
-                
-                return property_key_override, json_schema, target_type, virtual_children_metadata
-            except Exception as e:
-                logger.error(f"Global schema builder error for type '{target_type}': {e}")
-                raise ValueError(f"Global schema builder error for type '{target_type}': {e}")
-        else:
+        return property_key_override, json_schema, target_type, virtual_children_metadata
+
+    def _invoke_schema_builder(
+        self,
+        target_type: str,
+        enum_values: Optional[List[str]],
+        nullable: bool,
+        property_def: Dict[str, Any],
+        prop: Dict[str, Any],
+    ) -> Tuple[Optional[str], Dict[str, Any], List[Dict[str, Any]]]:
+        """Invoke instance or global schema builder and normalize its return.
+        Returns (property_key_override, json_schema, virtual_children_metadata).
+        """
+        # Prefer instance builder
+        builder = self.__instance_field_schema_builder_registry.get(target_type)
+        is_instance = True
+        if not builder:
+            builder = _get_field_schema_builder(target_type)
+            is_instance = False
+        if not builder:
             raise ValueError(f"No schema builder found for target type '{target_type}'")
+
+        try:
+            if is_instance:
+                result = builder(self, target_type, enum_values, nullable, property_def, prop)
+            else:
+                result = builder(self, target_type, enum_values, nullable, property_def, prop)
+
+            property_key_override: Optional[str] = None
+            virtual_children_metadata: List[Dict[str, Any]] = []
+
+            if isinstance(result, tuple) and len(result) == 2:
+                first, second = result
+                if isinstance(first, str) and isinstance(second, dict):
+                    property_key_override, json_schema = first, second
+                elif isinstance(first, dict) and isinstance(second, list):
+                    json_schema = first
+                    virtual_children_metadata = second
+                else:
+                    json_schema = first if isinstance(first, dict) else second
+            else:
+                json_schema = result
+
+            return property_key_override, json_schema, virtual_children_metadata
+        except Exception as e:
+            who = 'Instance' if is_instance else 'Global'
+            logger.error(f"{who} schema builder error for type '{target_type}': {e}")
+            raise ValueError(f"{who} schema builder error for type '{target_type}': {e}")
 
     # ----------------------------- Helpers ------------------------------------
 

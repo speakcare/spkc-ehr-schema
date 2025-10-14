@@ -1030,7 +1030,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         engine = SchemaConverterEngine(test_meta)
         
         # Register custom checkbox builder (Yes/No instead of boolean)
-        def checkbox_yes_no_builder(engine, target_type, field_schema, nullable, property_def, field_schema_data):
+        def checkbox_yes_no_builder(engine, target_type, enum_values, nullable, property_def, prop):
             return {
                 "type": ["string", "null"] if nullable else "string",
                 "enum": ["Yes", "No", None] if nullable else ["Yes", "No"],
@@ -1166,10 +1166,10 @@ class TestSchemaConverterEngine(unittest.TestCase):
 
     def test_custom_builder_with_field_schema_access(self):
         """Test that custom builders can access field_schema for schema generation."""
-        def percent_with_precision_builder(engine, target_type, field_schema, nullable, property_def, field_schema_data):
+        def percent_with_precision_builder(engine, target_type, enum_values, nullable, property_def, prop):
             # Access field details from schema
-            field_name = field_schema.get("field_name", "Percent")  # Use field_name from meta-schema
-            precision = field_schema.get("precision", 2)  # Default 2 decimal places
+            field_name = prop.get("field_name", "Percent")  # Use field_name from meta-schema
+            precision = prop.get("precision", 2)  # Default 2 decimal places
             
             return {
                 "type": ["number", "null"] if nullable else "number",
@@ -2175,11 +2175,11 @@ class TestSchemaConverterEngine(unittest.TestCase):
         engine = SchemaConverterEngine(test_meta)
         
         # Register custom builder that returns (container_schema, virtual_children_metadata)
-        def test_virtual_builder(eng, target_type, field_schema, nullable, property_def, field_schema_data):
+        def test_virtual_builder(eng, target_type, enum_values, nullable, property_def, prop):
             container = eng.create_object_node(nullable=False)
             eng.add_properties(container, {
-                "Child1": eng.build_field_node("string", field_schema=field_schema, nullable=True),
-                "Child2": eng.build_field_node("string", field_schema=field_schema, nullable=True),
+                "Child1": eng.build_property_node("string", prop=prop, nullable=True),
+                "Child2": eng.build_property_node("string", prop=prop, nullable=True),
             })
             eng.set_required(container, ["Child1", "Child2"])
             virtual_children_metadata = [
