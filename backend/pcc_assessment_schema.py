@@ -71,7 +71,7 @@ PCC_META_SCHEMA = {
                                         "requires_options": False
                                     },
                                     "chk": {
-                                        "target_type": "boolean",
+                                        "target_type": "chk",
                                         "requires_options": False
                                     },
                                     "mcs": {
@@ -189,7 +189,96 @@ class PCCAssessmentSchema:
         
         self.engine.register_field_schema_builder("virtual_container", pcc_virtual_container_builder)
         
-        logger.info("PCC Assessment Schema engine initialized")
+        # Register PCC-specific reverse formatters
+        def pcc_chk_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: List[str], nullable: bool, property_def: Dict[str, Any], prop: Dict[str, Any]):
+            """Schema builder for PCC checkbox - creates boolean JSON schema."""
+            return engine.build_property_node("boolean", nullable=nullable)
+        
+        def pcc_chk_reverse_formatter(engine, field_meta, model_value, table_name):
+            """Reverse formatter for PCC checkbox - converts boolean to 1/None."""
+            value = 1 if model_value else None
+            return [(field_meta["key"], value)]
+        
+        def pcc_single_select_formatter(engine, field_meta, model_value, table_name):
+            """Format single select - extract responseValue from responseOptions."""
+            if model_value is None:
+                return [(field_meta["key"], None)]
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            
+            for option in response_options:
+                if option.get("responseText") == model_value:
+                    return [(field_meta["key"], option.get("responseValue"))]
+            
+            return [(field_meta["key"], model_value)]
+        
+        def pcc_multi_select_formatter(engine, field_meta, model_value, table_name):
+            """Format multi select - return list of responseValues."""
+            if not model_value or not isinstance(model_value, list):
+                return [(field_meta["key"], None)]
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            results = []
+            
+            for selected_text in model_value:
+                for option in response_options:
+                    if option.get("responseText") == selected_text:
+                        results.append(option.get("responseValue"))
+                        break
+            
+            return [(field_meta["key"], results if results else None)]
+        
+        def pcc_virtual_container_formatter(engine, field_meta, model_value, table_name):
+            """
+            Format virtual container (gbdy type).
+            Expands to multiple a#_key/b#_key pairs.
+            """
+            if not model_value or not isinstance(model_value, dict):
+                return []
+            
+            parent_key = field_meta["key"]
+            length_limit = field_meta.get("field_schema", {}).get("length", 999)
+            
+            # Get expanded children metadata (contains child_index and response_value)
+            # Use the public API to get field metadata
+            field_index = engine.get_field_metadata(table_name)
+            virtual_container_key = field_meta["key"]
+            
+            # Find child metadata entries
+            children = [
+                f for f in field_index
+                if f.get("is_virtual_container_child") and f.get("virtual_container_key") == virtual_container_key
+            ]
+            
+            results = []
+            idx = 0
+            
+            for child_meta in children:
+                if idx >= length_limit:
+                    break
+                
+                child_name = child_meta.get("property_key")
+                child_value = model_value.get(child_name)
+                
+                # Skip null values
+                if child_value is None:
+                    continue
+                
+                response_value = child_meta.get("response_value")
+                results.append((f"a{idx}_{parent_key}", response_value))
+                results.append((f"b{idx}_{parent_key}", child_value))
+                idx += 1
+            
+            return results
+        
+        # Register builders and formatters
+        self.engine.register_field_schema_builder("chk", pcc_chk_schema_builder)
+        self.engine.register_reverse_formatter("chk", pcc_chk_reverse_formatter)
+        self.engine.register_reverse_formatter("single_select", pcc_single_select_formatter)
+        self.engine.register_reverse_formatter("multiple_select", pcc_multi_select_formatter)
+        self.engine.register_reverse_formatter("virtual_container", pcc_virtual_container_formatter)
     
     def register_assessment(self, assessment_id: Optional[int], assessment_schema: Dict[str, Any]) -> Tuple[int, str]:
         """

@@ -425,7 +425,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(first_name_meta["name"], "First")
         self.assertEqual(first_name_meta["target_type"], "string")
         # level_keys should be ["AA", "1", "questions"] based on the actual schema structure
-        self.assertEqual(first_name_meta["level_keys"], ["AA", "1", "questions"])
+        self.assertEqual(first_name_meta["level_keys"], ["sections", "AA.Identification Information", "assessmentQuestionGroups", "1", "questions"])
         
         # Check gender field metadata
         gender_meta = next((field for field in field_metadata if field["key"] == "AA2"), None)
@@ -600,6 +600,356 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify only 1 field in questions (not 3)
         self.assertEqual(len(questions["properties"]), 1)
         self.assertEqual(len(questions["required"]), 1)
+
+    def test_pcc_single_select_reverse(self):
+        """Test PCC single select reverse formatter."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Resident arrived via:",
+                                    "questionType": "radh",
+                                    "responseOptions": [
+                                        {"responseText": "Ambulatory", "responseValue": "a"},
+                                        {"responseText": "Stretcher", "responseValue": "b"},
+                                        {"responseText": "Wheelchair", "responseValue": "c"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Resident arrived via:": "Wheelchair"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify responseValue extraction
+        self.assertEqual(result["A_1"], "c")  # Wheelchair -> "c"
+
+    def test_pcc_multi_select_reverse(self):
+        """Test PCC multi select reverse formatter."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Select all that apply:",
+                                    "questionType": "mcs",
+                                    "responseOptions": [
+                                        {"responseText": "Option A", "responseValue": "a"},
+                                        {"responseText": "Option B", "responseValue": "b"},
+                                        {"responseText": "Option C", "responseValue": "c"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Select all that apply:": ["Option A", "Option C"]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify multiple responseValue extraction
+        self.assertEqual(result["A_1"], ["a", "c"])  # Option A -> "a", Option C -> "c"
+
+    def test_pcc_chk_reverse(self):
+        """Test PCC checkbox reverse formatter."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Is resident alert?",
+                                    "questionType": "chk"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Is resident alert?": True
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify boolean to 1/None conversion
+        self.assertEqual(result["A_1"], 1)  # True -> 1
+        
+        # Test false case
+        model_response_false = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Is resident alert?": False
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result_false = pcc.engine.reverse_map(assessment_name, model_response_false)
+        self.assertIsNone(result_false["A_1"])  # False -> None
+
+    def test_pcc_virtual_container_reverse(self):
+        """Test PCC virtual container reverse formatter."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.",
+                                    "questionType": "gbdy",
+                                    "length": 20,
+                                    "responseOptions": [
+                                        {"responseText": "Head", "responseValue": "0"},
+                                        {"responseText": "Leg", "responseValue": "1"},
+                                        {"responseText": "Hand", "responseValue": "2"},
+                                        {"responseText": "Wrist", "responseValue": "3"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": {
+                                    "Head": "soft",
+                                    "Leg": "smooth",
+                                    "Hand": None,
+                                    "Wrist": "blue"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify a#_key/b#_key formatting (skip Hand as it's null)
+        self.assertEqual(result["a0_A_1"], "0")  # Head responseValue
+        self.assertEqual(result["b0_A_1"], "soft")  # Head description
+        self.assertEqual(result["a1_A_1"], "1")  # Leg responseValue
+        self.assertEqual(result["b1_A_1"], "smooth")  # Leg description
+        self.assertEqual(result["a2_A_1"], "3")  # Wrist responseValue
+        self.assertEqual(result["b2_A_1"], "blue")  # Wrist description
+        
+        # Verify Hand is skipped (null value)
+        self.assertNotIn("a3_A_1", result)
+        self.assertNotIn("b3_A_1", result)
+
+    def test_pcc_reverse_grouped_by_sections(self):
+        """Test PCC reverse mapping with section grouping."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Patient Name",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sectionCode": "B",
+                    "sectionDescription": "Vitals",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Vital Signs",
+                            "questions": [
+                                {
+                                    "questionKey": "B_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Blood Pressure",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Patient Name": "John Doe"
+                            }
+                        }
+                    }
+                },
+                "B.Vitals": {
+                    "assessmentQuestionGroups": {
+                        "1.Vital Signs": {
+                            "questions": {
+                                "Blood Pressure": "120/80"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map with grouping
+        result = pcc.engine.reverse_map(assessment_name, model_response, group_by_containers=["sections"])
+        
+        # Verify grouped structure
+        self.assertEqual(len(result), 2)  # Two sections
+        
+        # Find section A
+        section_a = next(s for s in result if s.get("sectionCode") == "A")
+        self.assertEqual(section_a["answers"]["A_1"], "John Doe")
+        
+        # Find section B
+        section_b = next(s for s in result if s.get("sectionCode") == "B")
+        self.assertEqual(section_b["answers"]["B_1"], "120/80")
 
 
 if __name__ == "__main__":

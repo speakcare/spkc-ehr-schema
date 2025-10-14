@@ -305,6 +305,9 @@ MAX_NESTING_LEVELS = 5
 __field_schema_builders_registry: Dict[str, Callable] = {}
 __validator_registry: Dict[str, Callable] = {}
 
+# Global registry for reverse formatters
+_reverse_formatters: Dict[str, Callable] = {}
+
 
 def _register_field_schema_builder(internal_type: str):
     """Decorator to register a schema builder function for an internal field type."""
@@ -322,6 +325,14 @@ def _register_validator(internal_type: str):
     return decorator
 
 
+def _register_reverse_formatter(target_type: str):
+    """Decorator to register a reverse formatter function for a target type."""
+    def decorator(func: Callable):
+        _reverse_formatters[target_type] = func
+        return func
+    return decorator
+
+
 def _get_field_schema_builder(internal_type: str) -> Optional[Callable]:
     """Get the schema builder function for an internal field type."""
     return __field_schema_builders_registry.get(internal_type)
@@ -330,6 +341,18 @@ def _get_field_schema_builder(internal_type: str) -> Optional[Callable]:
 def _get_validator(internal_type: str) -> Optional[Callable]:
     """Get the validator function for an internal field type."""
     return __validator_registry.get(internal_type)
+
+
+def register_reverse_formatter(target_type: str, formatter: Callable) -> None:
+    """
+    Register a global reverse formatter for a target type.
+    
+    Args:
+        target_type: The target type (e.g., "single_select", "virtual_container")
+        formatter: Function with signature:
+            (engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]
+    """
+    _reverse_formatters[target_type] = formatter
 
 
 class SchemaConverterEngine:
@@ -349,6 +372,7 @@ class SchemaConverterEngine:
         self.__options_extractor_registry: Dict[str, Callable] = {}
         self.__instance_validator_registry: Dict[str, Callable] = {}
         self.__instance_field_schema_builder_registry: Dict[str, Callable] = {}
+        self.__instance_reverse_formatters: Dict[str, Callable] = {}
 
         # Table registry: table_id -> registry record
         self.__tables: Dict[int, Dict[str, Any]] = {}
@@ -423,6 +447,17 @@ class SchemaConverterEngine:
         """
         self.__instance_field_schema_builder_registry[target_type] = builder_func
         logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
+
+    def register_reverse_formatter(self, target_type: str, formatter: Callable) -> None:
+        """
+        Register an instance-level reverse formatter for a target type.
+        
+        Args:
+            target_type: The target type (e.g., "single_select", "virtual_container")
+            formatter: Function with signature:
+                (engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]
+        """
+        self.__instance_reverse_formatters[target_type] = formatter
 
     def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
         """Register (or re-register) a table schema.
@@ -750,7 +785,7 @@ class SchemaConverterEngine:
         field_index: List[Dict[str, Any]] = []
 
         # Build object-based container schema (not array-based)
-        container_schema, collected_fields = self._build_container_object(container_def["object"], container_array, [])
+        container_schema, collected_fields = self._build_container_object(container_def["object"], container_array, [container_name])
         field_index.extend(collected_fields)
 
         root_properties[container_name] = container_schema
@@ -816,6 +851,13 @@ class SchemaConverterEngine:
                 "name": field_name,
                 "title": field_title_value,
             }
+            
+            # Add container key_field if this is a container level
+            # Extract container key fields from meta-schema dynamically
+            if len(level_keys) > 0:
+                key_field = self._extract_container_key_field(level_keys)
+                if key_field:
+                    field_metadata["key_field"] = key_field
             
             # If builder returned virtual children, mark container
             if virtual_children_metadata:
@@ -905,7 +947,7 @@ class SchemaConverterEngine:
                 
                 # Update level keys for property processing
                 updated_level_keys = level_keys.copy()
-                updated_level_keys.append(current_level_key)
+                updated_level_keys.append(property_name)  # Use property_name, not current_level_key
                 # Add properties_name to level_keys for consistency
                 updated_level_keys.append(properties_name)
                 
@@ -959,7 +1001,9 @@ class SchemaConverterEngine:
                 
                 # Update level keys for nested processing
                 updated_level_keys = level_keys.copy()
-                if current_level_key:
+                if current_level_key and current_level_name:
+                    updated_level_keys.append(f"{current_level_key}.{current_level_name}")
+                elif current_level_key:
                     updated_level_keys.append(current_level_key)
                 
                 # Get the nested container array from this item
@@ -967,9 +1011,11 @@ class SchemaConverterEngine:
                 if not isinstance(nested_container_array, list):
                     continue
                 
-                # Build nested container object with updated level keys
+                # Build nested container object with updated level keys (include nested_container_name)
+                nested_level_keys = updated_level_keys.copy()
+                nested_level_keys.append(nested_container_name)
                 nested_container_schema, nested_collected = self._build_container_object(
-                    nested_container_def["object"], nested_container_array, updated_level_keys
+                    nested_container_def["object"], nested_container_array, nested_level_keys
                 )
                 collected.extend(nested_collected)
                 
@@ -1255,6 +1301,264 @@ class SchemaConverterEngine:
             return f"{loc}: {err.message}"
         return err.message
 
+    def enrich_schema(self, table_name: str, enrichment_dict: Dict[str, str]) -> None:
+        """
+        Enrich schema property descriptions with additional context.
+        
+        Args:
+            table_name: The name of the registered table
+            enrichment_dict: Dict mapping field keys to description text
+        
+        Raises:
+            ValueError: If table_name not registered
+        """
+        if table_name not in self.__table_names:
+            raise ValueError(f"Table '{table_name}' not registered")
+        
+        table_id = self.__table_names[table_name]
+        schema_data = self.__tables[table_id]
+        json_schema = schema_data["json_schema"]
+        field_index = schema_data["field_index"]
+        
+        # For each enrichment entry, find field in index and update description
+        for field_key, enrichment_text in enrichment_dict.items():
+            # Find field metadata
+            field_meta = next((f for f in field_index if f.get("key") == field_key), None)
+            if not field_meta:
+                continue
+            
+            # Navigate to the property in json_schema using level_keys
+            level_keys = field_meta.get("level_keys", [])
+            property_key = field_meta.get("property_key")
+            
+            # Traverse to the property location
+            current = json_schema
+            for key in level_keys:
+                current = current.get("properties", {}).get(key, {})
+            
+            # Update description
+            if property_key and "properties" in current:
+                prop_schema = current["properties"].get(property_key, {})
+                existing_desc = prop_schema.get("description", "")
+                if existing_desc:
+                    prop_schema["description"] = f"{existing_desc}\n\n{enrichment_text}"
+                else:
+                    prop_schema["description"] = enrichment_text
+
+    def reverse_map(
+        self,
+        table_name: str,
+        model_response: Dict[str, Any],
+        group_by_containers: Optional[List[str]] = None
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """
+        Map model response back to original external schema format.
+        
+        Args:
+            table_name: The name of the registered table
+            model_response: The JSON response from the model
+            group_by_containers: Optional list of container names to group by
+                (e.g., ["sections"] groups answers by section)
+        
+        Returns:
+            If group_by_containers is None: flat dict of {key: value, ...}
+            If group_by_containers provided: nested structure grouped by containers
+        
+        Raises:
+            ValueError: If table_name not registered
+        """
+        if table_name not in self.__table_names:
+            raise ValueError(f"Table '{table_name}' not registered")
+        
+        table_id = self.__table_names[table_name]
+        schema_data = self.__tables[table_id]
+        field_index = schema_data["field_index"]
+        
+        # Step 1: Traverse model response and format each field
+        formatted_pairs = []
+        for field_meta in field_index:
+            # Skip virtual container children (they're processed by the virtual container formatter)
+            if field_meta.get("is_virtual_container_child"):
+                continue
+            
+            # Extract model value using level_keys and property_key
+            model_value = self._extract_model_value(model_response, field_meta)
+            
+            # Get formatter
+            target_type = field_meta.get("target_type")
+            if not target_type:
+                logger.error(f"Field {field_meta.get('key', 'unknown')} missing target_type - this indicates a bug in schema building. Using None value.")
+                # Return None for this field to avoid crashing the entire reverse mapping
+                formatted_pairs.append((field_meta.get("key", "unknown"), None))
+                continue
+            
+            formatter = self._get_reverse_formatter(target_type)
+            
+            # Format field (returns list of tuples)
+            pairs = formatter(self, field_meta, model_value, table_name)
+            formatted_pairs.extend(pairs)
+        
+        # Step 2: Group if requested
+        if group_by_containers:
+            return self._group_by_containers(formatted_pairs, field_index, group_by_containers)
+        else:
+            # Return flat dict
+            return dict(formatted_pairs)
+
+    def _extract_model_value(self, model_response: Dict[str, Any], field_meta: Dict[str, Any]) -> Any:
+        """Extract value from model response using field metadata."""
+        level_keys = field_meta.get("level_keys", [])
+        property_key = field_meta.get("property_key")
+        
+        # Traverse nested structure
+        current = model_response
+        for key in level_keys:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(key)
+            if current is None:
+                return None
+        
+        # Get final property value
+        if isinstance(current, dict) and property_key:
+            return current.get(property_key)
+        return None
+
+    def _extract_container_key_field(self, level_keys: List[str]) -> Optional[str]:
+        """
+        Extract container key field from meta-schema based on level_keys.
+        
+        Args:
+            level_keys: List of level keys representing the path to this field
+            
+        Returns:
+            The key field name for the appropriate container level, or None if not found
+        """
+        if not level_keys:
+            return None
+        
+        # Start from the meta-schema container definition
+        container_def = self.__meta_schema.get("container")
+        if not container_def:
+            return None
+        
+        # Traverse the container hierarchy based on level_keys
+        current_def = container_def
+        level_index = 0
+        
+        while level_index < len(level_keys) and "object" in current_def:
+            object_def = current_def["object"]
+            
+            # Check if this level has a key field
+            if "key" in object_def:
+                # This is a container level with a key field
+                return object_def["key"]
+            
+            # Move to next level if there's a nested container
+            if "container" in object_def:
+                current_def = object_def["container"]
+                level_index += 1
+            else:
+                # No more nested containers
+                break
+        
+        return None
+
+    def _get_reverse_formatter(self, target_type: str) -> Callable:
+        """Get formatter for target type (instance first, then global, then string fallback)."""
+        if target_type in self.__instance_reverse_formatters:
+            return self.__instance_reverse_formatters[target_type]
+        if target_type in _reverse_formatters:
+            return _reverse_formatters[target_type]
+        # Fallback to string formatter
+        return _reverse_formatters.get("string", _string_formatter)
+
+    def _group_by_containers(
+        self,
+        formatted_pairs: List[Tuple[str, Any]],
+        field_index: List[Dict[str, Any]],
+        container_names: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Group formatted pairs by container hierarchy.
+        
+        Args:
+            formatted_pairs: List of (key, value) tuples
+            field_index: Field metadata index
+            container_names: List of container names to group by (e.g., ["sections"])
+        
+        Returns:
+            List of dicts, each representing a container group
+        """
+        # Build mapping of field keys to their container paths
+        key_to_container = {}
+        for field_meta in field_index:
+            field_key = field_meta.get("key")
+            level_keys = field_meta.get("level_keys", [])
+            key_field = field_meta.get("key_field")
+            
+            if not key_field:
+                continue
+            
+            # Extract container path up to the grouping level
+            container_path = []
+            container_name = self.__meta_schema.get("container", {}).get("container_name")
+            
+            for i, level_key in enumerate(level_keys):
+                # Check if this level matches the container name from meta-schema
+                if level_key == container_name and i == 0:
+                    # This is the top-level container - extract the actual container key
+                    # The next level_key should be the container key (e.g., "A.Admission")
+                    if i + 1 < len(level_keys):
+                        container_key = level_keys[i + 1].split(".")[0]  # Extract "A" from "A.Admission"
+                        container_path.append((container_key, field_meta))
+                    break
+            
+            key_to_container[field_key] = container_path
+        
+        # Group pairs by container
+        groups = {}
+        for key, value in formatted_pairs:
+            container_path = key_to_container.get(key, [])
+            if not container_path:
+                # No container, skip or add to root
+                continue
+            
+            # Use the last container in path as grouping key
+            container_key, container_meta = container_path[-1]
+            
+            if container_key not in groups:
+                # Create new group with container key field
+                groups[container_key] = {
+                    "_container_meta": container_meta,
+                    "answers": []
+                }
+            
+            groups[container_key]["answers"].append({key: value})
+        
+        # Convert to list and add container key fields
+        result = []
+        for container_key, group_data in groups.items():
+            container_meta = group_data["_container_meta"]
+            
+            # Get container key field name from meta-schema
+            # The container's "key" field tells us which property holds the container identifier
+            container_key_field = container_meta.get("key_field")  # e.g., "sectionCode"
+            
+            group = {}
+            if container_key_field:
+                group[container_key_field] = container_key
+            
+            # Flatten answers list to single dict
+            answers_dict = {}
+            for answer in group_data["answers"]:
+                answers_dict.update(answer)
+            group["answers"] = answers_dict
+            
+            result.append(group)
+        
+        return result
+
 
 # ----------------------------- Default Schema Builders -----------------------------
 
@@ -1434,5 +1738,62 @@ def _multiple_select_validator(engine: SchemaConverterEngine, value: Any) -> Tup
     """Validate multiple_select array values."""
     # JSON Schema already validates array and enum membership, so this is just for additional checks
     return True, ""
+
+
+# ----------------------------- Built-in Reverse Formatters -----------------------------
+
+@_register_reverse_formatter("string")
+def _string_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for string fields."""
+    return [(field_meta["key"], model_value)]
+
+
+@_register_reverse_formatter("text")
+def _text_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for text fields (same as string)."""
+    return [(field_meta["key"], model_value)]
+
+
+@_register_reverse_formatter("boolean")
+def _boolean_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for boolean fields."""
+    return [(field_meta["key"], model_value)]
+
+
+@_register_reverse_formatter("number")
+def _number_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for number fields."""
+    return [(field_meta["key"], model_value)]
+
+
+@_register_reverse_formatter("date")
+def _date_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for date fields - convert to YYYYMMDD."""
+    if model_value is None:
+        return [(field_meta["key"], None)]
+    # Expect ISO format YYYY-MM-DD from model
+    formatted = model_value.replace("-", "")  # YYYYMMDD
+    return [(field_meta["key"], formatted)]
+
+
+@_register_reverse_formatter("datetime")
+def _datetime_formatter(engine, field_meta, model_value, table_name):
+    """Built-in formatter for datetime fields - convert to YYYY-MM-DD+HH:MM:SS.000."""
+    if model_value is None:
+        return [(field_meta["key"], None)]
+    # Expect ISO format from model, convert to PCC format
+    # Input: "2025-10-14T15:30:00" or "2025-10-14T15:30:00Z"
+    # Output: "2025-10-14+15:30:00.000"
+    formatted = model_value.replace("T", "+")
+    # Strip timezone info if present
+    if "+" in formatted and len(formatted.split("+")) > 2:
+        # Has timezone offset, remove it
+        parts = formatted.split("+")
+        formatted = "+".join(parts[:-1])
+    elif formatted.endswith("Z"):
+        formatted = formatted[:-1]
+    if "." not in formatted:
+        formatted += ".000"
+    return [(field_meta["key"], formatted)]
 
 

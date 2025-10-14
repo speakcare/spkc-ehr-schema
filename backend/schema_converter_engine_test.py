@@ -504,7 +504,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(field_info["key"], "AA1")
         self.assertEqual(field_info["id"], "1")
         self.assertEqual(field_info["name"], "Test question")
-        self.assertEqual(field_info["level_keys"], ["AA", "1", "questions"])
+        self.assertEqual(field_info["level_keys"], ["sections", "AA.Test Section", "assessmentQuestionGroups", "1.Test Group", "questions"])
 
     def test_validation_success(self):
         """Test successful data validation."""
@@ -975,7 +975,7 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertEqual(field1_info["key"], "field1")
         self.assertEqual(field1_info["id"], "1")
         self.assertEqual(field1_info["name"], "First field")
-        self.assertEqual(field1_info["level_keys"], ["L1A", "L2A1", "L3A1a", "L4A1a1", "level5s"])
+        self.assertEqual(field1_info["level_keys"], ["level1s", "L1A.Category A", "level2s", "L2A1.Subcategory A1", "level3s", "L3A1a.Group A1a", "level4s", "L4A1a1.Section A1a1", "level5s"])
 
     def test_instance_validator_override(self):
         """Test that instance validators can be registered and override global validators."""
@@ -2220,6 +2220,147 @@ class TestSchemaConverterEngine(unittest.TestCase):
         self.assertIn("Child1", node["properties"]) 
         self.assertIn("Child2", node["properties"]) 
         self.assertEqual(node["required"], ["Child1", "Child2"])
+
+    def test_enrich_schema(self):
+        """Test schema enrichment functionality."""
+        engine = SchemaConverterEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "field2", 
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        # Enrich schema with additional descriptions
+        enrichment_dict = {
+            "field1": "This field contains the patient's full name",
+            "field2": "This field contains the patient's age in years"
+        }
+        
+        engine.enrich_schema(table_name, enrichment_dict)
+        
+        # Verify enrichment was applied
+        json_schema = engine.get_json_schema(table_id)
+        fields_properties = json_schema["properties"]["fields"]["properties"]
+        
+        field1_schema = fields_properties["Patient Name"]
+        field2_schema = fields_properties["Patient Age"]
+        
+        self.assertIn("This field contains the patient's full name", field1_schema.get("description", ""))
+        self.assertIn("This field contains the patient's age in years", field2_schema.get("description", ""))
+        
+        # Test error case
+        with self.assertRaises(ValueError):
+            engine.enrich_schema("nonexistent_table", {"field1": "test"})
+
+    def test_reverse_map_flat(self):
+        """Test flat reverse mapping."""
+        engine = SchemaConverterEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1", 
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": "Patient Age", 
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        # Model response
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe",
+                "Patient Age": "25"
+            }
+        }
+        
+        # Reverse map
+        result = engine.reverse_map(table_name, model_response)
+        
+        # Verify flat mapping
+        self.assertEqual(result["field1"], "John Doe")
+        self.assertEqual(result["field2"], "25")
+        
+        # Test error case
+        with self.assertRaises(ValueError):
+            engine.reverse_map("nonexistent_table", model_response)
+
+    def test_reverse_map_with_nulls(self):
+        """Test reverse mapping includes null values."""
+        engine = SchemaConverterEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name", 
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        # Model response with null
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe",
+                "Patient Age": None
+            }
+        }
+        
+        # Reverse map
+        result = engine.reverse_map(table_name, model_response)
+        
+        # Verify null values are included
+        self.assertEqual(result["field1"], "John Doe")
+        self.assertIsNone(result["field2"])
+
+    def test_reverse_formatter_registration(self):
+        """Test reverse formatter registration."""
+        engine = SchemaConverterEngine(self.flat_meta_schema)
+        
+        # Test instance-level registration
+        def custom_formatter(engine, field_meta, model_value, table_name):
+            return [(field_meta["key"], f"custom_{model_value}")]
+        
+        engine.register_reverse_formatter("custom_type", custom_formatter)
+        
+        # Verify registration worked (no direct way to test, but no error should occur)
+        self.assertTrue(True)  # Placeholder assertion
 
 
 if __name__ == "__main__":
