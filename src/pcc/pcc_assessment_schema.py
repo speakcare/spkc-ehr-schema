@@ -291,6 +291,10 @@ class PCCAssessmentSchema:
             
             return {field_meta["key"]: {"type": "table", "value": results if results else None}}
         
+        def pcc_instructions_reverse_formatter(engine, field_meta, model_value, table_name):
+            """Omit instruction fields from reverse output (PCC-specific need)."""
+            return {}
+        
         # Register builders and formatters by original schema type
         self.engine.register_field_schema_builder("chk", pcc_chk_schema_builder)
         self.engine.register_reverse_formatter("chk", pcc_chk_reverse_formatter)
@@ -300,6 +304,7 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("mcs", pcc_multi_select_formatter)
         self.engine.register_reverse_formatter("mcsh", pcc_multi_select_formatter)
         self.engine.register_reverse_formatter("gbdy", pcc_virtual_container_formatter)
+        self.engine.register_reverse_formatter("inst", pcc_instructions_reverse_formatter)
         
         # Load and register the 4 assessment templates
         self._load_and_register_templates()
