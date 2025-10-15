@@ -1580,6 +1580,380 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertIsInstance(res["grouped"], list)
         self.assertGreater(len(res["grouped"]), 0)
 
+    def test_generate_complete_model_responses_all_assessments(self):
+        """Generate complete model responses with valid values for all fields in all assessments."""
+        pcc = PCCAssessmentSchema()
+        
+        # Assessment IDs and their expected names
+        assessments = [
+            (21242733, "MHCS IDT 5 Day Section GG"),
+            (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21242741, "MHCS Nursing Daily Skilled Note"),
+            (21244831, "MHCS Nursing Weekly Skin Check")
+        ]
+        
+        for assessment_id, assessment_name in assessments:
+            with self.subTest(assessment=assessment_name):
+                # Get JSON schema
+                json_schema = pcc.get_json_schema(assessment_id)
+                
+                # Generate complete model response by following JSON schema structure
+                model_response = self._generate_model_from_json_schema(json_schema)
+                
+                # Validate the model response
+                is_valid, errors = pcc.validate(assessment_id, model_response)
+                self.assertTrue(is_valid, 
+                              f"Model validation failed for {assessment_name}: {errors}")
+                
+                # Test reverse mapping
+                reverse_result = pcc.engine.reverse_map(assessment_name, model_response, group_by_containers=["sections"])
+                self.assertIsInstance(reverse_result, list)
+                self.assertGreater(len(reverse_result), 0)
+                
+                # Save the complete model response for inspection
+                self._save_complete_model_response(assessment_id, assessment_name, model_response)
+
+    def _generate_model_from_json_schema(self, json_schema):
+        """Generate a complete model by following the JSON schema structure directly."""
+        model = {"table_name": json_schema["title"]}
+        
+        # Process sections
+        if "properties" in json_schema and "sections" in json_schema["properties"]:
+            sections_schema = json_schema["properties"]["sections"]["properties"]
+            model["sections"] = {}
+            
+            for section_name, section_def in sections_schema.items():
+                model["sections"][section_name] = {}
+                
+                # Process assessmentQuestionGroups
+                if "properties" in section_def and "assessmentQuestionGroups" in section_def["properties"]:
+                    groups_schema = section_def["properties"]["assessmentQuestionGroups"]["properties"]
+                    model["sections"][section_name]["assessmentQuestionGroups"] = {}
+                    
+                    for group_name, group_def in groups_schema.items():
+                        model["sections"][section_name]["assessmentQuestionGroups"][group_name] = {}
+                        
+                        # Process questions
+                        if "properties" in group_def and "questions" in group_def["properties"]:
+                            questions_schema = group_def["properties"]["questions"]["properties"]
+                            model["sections"][section_name]["assessmentQuestionGroups"][group_name]["questions"] = {}
+                            
+                            for question_name, question_def in questions_schema.items():
+                                # Generate value based on question schema
+                                value = self._generate_value_from_question_schema(question_def)
+                                model["sections"][section_name]["assessmentQuestionGroups"][group_name]["questions"][question_name] = value
+        
+        return model
+
+    def _generate_value_from_question_schema(self, question_def):
+        """Generate a valid value based on the question schema definition."""
+        question_type = question_def.get("type")
+        
+        # Check if it's a date field first (before handling union types)
+        if "format" in question_def and question_def["format"] == "date":
+            return "2024-12-15"
+        
+        # Handle union types (e.g., ['string', 'null'])
+        if isinstance(question_type, list):
+            # Remove 'null' and use the first non-null type
+            non_null_types = [t for t in question_type if t != 'null']
+            if non_null_types:
+                question_type = non_null_types[0]
+            else:
+                return None
+        
+        if question_type == "string":
+            # Check if it's an instruction field (has const value)
+            if "const" in question_def:
+                return question_def["const"]
+            # Check if it has enum options
+            elif "enum" in question_def:
+                enum_values = [v for v in question_def["enum"] if v is not None]
+                if enum_values:
+                    return enum_values[0]  # Return first valid option
+            # Check if it's a date field by looking at description
+            elif "description" in question_def and "date" in question_def["description"].lower():
+                return "2024-12-15"
+            # Default string value
+            return "Sample text"
+            
+        elif question_type == "boolean":
+            return True
+            
+        elif question_type in ["integer", "number"]:
+            return 42
+            
+        elif question_type == "array":
+            # For arrays, check if it has items schema
+            if "items" in question_def:
+                item_type = question_def["items"].get("type")
+                if isinstance(item_type, list):
+                    item_type = [t for t in item_type if t != 'null'][0] if [t for t in item_type if t != 'null'] else None
+                
+                if item_type == "string" and "enum" in question_def["items"]:
+                    enum_values = [v for v in question_def["items"]["enum"] if v is not None]
+                    if enum_values:
+                        return enum_values[:2]  # Return first 2 options for arrays
+                return ["Sample item 1", "Sample item 2"]
+            
+        elif question_type == "object":
+            # For objects, generate properties
+            if "properties" in question_def:
+                obj = {}
+                for prop_name, prop_def in question_def["properties"].items():
+                    obj[prop_name] = self._generate_value_from_question_schema(prop_def)
+                return obj
+            return {}
+        
+        return None
+
+    def _generate_complete_model_response(self, pcc, assessment_id, field_metadata):
+        """Generate a complete model response with valid values for all fields."""
+        json_schema = pcc.get_json_schema(assessment_id)
+        model_response = {"table_name": json_schema["title"]}
+        
+        # Group fields by their target type for better value generation
+        fields_by_type = {}
+        for field_meta in field_metadata:
+            target_type = field_meta.get("target_type")
+            if target_type not in fields_by_type:
+                fields_by_type[target_type] = []
+            fields_by_type[target_type].append(field_meta)
+        
+        # Generate values for each field
+        for field_meta in field_metadata:
+            if field_meta.get("is_virtual_container_child"):
+                continue  # Skip virtual container children
+                
+            value = self._generate_value_for_field_type(field_meta, fields_by_type, field_metadata)
+            self._set_value_in_model_response(model_response, field_meta, value)
+        
+        return model_response
+
+    def _generate_value_for_field_type(self, field_meta, fields_by_type, field_metadata):
+        """Generate appropriate value based on field type."""
+        target_type = field_meta.get("target_type")
+        original_type = field_meta.get("original_schema_type")
+        field_key = field_meta.get("key")
+        
+        # Debug: print what we're generating for specific problematic fields
+        if field_key in ["Cust_A_1", "Cust_1_A"]:
+            print(f"DEBUG: Generating value for {field_key} - target_type: {target_type}, original_type: {original_type}")
+            print(f"DEBUG: responseOptions: {field_meta.get('responseOptions', [])}")
+            field_schema = field_meta.get("field_schema", {})
+            print(f"DEBUG: field_schema keys: {list(field_schema.keys())}")
+            print(f"DEBUG: enum values: {field_schema.get('enum', [])}")
+        
+        if target_type == "string" or original_type in ["txt", "diag"]:
+            return f"Sample text for {field_key}"
+            
+        elif target_type == "integer" or original_type in ["num", "int"]:
+            return 42
+            
+        elif target_type == "boolean" or original_type == "chk":
+            return True
+            
+        elif target_type == "single_select" or original_type in ["rad", "radh", "cmb", "hck"]:
+            response_options = field_meta.get("responseOptions", [])
+            if response_options:
+                # Return the first responseText
+                return response_options[0]["responseText"]
+            
+            # If no responseOptions, try to get enum values from field schema
+            field_schema = field_meta.get("field_schema", {})
+            enum_values = field_schema.get("enum")
+            if enum_values and len(enum_values) > 0:
+                # Filter out None values and return the first valid option
+                valid_options = [v for v in enum_values if v is not None]
+                if valid_options:
+                    return valid_options[0]
+            
+            # If no valid options found, return None (let validation handle it)
+            return None
+            
+        elif target_type == "multiple_select" or original_type in ["mcs", "mcsh"]:
+            response_options = field_meta.get("responseOptions", [])
+            if response_options:
+                # Return first 2-3 options as array, but ensure they're valid responseText values
+                max_options = min(3, len(response_options))
+                return [opt["responseText"] for opt in response_options[:max_options]]
+            
+            # If no responseOptions, try to get enum values from field schema
+            field_schema = field_meta.get("field_schema", {})
+            enum_values = field_schema.get("enum")
+            if enum_values and len(enum_values) > 0:
+                # Filter out None values and return first 2-3 valid options
+                valid_options = [v for v in enum_values if v is not None]
+                if valid_options:
+                    max_options = min(2, len(valid_options))
+                    return valid_options[:max_options]
+            
+            # If no valid options found, return empty list for multi-select
+            return []
+            
+        elif target_type == "date" or original_type == "dte":
+            return "2024-12-15"
+            
+        elif target_type == "datetime" or original_type == "dttm":
+            return "2024-12-15T14:30:00"
+            
+        elif target_type == "virtual_container" or original_type == "gbdy":
+            # Generate table data with ALL child properties (not just first 3)
+            children = field_meta.get("children", [])
+            if children:
+                table_data = {}
+                for child in children:
+                    child_property = child.get("property_key")
+                    if child_property:
+                        table_data[child_property] = f"Sample text for {child_property}"
+                return table_data
+            
+            # If no children in metadata, look for virtual container children in the field metadata
+            # that have the same parent key
+            parent_key = field_meta.get("key")
+            if parent_key:
+                # Find all virtual container children with this parent key
+                vc_children = [f for f in field_metadata if f.get("is_virtual_container_child") and f.get("key") == parent_key]
+                if vc_children:
+                    table_data = {}
+                    for child in vc_children:
+                        child_property = child.get("property_key")
+                        if child_property:
+                            table_data[child_property] = f"Sample text for {child_property}"
+                    return table_data
+            
+            # If no children, check if this is a virtual container that should have children
+            # by looking at the field schema properties
+            field_schema = field_meta.get("field_schema", {})
+            properties = field_schema.get("properties", {})
+            if properties:
+                # This is a virtual container with required properties
+                table_data = {}
+                for prop_name in properties.keys():
+                    table_data[prop_name] = f"Sample text for {prop_name}"
+                return table_data
+            # If no children and no properties, return empty object to satisfy schema
+            return {}
+            
+        elif target_type == "instructions" or original_type == "inst":
+            # For instruction fields, construct the value from questionTitle and questionText
+            field_schema = field_meta.get("field_schema", {})
+            const_value = field_schema.get("const")
+            if const_value:
+                return const_value
+            
+            # If no const value, construct from questionTitle and questionText (like the schema engine does)
+            question_title = field_schema.get("questionTitle", "")
+            question_text = field_schema.get("questionText", "")
+            
+            # Simple HTML sanitization (remove HTML tags)
+            import re
+            title_value = re.sub(r'<[^>]+>', '', question_title).strip()
+            text_value = re.sub(r'<[^>]+>', '', question_text).strip()
+            
+            if title_value and text_value:
+                return f"{title_value}. {text_value}"
+            elif title_value:
+                return title_value
+            elif text_value:
+                return text_value
+            else:
+                return f"Instructions for {field_meta['key']}"
+            
+        else:
+            return f"Default value for {field_meta['key']}"
+
+    def _set_value_in_model_response(self, model_response, field_meta, value):
+        """Set value in model response using field metadata level_keys."""
+        level_keys = field_meta.get("level_keys", [])
+        property_key = field_meta.get("property_key")
+        
+        if not level_keys or not property_key:
+            return
+            
+        # Navigate/create nested structure
+        current = model_response
+        for i, level_key in enumerate(level_keys[:-1]):
+            if level_key not in current:
+                # Create container based on meta-schema structure
+                if i == 0 and level_key == "sections":
+                    # This is the top-level container - create object
+                    current[level_key] = {}
+                else:
+                    # This is a nested container - create object
+                    current[level_key] = {}
+            current = current[level_key]
+        
+        # Set the final value
+        final_key = level_keys[-1]
+        if final_key not in current:
+            current[final_key] = {}
+        current[final_key][property_key] = value
+
+    def _verify_all_fields_populated(self, model_response, field_metadata):
+        """Verify that all fields have non-null values."""
+        for field_meta in field_metadata:
+            if field_meta.get("is_virtual_container_child"):
+                continue
+                
+            level_keys = field_meta.get("level_keys", [])
+            property_key = field_meta.get("property_key")
+            
+            if not level_keys or not property_key:
+                continue
+                
+            # Navigate to the field value
+            current = model_response
+            for level_key in level_keys:
+                if level_key in current:
+                    current = current[level_key]
+                else:
+                    self.fail(f"Field {field_meta['key']} not found in model response")
+                    return
+            
+            if property_key in current:
+                field_value = current[property_key]
+                
+                # Skip null check for instruction fields and fields with no valid options
+                target_type = field_meta.get("target_type")
+                if target_type != "instructions":
+                    # Check if field has any valid options
+                    response_options = field_meta.get("responseOptions", [])
+                    field_schema = field_meta.get("field_schema", {})
+                    enum_values = field_schema.get("enum", [])
+                    has_valid_options = (response_options and len(response_options) > 0) or (enum_values and len([v for v in enum_values if v is not None]) > 0)
+                    
+                    if has_valid_options:
+                        self.assertIsNotNone(field_value, f"Field {field_meta['key']} has null value but has valid options")
+                    # If no valid options, allow null values
+                
+                # Additional checks for specific types
+                if target_type == "multiple_select":
+                    self.assertIsInstance(field_value, list, f"Multi-select field {field_meta['key']} should be a list")
+                    if has_valid_options:
+                        self.assertGreater(len(field_value), 0, f"Multi-select field {field_meta['key']} should have values")
+                elif target_type == "virtual_container":
+                    self.assertIsInstance(field_value, dict, f"Table field {field_meta['key']} should be a dict")
+                    self.assertGreater(len(field_value), 0, f"Table field {field_meta['key']} should have values")
+
+    def _save_complete_model_response(self, assessment_id, assessment_name, model_response):
+        """Save complete model response to file for inspection."""
+        import os
+        import json
+        
+        # Create directory if it doesn't exist
+        output_dir = os.path.join(os.path.dirname(__file__), "_complete_model_responses")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save the model response
+        filename = f"{assessment_id}_{assessment_name.replace(' ', '_')}_complete_model.json"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(model_response, f, indent=2, ensure_ascii=False)
+        
+        print(f"Saved complete model response for {assessment_name} to {filepath}")
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages
