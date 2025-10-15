@@ -2000,7 +2000,7 @@ class TestSchemaEngine(unittest.TestCase):
         # Verify instructions field schema - property key is now "1.Instructions"
         instr_field = json_schema["properties"]["fields"]["properties"]["1.Instructions"]
         self.assertEqual(instr_field["type"], "string")
-        self.assertEqual(instr_field["const"], "Section A Instructions.Please read carefully")
+        self.assertEqual(instr_field["const"], "Section A Instructions. Please read carefully")
         self.assertIn("context for other properties", instr_field["description"])
         self.assertEqual(instr_field["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
         

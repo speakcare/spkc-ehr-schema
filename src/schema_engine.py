@@ -897,6 +897,8 @@ class SchemaEngine:
                 # Derive optional id/title from parent for consistency
                 parent_id_value = prop.get(property_def.get("id", ""), "") if "id" in property_def else ""
                 parent_title_value = prop.get(property_def.get("title", ""), "") if "title" in property_def else ""
+                # Sanitize parent title to ensure no HTML tags propagate to children metadata
+                parent_title_value = self._sanitize_html(parent_title_value)
                 
                 for child in virtual_children_metadata:
                     child_name = child.get("child_property_name")
@@ -1693,8 +1695,11 @@ def _instructions_schema_builder(engine: SchemaEngine, target_type: str, enum_va
     
     # Extract actual values from field schema
     id_value = field_schema.get(id_field, "") if id_field else ""
-    title_value = field_schema.get(title_field, "") if title_field else ""
-    name_value = field_schema.get(name_field, "") if name_field else ""
+    # Sanitize title and name to strip any HTML tags at ingestion time
+    raw_title_value = field_schema.get(title_field, "") if title_field else ""
+    raw_name_value = field_schema.get(name_field, "") if name_field else ""
+    title_value = engine._sanitize_html(raw_title_value)
+    name_value = engine._sanitize_html(raw_name_value)
     
     # Build property key: "<id>.Instructions" if id exists, else "Instructions"
     if id_value:
@@ -1702,9 +1707,9 @@ def _instructions_schema_builder(engine: SchemaEngine, target_type: str, enum_va
     else:
         property_key = "Instructions"
     
-    # Build const value from title.name
+    # Build const value from sanitized title and name with ". " separator
     if title_value and name_value:
-        const_value = f"{title_value}.{name_value}"
+        const_value = f"{title_value}. {name_value}"
     elif title_value:
         const_value = title_value
     else:

@@ -46,11 +46,11 @@ def _generate_value_for_field(field_meta: Dict[str, Any]) -> Any:
     if original_type in ("rad", "radh", "cmb", "hck") or target_type == "single_select":
         opts = field_schema.get("responseOptions") or []
         if opts:
-            return opts[0].get("responseText") or None
+            return _sanitize_text_for_model(opts[0].get("responseText") or None)
         return None
     if original_type in ("mcs", "mcsh") or target_type == "multiple_select":
         opts = field_schema.get("responseOptions") or []
-        names = [o.get("responseText") for o in opts if o.get("responseText")]
+        names = [_sanitize_text_for_model(o.get("responseText")) for o in opts if o.get("responseText")]
         if not names:
             return None
         max_count = 5
@@ -62,6 +62,16 @@ def _generate_value_for_field(field_meta: Dict[str, Any]) -> Any:
         # Will be generated at parent handler, not here
         return {}
     return None
+
+
+def _sanitize_text_for_model(s: Any) -> Any:
+    if not isinstance(s, str):
+        return s
+    # Remove basic HTML tags and collapse consecutive whitespace
+    import re
+    s = re.sub(r"<[^>]+>", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 
 def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) -> Dict[str, Any]:
@@ -650,7 +660,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify instruction field - property key is "1.Instructions"
         instr_field = questions["properties"]["1.Instructions"]
         self.assertEqual(instr_field["type"], "string")
-        self.assertEqual(instr_field["const"], "Instructions.Please answer the following questions based on observation")
+        self.assertEqual(instr_field["const"], "Instructions. Please answer the following questions based on observation")
         self.assertEqual(instr_field["description"], "These are instructions that should be used as context for other properties of the same schema object and adjacent schema objects.")
         
         # Verify it's in the required list
