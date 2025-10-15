@@ -661,7 +661,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify responseValue extraction
-        self.assertEqual(result["A_1"], "c")  # Wheelchair -> "c"
+        self.assertEqual(result["data"]["A_1"], {"type": "radio", "value": "c"})  # Wheelchair -> "c"
 
     def test_pcc_multi_select_reverse(self):
         """Test PCC multi select reverse formatter."""
@@ -719,7 +719,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify multiple responseValue extraction
-        self.assertEqual(result["A_1"], ["a", "c"])  # Option A -> "a", Option C -> "c"
+        self.assertEqual(result["data"]["A_1"], {"type": "multi", "value": ["a", "c"]})  # Option A -> "a", Option C -> "c"
 
     def test_pcc_chk_reverse(self):
         """Test PCC checkbox reverse formatter."""
@@ -772,7 +772,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify boolean to 1/None conversion
-        self.assertEqual(result["A_1"], 1)  # True -> 1
+        self.assertEqual(result["data"]["A_1"], {"type": "checkbox", "value": 1})  # True -> 1
         
         # Test false case
         model_response_false = {
@@ -791,7 +791,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result_false = pcc.engine.reverse_map(assessment_name, model_response_false)
-        self.assertIsNone(result_false["A_1"])  # False -> None
+        self.assertEqual(result_false["data"]["A_1"], {"type": "checkbox", "value": None})  # False -> None
 
     def test_pcc_virtual_container_reverse(self):
         """Test PCC virtual container reverse formatter."""
@@ -855,17 +855,13 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Reverse map
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
-        # Verify a#_key/b#_key formatting (skip Hand as it's null)
-        self.assertEqual(result["a0_A_1"], "0")  # Head responseValue
-        self.assertEqual(result["b0_A_1"], "soft")  # Head description
-        self.assertEqual(result["a1_A_1"], "1")  # Leg responseValue
-        self.assertEqual(result["b1_A_1"], "smooth")  # Leg description
-        self.assertEqual(result["a2_A_1"], "3")  # Wrist responseValue
-        self.assertEqual(result["b2_A_1"], "blue")  # Wrist description
-        
-        # Verify Hand is skipped (null value)
-        self.assertNotIn("a3_A_1", result)
-        self.assertNotIn("b3_A_1", result)
+        # Verify table formatting
+        expected_table = [
+            {"a0_A_1": "0", "b0_A_1": "soft"},   # Head
+            {"a1_A_1": "1", "b1_A_1": "smooth"},  # Leg  
+            {"a2_A_1": "3", "b2_A_1": "blue"}     # Wrist
+        ]
+        self.assertEqual(result["data"]["A_1"], {"type": "table", "value": expected_table})
 
     def test_pcc_reverse_grouped_by_sections(self):
         """Test PCC reverse mapping with section grouping."""
@@ -949,11 +945,153 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # Find section A
         section_a = next(s for s in result if s.get("sectionCode") == "A")
-        self.assertEqual(section_a["answers"]["A_1"], "John Doe")
+        self.assertEqual(section_a["data"]["A_1"], {"type": "text", "value": "John Doe"})
         
         # Find section B
         section_b = next(s for s in result if s.get("sectionCode") == "B")
-        self.assertEqual(section_b["answers"]["B_1"], "120/80")
+        self.assertEqual(section_b["data"]["B_1"], {"type": "text", "value": "120/80"})
+
+    def test_formatter_access_to_original_schema_type(self):
+        """Test that formatters can access original_schema_type from field metadata."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a custom formatter that checks original_schema_type
+        def test_formatter(engine, field_meta, model_value, table_name):
+            original_type = field_meta.get("original_schema_type")
+            return {field_meta["key"]: {"type": f"original_type_{original_type}", "value": model_value}}
+        
+        # Register the test formatter for txt and diag original types
+        pcc.engine.register_reverse_formatter("txt", test_formatter)
+        pcc.engine.register_reverse_formatter("diag", test_formatter)
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Patient Name",
+                                    "questionType": "txt"  # Maps to string target type
+                                },
+                                {
+                                    "questionKey": "A_2",
+                                    "questionNumber": "2",
+                                    "questionText": "Diagnosis",
+                                    "questionType": "diag"  # Maps to string target type
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Patient Name": "John Doe",
+                                "Diagnosis": "Hypertension"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify original_schema_type is accessible for both fields
+        self.assertEqual(result["data"]["A_1"], {"type": "original_type_txt", "value": "John Doe"})
+        self.assertEqual(result["data"]["A_2"], {"type": "original_type_diag", "value": "Hypertension"})
+
+    def test_formatter_precedence_original_over_target(self):
+        """Test that original type formatters take precedence over target type formatters."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a formatter that shows it's using target type fallback
+        def target_type_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": f"target_type_fallback_{field_meta.get('target_type')}", "value": model_value}}
+        
+        # Create a formatter that shows it's using original type
+        def original_type_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": f"original_type_{field_meta.get('original_schema_type')}", "value": model_value}}
+        
+        # Register target type formatter globally (this should be overridden by original type)
+        from src.schema_engine import register_reverse_formatter
+        register_reverse_formatter("single_select", target_type_formatter)
+        
+        # Register original type formatter (this should take precedence)
+        pcc.engine.register_reverse_formatter("rad", original_type_formatter)
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Gender",
+                                    "questionType": "rad",  # Maps to single_select target type
+                                    "responseOptions": [
+                                        {"responseText": "Male", "responseValue": "1"},
+                                        {"responseText": "Female", "responseValue": "2"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "Gender": "Male"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map
+        result = pcc.engine.reverse_map(assessment_name, model_response)
+        
+        # Verify original type formatter takes precedence over target type formatter
+        self.assertEqual(result["data"]["A_1"], {"type": "original_type_rad", "value": "Male"})
 
 
 if __name__ == "__main__":

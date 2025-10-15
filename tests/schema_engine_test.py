@@ -18,6 +18,7 @@ from unittest.mock import patch
 import logging
 import copy
 from typing import List, Dict, Any
+import json
 
 import sys
 import os
@@ -2307,8 +2308,8 @@ class TestSchemaEngine(unittest.TestCase):
         result = engine.reverse_map(table_name, model_response)
         
         # Verify flat mapping
-        self.assertEqual(result["field1"], "John Doe")
-        self.assertEqual(result["field2"], "25")
+        self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
+        self.assertEqual(result["data"]["field2"], {"type": "text", "value": "25"})
         
         # Test error case
         with self.assertRaises(ValueError):
@@ -2350,8 +2351,8 @@ class TestSchemaEngine(unittest.TestCase):
         result = engine.reverse_map(table_name, model_response)
         
         # Verify null values are included
-        self.assertEqual(result["field1"], "John Doe")
-        self.assertIsNone(result["field2"])
+        self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
+        self.assertEqual(result["data"]["field2"], {"type": "text", "value": None})
 
     def test_reverse_formatter_registration(self):
         """Test reverse formatter registration."""
@@ -2365,6 +2366,552 @@ class TestSchemaEngine(unittest.TestCase):
         
         # Verify registration worked (no direct way to test, but no error should occur)
         self.assertTrue(True)  # Placeholder assertion
+
+    def test_zoo_taxonomy_deep_nesting(self):
+        """
+        Test zoo taxonomy with 7-level deep nesting to validate:
+        1. Meta-schema creation with completely different domain
+        2. Deep nesting (7 levels) works correctly
+        3. Table functionality in non-PCC context
+        4. New structured output format across different domains
+        """
+        # Create zoo-specific meta-schema
+        zoo_meta_schema = {
+            "schema_name": "table_name",
+            "container": {
+                "container_name": "animals",
+                "container_type": "array",
+                "object": {
+                    "name": "animal_class",
+                    "key": "class_name",
+                    "container": {
+                        "container_name": "orders",
+                        "container_type": "array", 
+                        "object": {
+                            "name": "order_name",
+                            "key": "order_key",
+                            "container": {
+                                "container_name": "suborders",
+                                "container_type": "array",
+                                "object": {
+                                    "name": "suborder_name", 
+                                    "key": "suborder_key",
+                                    "container": {
+                                        "container_name": "families",
+                                        "container_type": "array",
+                                        "object": {
+                                            "name": "family_name",
+                                            "key": "family_key",
+                                            "container": {
+                                                "container_name": "genera",
+                                                "container_type": "array",
+                                                "object": {
+                                                    "name": "genus_name",
+                                                    "key": "genus_key",
+                                                    "container": {
+                                                        "container_name": "species",
+                                                        "container_type": "array",
+                                                        "object": {
+                                                            "name": "species_name",
+                                                            "key": "species_key",
+                                                            "properties": {
+                                                                "properties_name": "properties",
+                                                                "property": {
+                                                                    "key": "property_key",
+                                                                    "name": "property_name",
+                                                                    "type": "property_type",
+                                                                    "validation": {
+                                                                        "allowed_types": ["count", "health", "food_order", "breed_table"],
+                                                                        "type_constraints": {
+                                                                            "count": {
+                                                                                "target_type": "integer",
+                                                                                "requires_options": False
+                                                                            },
+                                                                            "health": {
+                                                                                "target_type": "single_select",
+                                                                                "requires_options": True,
+                                                                                "options_field": "health_options",
+                                                                                "options_extractor": "health_options_extractor"
+                                                                            },
+                                                                            "food_order": {
+                                                                                "target_type": "string",
+                                                                                "requires_options": False
+                                                                            },
+                                                                            "breed_table": {
+                                                                                "target_type": "virtual_container",
+                                                                                "requires_options": True,
+                                                                                "options_field": "breed_properties",
+                                                                                "options_extractor": "breed_properties_extractor"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Create engine with zoo meta-schema
+        engine = SchemaEngine(zoo_meta_schema)
+        
+        # Register options extractors for zoo field types
+        def health_options_extractor(options_field_value):
+            """Extract health options from field schema."""
+            if not options_field_value:
+                return []
+            return [opt.get("label", "") for opt in options_field_value]
+        
+        def breed_properties_extractor(properties_field_value):
+            """Extract breed properties for virtual container."""
+            if not properties_field_value:
+                return []
+            return [prop.get("property_name", "") for prop in properties_field_value]
+        
+        engine.register_options_extractor("health_options_extractor", health_options_extractor)
+        engine.register_options_extractor("breed_properties_extractor", breed_properties_extractor)
+        
+        # Register custom formatters for zoo field types
+        def count_formatter(engine, field_meta, model_value, table_name):
+            """Formatter for count fields - return integer type."""
+            return {field_meta["key"]: {"type": "integer", "value": model_value}}
+        
+        def health_formatter(engine, field_meta, model_value, table_name):
+            """Formatter for health fields - map labels to values."""
+            if model_value is None:
+                return {field_meta["key"]: {"type": "single_select", "value": None}}
+            
+            # Map health labels to values
+            health_mapping = {
+                "Excellent": "E",
+                "Good": "G", 
+                "Fair": "F",
+                "Poor": "P"
+            }
+            value = health_mapping.get(model_value, model_value)
+            return {field_meta["key"]: {"type": "single_select", "value": value}}
+        
+        def food_order_formatter(engine, field_meta, model_value, table_name):
+            """Formatter for food order fields - return string type."""
+            return {field_meta["key"]: {"type": "string", "value": model_value}}
+        
+        def breed_table_formatter(engine, field_meta, model_value, table_name):
+            """Formatter for breed table - return virtual container type."""
+            return {field_meta["key"]: {"type": "virtual_container", "value": model_value}}
+        
+        engine.register_reverse_formatter("count", count_formatter)
+        engine.register_reverse_formatter("health", health_formatter)
+        engine.register_reverse_formatter("food_order", food_order_formatter)
+        engine.register_reverse_formatter("breed_table", breed_table_formatter)
+        
+        # Register virtual container builder for breed_table
+        def breed_table_builder(engine, target_type, enum_values, nullable, property_def, prop):
+            """Build virtual container for breed table with child properties."""
+            breed_properties = prop.get("breed_properties", [])
+            
+            # Build child properties
+            child_properties = {}
+            child_metadata = []
+            
+            for breed_prop in breed_properties:
+                prop_name = breed_prop.get("property_name", "")
+                prop_type = breed_prop.get("property_type", "string")
+                
+                # Add child property
+                if prop_type == "single_select":
+                    child_properties[prop_name] = {"type": ["string", "null"] if nullable else "string"}
+                else:
+                    child_properties[prop_name] = {"type": ["string", "null"] if nullable else "string"}
+                
+                # Add child metadata
+                child_metadata.append({
+                    "key": prop.get("property_key", ""),
+                    "name": prop_name,
+                    "target_type": "string",
+                    "property_key": prop_name,
+                    "field_schema": prop,
+                    "is_virtual_container_child": True,
+                    "virtual_container_key": prop.get("property_key", ""),
+                    "response_value": breed_prop.get("property_key", ""),
+                    "child_index": len(child_metadata)
+                })
+            
+            # Build container schema
+            container_schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": child_properties,
+                "required": list(child_properties.keys())
+            }
+            
+            return (container_schema, child_metadata)
+        
+        engine.register_field_schema_builder("virtual_container", breed_table_builder)
+        
+        # Register zoo taxonomy table with 7-level nesting
+        zoo_schema = {
+            "table_name": "Zoo Animal Inventory",
+            "animals": [
+                {
+                    "class_name": "Mammalia",
+                    "animal_class": "Mammals",
+                    "orders": [
+                        {
+                            "order_key": "Carnivora",
+                            "order_name": "Carnivores",
+                            "suborders": [
+                                {
+                                    "suborder_key": "Caniformia",
+                                    "suborder_name": "Dog-like carnivores",
+                                    "families": [
+                                        {
+                                            "family_key": "Canidae",
+                                            "family_name": "Dogs, wolves, foxes",
+                                            "genera": [
+                                                {
+                                                    "genus_key": "Canis",
+                                                    "genus_name": "Canis",
+                                                    "species": [
+                                                        {
+                                                            "species_key": "canis_lupus",
+                                                            "species_name": "Gray Wolf",
+                                                            "properties": [
+                                                                {
+                                                                    "property_key": "count",
+                                                                    "property_name": "Count",
+                                                                    "property_type": "count"
+                                                                },
+                                                                {
+                                                                    "property_key": "health",
+                                                                    "property_name": "Health Status",
+                                                                    "property_type": "health",
+                                                                    "health_options": [
+                                                                        {"value": "E", "label": "Excellent"},
+                                                                        {"value": "G", "label": "Good"},
+                                                                        {"value": "F", "label": "Fair"},
+                                                                        {"value": "P", "label": "Poor"}
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "property_key": "food_order",
+                                                                    "property_name": "Food Order",
+                                                                    "property_type": "food_order"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "species_key": "canis_familiaris",
+                                                            "species_name": "Domestic Dog",
+                                                            "properties": [
+                                                                {
+                                                                    "property_key": "count",
+                                                                    "property_name": "Count",
+                                                                    "property_type": "count"
+                                                                },
+                                                                {
+                                                                    "property_key": "health",
+                                                                    "property_name": "Health Status",
+                                                                    "property_type": "health",
+                                                                    "health_options": [
+                                                                        {"value": "E", "label": "Excellent"},
+                                                                        {"value": "G", "label": "Good"},
+                                                                        {"value": "F", "label": "Fair"},
+                                                                        {"value": "P", "label": "Poor"}
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "property_key": "food_order",
+                                                                    "property_name": "Food Order",
+                                                                    "property_type": "food_order"
+                                                                },
+                                                                {
+                                                                    "property_key": "breeds",
+                                                                    "property_name": "Dog Breeds",
+                                                                    "property_type": "breed_table",
+                                                                    "breed_properties": [
+                                                                        {
+                                                                            "property_key": "breed_name",
+                                                                            "property_name": "Breed Name",
+                                                                            "property_type": "string"
+                                                                        },
+                                                                        {
+                                                                            "property_key": "origin_country",
+                                                                            "property_name": "Origin Country",
+                                                                            "property_type": "string"
+                                                                        },
+                                                                        {
+                                                                            "property_key": "size_category",
+                                                                            "property_name": "Size Category",
+                                                                            "property_type": "single_select",
+                                                                            "health_options": [
+                                                                                {"value": "S", "label": "Small"},
+                                                                                {"value": "M", "label": "Medium"},
+                                                                                {"value": "L", "label": "Large"}
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "suborder_key": "Feliformia",
+                                    "suborder_name": "Cat-like carnivores",
+                                    "families": [
+                                        {
+                                            "family_key": "Felidae",
+                                            "family_name": "Cats",
+                                            "genera": [
+                                                {
+                                                    "genus_key": "Felis",
+                                                    "genus_name": "Felis",
+                                                    "species": [
+                                                        {
+                                                            "species_key": "felis_catus",
+                                                            "species_name": "Domestic Cat",
+                                                            "properties": [
+                                                                {
+                                                                    "property_key": "count",
+                                                                    "property_name": "Count",
+                                                                    "property_type": "count"
+                                                                },
+                                                                {
+                                                                    "property_key": "health",
+                                                                    "property_name": "Health Status",
+                                                                    "property_type": "health",
+                                                                    "health_options": [
+                                                                        {"value": "E", "label": "Excellent"},
+                                                                        {"value": "G", "label": "Good"},
+                                                                        {"value": "F", "label": "Fair"},
+                                                                        {"value": "P", "label": "Poor"}
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "property_key": "food_order",
+                                                                    "property_name": "Food Order",
+                                                                    "property_type": "food_order"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Register the zoo table
+        table_id, table_name = engine.register_table(1, zoo_schema)
+        
+        # Test 1: Verify JSON schema generation
+        json_schema = engine.get_json_schema(table_name)
+        
+        # Verify deep nesting structure - check that animals container exists
+        self.assertIn("animals", json_schema["properties"])
+        animals_props = json_schema["properties"]["animals"]["properties"]
+        
+        # Verify that the Mammalia class exists (using the key from schema)
+        self.assertIn("Mammalia.Mammals", animals_props)
+        mammalia_props = animals_props["Mammalia.Mammals"]["properties"]
+        
+        # Verify that orders container exists
+        self.assertIn("orders", mammalia_props)
+        orders_props = mammalia_props["orders"]["properties"]
+        
+        # Verify that Carnivora order exists
+        self.assertIn("Carnivora.Carnivores", orders_props)
+        carnivora_props = orders_props["Carnivora.Carnivores"]["properties"]
+        
+        # Verify that suborders container exists
+        self.assertIn("suborders", carnivora_props)
+        suborders_props = carnivora_props["suborders"]["properties"]
+        
+        # Verify that Caniformia suborder exists
+        self.assertIn("Caniformia.Dog-like carnivores", suborders_props)
+        caniformia_props = suborders_props["Caniformia.Dog-like carnivores"]["properties"]
+        
+        # Verify that families container exists
+        self.assertIn("families", caniformia_props)
+        families_props = caniformia_props["families"]["properties"]
+        
+        # Verify that Canidae family exists
+        self.assertIn("Canidae.Dogs, wolves, foxes", families_props)
+        canidae_props = families_props["Canidae.Dogs, wolves, foxes"]["properties"]
+        
+        # Verify that genera container exists
+        self.assertIn("genera", canidae_props)
+        genera_props = canidae_props["genera"]["properties"]
+        
+        # Verify that Canis genus exists
+        self.assertIn("Canis.Canis", genera_props)
+        canis_props = genera_props["Canis.Canis"]["properties"]
+        
+        # Verify that species container exists
+        self.assertIn("species", canis_props)
+        species_props = canis_props["species"]["properties"]
+        
+        # Verify species level exists
+        self.assertIn("canis_lupus.Gray Wolf", species_props)
+        self.assertIn("canis_familiaris.Domestic Dog", species_props)
+        
+        # Verify field types are correctly mapped
+        lupus_fields = species_props["canis_lupus.Gray Wolf"]["properties"]["properties"]["properties"]
+        self.assertEqual(lupus_fields["Count"]["type"], ["integer", "null"])
+        
+        # Verify virtual container (breed table) structure
+        familiaris_fields = species_props["canis_familiaris.Domestic Dog"]["properties"]["properties"]["properties"]
+        self.assertIn("Dog Breeds", familiaris_fields)
+        breeds_schema = familiaris_fields["Dog Breeds"]
+        self.assertEqual(breeds_schema["type"], "object")
+        self.assertIn("Breed Name", breeds_schema["properties"])
+        self.assertIn("Origin Country", breeds_schema["properties"])
+        self.assertIn("Size Category", breeds_schema["properties"])
+        
+        # Test 2: Model response and reverse formatting
+        model_response = {
+            "animals": {
+                "Mammalia.Mammals": {
+                    "orders": {
+                        "Carnivora.Carnivores": {
+                            "suborders": {
+                                "Caniformia.Dog-like carnivores": {
+                                    "families": {
+                                        "Canidae.Dogs, wolves, foxes": {
+                                            "genera": {
+                                                "Canis.Canis": {
+                                                    "species": {
+                                                        "canis_lupus.Gray Wolf": {
+                                                            "properties": {
+                                                                "Count": 5,
+                                                                "Health Status": "Excellent",
+                                                                "Food Order": "Raw meat diet - 2kg daily"
+                                                            }
+                                                        },
+                                                        "canis_familiaris.Domestic Dog": {
+                                                            "properties": {
+                                                                "Count": 12,
+                                                                "Health Status": "Good",
+                                                                "Food Order": "Mixed diet - 1.5kg daily",
+                                                                "Dog Breeds": {
+                                                                    "Breed Name": "Labrador",
+                                                                    "Origin Country": "Canada",
+                                                                    "Size Category": "Large"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "Feliformia.Cat-like carnivores": {
+                                    "families": {
+                                        "Felidae.Cats": {
+                                            "genera": {
+                                                "Felis.Felis": {
+                                                    "species": {
+                                                        "felis_catus.Domestic Cat": {
+                                                            "properties": {
+                                                                "Count": 8,
+                                                                "Health Status": "Good",
+                                                                "Food Order": "Cat food - 200g daily"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Test flat reverse mapping
+        flat_result = engine.reverse_map(table_name, model_response)
+        
+        # Verify flat structure with data wrapper
+        self.assertIn("data", flat_result)
+        data = flat_result["data"]
+        
+        # Verify field keys exist (using the actual field keys from the schema)
+        # Note: Since multiple species have the same field names, only the last processed will be in the result
+        self.assertIn("count", data)
+        self.assertIn("health", data)
+        self.assertIn("food_order", data)
+        self.assertIn("breeds", data)
+        
+        # Verify structured output format (values will be from the last processed species)
+        self.assertEqual(data["count"], {"type": "integer", "value": 8})  # From felis_catus
+        self.assertEqual(data["health"], {"type": "single_select", "value": "G"})  # From felis_catus
+        self.assertEqual(data["food_order"], {"type": "string", "value": "Cat food - 200g daily"})  # From felis_catus
+        
+        # Verify virtual container (table) formatting
+        breeds_result = data["breeds"]
+        self.assertEqual(breeds_result["type"], "virtual_container")
+        self.assertIsInstance(breeds_result["value"], dict)
+        self.assertEqual(breeds_result["value"]["Breed Name"], "Labrador")
+        self.assertEqual(breeds_result["value"]["Origin Country"], "Canada")
+        self.assertEqual(breeds_result["value"]["Size Category"], "Large")
+        
+        # Test grouped reverse mapping by taxonomic levels
+        grouped_result = engine.reverse_map(table_name, model_response, group_by_containers=["animals"])
+        
+        # Verify grouped structure
+        self.assertIsInstance(grouped_result, list)
+        self.assertEqual(len(grouped_result), 1)  # One animals group
+        
+        animals_group = grouped_result[0]
+        self.assertIn("class_name", animals_group)
+        self.assertIn("data", animals_group)
+        
+        # Verify all species data is in the grouped result
+        grouped_data = animals_group["data"]
+        self.assertIn("count", grouped_data)
+        self.assertIn("health", grouped_data)
+        self.assertEqual(grouped_data["count"], {"type": "integer", "value": 8})  # From felis_catus
+        
+        print("\n=== ZOO TAXONOMY TEST ARTIFACTS ===")
+        print("\n1. JSON Schema (deep nesting validation):")
+        print(json.dumps(json_schema, indent=2)[:1000] + "...")
+        
+        print("\n2. Flat Reverse Mapping Result:")
+        print(json.dumps(flat_result, indent=2))
+        
+        print("\n3. Grouped Reverse Mapping Result:")
+        print(json.dumps(grouped_result, indent=2))
+        
+        print("\n4. Field Metadata (showing deep nesting):")
+        field_metadata = engine.get_field_metadata(table_name)
+        for field in field_metadata[:5]:  # Show first 5 fields
+            print(f"  {field['key']}: {field['level_keys']}")
+        
+        print(f"\n5. Total fields processed: {len(field_metadata)}")
+        print(f"6. Max nesting level used: {max(len(f.get('level_keys', [])) for f in field_metadata)}")
 
 
 if __name__ == "__main__":

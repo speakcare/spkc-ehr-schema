@@ -4,7 +4,7 @@ SchemaEngine: comprehensive schema operations engine for conversion, validation,
 Design highlights:
 - One engine instance per external "schema language". All tables registered to an engine
   share the same field type mapping and per-type options extractors.
-- The engine converts an external table schema (with up to 5 nesting levels) into an
+- The engine converts an external table schema (with up to 7 nesting levels) into an
   OpenAI-compatible JSON Schema subset and validates data against it.
 - All bottom-level fields are listed in `required`. Optionality is expressed via
   union types that include "null". Objects always set `additionalProperties` to false.
@@ -284,7 +284,10 @@ Notes:
 - Validator signature: `(engine, value, field_metadata) -> (is_valid: bool, error: str)`
 - Global builder signature: `(engine, target_type, enum_values, nullable) -> Dict[str, Any]`
 - Instance builder signature: `(engine, target_type, field_schema, nullable) -> Dict[str, Any]`
-- Reverse formatter signature: `(engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]`
+- Reverse formatter signature: `(engine, field_meta, model_value, table_name) -> Dict[str, Dict[str, Any]]`
+  - field_meta contains: key, name, level_keys, target_type, original_schema_type, field_schema, property_key
+  - Returns: dict mapping field key to {"type": <label>, "value": <payload or null>}
+  - Formatters are registered by original schema type (e.g., "rad", "cmb", "chk") with precedence over target type defaults
 - The engine stores both `key` and `id` for bottom-level fields (for reverse mapping).
 - Supports schema enrichment, reverse conversion, and container grouping.
 """
@@ -308,7 +311,7 @@ logger = logging.getLogger(__name__)
 
 
 MAX_TABLES_PER_ENGINE = 1000
-MAX_NESTING_LEVELS = 5
+MAX_NESTING_LEVELS = 7
 
 # Function registries for schema builders and validators
 __field_schema_builders_registry: Dict[str, Callable] = {}
@@ -359,7 +362,9 @@ def register_reverse_formatter(target_type: str, formatter: Callable) -> None:
     Args:
         target_type: The target type (e.g., "single_select", "virtual_container")
         formatter: Function with signature:
-            (engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]
+            (engine, field_meta, model_value, table_name) -> Dict[str, Dict[str, Any]]
+            where field_meta contains: key, name, level_keys, target_type, original_schema_type, field_schema, property_key
+            and returns: dict mapping field key to {"type": <label>, "value": <payload or null>}
     """
     _reverse_formatters[target_type] = formatter
 
@@ -381,7 +386,7 @@ class SchemaEngine:
         self.__options_extractor_registry: Dict[str, Callable] = {}
         self.__instance_validator_registry: Dict[str, Callable] = {}
         self.__instance_field_schema_builder_registry: Dict[str, Callable] = {}
-        self.__instance_reverse_formatters: Dict[str, Callable] = {}
+        self.__instance_reverse_formatters_by_original: Dict[str, Callable] = {}
 
         # Table registry: table_id -> registry record
         self.__tables: Dict[int, Dict[str, Any]] = {}
@@ -457,16 +462,18 @@ class SchemaEngine:
         self.__instance_field_schema_builder_registry[target_type] = builder_func
         logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
 
-    def register_reverse_formatter(self, target_type: str, formatter: Callable) -> None:
+    def register_reverse_formatter(self, original_type: str, formatter: Callable) -> None:
         """
-        Register an instance-level reverse formatter for a target type.
+        Register an instance-level reverse formatter for an original schema type.
         
         Args:
-            target_type: The target type (e.g., "single_select", "virtual_container")
+            original_type: The original schema type (e.g., "rad", "cmb", "chk")
             formatter: Function with signature:
-                (engine, field_meta, model_value, table_name) -> List[Tuple[str, Any]]
+                (engine, field_meta, model_value, table_name) -> Dict[str, Dict[str, Any]]
+                where field_meta contains: key, name, level_keys, target_type, original_schema_type, field_schema, property_key
+                and returns: dict mapping field key to {"type": <label>, "value": <payload or null>}
         """
-        self.__instance_reverse_formatters[target_type] = formatter
+        self.__instance_reverse_formatters_by_original[original_type] = formatter
 
     def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
         """Register (or re-register) a table schema.
@@ -848,11 +855,16 @@ class SchemaEngine:
             properties[property_key] = json_schema
             required.append(property_key)
             
+            # Get original schema type from property
+            type_field = property_def["type"]
+            original_schema_type = prop.get(type_field)
+            
             # Collect field metadata using meta-schema field names
             field_metadata: Dict[str, Any] = {
                 "key": field_key,
                 "level_keys": level_keys.copy(),
                 "target_type": target_type,
+                "original_schema_type": original_schema_type,  # Add original schema type for formatter access
                 "field_schema": prop,
                 "property_key": property_key,  # Add this for reverse mapping
                 # Optional fields captured explicitly (sanitized for name/title)
@@ -894,6 +906,7 @@ class SchemaEngine:
                         "key": field_key,
                         "level_keys": virtual_container_level_keys.copy(),
                         "target_type": child.get("target_type", "string"),
+                        "original_schema_type": original_schema_type,  # Inherit original schema type from parent
                         "field_schema": prop,  # reference parent field schema
                         "property_key": child_name,
                         "id": parent_id_value,
@@ -1384,7 +1397,7 @@ class SchemaEngine:
         field_index = schema_data["field_index"]
         
         # Step 1: Traverse model response and format each field
-        formatted_pairs = []
+        formatted_results = {}
         for field_meta in field_index:
             # Skip virtual container children (they're processed by the virtual container formatter)
             if field_meta.get("is_virtual_container_child"):
@@ -1398,21 +1411,21 @@ class SchemaEngine:
             if not target_type:
                 logger.error(f"Field {field_meta.get('key', 'unknown')} missing target_type - this indicates a bug in schema building. Using None value.")
                 # Return None for this field to avoid crashing the entire reverse mapping
-                formatted_pairs.append((field_meta.get("key", "unknown"), None))
+                formatted_results[field_meta.get("key", "unknown")] = {"type": "unknown", "value": None}
                 continue
             
-            formatter = self._get_reverse_formatter(target_type)
+            formatter = self._get_reverse_formatter(field_meta)
             
-            # Format field (returns list of tuples)
-            pairs = formatter(self, field_meta, model_value, table_name)
-            formatted_pairs.extend(pairs)
+            # Format field (returns dict mapping field key to {type, value})
+            field_result = formatter(self, field_meta, model_value, table_name)
+            formatted_results.update(field_result)
         
         # Step 2: Group if requested
         if group_by_containers:
-            return self._group_by_containers(formatted_pairs, field_index, group_by_containers)
+            return self._group_by_containers(formatted_results, field_index, group_by_containers)
         else:
-            # Return flat dict
-            return dict(formatted_pairs)
+            # Return flat dict wrapped in data structure
+            return {"data": formatted_results}
 
     def _extract_model_value(self, model_response: Dict[str, Any], field_meta: Dict[str, Any]) -> Any:
         """Extract value from model response using field metadata."""
@@ -1473,26 +1486,33 @@ class SchemaEngine:
         
         return None
 
-    def _get_reverse_formatter(self, target_type: str) -> Callable:
-        """Get formatter for target type (instance first, then global, then string fallback)."""
-        if target_type in self.__instance_reverse_formatters:
-            return self.__instance_reverse_formatters[target_type]
-        if target_type in _reverse_formatters:
+    def _get_reverse_formatter(self, field_meta: Dict[str, Any]) -> Callable:
+        """Get formatter with precedence: original type (instance) → target type (global) → string fallback."""
+        original_type = field_meta.get("original_schema_type")
+        target_type = field_meta.get("target_type")
+        
+        # 1) Check instance original-type formatters first
+        if original_type and original_type in self.__instance_reverse_formatters_by_original:
+            return self.__instance_reverse_formatters_by_original[original_type]
+        
+        # 2) Fall back to global target-type formatters
+        if target_type and target_type in _reverse_formatters:
             return _reverse_formatters[target_type]
-        # Fallback to string formatter
+        
+        # 3) Final fallback to string formatter
         return _reverse_formatters.get("string", _string_formatter)
 
     def _group_by_containers(
         self,
-        formatted_pairs: List[Tuple[str, Any]],
+        formatted_results: Dict[str, Dict[str, Any]],
         field_index: List[Dict[str, Any]],
         container_names: List[str]
     ) -> List[Dict[str, Any]]:
         """
-        Group formatted pairs by container hierarchy.
+        Group formatted results by container hierarchy.
         
         Args:
-            formatted_pairs: List of (key, value) tuples
+            formatted_results: Dict mapping field key to {"type": <label>, "value": <payload>}
             field_index: Field metadata index
             container_names: List of container names to group by (e.g., ["sections"])
         
@@ -1525,10 +1545,10 @@ class SchemaEngine:
             
             key_to_container[field_key] = container_path
         
-        # Group pairs by container
+        # Group results by container
         groups = {}
-        for key, value in formatted_pairs:
-            container_path = key_to_container.get(key, [])
+        for field_key, field_result in formatted_results.items():
+            container_path = key_to_container.get(field_key, [])
             if not container_path:
                 # No container, skip or add to root
                 continue
@@ -1540,10 +1560,10 @@ class SchemaEngine:
                 # Create new group with container key field
                 groups[container_key] = {
                     "_container_meta": container_meta,
-                    "answers": []
+                    "data": {}
                 }
             
-            groups[container_key]["answers"].append({key: value})
+            groups[container_key]["data"][field_key] = field_result
         
         # Convert to list and add container key fields
         result = []
@@ -1558,11 +1578,7 @@ class SchemaEngine:
             if container_key_field:
                 group[container_key_field] = container_key
             
-            # Flatten answers list to single dict
-            answers_dict = {}
-            for answer in group_data["answers"]:
-                answers_dict.update(answer)
-            group["answers"] = answers_dict
+            group["data"] = group_data["data"]
             
             result.append(group)
         
@@ -1572,60 +1588,60 @@ class SchemaEngine:
 # ----------------------------- Default Schema Builders -----------------------------
 
 @_register_field_schema_builder("string")
-def _string_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _string_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default string schema builder - always nullable."""
     return {"type": ["string", "null"]}
 
 
 @_register_field_schema_builder("integer")
-def _integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _integer_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default integer schema builder - always nullable."""
     return {"type": ["integer", "null"]}
 
 
 @_register_field_schema_builder("number")
-def _number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _number_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default number schema builder - always nullable."""
     return {"type": ["number", "null"]}
 
 @_register_field_schema_builder("positive_number")
-def _positive_number_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _positive_number_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive number schema builder - always nullable."""
     return {"type": ["number", "null"], "minimum": 0}
 
 
 @_register_field_schema_builder("positive_integer")
-def _positive_integer_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _positive_integer_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default positive integer schema builder - always nullable, non-negative integers only."""
     return {"type": ["integer", "null"], "minimum": 0}
 
 
 @_register_field_schema_builder("percent")
-def _percent_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _percent_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Percent schema builder - nullable number constrained to 0..100."""
     return {"type": ["number", "null"], "minimum": 0, "maximum": 100}
 
 
 @_register_field_schema_builder("boolean")
-def _boolean_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _boolean_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default boolean schema builder - always nullable."""
     return {"type": ["boolean", "null"]}
 
 
 @_register_field_schema_builder("date")
-def _date_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _date_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default date schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date", "description": "ISO 8601 date (YYYY-MM-DD)"}
 
 
 @_register_field_schema_builder("datetime")
-def _datetime_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _datetime_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default datetime schema builder - always nullable."""
     return {"type": ["string", "null"], "format": "date-time", "description": "ISO 8601 date-time (YYYY-MM-DDTHH:MM:SSZ)"}
 
 
 @_register_field_schema_builder("single_select")
-def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _single_select_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default single_select schema builder - always nullable."""
     base = {"type": ["string", "null"], "description": "Select one of the valid enum options if and only if you are absolutely sure of the answer. If you are not sure, please select null"}
     if enum_values is not None:
@@ -1634,7 +1650,7 @@ def _single_select_schema_builder(engine: SchemaConverterEngine, target_type: st
 
 
 @_register_field_schema_builder("multiple_select")
-def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _multiple_select_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default multiple_select schema builder - always nullable."""
     base = {
         "type": ["array", "null"],
@@ -1646,26 +1662,26 @@ def _multiple_select_schema_builder(engine: SchemaConverterEngine, target_type: 
     return base
 
 @_register_field_schema_builder("currency")
-def _currency_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _currency_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Currency schema builder - nullable number with hint about precision."""
     # We don't encode precision constraints here; description guides the model.
     return {"type": ["number", "null"], "description": "Currency - must be a number with up to 2 decimal precision"}
 
 
 @_register_field_schema_builder("array")
-def _array_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _array_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default array schema builder - always nullable."""
     return {"type": ["array", "null"]}
 
 
 @_register_field_schema_builder("object")
-def _object_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
+def _object_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Dict[str, Any]:
     """Default object schema builder - always nullable."""
     return {"type": ["object", "null"]}
 
 
 @_register_field_schema_builder("instructions")
-def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def _instructions_schema_builder(engine: SchemaEngine, target_type: str, enum_values: Optional[List[str]], nullable: bool, property_def: Dict[str, Any], field_schema: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
     """
     Schema builder for instruction fields - creates const string field for context.
     Returns a tuple (property_key, schema) to override the property key.
@@ -1707,7 +1723,7 @@ def _instructions_schema_builder(engine: SchemaConverterEngine, target_type: str
 # ----------------------------- Default Validators -----------------------------
 
 @_register_validator("date")
-def _date_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
+def _date_validator(engine: SchemaEngine, value: Any) -> Tuple[bool, str]:
     """Validate ISO date format."""
     if not isinstance(value, str):
         return False, f"Date must be a string, got {type(value)}"
@@ -1720,7 +1736,7 @@ def _date_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, st
 
 
 @_register_validator("datetime")
-def _datetime_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
+def _datetime_validator(engine: SchemaEngine, value: Any) -> Tuple[bool, str]:
     """Validate ISO datetime format."""
     if not isinstance(value, str):
         return False, f"DateTime must be a string, got {type(value)}"
@@ -1736,14 +1752,14 @@ def _datetime_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool
 
 
 @_register_validator("single_select")
-def _single_select_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
+def _single_select_validator(engine: SchemaEngine, value: Any) -> Tuple[bool, str]:
     """Validate single_select enum value."""
     # JSON Schema already validates enum membership, so this is just for additional checks
     return True, ""
 
 
 @_register_validator("multiple_select")
-def _multiple_select_validator(engine: SchemaConverterEngine, value: Any) -> Tuple[bool, str]:
+def _multiple_select_validator(engine: SchemaEngine, value: Any) -> Tuple[bool, str]:
     """Validate multiple_select array values."""
     # JSON Schema already validates array and enum membership, so this is just for additional checks
     return True, ""
@@ -1754,42 +1770,42 @@ def _multiple_select_validator(engine: SchemaConverterEngine, value: Any) -> Tup
 @_register_reverse_formatter("string")
 def _string_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for string fields."""
-    return [(field_meta["key"], model_value)]
+    return {field_meta["key"]: {"type": "text", "value": model_value}}
 
 
 @_register_reverse_formatter("text")
 def _text_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for text fields (same as string)."""
-    return [(field_meta["key"], model_value)]
+    return {field_meta["key"]: {"type": "text", "value": model_value}}
 
 
 @_register_reverse_formatter("boolean")
 def _boolean_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for boolean fields."""
-    return [(field_meta["key"], model_value)]
+    return {field_meta["key"]: {"type": "boolean", "value": model_value}}
 
 
 @_register_reverse_formatter("number")
 def _number_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for number fields."""
-    return [(field_meta["key"], model_value)]
+    return {field_meta["key"]: {"type": "number", "value": model_value}}
 
 
 @_register_reverse_formatter("date")
 def _date_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for date fields - convert to YYYYMMDD."""
     if model_value is None:
-        return [(field_meta["key"], None)]
+        return {field_meta["key"]: {"type": "date", "value": None}}
     # Expect ISO format YYYY-MM-DD from model
     formatted = model_value.replace("-", "")  # YYYYMMDD
-    return [(field_meta["key"], formatted)]
+    return {field_meta["key"]: {"type": "date", "value": formatted}}
 
 
 @_register_reverse_formatter("datetime")
 def _datetime_formatter(engine, field_meta, model_value, table_name):
     """Built-in formatter for datetime fields - convert to YYYY-MM-DD+HH:MM:SS.000."""
     if model_value is None:
-        return [(field_meta["key"], None)]
+        return {field_meta["key"]: {"type": "date-time", "value": None}}
     # Expect ISO format from model, convert to PCC format
     # Input: "2025-10-14T15:30:00" or "2025-10-14T15:30:00Z"
     # Output: "2025-10-14+15:30:00.000"
@@ -1803,6 +1819,6 @@ def _datetime_formatter(engine, field_meta, model_value, table_name):
         formatted = formatted[:-1]
     if "." not in formatted:
         formatted += ".000"
-    return [(field_meta["key"], formatted)]
+    return {field_meta["key"]: {"type": "date-time", "value": formatted}}
 
 

@@ -200,26 +200,40 @@ class PCCAssessmentSchema:
         def pcc_chk_reverse_formatter(engine, field_meta, model_value, table_name):
             """Reverse formatter for PCC checkbox - converts boolean to 1/None."""
             value = 1 if model_value else None
-            return [(field_meta["key"], value)]
+            return {field_meta["key"]: {"type": "checkbox", "value": value}}
         
-        def pcc_single_select_formatter(engine, field_meta, model_value, table_name):
-            """Format single select - extract responseValue from responseOptions."""
+        def pcc_radio_formatter(engine, field_meta, model_value, table_name):
+            """Format radio buttons - extract responseValue from responseOptions."""
             if model_value is None:
-                return [(field_meta["key"], None)]
+                return {field_meta["key"]: {"type": "radio", "value": None}}
             
             field_schema = field_meta["field_schema"]
             response_options = field_schema.get("responseOptions", [])
             
             for option in response_options:
                 if option.get("responseText") == model_value:
-                    return [(field_meta["key"], option.get("responseValue"))]
+                    return {field_meta["key"]: {"type": "radio", "value": option.get("responseValue")}}
             
-            return [(field_meta["key"], model_value)]
+            return {field_meta["key"]: {"type": "radio", "value": model_value}}
+        
+        def pcc_combo_formatter(engine, field_meta, model_value, table_name):
+            """Format combo boxes - extract responseValue from responseOptions."""
+            if model_value is None:
+                return {field_meta["key"]: {"type": "combo", "value": None}}
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            
+            for option in response_options:
+                if option.get("responseText") == model_value:
+                    return {field_meta["key"]: {"type": "combo", "value": option.get("responseValue")}}
+            
+            return {field_meta["key"]: {"type": "combo", "value": model_value}}
         
         def pcc_multi_select_formatter(engine, field_meta, model_value, table_name):
             """Format multi select - return list of responseValues."""
             if not model_value or not isinstance(model_value, list):
-                return [(field_meta["key"], None)]
+                return {field_meta["key"]: {"type": "multi", "value": None}}
             
             field_schema = field_meta["field_schema"]
             response_options = field_schema.get("responseOptions", [])
@@ -231,7 +245,7 @@ class PCCAssessmentSchema:
                         results.append(option.get("responseValue"))
                         break
             
-            return [(field_meta["key"], results if results else None)]
+            return {field_meta["key"]: {"type": "multi", "value": results if results else None}}
         
         def pcc_virtual_container_formatter(engine, field_meta, model_value, table_name):
             """
@@ -239,7 +253,7 @@ class PCCAssessmentSchema:
             Expands to multiple a#_key/b#_key pairs.
             """
             if not model_value or not isinstance(model_value, dict):
-                return []
+                return {field_meta["key"]: {"type": "table", "value": None}}
             
             parent_key = field_meta["key"]
             length_limit = field_meta.get("field_schema", {}).get("length", 999)
@@ -270,18 +284,20 @@ class PCCAssessmentSchema:
                     continue
                 
                 response_value = child_meta.get("response_value")
-                results.append((f"a{idx}_{parent_key}", response_value))
-                results.append((f"b{idx}_{parent_key}", child_value))
+                results.append({f"a{idx}_{parent_key}": response_value, f"b{idx}_{parent_key}": child_value})
                 idx += 1
             
-            return results
+            return {field_meta["key"]: {"type": "table", "value": results if results else None}}
         
-        # Register builders and formatters
+        # Register builders and formatters by original schema type
         self.engine.register_field_schema_builder("chk", pcc_chk_schema_builder)
         self.engine.register_reverse_formatter("chk", pcc_chk_reverse_formatter)
-        self.engine.register_reverse_formatter("single_select", pcc_single_select_formatter)
-        self.engine.register_reverse_formatter("multiple_select", pcc_multi_select_formatter)
-        self.engine.register_reverse_formatter("virtual_container", pcc_virtual_container_formatter)
+        self.engine.register_reverse_formatter("rad", pcc_radio_formatter)
+        self.engine.register_reverse_formatter("radh", pcc_radio_formatter)
+        self.engine.register_reverse_formatter("cmb", pcc_combo_formatter)
+        self.engine.register_reverse_formatter("mcs", pcc_multi_select_formatter)
+        self.engine.register_reverse_formatter("mcsh", pcc_multi_select_formatter)
+        self.engine.register_reverse_formatter("gbdy", pcc_virtual_container_formatter)
     
     def register_assessment(self, assessment_id: Optional[int], assessment_schema: Dict[str, Any]) -> Tuple[int, str]:
         """
