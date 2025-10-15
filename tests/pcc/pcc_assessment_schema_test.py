@@ -14,6 +14,167 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 from pcc.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
 
 
+def _ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+
+def _save_json(path: str, obj: Any) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+
+
+def _generate_value_for_field(field_meta: Dict[str, Any]) -> Any:
+    original_type = field_meta.get("original_schema_type")
+    target_type = field_meta.get("target_type")
+    field_schema = field_meta.get("field_schema", {})
+
+    # Some None values to exercise null handling deterministically
+    key = field_meta.get("key", "")
+    if isinstance(key, str) and len(key) % 11 == 0:
+        return None
+
+    if original_type in ("txt", "diag") or target_type in ("string", "text"):
+        return "Sample text"
+    if original_type in ("num", "numde") or target_type in ("number", "integer", "positive_integer", "positive_number"):
+        return 42 if target_type in ("number", "positive_number") else 7
+    if original_type == "chk" or target_type == "boolean":
+        return True
+    if original_type in ("dte",) or target_type == "date":
+        return "1950-01-15"
+    if original_type in ("dttm",) or target_type == "datetime":
+        return "2025-10-15T13:45:00"
+    if original_type in ("rad", "radh", "cmb", "hck") or target_type == "single_select":
+        opts = field_schema.get("responseOptions") or []
+        if opts:
+            return opts[0].get("responseText") or None
+        return None
+    if original_type in ("mcs", "mcsh") or target_type == "multiple_select":
+        opts = field_schema.get("responseOptions") or []
+        names = [o.get("responseText") for o in opts if o.get("responseText")]
+        if not names:
+            return None
+        max_count = 5
+        return names[: max_count]
+    if target_type == "instructions" or original_type == "inst":
+        # Instructions are const in JSON schema; no input needed
+        return None
+    if target_type == "virtual_container" or original_type == "gbdy":
+        # Will be generated at parent handler, not here
+        return {}
+    return None
+
+
+def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) -> Dict[str, Any]:
+    schema = pcc.get_json_schema(assessment_id)
+    title = schema.get("title", str(assessment_id))
+    # Build sections structure by walking field metadata
+    model: Dict[str, Any] = {
+        "table_name": title,
+        "sections": {}
+    }
+
+    field_index = pcc.get_field_metadata(assessment_id)
+
+    # Pre-index virtual container children by parent key for gbdy support
+    children_by_parent: Dict[str, list] = {}
+    for f in field_index:
+        if f.get("is_virtual_container_child"):
+            parent = f.get("virtual_container_key")
+            children_by_parent.setdefault(parent, []).append(f)
+
+    # Helper to get questions properties dict from JSON schema using level_keys
+    def _get_questions_props(level_keys: list) -> Dict[str, Any]:
+        try:
+            sections_props = schema["properties"]["sections"]["properties"]
+            section_obj = sections_props[level_keys[1]]
+            groups_obj = section_obj["properties"]["assessmentQuestionGroups"]["properties"][level_keys[3]]
+            questions_props = groups_obj["properties"]["questions"]["properties"]
+            return questions_props
+        except Exception:
+            return {}
+
+    for f in field_index:
+        level_keys = f.get("level_keys", [])
+        if len(level_keys) < 5:
+            continue
+        section_key = level_keys[1]
+        group_key = level_keys[3]
+        question_name = f.get("name")
+        target_type = f.get("target_type")
+        original_type = f.get("original_schema_type")
+
+        # Resolve allowed question keys for this group from schema
+        questions_allowed = _get_questions_props(level_keys)
+        if question_name not in questions_allowed:
+            # Skip any field whose display name is not a schema property to avoid additionalProperties errors
+            continue
+
+        # Ensure containers exist
+        sections = model["sections"]
+        section_obj = sections.setdefault(section_key, {"assessmentQuestionGroups": {}})
+        groups = section_obj["assessmentQuestionGroups"]
+        group_obj = groups.setdefault(group_key, {"questions": {}})
+        questions = group_obj["questions"]
+
+        if target_type == "virtual_container" or original_type == "gbdy":
+            # Build value covering all children from JSON schema, with some non-null
+            parent_key = f.get("key")
+            # From JSON schema, get child properties names
+            questions_allowed = _get_questions_props(level_keys)
+            qschema = questions_allowed.get(question_name, {})
+            child_props = qschema.get("properties", {})
+            vc_value = {}
+            non_null_count = 0
+            for child_name in child_props.keys():
+                # Provide some values, keep some None to exercise nulls
+                if non_null_count < 3:
+                    vc_value[child_name] = f"Row{non_null_count+1}"
+                    non_null_count += 1
+                else:
+                    vc_value[child_name] = None
+            questions[question_name] = vc_value if vc_value else None
+            continue
+
+        # Regular fields
+        questions[question_name] = _generate_value_for_field(f)
+
+    # Ensure instruction constants are present exactly as required by JSON schema
+    try:
+        sections_props = schema["properties"]["sections"]["properties"]
+        for section_key, section_schema in sections_props.items():
+            groups_prop = section_schema["properties"]["assessmentQuestionGroups"]["properties"]
+            for group_key, group_schema in groups_prop.items():
+                qprops = group_schema["properties"]["questions"]["properties"]
+                # Ensure containers in model
+                section_obj = model["sections"].setdefault(section_key, {"assessmentQuestionGroups": {}})
+                group_obj = section_obj["assessmentQuestionGroups"].setdefault(group_key, {"questions": {}})
+                questions = group_obj["questions"]
+                for qname, qschema in qprops.items():
+                    if "const" in qschema:
+                        # Instruction-like constant
+                        questions[qname] = qschema["const"]
+    except Exception:
+        pass
+
+    return model
+
+
+def _reverse_and_save(pcc: PCCAssessmentSchema, assessment_id: int, out_dir: str) -> Dict[str, Any]:
+    model = _build_valid_model_response(pcc, assessment_id)
+    # Validate
+    is_valid, errors = pcc.validate(assessment_id, model)
+    if not is_valid:
+        raise AssertionError(f"Generated model_response invalid for {assessment_id}: {errors}")
+    # Reverse grouped by sections using the table title (name)
+    table_name = pcc.get_json_schema(assessment_id).get("title", str(assessment_id))
+    grouped = pcc.engine.reverse_map(table_name, model, group_by_containers=["sections"])
+    # Save
+    _ensure_dir(out_dir)
+    out_path = os.path.join(out_dir, f"{assessment_id}.json")
+    _save_json(out_path, grouped)
+    return {"model": model, "grouped": grouped, "path": out_path}
+
+
 class TestPCCAssessmentSchema(unittest.TestCase):
     """Test cases for PCC Assessment Schema wrapper."""
     
@@ -1092,6 +1253,322 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # Verify original type formatter takes precedence over target type formatter
         self.assertEqual(result["data"]["A_1"], {"type": "original_type_rad", "value": "Male"})
+
+    def test_mhcs_idt_5_day_section_gg(self):
+        """Test MHCS IDT 5 Day Section GG assessment (templateId: 21242733)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21242733, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21242733)
+        self.assertEqual(json_schema["title"], "MHCS IDT 5 Day Section GG")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21242733)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust_1 section (Prior Function and Functional Limitations)
+        self.assertIn("Cust_1.Prior Function and Functional Limitations", section_keys)
+        
+        # Test reverse mapping with sample data
+        model_response = {
+            "table_name": "MHCS IDT 5 Day Section GG",
+            "sections": {
+                "Cust_1.Prior Function and Functional Limitations": {
+                    "assessmentQuestionGroups": {
+                        "01.Prior Functioning: Everyday Activities": {
+                            "questions": {
+                                "Self-Care: Code the resident's need for assistance with bathing, dressing, using the toilet, or eating prior to the current illness, exacerbation, or injury.": "Independent"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.engine.reverse_map("MHCS IDT 5 Day Section GG", model_response)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], dict)
+
+    def test_mhcs_nursing_admission_assessment(self):
+        """Test MHCS Nursing Admission Assessment - V 5 (templateId: 21244981)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21244981, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21244981)
+        self.assertEqual(json_schema["title"], "MHCS Nursing Admission Assessment - V 5")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21244981)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust_1 section (Admission Details, Orientation to Facility and Preferences)
+        self.assertIn("Cust_1.Admission Details, Orientation to Facility and Preferences", section_keys)
+        
+        # Test reverse mapping with sample data
+        model_response = {
+            "table_name": "MHCS Nursing Admission Assessment - V 5",
+            "sections": {
+                "Cust_1.Admission Details, Orientation to Facility and Preferences": {
+                    "assessmentQuestionGroups": {
+                        "A.Admission Details": {
+                            "questions": {
+                                "Resident arrived via:": "Wheelchair"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.engine.reverse_map("MHCS Nursing Admission Assessment - V 5", model_response)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], dict)
+
+    def test_mhcs_nursing_daily_skilled_note(self):
+        """Test MHCS Nursing Daily Skilled Note (templateId: 21242741)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21242741, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21242741)
+        self.assertEqual(json_schema["title"], "MHCS Nursing Daily Skilled Note")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21242741)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust section (MHCS Nursing Daily Skilled Note)
+        self.assertIn("Cust.MHCS Nursing Daily Skilled Note", section_keys)
+        
+        # Test reverse mapping with sample data
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A.Vital Signs": {
+                            "questions": {
+                                "Vital signs": "Normal"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.engine.reverse_map("MHCS Nursing Daily Skilled Note", model_response)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], dict)
+
+    def test_mhcs_nursing_weekly_skin_check(self):
+        """Test MHCS Nursing Weekly Skin Check (templateId: 21244831)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21244831, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21244831)
+        self.assertEqual(json_schema["title"], "MHCS Nursing Weekly Skin Check")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21244831)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust section (MHCS Nursing Weekly Skin Check)
+        self.assertIn("Cust.MHCS Nursing Weekly Skin Check", section_keys)
+        
+        # Test reverse mapping with sample data
+        model_response = {
+            "table_name": "MHCS Nursing Weekly Skin Check",
+            "sections": {
+                "Cust.MHCS Nursing Weekly Skin Check": {
+                    "assessmentQuestionGroups": {
+                        ".Weekly Skin Check": {
+                            "questions": {
+                                "Each week, on the designated day, the nurse is to observe the resident's skin for any NEW skin impairments. If any NEW skin impairments are noted, the nurse must describe them below.": "No new skin impairments noted"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.engine.reverse_map("MHCS Nursing Weekly Skin Check", model_response)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], dict)
+
+    def test_all_assessments_registered(self):
+        """Test that all 4 assessment templates are properly registered."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify all 4 assessments are registered
+        registered_ids = pcc.list_assessments()
+        expected_ids = [21242733, 21244981, 21242741, 21244831]
+        
+        self.assertEqual(len(registered_ids), 4)
+        for expected_id in expected_ids:
+            self.assertIn(expected_id, registered_ids)
+        
+        # Test that we can get JSON schemas for all assessments
+        for assessment_id in expected_ids:
+            json_schema = pcc.get_json_schema(assessment_id)
+            self.assertIsInstance(json_schema, dict)
+            self.assertIn("title", json_schema)
+            self.assertIn("properties", json_schema)
+        
+        # Test that we can get field metadata for all assessments
+        for assessment_id in expected_ids:
+            field_metadata = pcc.get_field_metadata(assessment_id)
+            self.assertIsInstance(field_metadata, list)
+            self.assertGreater(len(field_metadata), 0)
+
+    def test_assessment_field_counts(self):
+        """Test field counts for each assessment to ensure they're properly loaded."""
+        pcc = PCCAssessmentSchema()
+        
+        # Expected field counts (approximate, based on template complexity)
+        expected_counts = {
+            21242733: 50,   # MHCS IDT 5 Day Section GG - complex assessment
+            21244981: 100,  # MHCS Nursing Admission Assessment - V 5 - very complex
+            21242741: 30,   # MHCS Nursing Daily Skilled Note - moderate
+            21244831: 10    # MHCS Nursing Weekly Skin Check - simple
+        }
+        
+        for assessment_id, expected_min_count in expected_counts.items():
+            field_metadata = pcc.get_field_metadata(assessment_id)
+            actual_count = len(field_metadata)
+            self.assertGreaterEqual(actual_count, expected_min_count, 
+                                  f"Assessment {assessment_id} should have at least {expected_min_count} fields, got {actual_count}")
+
+    def test_assessment_section_structure(self):
+        """Test that assessments have proper section structure."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test each assessment has proper section structure
+        assessments = [
+            (21242733, "MHCS IDT 5 Day Section GG"),
+            (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21242741, "MHCS Nursing Daily Skilled Note"),
+            (21244831, "MHCS Nursing Weekly Skin Check")
+        ]
+        
+        for assessment_id, expected_name in assessments:
+            json_schema = pcc.get_json_schema(assessment_id)
+            
+            # Verify title matches
+            self.assertEqual(json_schema["title"], expected_name)
+            
+            # Verify sections structure exists
+            self.assertIn("sections", json_schema["properties"])
+            sections_prop = json_schema["properties"]["sections"]
+            self.assertEqual(sections_prop["type"], "object")
+            self.assertFalse(sections_prop["additionalProperties"])
+            
+            # Verify sections have properties
+            self.assertIn("properties", sections_prop)
+            self.assertGreater(len(sections_prop["properties"]), 0)
+
+    def test_list_assessments_info(self):
+        """Test that list_assessments_info returns id and name for all registered assessments."""
+        pcc = PCCAssessmentSchema()
+        info = pcc.list_assessments_info()
+        
+        # Should be a list of 4 entries
+        self.assertIsInstance(info, list)
+        self.assertEqual(len(info), 4)
+        
+        # Validate structure of each entry
+        for entry in info:
+            self.assertIn("id", entry)
+            self.assertIn("name", entry)
+            self.assertIsInstance(entry["id"], int)
+            self.assertIsInstance(entry["name"], str)
+            self.assertGreater(len(entry["name"].strip()), 0)
+        
+        # Validate specific expected IDs and names
+        expected = {
+            21242733: "MHCS IDT 5 Day Section GG",
+            21244981: "MHCS Nursing Admission Assessment - V 5",
+            21242741: "MHCS Nursing Daily Skilled Note",
+            21244831: "MHCS Nursing Weekly Skin Check",
+        }
+        ids = {e["id"] for e in info}
+        self.assertEqual(set(expected.keys()), ids)
+        for e in info:
+            self.assertEqual(expected[e["id"]], e["name"]) 
+
+    def test_generate_and_save_formatted_output_idt_gg(self):
+        pcc = PCCAssessmentSchema()
+        artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
+        res = _reverse_and_save(pcc, 21242733, artifact_dir)
+        self.assertTrue(os.path.exists(res["path"]))
+        self.assertIsInstance(res["grouped"], list)
+        self.assertGreater(len(res["grouped"]), 0)
+
+    def test_generate_and_save_formatted_output_admission(self):
+        pcc = PCCAssessmentSchema()
+        artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
+        res = _reverse_and_save(pcc, 21244981, artifact_dir)
+        self.assertTrue(os.path.exists(res["path"]))
+        self.assertIsInstance(res["grouped"], list)
+        self.assertGreater(len(res["grouped"]), 0)
+
+    def test_generate_and_save_formatted_output_daily(self):
+        pcc = PCCAssessmentSchema()
+        artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
+        res = _reverse_and_save(pcc, 21242741, artifact_dir)
+        self.assertTrue(os.path.exists(res["path"]))
+        self.assertIsInstance(res["grouped"], list)
+        self.assertGreater(len(res["grouped"]), 0)
+
+    def test_generate_and_save_formatted_output_skin(self):
+        pcc = PCCAssessmentSchema()
+        artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
+        res = _reverse_and_save(pcc, 21244831, artifact_dir)
+        self.assertTrue(os.path.exists(res["path"]))
+        self.assertIsInstance(res["grouped"], list)
+        self.assertGreater(len(res["grouped"]), 0)
 
 
 if __name__ == "__main__":

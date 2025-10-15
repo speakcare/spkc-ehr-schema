@@ -8,6 +8,8 @@ API for working with PCC assessments.
 """
 
 import logging
+import json
+import os
 from typing import Dict, Any, List, Optional, Tuple, Union
 
 import sys
@@ -298,6 +300,51 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("mcs", pcc_multi_select_formatter)
         self.engine.register_reverse_formatter("mcsh", pcc_multi_select_formatter)
         self.engine.register_reverse_formatter("gbdy", pcc_virtual_container_formatter)
+        
+        # Load and register the 4 assessment templates
+        self._load_and_register_templates()
+    
+    def _load_and_register_templates(self):
+        """Load and register the 4 assessment templates from JSON files."""
+        templates_dir = os.path.join(os.path.dirname(__file__), "assmnt_templates")
+        
+        # Define the 4 assessment templates with their templateId values
+        templates = [
+            {
+                "filename": "MHCS_IDT_5_Day_Section_GG.json",
+                "template_id": 21242733,
+                "name": "MHCS IDT 5 Day Section GG"
+            },
+            {
+                "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
+                "template_id": 21244981,
+                "name": "MHCS Nursing Admission Assessment - V 5"
+            },
+            {
+                "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
+                "template_id": 21242741,
+                "name": "MHCS Nursing Daily Skilled Note"
+            },
+            {
+                "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
+                "template_id": 21244831,
+                "name": "MHCS Nursing Weekly Skin Check"
+            }
+        ]
+        
+        for template in templates:
+            try:
+                file_path = os.path.join(templates_dir, template["filename"])
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    assessment_schema = json.load(f)
+                
+                # Register the assessment using its templateId
+                assessment_id, assessment_name = self.register_assessment(template["template_id"], assessment_schema)
+                logger.info(f"Successfully registered template: {template['name']} (ID: {assessment_id})")
+                
+            except Exception as e:
+                logger.error(f"Failed to load template {template['filename']}: {e}")
+                raise
     
     def register_assessment(self, assessment_id: Optional[int], assessment_schema: Dict[str, Any]) -> Tuple[int, str]:
         """
@@ -359,3 +406,17 @@ class PCCAssessmentSchema:
             List of assessment identifiers
         """
         return self.engine.list_tables()
+    
+    def list_assessments_info(self) -> List[Dict[str, Any]]:
+        """
+        Return a list of registered assessments with their id and name.
+        
+        Returns:
+            A list of dictionaries in the form: [{"id": <int>, "name": <str>}]
+        """
+        assessments_info: List[Dict[str, Any]] = []
+        for assessment_id in self.engine.list_tables():
+            schema = self.engine.get_json_schema(assessment_id)
+            name = schema.get("title", str(assessment_id))
+            assessments_info.append({"id": assessment_id, "name": name})
+        return assessments_info

@@ -1796,6 +1796,7 @@
                             "questionNumber": "2a",
                             "questionText": "Dental appliance details",
                             "questionTitle": "",
+                            "questionType": "mcs",
                             "required": false,
                             "responseOptions": [
                                 {
@@ -1821,6 +1822,7 @@
                             "questionNumber": "2aa",
                             "questionText": "Does the resident have the appliance with him/her at facility?",
                             "questionTitle": "",
+                            "questionType": "rad",
                             "required": false,
                             "responseOptions": [
                                 {
