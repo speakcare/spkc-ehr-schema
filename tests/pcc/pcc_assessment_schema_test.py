@@ -1571,6 +1571,243 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("properties", sections_prop)
             self.assertGreater(len(sections_prop["properties"]), 0)
 
+    def test_json_schema_strict_structure_validation(self):
+        """Test that all JSON schema properties have additionalProperties: false and proper required fields."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test with a real assessment that has various field types
+        assessment_id = 21244831  # MHCS Nursing Weekly Skin Check
+        json_schema = pcc.get_json_schema(assessment_id)
+        
+        def validate_schema_structure(schema_dict, path="root"):
+            """Recursively validate schema structure."""
+            issues = []
+            
+            if isinstance(schema_dict, dict):
+                # Check if this is an object schema
+                if schema_dict.get("type") == "object":
+                    # Must have additionalProperties: false
+                    if "additionalProperties" not in schema_dict:
+                        issues.append(f"{path}: Missing 'additionalProperties' field")
+                    elif schema_dict["additionalProperties"] is not False:
+                        issues.append(f"{path}: 'additionalProperties' must be false, got {schema_dict['additionalProperties']}")
+                    
+                    # Check required field exists (can be empty array)
+                    if "required" not in schema_dict:
+                        issues.append(f"{path}: Missing 'required' field")
+                    elif not isinstance(schema_dict["required"], list):
+                        issues.append(f"{path}: 'required' must be a list, got {type(schema_dict['required'])}")
+                    
+                    # Recursively check properties
+                    if "properties" in schema_dict:
+                        for prop_name, prop_schema in schema_dict["properties"].items():
+                            prop_issues = validate_schema_structure(prop_schema, f"{path}.properties.{prop_name}")
+                            issues.extend(prop_issues)
+                
+                # Check array items if present
+                elif schema_dict.get("type") == "array" and "items" in schema_dict:
+                    items_issues = validate_schema_structure(schema_dict["items"], f"{path}.items")
+                    issues.extend(items_issues)
+                
+                # Recursively check other nested objects
+                for key, value in schema_dict.items():
+                    if key not in ["type", "properties", "items", "required", "additionalProperties", "description", "enum", "const", "maxItems", "minItems"]:
+                        nested_issues = validate_schema_structure(value, f"{path}.{key}")
+                        issues.extend(nested_issues)
+            
+            return issues
+        
+        # Validate the entire schema
+        issues = validate_schema_structure(json_schema)
+        
+        # Report any issues found
+        if issues:
+            print(f"\nSchema structure validation issues found:")
+            for issue in issues:
+                print(f"  - {issue}")
+            self.fail(f"Found {len(issues)} schema structure issues. See output above.")
+        
+        # Additional specific checks for key areas
+        self.assertIn("properties", json_schema)
+        self.assertFalse(json_schema.get("additionalProperties", True), 
+                        "Root schema must have additionalProperties: false")
+        
+        # Check sections container
+        sections_prop = json_schema["properties"]["sections"]
+        self.assertEqual(sections_prop["type"], "object")
+        self.assertFalse(sections_prop.get("additionalProperties", True),
+                        "Sections container must have additionalProperties: false")
+        
+        # Check that we have some sections
+        self.assertIn("properties", sections_prop)
+        self.assertGreater(len(sections_prop["properties"]), 0, "Should have at least one section")
+        
+        # Check a specific section structure
+        section_names = list(sections_prop["properties"].keys())
+        if section_names:
+            first_section = sections_prop["properties"][section_names[0]]
+            self.assertEqual(first_section["type"], "object")
+            self.assertFalse(first_section.get("additionalProperties", True),
+                            f"Section '{section_names[0]}' must have additionalProperties: false")
+            
+            # Check assessmentQuestionGroups
+            if "assessmentQuestionGroups" in first_section["properties"]:
+                groups_prop = first_section["properties"]["assessmentQuestionGroups"]
+                self.assertEqual(groups_prop["type"], "object")
+                self.assertFalse(groups_prop.get("additionalProperties", True),
+                                "assessmentQuestionGroups must have additionalProperties: false")
+                
+                # Check questions if present
+                if "questions" in groups_prop["properties"]:
+                    questions_prop = groups_prop["properties"]["questions"]
+                    self.assertEqual(questions_prop["type"], "object")
+                    self.assertFalse(questions_prop.get("additionalProperties", True),
+                                    "questions must have additionalProperties: false")
+
+    def test_object_array_validation_strict_schema(self):
+        """Test that object_array (gbdy) fields enforce strict schema validation."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a test assessment with a gbdy field
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 99999,
+            "sections": [{
+                "sectionCode": "A",
+                "sectionDescription": "Test Section",
+                "assessmentQuestionGroups": [{
+                    "groupNumber": "1",
+                    "groupText": "Test Group",
+                    "questions": [{
+                        "questionKey": "A_1",
+                        "questionNumber": "1",
+                        "questionText": "Select skin locations",
+                        "questionType": "gbdy",
+                        "length": 5,
+                        "responseOptions": [
+                            {"responseText": "Head", "responseValue": "0"},
+                            {"responseText": "Arm", "responseValue": "1"},
+                            {"responseText": "Leg", "responseValue": "2"}
+                        ]
+                    }]
+                }]
+            }]
+        }
+        
+        table_id, table_name = pcc.engine.register_table(99999, assessment_schema)
+        json_schema = pcc.get_json_schema(99999)
+        
+        # 1. Verify schema structure
+        # Navigate to the items schema for the gbdy field
+        items_schema = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1.Test Group"]["properties"]["questions"]["properties"]["Select skin locations"]
+        
+        self.assertEqual(items_schema["type"], "array")
+        self.assertIn("items", items_schema)
+        self.assertEqual(items_schema["items"]["type"], "object")
+        self.assertFalse(items_schema["items"].get("additionalProperties", True), 
+                        "additionalProperties should be explicitly set to false")
+        self.assertIn("required", items_schema["items"])
+        self.assertEqual(set(items_schema["items"]["required"]), {"entry", "description"})
+        
+        # 2. Valid data passes
+        valid_data = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Select skin locations": [
+                                    {"entry": "Head", "description": "soft tissue"},
+                                    {"entry": "Arm", "description": "bruised"}
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is_valid, errors = pcc.validate(99999, valid_data)
+        self.assertTrue(is_valid, f"Valid data should pass: {errors}")
+        
+        # 3. Missing required field 'entry'
+        missing_entry = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Select skin locations": [
+                                    {"description": "soft tissue"}  # Missing 'entry'
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is_valid, errors = pcc.validate(99999, missing_entry)
+        self.assertFalse(is_valid, "Should reject object missing 'entry' field")
+        
+        # 4. Missing required field 'description'
+        missing_description = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Select skin locations": [
+                                    {"entry": "Head"}  # Missing 'description'
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is_valid, errors = pcc.validate(99999, missing_description)
+        self.assertFalse(is_valid, "Should reject object missing 'description' field")
+        
+        # 5. Additional properties
+        extra_property = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Select skin locations": [
+                                    {"entry": "Head", "description": "soft tissue", "extra": "field"}
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is_valid, errors = pcc.validate(99999, extra_property)
+        self.assertFalse(is_valid, "Should reject object with additional properties")
+        
+        # 6. Empty array is valid
+        empty_array = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Select skin locations": []
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        is_valid, errors = pcc.validate(99999, empty_array)
+        self.assertTrue(is_valid, f"Empty array should be valid: {errors}")
+
     def test_list_assessments_info(self):
         """Test that list_assessments_info returns id and name for all registered assessments."""
         pcc = PCCAssessmentSchema()

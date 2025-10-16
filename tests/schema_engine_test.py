@@ -2455,6 +2455,121 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(len(result["data"]), 1)
         self.assertEqual(result["data"][0]["properties"], {})
 
+    def test_json_schema_structure_compliance(self):
+        """Test that all generated JSON schemas have proper structure with additionalProperties: false and required fields."""
+        eng = SchemaEngine(self.nested_meta_schema)
+        
+        # Register options extractor
+        def simple_extractor(options):
+            if isinstance(options, list):
+                return [opt["responseText"] for opt in options]
+            return []
+        eng.register_options_extractor("response_options_extractor", simple_extractor)
+        
+        # Register a comprehensive test table with various field types
+        test_table = {
+            "table_name": "Structure Test Table",
+            "sections": [{
+                "sectionCode": "A",
+                "sectionDescription": "Test Section",
+                "assessmentQuestionGroups": [{
+                    "groupNumber": "1", 
+                    "groupText": "Test Group",
+                    "questions": [
+                        {
+                            "questionKey": "A_1",
+                            "questionNumber": "1",
+                            "questionText": "Text field",
+                            "questionType": "txt"
+                        },
+                        {
+                            "questionKey": "A_2", 
+                            "questionNumber": "2",
+                            "questionText": "Single select",
+                            "questionType": "rad",
+                            "responseOptions": [
+                                {"responseText": "Option 1", "responseValue": "1"},
+                                {"responseText": "Option 2", "responseValue": "2"}
+                            ]
+                        },
+                        {
+                            "questionKey": "A_3",
+                            "questionNumber": "3", 
+                            "questionText": "Date field",
+                            "questionType": "dte"
+                        },
+                        {
+                            "questionKey": "A_4",
+                            "questionNumber": "4",
+                            "questionText": "Checkbox field", 
+                            "questionType": "chk"
+                        }
+                    ]
+                }]
+            }]
+        }
+        
+        table_id, table_name = eng.register_table(99999, test_table)
+        json_schema = eng.get_json_schema(99999)
+        
+        def validate_object_schemas(schema_dict, path="root"):
+            """Recursively validate all object schemas have proper structure."""
+            issues = []
+            
+            if isinstance(schema_dict, dict):
+                if schema_dict.get("type") == "object":
+                    # Check additionalProperties
+                    if "additionalProperties" not in schema_dict:
+                        issues.append(f"{path}: Missing 'additionalProperties' field")
+                    elif schema_dict["additionalProperties"] is not False:
+                        issues.append(f"{path}: 'additionalProperties' must be false, got {schema_dict['additionalProperties']}")
+                    
+                    # Check required field exists
+                    if "required" not in schema_dict:
+                        issues.append(f"{path}: Missing 'required' field")
+                    elif not isinstance(schema_dict["required"], list):
+                        issues.append(f"{path}: 'required' must be a list, got {type(schema_dict['required'])}")
+                    
+                    # Recursively check properties
+                    if "properties" in schema_dict:
+                        for prop_name, prop_schema in schema_dict["properties"].items():
+                            prop_issues = validate_object_schemas(prop_schema, f"{path}.properties.{prop_name}")
+                            issues.extend(prop_issues)
+                
+                # Check array items
+                elif schema_dict.get("type") == "array" and "items" in schema_dict:
+                    items_issues = validate_object_schemas(schema_dict["items"], f"{path}.items")
+                    issues.extend(items_issues)
+                
+                # Check other nested objects
+                for key, value in schema_dict.items():
+                    if key not in ["type", "properties", "items", "required", "additionalProperties", "description", "enum", "const", "maxItems", "minItems"]:
+                        nested_issues = validate_object_schemas(value, f"{path}.{key}")
+                        issues.extend(nested_issues)
+            
+            return issues
+        
+        # Validate the entire schema
+        issues = validate_object_schemas(json_schema)
+        
+        if issues:
+            print(f"\nSchema structure issues found:")
+            for issue in issues:
+                print(f"  - {issue}")
+            self.fail(f"Found {len(issues)} schema structure issues. See output above.")
+        
+        # Specific validations
+        self.assertFalse(json_schema.get("additionalProperties", True), 
+                        "Root schema must have additionalProperties: false")
+        self.assertIn("required", json_schema)
+        self.assertIsInstance(json_schema["required"], list)
+        
+        # Check sections structure
+        sections_prop = json_schema["properties"]["sections"]
+        self.assertEqual(sections_prop["type"], "object")
+        self.assertFalse(sections_prop.get("additionalProperties", True),
+                        "Sections must have additionalProperties: false")
+
     def test_zoo_taxonomy_deep_nesting(self):
         """
         Test zoo taxonomy with 7-level deep nesting to validate:

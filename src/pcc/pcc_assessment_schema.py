@@ -178,6 +178,7 @@ class PCCAssessmentSchema:
                 "maxItems": max_items,
                 "items": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "entry": {
                             "type": "string",
