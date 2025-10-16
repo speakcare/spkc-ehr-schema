@@ -120,7 +120,7 @@ PCC_META_SCHEMA = {
                                         "requires_options": False
                                     },
                                     "gbdy": {
-                                        "target_type": "virtual_container",
+                                        "target_type": "object_array",
                                         "requires_options": True,
                                         "options_field": "responseOptions",
                                         "options_extractor": "extract_response_options"
@@ -167,32 +167,33 @@ class PCCAssessmentSchema:
         # Register the options extractor
         self.engine.register_options_extractor("extract_response_options", extract_response_options)
         
-        # Register virtual container builder for gbdy fields
-        def pcc_virtual_container_builder(engine: SchemaEngine, target_type: str, enum_values: List[str], nullable: bool, property_def: Dict[str, Any], prop: Dict[str, Any]):
-            # Build children from responseOptions
-            options = prop.get("responseOptions", []) or []
-            child_names: List[str] = []
-            properties: Dict[str, Any] = {}
-            virtual_children_metadata: List[Dict[str, Any]] = []
-            for idx, opt in enumerate(options):
-                name = opt.get("responseText")
-                if not name:
-                    continue
-                child_names.append(name)
-                # Build each child as nullable string via engine helper
-                properties[name] = engine.build_property_node("string", prop=prop, nullable=True)
-                virtual_children_metadata.append({
-                    "child_property_name": name,
-                    "child_index": idx,
-                    "response_value": opt.get("responseValue")
-                })
-            # Create container object (non-nullable)
-            container = engine.create_object_node(nullable=False)
-            engine.add_properties(container, properties)
-            engine.set_required(container, child_names)
-            return (container, virtual_children_metadata)
+        # Register object_array builder for gbdy fields
+        def pcc_object_array_schema_builder(engine: SchemaEngine, target_type: str, enum_values: List[str], nullable: bool, property_def: Dict[str, Any], prop: Dict[str, Any]):
+            """Build JSON schema for object array (table) fields."""
+            max_items = prop.get("length", 20)  # Default to 20 if not specified
+            
+            schema = {
+                "type": "array",
+                "description": "An array of objects that describe table entries. The 'entry' property is an enum selected for that entry, and the 'description' property is the description relevant for that enum.\nYou must only select enum entries and their descriptions if you are sure you found a clear reference to them in the provided transcript",
+                "maxItems": max_items,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "entry": {
+                            "type": "string",
+                            "enum": enum_values or []
+                        },
+                        "description": {
+                            "type": "string"
+                        }
+                    },
+                    "required": ["entry", "description"]
+                }
+            }
+            
+            return schema
         
-        self.engine.register_field_schema_builder("virtual_container", pcc_virtual_container_builder)
+        self.engine.register_field_schema_builder("object_array", pcc_object_array_schema_builder)
         
         # Register PCC-specific reverse formatters
         def pcc_chk_schema_builder(engine: SchemaEngine, target_type: str, enum_values: List[str], nullable: bool, property_def: Dict[str, Any], prop: Dict[str, Any]):
@@ -249,47 +250,37 @@ class PCCAssessmentSchema:
             
             return {field_meta["key"]: {"type": "multi", "value": results if results else None}}
         
-        def pcc_virtual_container_formatter(engine, field_meta, model_value, table_name):
-            """
-            Format virtual container (gbdy type).
-            Expands to multiple a#_key/b#_key pairs.
-            """
-            if not model_value or not isinstance(model_value, dict):
-                return {field_meta["key"]: {"type": "table", "value": None}}
+        def pcc_object_array_reverse_formatter(engine, field_meta, model_value, table_name):
+            """Format object array (table) fields for PCC output."""
+            if not model_value or not isinstance(model_value, list):
+                return {}
             
-            parent_key = field_meta["key"]
-            length_limit = field_meta.get("field_schema", {}).get("length", 999)
+            field_key = field_meta.get("key", "unknown")
+            field_schema = field_meta.get("field_schema", {})
+            response_options = field_schema.get("responseOptions", [])
             
-            # Get expanded children metadata (contains child_index and response_value)
-            # Use the public API to get field metadata
-            field_index = engine.get_field_metadata(table_name)
-            virtual_container_key = field_meta["key"]
+            # Build a map from responseText to responseValue
+            text_to_value = {opt["responseText"]: opt["responseValue"] for opt in response_options}
             
-            # Find child metadata entries
-            children = [
-                f for f in field_index
-                if f.get("is_virtual_container_child") and f.get("virtual_container_key") == virtual_container_key
-            ]
-            
-            results = []
-            idx = 0
-            
-            for child_meta in children:
-                if idx >= length_limit:
-                    break
+            # Convert array format to PCC aN/bN format
+            table_rows = []
+            for idx, item in enumerate(model_value):
+                entry_text = item.get("entry", "")
+                description_text = item.get("description", "")
                 
-                child_name = child_meta.get("property_key")
-                child_value = model_value.get(child_name)
+                # Look up the responseValue for this entry
+                entry_value = text_to_value.get(entry_text, "")
                 
-                # Skip null values
-                if child_value is None:
-                    continue
-                
-                response_value = child_meta.get("response_value")
-                results.append({f"a{idx}_{parent_key}": response_value, f"b{idx}_{parent_key}": child_value})
-                idx += 1
+                row = {
+                    f"a{idx}_{field_key}": entry_value,
+                    f"b{idx}_{field_key}": description_text
+                }
+                table_rows.append(row)
             
-            return {field_meta["key"]: {"type": "table", "value": results if results else None}}
+            return {field_meta["key"]: {
+                "type": "table",
+                "value": table_rows
+            }}
         
         def pcc_instructions_reverse_formatter(engine, field_meta, model_value, table_name):
             """Omit instruction fields from reverse output (PCC-specific need)."""
@@ -303,7 +294,7 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("cmb", pcc_combo_formatter)
         self.engine.register_reverse_formatter("mcs", pcc_multi_select_formatter)
         self.engine.register_reverse_formatter("mcsh", pcc_multi_select_formatter)
-        self.engine.register_reverse_formatter("gbdy", pcc_virtual_container_formatter)
+        self.engine.register_reverse_formatter("gbdy", pcc_object_array_reverse_formatter)
         self.engine.register_reverse_formatter("inst", pcc_instructions_reverse_formatter)
         
         # Load and register the 4 assessment templates

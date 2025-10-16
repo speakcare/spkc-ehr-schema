@@ -126,23 +126,28 @@ def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) ->
         group_obj = groups.setdefault(group_key, {"questions": {}})
         questions = group_obj["questions"]
 
-        if target_type == "virtual_container" or original_type == "gbdy":
-            # Build value covering all children from JSON schema, with some non-null
-            parent_key = f.get("key")
-            # From JSON schema, get child properties names
-            questions_allowed = _get_questions_props(level_keys)
-            qschema = questions_allowed.get(question_name, {})
-            child_props = qschema.get("properties", {})
-            vc_value = {}
-            non_null_count = 0
-            for child_name in child_props.keys():
-                # Provide some values, keep some None to exercise nulls
-                if non_null_count < 3:
-                    vc_value[child_name] = f"Row{non_null_count+1}"
-                    non_null_count += 1
-                else:
-                    vc_value[child_name] = None
-            questions[question_name] = vc_value if vc_value else None
+        if target_type == "object_array" or original_type == "gbdy":
+            # Build array value for gbdy fields
+            field_schema = f.get("field_schema", {})
+            response_options = field_schema.get("responseOptions", [])
+            if response_options:
+                # Generate 3-5 sample entries
+                import random
+                num_entries = random.randint(3, 5)
+                entries = []
+                
+                for _ in range(num_entries):
+                    # Pick a random response option
+                    option = random.choice(response_options)
+                    entry_text = option.get("responseText", "")
+                    description = f"Sample description for {entry_text}"
+                    entries.append({
+                        "entry": entry_text,
+                        "description": description
+                    })
+                questions[question_name] = entries
+            else:
+                questions[question_name] = []
             continue
 
         # Regular fields
@@ -703,10 +708,16 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         assessment_id, _ = pcc.register_assessment(None, assessment)
         json_schema = pcc.get_json_schema(assessment_id)
         fruits_field = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]["properties"]["Table of fruits"]
-        self.assertEqual(fruits_field["type"], "object")
-        self.assertFalse(fruits_field["additionalProperties"])
-        self.assertIn("Apple", fruits_field["properties"])
-        self.assertEqual(fruits_field["properties"]["Apple"]["type"], ["string", "null"])
+        self.assertEqual(fruits_field["type"], "array")
+        self.assertIn("maxItems", fruits_field)
+        self.assertIn("items", fruits_field)
+        items_schema = fruits_field["items"]
+        self.assertEqual(items_schema["type"], "object")
+        self.assertIn("entry", items_schema["properties"])
+        self.assertIn("description", items_schema["properties"])
+        self.assertEqual(items_schema["properties"]["entry"]["type"], "string")
+        self.assertIn("enum", items_schema["properties"]["entry"])
+        self.assertIn("Apple", items_schema["properties"]["entry"]["enum"])
 
     def test_computed_fields_skipped(self):
         """Test that computed (cp) fields are skipped in JSON schema."""
@@ -964,8 +975,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result_false = pcc.engine.reverse_map(assessment_name, model_response_false)
         self.assertEqual(result_false["data"]["A_1"], {"type": "checkbox", "value": None})  # False -> None
 
-    def test_pcc_virtual_container_reverse(self):
-        """Test PCC virtual container reverse formatter."""
+    def test_pcc_object_array_reverse(self):
+        """Test PCC object array reverse formatter."""
         pcc = PCCAssessmentSchema()
         
         assessment_schema = {
@@ -1002,7 +1013,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
         
-        # Model response
+        # Model response with array format
         model_response = {
             "table_name": "Test Assessment",
             "sections": {
@@ -1010,12 +1021,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": {
-                                    "Head": "soft",
-                                    "Leg": "smooth",
-                                    "Hand": None,
-                                    "Wrist": "blue"
-                                }
+                                "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": [
+                                    {"entry": "Head", "description": "soft"},
+                                    {"entry": "Leg", "description": "smooth"},
+                                    {"entry": "Wrist", "description": "blue"}
+                                ]
                             }
                         }
                     }
@@ -1479,10 +1489,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # Expected field counts (approximate, based on template complexity)
         expected_counts = {
-            21242733: 50,   # MHCS IDT 5 Day Section GG - complex assessment
-            21244981: 100,  # MHCS Nursing Admission Assessment - V 5 - very complex
-            21242741: 30,   # MHCS Nursing Daily Skilled Note - moderate
-            21244831: 10    # MHCS Nursing Weekly Skin Check - simple
+            21242733: 30,   # MHCS IDT 5 Day Section GG - complex assessment (reduced due to gbdy -> object_array)
+            21244981: 60,   # MHCS Nursing Admission Assessment - V 5 - very complex (reduced due to gbdy -> object_array)
+            21242741: 20,   # MHCS Nursing Daily Skilled Note - moderate (reduced due to gbdy -> object_array)
+            21244831: 5     # MHCS Nursing Weekly Skin Check - simple (reduced due to gbdy -> object_array)
         }
         
         for assessment_id, expected_min_count in expected_counts.items():
@@ -1686,15 +1696,19 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         elif question_type == "array":
             # For arrays, check if it has items schema
             if "items" in question_def:
-                item_type = question_def["items"].get("type")
-                if isinstance(item_type, list):
-                    item_type = [t for t in item_type if t != 'null'][0] if [t for t in item_type if t != 'null'] else None
+                items_schema = question_def["items"]
+                max_items = question_def.get("maxItems", 10)
                 
-                if item_type == "string" and "enum" in question_def["items"]:
-                    enum_values = [v for v in question_def["items"]["enum"] if v is not None]
-                    if enum_values:
-                        return enum_values[:2]  # Return first 2 options for arrays
-                return ["Sample item 1", "Sample item 2"]
+                # Generate 3-5 sample items or up to maxItems, whichever is smaller
+                import random
+                num_items = min(random.randint(3, 5), max_items)
+                
+                result = []
+                for _ in range(num_items):
+                    item = self._generate_value_from_question_schema(items_schema)
+                    result.append(item)
+                return result
+            return []
             
         elif question_type == "object":
             # For objects, generate properties
@@ -1797,43 +1811,27 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         elif target_type == "datetime" or original_type == "dttm":
             return "2024-12-15T14:30:00"
             
-        elif target_type == "virtual_container" or original_type == "gbdy":
-            # Generate table data with ALL child properties (not just first 3)
-            children = field_meta.get("children", [])
-            if children:
-                table_data = {}
-                for child in children:
-                    child_property = child.get("property_key")
-                    if child_property:
-                        table_data[child_property] = f"Sample text for {child_property}"
-                return table_data
-            
-            # If no children in metadata, look for virtual container children in the field metadata
-            # that have the same parent key
-            parent_key = field_meta.get("key")
-            if parent_key:
-                # Find all virtual container children with this parent key
-                vc_children = [f for f in field_metadata if f.get("is_virtual_container_child") and f.get("key") == parent_key]
-                if vc_children:
-                    table_data = {}
-                    for child in vc_children:
-                        child_property = child.get("property_key")
-                        if child_property:
-                            table_data[child_property] = f"Sample text for {child_property}"
-                    return table_data
-            
-            # If no children, check if this is a virtual container that should have children
-            # by looking at the field schema properties
+        elif target_type == "object_array" or original_type == "gbdy":
+            # Generate array of objects for gbdy fields
             field_schema = field_meta.get("field_schema", {})
-            properties = field_schema.get("properties", {})
-            if properties:
-                # This is a virtual container with required properties
-                table_data = {}
-                for prop_name in properties.keys():
-                    table_data[prop_name] = f"Sample text for {prop_name}"
-                return table_data
-            # If no children and no properties, return empty object to satisfy schema
-            return {}
+            response_options = field_schema.get("responseOptions", [])
+            if response_options:
+                # Generate 3-5 sample entries
+                import random
+                num_entries = random.randint(3, 5)
+                entries = []
+                
+                for _ in range(num_entries):
+                    # Pick a random response option
+                    option = random.choice(response_options)
+                    entry_text = option.get("responseText", "")
+                    description = f"Sample description for {entry_text}"
+                    entries.append({
+                        "entry": entry_text,
+                        "description": description
+                    })
+                return entries
+            return []
             
         elif target_type == "instructions" or original_type == "inst":
             # For instruction fields, construct the value from questionTitle and questionText
