@@ -841,7 +841,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify responseValue extraction
-        self.assertEqual(result["data"]["A_1"], {"type": "radio", "value": "c"})  # Wheelchair -> "c"
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "radio", "value": "c"})  # Wheelchair -> "c"
 
     def test_pcc_multi_select_reverse(self):
         """Test PCC multi select reverse formatter."""
@@ -899,7 +903,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify multiple responseValue extraction
-        self.assertEqual(result["data"]["A_1"], {"type": "multi", "value": ["a", "c"]})  # Option A -> "a", Option C -> "c"
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "multi", "value": ["a", "c"]})  # Option A -> "a", Option C -> "c"
 
     def test_pcc_chk_reverse(self):
         """Test PCC checkbox reverse formatter."""
@@ -952,7 +960,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
         # Verify boolean to 1/None conversion
-        self.assertEqual(result["data"]["A_1"], {"type": "checkbox", "value": 1})  # True -> 1
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": 1})  # True -> 1
         
         # Test false case
         model_response_false = {
@@ -971,7 +983,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result_false = pcc.engine.reverse_map(assessment_name, model_response_false)
-        self.assertEqual(result_false["data"]["A_1"], {"type": "checkbox", "value": None})  # False -> None
+        self.assertIn("assessmentDescription", result_false)  # schema metadata
+        self.assertIn("templateId", result_false)  # schema metadata
+        self.assertIsInstance(result_false["data"], list)
+        self.assertEqual(len(result_false["data"]), 1)
+        self.assertEqual(result_false["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": None})  # False -> None
 
     def test_pcc_object_array_reverse(self):
         """Test PCC object array reverse formatter."""
@@ -1040,7 +1056,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             {"a1_A_1": "1", "b1_A_1": "smooth"},  # Leg  
             {"a2_A_1": "3", "b2_A_1": "blue"}     # Wrist
         ]
-        self.assertEqual(result["data"]["A_1"], {"type": "table", "value": expected_table})
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "table", "value": expected_table})
 
     def test_pcc_reverse_grouped_by_sections(self):
         """Test PCC reverse mapping with section grouping."""
@@ -1120,15 +1140,19 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response, group_by_containers=["sections"])
         
         # Verify grouped structure
-        self.assertEqual(len(result), 2)  # Two sections
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 2)  # Two sections
         
         # Find section A
-        section_a = next(s for s in result if s.get("sectionCode") == "A")
-        self.assertEqual(section_a["data"]["A_1"], {"type": "text", "value": "John Doe"})
+        section_a = next(s for s in result["data"] if s.get("sectionCode") == "A")
+        self.assertEqual(section_a["properties"]["A_1"], {"type": "text", "value": "John Doe"})
         
         # Find section B
-        section_b = next(s for s in result if s.get("sectionCode") == "B")
-        self.assertEqual(section_b["data"]["B_1"], {"type": "text", "value": "120/80"})
+        section_b = next(s for s in result["data"] if s.get("sectionCode") == "B")
+        self.assertEqual(section_b["properties"]["B_1"], {"type": "text", "value": "120/80"})
 
     def test_formatter_access_to_original_schema_type(self):
         """Test that formatters can access original_schema_type from field metadata."""
@@ -1197,8 +1221,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response, formatter_name="test")
         
         # Verify original_schema_type is accessible for both fields
-        self.assertEqual(result["data"]["A_1"], {"type": "original_type_txt", "value": "John Doe"})
-        self.assertEqual(result["data"]["A_2"], {"type": "original_type_diag", "value": "Hypertension"})
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "original_type_txt", "value": "John Doe"})
+        self.assertEqual(result["data"][0]["properties"]["A_2"], {"type": "original_type_diag", "value": "Hypertension"})
 
     def test_formatter_precedence_original_over_target(self):
         """Test that original type formatters take precedence over target type formatters."""
@@ -1266,7 +1294,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.engine.reverse_map(assessment_name, model_response, formatter_name="test")
         
         # Verify original type formatter takes precedence over target type formatter
-        self.assertEqual(result["data"]["A_1"], {"type": "original_type_rad", "value": "Male"})
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "original_type_rad", "value": "Male"})
 
     def test_mhcs_idt_5_day_section_gg(self):
         """Test MHCS IDT 5 Day Section GG assessment (templateId: 21242733)."""
@@ -1311,8 +1343,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result = pcc.engine.reverse_map("MHCS IDT 5 Day Section GG", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
         self.assertIn("data", result)
-        self.assertIsInstance(result["data"], dict)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
 
     def test_mhcs_nursing_admission_assessment(self):
         """Test MHCS Nursing Admission Assessment - V 5 (templateId: 21244981)."""
@@ -1357,8 +1393,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result = pcc.engine.reverse_map("MHCS Nursing Admission Assessment - V 5", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
         self.assertIn("data", result)
-        self.assertIsInstance(result["data"], dict)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
 
     def test_mhcs_nursing_daily_skilled_note(self):
         """Test MHCS Nursing Daily Skilled Note (templateId: 21242741)."""
@@ -1403,8 +1443,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result = pcc.engine.reverse_map("MHCS Nursing Daily Skilled Note", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
         self.assertIn("data", result)
-        self.assertIsInstance(result["data"], dict)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
 
     def test_mhcs_nursing_weekly_skin_check(self):
         """Test MHCS Nursing Weekly Skin Check (templateId: 21244831)."""
@@ -1449,8 +1493,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         result = pcc.engine.reverse_map("MHCS Nursing Weekly Skin Check", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
         self.assertIn("data", result)
-        self.assertIsInstance(result["data"], dict)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
 
     def test_all_assessments_registered(self):
         """Test that all 4 assessment templates are properly registered."""
@@ -1557,32 +1605,44 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
         res = _reverse_and_save(pcc, 21242733, artifact_dir)
         self.assertTrue(os.path.exists(res["path"]))
-        self.assertIsInstance(res["grouped"], list)
-        self.assertGreater(len(res["grouped"]), 0)
+        self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
+        self.assertIn("templateId", res["grouped"])  # schema metadata
+        self.assertIn("data", res["grouped"])
+        self.assertIsInstance(res["grouped"]["data"], list)
+        self.assertGreater(len(res["grouped"]["data"]), 0)
 
     def test_generate_and_save_formatted_output_admission(self):
         pcc = PCCAssessmentSchema()
         artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
         res = _reverse_and_save(pcc, 21244981, artifact_dir)
         self.assertTrue(os.path.exists(res["path"]))
-        self.assertIsInstance(res["grouped"], list)
-        self.assertGreater(len(res["grouped"]), 0)
+        self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
+        self.assertIn("templateId", res["grouped"])  # schema metadata
+        self.assertIn("data", res["grouped"])
+        self.assertIsInstance(res["grouped"]["data"], list)
+        self.assertGreater(len(res["grouped"]["data"]), 0)
 
     def test_generate_and_save_formatted_output_daily(self):
         pcc = PCCAssessmentSchema()
         artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
         res = _reverse_and_save(pcc, 21242741, artifact_dir)
         self.assertTrue(os.path.exists(res["path"]))
-        self.assertIsInstance(res["grouped"], list)
-        self.assertGreater(len(res["grouped"]), 0)
+        self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
+        self.assertIn("templateId", res["grouped"])  # schema metadata
+        self.assertIn("data", res["grouped"])
+        self.assertIsInstance(res["grouped"]["data"], list)
+        self.assertGreater(len(res["grouped"]["data"]), 0)
 
     def test_generate_and_save_formatted_output_skin(self):
         pcc = PCCAssessmentSchema()
         artifact_dir = os.path.join(os.path.dirname(__file__), "_formatted_outputs", "pcc")
         res = _reverse_and_save(pcc, 21244831, artifact_dir)
         self.assertTrue(os.path.exists(res["path"]))
-        self.assertIsInstance(res["grouped"], list)
-        self.assertGreater(len(res["grouped"]), 0)
+        self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
+        self.assertIn("templateId", res["grouped"])  # schema metadata
+        self.assertIn("data", res["grouped"])
+        self.assertIsInstance(res["grouped"]["data"], list)
+        self.assertGreater(len(res["grouped"]["data"]), 0)
 
     def test_generate_complete_model_responses_all_assessments(self):
         """Generate complete model responses with valid values for all fields in all assessments."""
@@ -1611,8 +1671,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 
                 # Test reverse mapping
                 reverse_result = pcc.engine.reverse_map(assessment_name, model_response, group_by_containers=["sections"])
-                self.assertIsInstance(reverse_result, list)
-                self.assertGreater(len(reverse_result), 0)
+                self.assertIn("assessmentDescription", reverse_result)  # schema metadata
+                self.assertIn("templateId", reverse_result)  # schema metadata
+                self.assertIn("data", reverse_result)
+                self.assertIsInstance(reverse_result["data"], list)
+                self.assertGreater(len(reverse_result["data"]), 0)
                 
                 # Save the complete model response for inspection
                 self._save_complete_model_response(assessment_id, assessment_name, model_response)

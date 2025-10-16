@@ -2314,8 +2314,11 @@ class TestSchemaEngine(unittest.TestCase):
         result = engine.reverse_map(table_name, model_response, formatter_name="test")
         
         # Verify flat mapping
-        self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
-        self.assertEqual(result["data"]["field2"], {"type": "text", "value": "25"})
+        self.assertIn("table_name", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["field1"], {"type": "text", "value": "John Doe"})
+        self.assertEqual(result["data"][0]["properties"]["field2"], {"type": "text", "value": "25"})
         
         # Test error case
         with self.assertRaises(ValueError):
@@ -2363,8 +2366,11 @@ class TestSchemaEngine(unittest.TestCase):
         result = engine.reverse_map(table_name, model_response, formatter_name="test")
         
         # Verify null values are included
-        self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
-        self.assertEqual(result["data"]["field2"], {"type": "text", "value": None})
+        self.assertIn("table_name", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"]["field1"], {"type": "text", "value": "John Doe"})
+        self.assertEqual(result["data"][0]["properties"]["field2"], {"type": "text", "value": None})
 
     def test_reverse_formatter_registration(self):
         """Test reverse formatter registration."""
@@ -2444,7 +2450,10 @@ class TestSchemaEngine(unittest.TestCase):
         result = engine.reverse_map(table_name, model_response, formatter_name="test")
         
         # The result should be empty since no formatter was found for "text" type
-        self.assertEqual(result["data"], {})
+        self.assertIn("table_name", result)  # schema metadata
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertEqual(result["data"][0]["properties"], {})
 
     def test_zoo_taxonomy_deep_nesting(self):
         """
@@ -2934,8 +2943,12 @@ class TestSchemaEngine(unittest.TestCase):
         flat_result = engine.reverse_map(table_name, model_response, formatter_name="zoo")
         
         # Verify flat structure with data wrapper
+        self.assertIn("table_name", flat_result)  # schema metadata
         self.assertIn("data", flat_result)
-        data = flat_result["data"]
+        self.assertIsInstance(flat_result["data"], list)
+        self.assertEqual(len(flat_result["data"]), 1)
+        
+        data = flat_result["data"][0]["properties"]
         
         # Verify field keys exist (using the actual field keys from the schema)
         # Note: Since multiple species have the same field names, only the last processed will be in the result
@@ -2961,15 +2974,17 @@ class TestSchemaEngine(unittest.TestCase):
         grouped_result = engine.reverse_map(table_name, model_response, formatter_name="zoo", group_by_containers=["animals"])
         
         # Verify grouped structure
-        self.assertIsInstance(grouped_result, list)
-        self.assertEqual(len(grouped_result), 1)  # One animals group
+        self.assertIn("table_name", grouped_result)  # schema metadata
+        self.assertIn("data", grouped_result)
+        self.assertIsInstance(grouped_result["data"], list)
+        self.assertEqual(len(grouped_result["data"]), 1)  # One animals group
         
-        animals_group = grouped_result[0]
+        animals_group = grouped_result["data"][0]
         self.assertIn("class_name", animals_group)
-        self.assertIn("data", animals_group)
+        self.assertIn("properties", animals_group)
         
         # Verify all species data is in the grouped result
-        grouped_data = animals_group["data"]
+        grouped_data = animals_group["properties"]
         self.assertIn("count", grouped_data)
         self.assertIn("health", grouped_data)
         self.assertEqual(grouped_data["count"], {"type": "integer", "value": 8})  # From felis_catus

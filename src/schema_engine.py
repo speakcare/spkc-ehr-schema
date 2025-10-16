@@ -1389,8 +1389,10 @@ class SchemaEngine:
         table_name: str,
         model_response: Dict[str, Any],
         formatter_name: str = "default",
-        group_by_containers: Optional[List[str]] = None
-    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        group_by_containers: Optional[List[str]] = None,
+        properties_key: str = "properties",
+        pack_properties_as: str = "object"
+    ) -> Dict[str, Any]:
         """
         Map model response back to original external schema format using named formatter set.
         
@@ -1400,13 +1402,28 @@ class SchemaEngine:
             formatter_name: Name of formatter set to use (default: "default")
             group_by_containers: Optional list of container names to group by
                 (e.g., ["sections"] groups answers by section)
+            properties_key: Name for the innermost container (default: "properties")
+            pack_properties_as: Format for the innermost container - either "object" or "array" (default: "object")
         
         Returns:
-            If group_by_containers is None: flat dict of {key: value, ...}
-            If group_by_containers provided: nested structure grouped by containers
+            Dictionary with schema metadata and formatted data:
+            {
+                <schema_name_field>: <schema_name_value>,
+                <schema_id_field>: <schema_id_value>,  # if defined in meta-schema
+                "data": [
+                    {
+                        "properties": {...}  # for flat
+                    }
+                    # OR for grouped:
+                    {
+                        <container_key>: <container_value>,
+                        "properties": {...}
+                    }
+                ]
+            }
         
         Raises:
-            ValueError: If table_name not registered or formatter_name not registered
+            ValueError: If table_name not registered, formatter_name not registered, or pack_properties_as is invalid
         """
         if table_name not in self.__table_names:
             raise ValueError(f"Table '{table_name}' not registered")
@@ -1416,38 +1433,63 @@ class SchemaEngine:
             raise ValueError(f"Formatter set '{formatter_name}' is not registered. "
                             f"Available formatter sets: {list(self.__named_formatter_sets.keys())}")
         
+        # Validate pack_properties_as parameter
+        if pack_properties_as not in ["object", "array"]:
+            raise ValueError(f"pack_properties_as must be 'object' or 'array', got '{pack_properties_as}'")
+        
         table_id = self.__table_names[table_name]
         schema_data = self.__tables[table_id]
         field_index = schema_data["field_index"]
+        external_schema = schema_data["external_schema"]
         
-        # Step 1: Traverse model response and format each field
+        # Step 1: Format fields as before
         formatted_results = {}
         for field_meta in field_index:
-            # Skip virtual container children (they're processed by the virtual container formatter)
             if field_meta.get("is_virtual_container_child"):
                 continue
             
-            # Extract model value using level_keys and property_key
             model_value = self._extract_model_value(model_response, field_meta)
-            
-            # Get formatter
             target_type = field_meta.get("target_type")
+            
             if not target_type:
-                logger.error(f"Field {field_meta.get('key', 'unknown')} missing target_type - this indicates a bug in schema building. Using None value.")
-                # Return None for this field to avoid crashing the entire reverse mapping
+                logger.error(f"Field {field_meta.get('key', 'unknown')} missing target_type")
                 formatted_results[field_meta.get("key", "unknown")] = {"type": "unknown", "value": None}
                 continue
             
-            # Format field using named formatter set
             field_result = self._format_field(field_meta, model_value, table_name, formatter_name)
             formatted_results.update(field_result)
         
-        # Step 2: Group if requested
+        # Step 2: Structure the data
         if group_by_containers:
-            return self._group_by_containers(formatted_results, field_index, group_by_containers)
+            # Group by containers and rename "data" to properties_key
+            grouped_data = self._group_by_containers(formatted_results, field_index, group_by_containers, properties_key, pack_properties_as)
         else:
-            # Return flat dict wrapped in data structure
-            return {"data": formatted_results}
+            # Flat output: wrap in array with properties_key
+            if pack_properties_as == "object":
+                grouped_data = [{properties_key: formatted_results}]
+            else:  # array
+                array_properties = []
+                for key, value in formatted_results.items():
+                    array_properties.append({"key": key, **value})
+                grouped_data = [{properties_key: array_properties}]
+        
+        # Step 3: Extract schema metadata
+        result = {}
+        
+        # Add schema_name if defined
+        schema_name_field = self.__meta_schema.get("schema_name")
+        if schema_name_field and schema_name_field in external_schema:
+            result[schema_name_field] = external_schema[schema_name_field]
+        
+        # Add schema_id if defined
+        schema_id_field = self.__meta_schema.get("schema_id")
+        if schema_id_field and schema_id_field in external_schema:
+            result[schema_id_field] = external_schema[schema_id_field]
+        
+        # Add the formatted data
+        result["data"] = grouped_data
+        
+        return result
 
     def _extract_model_value(self, model_response: Dict[str, Any], field_meta: Dict[str, Any]) -> Any:
         """Extract value from model response using field metadata."""
@@ -1535,7 +1577,9 @@ class SchemaEngine:
         self,
         formatted_results: Dict[str, Dict[str, Any]],
         field_index: List[Dict[str, Any]],
-        container_names: List[str]
+        container_names: List[str],
+        properties_key: str = "properties",
+        pack_properties_as: str = "object"
     ) -> List[Dict[str, Any]]:
         """
         Group formatted results by container hierarchy.
@@ -1544,6 +1588,8 @@ class SchemaEngine:
             formatted_results: Dict mapping field key to {"type": <label>, "value": <payload>}
             field_index: Field metadata index
             container_names: List of container names to group by (e.g., ["sections"])
+            properties_key: Name for the innermost container (default: "properties")
+            pack_properties_as: Format for the innermost container - either "object" or "array" (default: "object")
         
         Returns:
             List of dicts, each representing a container group
@@ -1589,10 +1635,10 @@ class SchemaEngine:
                 # Create new group with container key field
                 groups[container_key] = {
                     "_container_meta": container_meta,
-                    "data": {}
+                    "properties": {}
                 }
             
-            groups[container_key]["data"][field_key] = field_result
+            groups[container_key]["properties"][field_key] = field_result
         
         # Convert to list and add container key fields
         result = []
@@ -1607,7 +1653,14 @@ class SchemaEngine:
             if container_key_field:
                 group[container_key_field] = container_key
             
-            group["data"] = group_data["data"]
+            # Format properties based on pack_properties_as
+            if pack_properties_as == "object":
+                group[properties_key] = group_data["properties"]
+            else:  # array
+                array_properties = []
+                for key, value in group_data["properties"].items():
+                    array_properties.append({"key": key, **value})
+                group[properties_key] = array_properties
             
             result.append(group)
         
