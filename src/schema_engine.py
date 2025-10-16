@@ -160,8 +160,43 @@ is_valid, errors = engine.validate("mds_assessment", data)
 # Enrich schema with additional descriptions
 engine.enrich_schema("mds_assessment", {"field_key": "Additional context"})
 
-# Convert model response back to original format
-result = engine.reverse_map("mds_assessment", model_response, group_by_containers=["sections"])
+# Register formatters for a formatter set
+def default_text_formatter(engine, field_meta, model_value, table_name):
+    return {field_meta["key"]: {"type": "text", "value": model_value}}
+
+engine.register_reverse_formatter("default", "txt", default_text_formatter)
+
+# Convert model response using named formatter
+result = engine.reverse_map("mds_assessment", model_response, formatter_name="default", group_by_containers=["sections"])
+```
+
+### Named Formatter Sets:
+
+Applications can register multiple formatter sets for different output formats:
+
+```python
+# Register "default" formatters for PCC aN/bN format
+def pcc_radio_formatter(engine, field_meta, model_value, table_name):
+    field_schema = field_meta["field_schema"]
+    response_options = field_schema.get("responseOptions", [])
+    
+    for option in response_options:
+        if option.get("responseText") == model_value:
+            return {field_meta["key"]: {"type": "radio", "value": option.get("responseValue")}}
+    
+    return {field_meta["key"]: {"type": "radio", "value": model_value}}
+
+engine.register_reverse_formatter("default", "rad", pcc_radio_formatter)
+
+# Register "ui-app" formatters for UI consumption
+def ui_radio_formatter(engine, field_meta, model_value, table_name):
+    return {field_meta["key"]: {"type": "radio", "value": model_value, "label": model_value}}
+
+engine.register_reverse_formatter("ui-app", "rad", ui_radio_formatter)
+
+# Use different formatters for different purposes
+pcc_result = engine.reverse_map("assessment", model, formatter_name="default")
+ui_result = engine.reverse_map("assessment", model, formatter_name="ui-app")
 ```
 
 ### Custom Validators:
@@ -317,10 +352,6 @@ MAX_NESTING_LEVELS = 7
 __field_schema_builders_registry: Dict[str, Callable] = {}
 __validator_registry: Dict[str, Callable] = {}
 
-# Global registry for reverse formatters
-_reverse_formatters: Dict[str, Callable] = {}
-
-
 def _register_field_schema_builder(internal_type: str):
     """Decorator to register a schema builder function for an internal field type."""
     def decorator(func: Callable):
@@ -337,14 +368,6 @@ def _register_validator(internal_type: str):
     return decorator
 
 
-def _register_reverse_formatter(target_type: str):
-    """Decorator to register a reverse formatter function for a target type."""
-    def decorator(func: Callable):
-        _reverse_formatters[target_type] = func
-        return func
-    return decorator
-
-
 def _get_field_schema_builder(internal_type: str) -> Optional[Callable]:
     """Get the schema builder function for an internal field type."""
     return __field_schema_builders_registry.get(internal_type)
@@ -353,20 +376,6 @@ def _get_field_schema_builder(internal_type: str) -> Optional[Callable]:
 def _get_validator(internal_type: str) -> Optional[Callable]:
     """Get the validator function for an internal field type."""
     return __validator_registry.get(internal_type)
-
-
-def register_reverse_formatter(target_type: str, formatter: Callable) -> None:
-    """
-    Register a global reverse formatter for a target type.
-    
-    Args:
-        target_type: The target type (e.g., "single_select", "virtual_container")
-        formatter: Function with signature:
-            (engine, field_meta, model_value, table_name) -> Dict[str, Dict[str, Any]]
-            where field_meta contains: key, name, level_keys, target_type, original_schema_type, field_schema, property_key
-            and returns: dict mapping field key to {"type": <label>, "value": <payload or null>}
-    """
-    _reverse_formatters[target_type] = formatter
 
 
 class SchemaEngine:
@@ -386,7 +395,8 @@ class SchemaEngine:
         self.__options_extractor_registry: Dict[str, Callable] = {}
         self.__instance_validator_registry: Dict[str, Callable] = {}
         self.__instance_field_schema_builder_registry: Dict[str, Callable] = {}
-        self.__instance_reverse_formatters_by_original: Dict[str, Callable] = {}
+        # Named formatter sets: {formatter_name: {original_schema_type: formatter_func}}
+        self.__named_formatter_sets: Dict[str, Dict[str, Callable]] = {}
 
         # Table registry: table_id -> registry record
         self.__tables: Dict[int, Dict[str, Any]] = {}
@@ -462,18 +472,23 @@ class SchemaEngine:
         self.__instance_field_schema_builder_registry[target_type] = builder_func
         logger.debug(f"Registered instance schema field builder for target_type='{target_type}'")
 
-    def register_reverse_formatter(self, original_type: str, formatter: Callable) -> None:
+    def register_reverse_formatter(self, formatter_name: str, original_schema_type: str, formatter_func: Callable) -> None:
         """
-        Register an instance-level reverse formatter for an original schema type.
+        Register a reverse formatter for a specific original schema type within a named formatter set.
         
         Args:
-            original_type: The original schema type (e.g., "rad", "cmb", "chk")
-            formatter: Function with signature:
+            formatter_name: Name of the formatter set (e.g., "default", "ui-app")
+            original_schema_type: The original schema type (e.g., "rad", "cmb", "gbdy")
+            formatter_func: Formatter function with signature:
                 (engine, field_meta, model_value, table_name) -> Dict[str, Dict[str, Any]]
                 where field_meta contains: key, name, level_keys, target_type, original_schema_type, field_schema, property_key
                 and returns: dict mapping field key to {"type": <label>, "value": <payload or null>}
         """
-        self.__instance_reverse_formatters_by_original[original_type] = formatter
+        if formatter_name not in self.__named_formatter_sets:
+            self.__named_formatter_sets[formatter_name] = {}
+        
+        self.__named_formatter_sets[formatter_name][original_schema_type] = formatter_func
+        logger.info(f"Registered reverse formatter for '{original_schema_type}' in formatter set '{formatter_name}'")
 
     def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
         """Register (or re-register) a table schema.
@@ -1373,14 +1388,16 @@ class SchemaEngine:
         self,
         table_name: str,
         model_response: Dict[str, Any],
+        formatter_name: str = "default",
         group_by_containers: Optional[List[str]] = None
     ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
-        Map model response back to original external schema format.
+        Map model response back to original external schema format using named formatter set.
         
         Args:
             table_name: The name of the registered table
             model_response: The JSON response from the model
+            formatter_name: Name of formatter set to use (default: "default")
             group_by_containers: Optional list of container names to group by
                 (e.g., ["sections"] groups answers by section)
         
@@ -1389,10 +1406,15 @@ class SchemaEngine:
             If group_by_containers provided: nested structure grouped by containers
         
         Raises:
-            ValueError: If table_name not registered
+            ValueError: If table_name not registered or formatter_name not registered
         """
         if table_name not in self.__table_names:
             raise ValueError(f"Table '{table_name}' not registered")
+        
+        # Validate formatter set exists
+        if formatter_name not in self.__named_formatter_sets:
+            raise ValueError(f"Formatter set '{formatter_name}' is not registered. "
+                            f"Available formatter sets: {list(self.__named_formatter_sets.keys())}")
         
         table_id = self.__table_names[table_name]
         schema_data = self.__tables[table_id]
@@ -1416,10 +1438,8 @@ class SchemaEngine:
                 formatted_results[field_meta.get("key", "unknown")] = {"type": "unknown", "value": None}
                 continue
             
-            formatter = self._get_reverse_formatter(field_meta)
-            
-            # Format field (returns dict mapping field key to {type, value})
-            field_result = formatter(self, field_meta, model_value, table_name)
+            # Format field using named formatter set
+            field_result = self._format_field(field_meta, model_value, table_name, formatter_name)
             formatted_results.update(field_result)
         
         # Step 2: Group if requested
@@ -1488,21 +1508,28 @@ class SchemaEngine:
         
         return None
 
-    def _get_reverse_formatter(self, field_meta: Dict[str, Any]) -> Callable:
-        """Get formatter with precedence: original type (instance) → target type (global) → string fallback."""
-        original_type = field_meta.get("original_schema_type")
-        target_type = field_meta.get("target_type")
+    def _format_field(self, field_meta: Dict[str, Any], model_value: Any, 
+                      table_name: str, formatter_name: str) -> Dict[str, Any]:
+        """Format a single field using the named formatter set."""
+        original_schema_type = field_meta.get("original_schema_type")
+        field_key = field_meta.get("key", "unknown")
         
-        # 1) Check instance original-type formatters first
-        if original_type and original_type in self.__instance_reverse_formatters_by_original:
-            return self.__instance_reverse_formatters_by_original[original_type]
+        # Get formatter set
+        formatter_set = self.__named_formatter_sets.get(formatter_name, {})
         
-        # 2) Fall back to global target-type formatters
-        if target_type and target_type in _reverse_formatters:
-            return _reverse_formatters[target_type]
+        # Look up formatter by original schema type ONLY
+        formatter = formatter_set.get(original_schema_type)
         
-        # 3) Final fallback to string formatter
-        return _reverse_formatters.get("string", _string_formatter)
+        if not formatter:
+            logger.error(f"No formatter for original type '{original_schema_type}' "
+                        f"in formatter set '{formatter_name}' (field: {field_key})")
+            return {}
+        
+        try:
+            return formatter(self, field_meta, model_value, table_name)
+        except Exception as e:
+            logger.error(f"Error formatting field '{field_key}' with type '{original_schema_type}': {e}")
+            return {}
 
     def _group_by_containers(
         self,
@@ -1770,60 +1797,5 @@ def _multiple_select_validator(engine: SchemaEngine, value: Any) -> Tuple[bool, 
     return True, ""
 
 
-# ----------------------------- Built-in Reverse Formatters -----------------------------
-
-@_register_reverse_formatter("string")
-def _string_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for string fields."""
-    return {field_meta["key"]: {"type": "text", "value": model_value}}
-
-
-@_register_reverse_formatter("text")
-def _text_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for text fields (same as string)."""
-    return {field_meta["key"]: {"type": "text", "value": model_value}}
-
-
-@_register_reverse_formatter("boolean")
-def _boolean_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for boolean fields."""
-    return {field_meta["key"]: {"type": "boolean", "value": model_value}}
-
-
-@_register_reverse_formatter("number")
-def _number_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for number fields."""
-    return {field_meta["key"]: {"type": "number", "value": model_value}}
-
-
-@_register_reverse_formatter("date")
-def _date_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for date fields - convert to YYYYMMDD."""
-    if model_value is None:
-        return {field_meta["key"]: {"type": "date", "value": None}}
-    # Expect ISO format YYYY-MM-DD from model
-    formatted = model_value.replace("-", "")  # YYYYMMDD
-    return {field_meta["key"]: {"type": "date", "value": formatted}}
-
-
-@_register_reverse_formatter("datetime")
-def _datetime_formatter(engine, field_meta, model_value, table_name):
-    """Built-in formatter for datetime fields - convert to YYYY-MM-DD+HH:MM:SS.000."""
-    if model_value is None:
-        return {field_meta["key"]: {"type": "date-time", "value": None}}
-    # Expect ISO format from model, convert to PCC format
-    # Input: "2025-10-14T15:30:00" or "2025-10-14T15:30:00Z"
-    # Output: "2025-10-14+15:30:00.000"
-    formatted = model_value.replace("T", "+")
-    # Strip timezone info if present
-    if "+" in formatted and len(formatted.split("+")) > 2:
-        # Has timezone offset, remove it
-        parts = formatted.split("+")
-        formatted = "+".join(parts[:-1])
-    elif formatted.endswith("Z"):
-        formatted = formatted[:-1]
-    if "." not in formatted:
-        formatted += ".000"
-    return {field_meta["key"]: {"type": "date-time", "value": formatted}}
 
 

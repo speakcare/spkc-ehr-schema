@@ -2296,6 +2296,12 @@ class TestSchemaEngine(unittest.TestCase):
         
         table_id, table_name = engine.register_table(1, table_schema)
         
+        # Add test formatters
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
         # Model response
         model_response = {
             "fields": {
@@ -2305,7 +2311,7 @@ class TestSchemaEngine(unittest.TestCase):
         }
         
         # Reverse map
-        result = engine.reverse_map(table_name, model_response)
+        result = engine.reverse_map(table_name, model_response, formatter_name="test")
         
         # Verify flat mapping
         self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
@@ -2339,6 +2345,12 @@ class TestSchemaEngine(unittest.TestCase):
         
         table_id, table_name = engine.register_table(1, table_schema)
         
+        # Add test formatters
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
         # Model response with null
         model_response = {
             "fields": {
@@ -2348,7 +2360,7 @@ class TestSchemaEngine(unittest.TestCase):
         }
         
         # Reverse map
-        result = engine.reverse_map(table_name, model_response)
+        result = engine.reverse_map(table_name, model_response, formatter_name="test")
         
         # Verify null values are included
         self.assertEqual(result["data"]["field1"], {"type": "text", "value": "John Doe"})
@@ -2362,10 +2374,77 @@ class TestSchemaEngine(unittest.TestCase):
         def custom_formatter(engine, field_meta, model_value, table_name):
             return [(field_meta["key"], f"custom_{model_value}")]
         
-        engine.register_reverse_formatter("custom_type", custom_formatter)
+        engine.register_reverse_formatter("test", "custom_type", custom_formatter)
         
         # Verify registration worked (no direct way to test, but no error should occur)
         self.assertTrue(True)  # Placeholder assertion
+
+    def test_unknown_formatter_set_error(self):
+        """Test error when using unknown formatter set."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1", 
+                    "field_name": "Test Field",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        model_response = {
+            "fields": {
+                "Test Field": "test value"
+            }
+        }
+        
+        # Test error for unknown formatter set
+        with self.assertRaises(ValueError) as context:
+            engine.reverse_map(table_name, model_response, formatter_name="nonexistent")
+        
+        self.assertIn("Formatter set 'nonexistent' is not registered", str(context.exception))
+        self.assertIn("Available formatter sets: []", str(context.exception))
+
+    def test_missing_formatter_error_logging(self):
+        """Test that missing formatters are logged as errors and skipped."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1", 
+                    "field_name": "Test Field",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        # Register a formatter set but not for the field type we'll use
+        def test_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "test", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "other_type", test_formatter)
+        
+        model_response = {
+            "fields": {
+                "Test Field": "test value"
+            }
+        }
+        
+        # This should not raise an error, but should log and skip the field
+        result = engine.reverse_map(table_name, model_response, formatter_name="test")
+        
+        # The result should be empty since no formatter was found for "text" type
+        self.assertEqual(result["data"], {})
 
     def test_zoo_taxonomy_deep_nesting(self):
         """
@@ -2508,10 +2587,10 @@ class TestSchemaEngine(unittest.TestCase):
             """Formatter for breed table - return virtual container type."""
             return {field_meta["key"]: {"type": "virtual_container", "value": model_value}}
         
-        engine.register_reverse_formatter("count", count_formatter)
-        engine.register_reverse_formatter("health", health_formatter)
-        engine.register_reverse_formatter("food_order", food_order_formatter)
-        engine.register_reverse_formatter("breed_table", breed_table_formatter)
+        engine.register_reverse_formatter("zoo", "count", count_formatter)
+        engine.register_reverse_formatter("zoo", "health", health_formatter)
+        engine.register_reverse_formatter("zoo", "food_order", food_order_formatter)
+        engine.register_reverse_formatter("zoo", "breed_table", breed_table_formatter)
         
         # Register virtual container builder for breed_table
         def breed_table_builder(engine, target_type, enum_values, nullable, property_def, prop):
@@ -2852,7 +2931,7 @@ class TestSchemaEngine(unittest.TestCase):
         }
         
         # Test flat reverse mapping
-        flat_result = engine.reverse_map(table_name, model_response)
+        flat_result = engine.reverse_map(table_name, model_response, formatter_name="zoo")
         
         # Verify flat structure with data wrapper
         self.assertIn("data", flat_result)
@@ -2879,7 +2958,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(breeds_result["value"]["Size Category"], "Large")
         
         # Test grouped reverse mapping by taxonomic levels
-        grouped_result = engine.reverse_map(table_name, model_response, group_by_containers=["animals"])
+        grouped_result = engine.reverse_map(table_name, model_response, formatter_name="zoo", group_by_containers=["animals"])
         
         # Verify grouped structure
         self.assertIsInstance(grouped_result, list)

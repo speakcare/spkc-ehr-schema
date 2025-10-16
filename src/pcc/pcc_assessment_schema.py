@@ -286,16 +286,61 @@ class PCCAssessmentSchema:
             """Omit instruction fields from reverse output (PCC-specific need)."""
             return {}
         
+        # Additional formatters for missing PCC field types
+        def pcc_text_formatter(engine, field_meta, model_value, table_name):
+            """Format text fields."""
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+
+        def pcc_date_formatter(engine, field_meta, model_value, table_name):
+            """Format date fields."""
+            return {field_meta["key"]: {"type": "date", "value": model_value}}
+
+        def pcc_datetime_formatter(engine, field_meta, model_value, table_name):
+            """Format datetime fields."""
+            return {field_meta["key"]: {"type": "datetime", "value": model_value}}
+
+        def pcc_number_formatter(engine, field_meta, model_value, table_name):
+            """Format number fields."""
+            return {field_meta["key"]: {"type": "number", "value": model_value}}
+
+        def pcc_diagnosis_formatter(engine, field_meta, model_value, table_name):
+            """Format diagnosis fields."""
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+
+        def pcc_hck_formatter(engine, field_meta, model_value, table_name):
+            """Format hck (horizontal checkbox) fields."""
+            # Similar to radio formatter
+            if model_value is None:
+                return {field_meta["key"]: {"type": "hck", "value": None}}
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            
+            for option in response_options:
+                if option.get("responseText") == model_value:
+                    return {field_meta["key"]: {"type": "hck", "value": option.get("responseValue")}}
+            
+            return {field_meta["key"]: {"type": "hck", "value": model_value}}
+        
         # Register builders and formatters by original schema type
         self.engine.register_field_schema_builder("chk", pcc_chk_schema_builder)
-        self.engine.register_reverse_formatter("chk", pcc_chk_reverse_formatter)
-        self.engine.register_reverse_formatter("rad", pcc_radio_formatter)
-        self.engine.register_reverse_formatter("radh", pcc_radio_formatter)
-        self.engine.register_reverse_formatter("cmb", pcc_combo_formatter)
-        self.engine.register_reverse_formatter("mcs", pcc_multi_select_formatter)
-        self.engine.register_reverse_formatter("mcsh", pcc_multi_select_formatter)
-        self.engine.register_reverse_formatter("gbdy", pcc_object_array_reverse_formatter)
-        self.engine.register_reverse_formatter("inst", pcc_instructions_reverse_formatter)
+        self.engine.register_reverse_formatter("default", "chk", pcc_chk_reverse_formatter)
+        self.engine.register_reverse_formatter("default", "rad", pcc_radio_formatter)
+        self.engine.register_reverse_formatter("default", "radh", pcc_radio_formatter)
+        self.engine.register_reverse_formatter("default", "cmb", pcc_combo_formatter)
+        self.engine.register_reverse_formatter("default", "mcs", pcc_multi_select_formatter)
+        self.engine.register_reverse_formatter("default", "mcsh", pcc_multi_select_formatter)
+        self.engine.register_reverse_formatter("default", "gbdy", pcc_object_array_reverse_formatter)
+        self.engine.register_reverse_formatter("default", "inst", pcc_instructions_reverse_formatter)
+        
+        # Register formatters for all PCC field types
+        self.engine.register_reverse_formatter("default", "txt", pcc_text_formatter)
+        self.engine.register_reverse_formatter("default", "dte", pcc_date_formatter)
+        self.engine.register_reverse_formatter("default", "dttm", pcc_datetime_formatter)
+        self.engine.register_reverse_formatter("default", "num", pcc_number_formatter)
+        self.engine.register_reverse_formatter("default", "numde", pcc_number_formatter)
+        self.engine.register_reverse_formatter("default", "diag", pcc_diagnosis_formatter)
+        self.engine.register_reverse_formatter("default", "hck", pcc_hck_formatter)
         
         # Load and register the 4 assessment templates
         self._load_and_register_templates()

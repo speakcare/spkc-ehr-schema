@@ -1140,8 +1140,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             return {field_meta["key"]: {"type": f"original_type_{original_type}", "value": model_value}}
         
         # Register the test formatter for txt and diag original types
-        pcc.engine.register_reverse_formatter("txt", test_formatter)
-        pcc.engine.register_reverse_formatter("diag", test_formatter)
+        pcc.engine.register_reverse_formatter("test", "txt", test_formatter)
+        pcc.engine.register_reverse_formatter("test", "diag", test_formatter)
         
         assessment_schema = {
             "assessmentDescription": "Test Assessment",
@@ -1194,7 +1194,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         # Reverse map
-        result = pcc.engine.reverse_map(assessment_name, model_response)
+        result = pcc.engine.reverse_map(assessment_name, model_response, formatter_name="test")
         
         # Verify original_schema_type is accessible for both fields
         self.assertEqual(result["data"]["A_1"], {"type": "original_type_txt", "value": "John Doe"})
@@ -1212,12 +1212,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         def original_type_formatter(engine, field_meta, model_value, table_name):
             return {field_meta["key"]: {"type": f"original_type_{field_meta.get('original_schema_type')}", "value": model_value}}
         
-        # Register target type formatter globally (this should be overridden by original type)
-        from src.schema_engine import register_reverse_formatter
-        register_reverse_formatter("single_select", target_type_formatter)
-        
         # Register original type formatter (this should take precedence)
-        pcc.engine.register_reverse_formatter("rad", original_type_formatter)
+        pcc.engine.register_reverse_formatter("test", "rad", original_type_formatter)
         
         assessment_schema = {
             "assessmentDescription": "Test Assessment",
@@ -1267,7 +1263,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         # Reverse map
-        result = pcc.engine.reverse_map(assessment_name, model_response)
+        result = pcc.engine.reverse_map(assessment_name, model_response, formatter_name="test")
         
         # Verify original type formatter takes precedence over target type formatter
         self.assertEqual(result["data"]["A_1"], {"type": "original_type_rad", "value": "Male"})
