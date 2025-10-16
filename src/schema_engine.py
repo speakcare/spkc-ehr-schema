@@ -1457,7 +1457,19 @@ class SchemaEngine:
                 continue
             
             field_result = self._format_field(field_meta, model_value, table_name, formatter_name)
-            formatted_results.update(field_result)
+            
+            # Handle both dict (old style) and list (unpacking style) formatters
+            if isinstance(field_result, list):
+                # Formatter returned list of unpacked fields
+                for item in field_result:
+                    if isinstance(item, dict):
+                        store_key = item.get("_storage_key", item.get("key"))
+                        if store_key is not None:
+                            # Keep the item intact; array packers will decide displayed key
+                            formatted_results[store_key] = item
+            elif isinstance(field_result, dict):
+                # Formatter returned dict (existing behavior)
+                formatted_results.update(field_result)
         
         # Step 2: Structure the data
         if group_by_containers:
@@ -1470,7 +1482,18 @@ class SchemaEngine:
             else:  # array
                 array_properties = []
                 for key, value in formatted_results.items():
-                    array_properties.append({"key": key, **value})
+                    display_key = (
+                        value.get("_display_key")
+                        if isinstance(value, dict) and value.get("_display_key") is not None
+                        else (value.get("_original_field_key", key) if isinstance(value, dict) else key)
+                    )
+                    array_item = {"key": display_key}
+                    if isinstance(value, dict):
+                        for k, v in value.items():
+                            if k == "key" or (isinstance(k, str) and k.startswith("_")):
+                                continue
+                            array_item[k] = v
+                    array_properties.append(array_item)
                 grouped_data = [{properties_key: array_properties}]
         
         # Step 3: Extract schema metadata
@@ -1623,7 +1646,14 @@ class SchemaEngine:
         # Group results by container
         groups = {}
         for field_key, field_result in formatted_results.items():
+            # Try to find container path for this field key
             container_path = key_to_container.get(field_key, [])
+            
+            # If not found, check if the field_result contains original field metadata
+            if not container_path and isinstance(field_result, dict) and "_original_field_key" in field_result:
+                original_field_key = field_result["_original_field_key"]
+                container_path = key_to_container.get(original_field_key, [])
+            
             if not container_path:
                 # No container, skip or add to root
                 continue
@@ -1638,6 +1668,7 @@ class SchemaEngine:
                     "properties": {}
                 }
             
+            # Store full field_result; we'll strip internal metadata at output assembly time
             groups[container_key]["properties"][field_key] = field_result
         
         # Convert to list and add container key fields
@@ -1659,7 +1690,18 @@ class SchemaEngine:
             else:  # array
                 array_properties = []
                 for key, value in group_data["properties"].items():
-                    array_properties.append({"key": key, **value})
+                    display_key = (
+                        value.get("_display_key")
+                        if isinstance(value, dict) and value.get("_display_key") is not None
+                        else (value.get("_original_field_key", key) if isinstance(value, dict) else key)
+                    )
+                    array_item = {"key": display_key}
+                    if isinstance(value, dict):
+                        for k, v in value.items():
+                            if k == "key" or (isinstance(k, str) and k.startswith("_")):
+                                continue
+                            array_item[k] = v
+                    array_properties.append(array_item)
                 group[properties_key] = array_properties
             
             result.append(group)

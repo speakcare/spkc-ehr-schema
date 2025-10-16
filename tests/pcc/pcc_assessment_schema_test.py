@@ -1664,6 +1664,263 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     self.assertFalse(questions_prop.get("additionalProperties", True),
                                     "questions must have additionalProperties: false")
 
+    def test_pcc_ui_formatter_unpacking(self):
+        """Test PCC-UI formatter unpacking capabilities."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a test assessment with various field types
+        test_assessment = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 99999,
+            "sections": [{
+                "sectionCode": "A",
+                "sectionDescription": "Test Section",
+                "assessmentQuestionGroups": [{
+                    "groupNumber": "1",
+                    "groupText": "Test Group",
+                    "questions": [
+                        {
+                            "questionKey": "A_1",
+                            "questionNumber": "1",
+                            "questionText": "Text field",
+                            "questionType": "txt"
+                        },
+                        {
+                            "questionKey": "A_2",
+                            "questionNumber": "2",
+                            "questionText": "Single select",
+                            "questionType": "rad",
+                            "responseOptions": [
+                                {"responseText": "Option A", "responseValue": "a"},
+                                {"responseText": "Option B", "responseValue": "b"}
+                            ]
+                        },
+                        {
+                            "questionKey": "A_3",
+                            "questionNumber": "3",
+                            "questionText": "Multi select",
+                            "questionType": "mcs",
+                            "responseOptions": [
+                                {"responseText": "Choice 1", "responseValue": "1"},
+                                {"responseText": "Choice 2", "responseValue": "2"},
+                                {"responseText": "Choice 3", "responseValue": "3"}
+                            ]
+                        },
+                        {
+                            "questionKey": "A_4",
+                            "questionNumber": "4",
+                            "questionText": "Table field",
+                            "questionType": "gbdy",
+                            "length": 3,
+                            "responseOptions": [
+                                {"responseText": "Head", "responseValue": "0"},
+                                {"responseText": "Arm", "responseValue": "1"},
+                                {"responseText": "Leg", "responseValue": "2"}
+                            ]
+                        }
+                    ]
+                }]
+            }]
+        }
+        
+        # Register the test assessment
+        table_id, table_name = pcc.engine.register_table(99999, test_assessment)
+        
+        # Test model response with various field types
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Text field": "Hello World",
+                                "Single select": "Option A",
+                                "Multi select": ["Choice 1", "Choice 3"],
+                                "Table field": [
+                                    {"entry": "Head", "description": "soft tissue"},
+                                    {"entry": "Arm", "description": "bruised"}
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Test with pcc-ui formatter
+        result = pcc.reverse_map(99999, model_response, formatter_name="pcc-ui")
+        
+        # Verify structure
+        self.assertIn("assessmentDescription", result)
+        self.assertIn("templateId", result)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], list)
+        
+        # Verify section structure
+        self.assertEqual(len(result["data"]), 1)
+        section = result["data"][0]
+        self.assertIn("sectionCode", section)
+        self.assertIn("fields", section)
+        self.assertIsInstance(section["fields"], list)
+        
+        # Verify field unpacking
+        fields = section["fields"]
+        field_keys = [field["key"] for field in fields]
+        
+        # Basic field - single entry
+        self.assertIn("A_1", field_keys)
+        text_field = next(f for f in fields if f["key"] == "A_1")
+        self.assertEqual(text_field["type"], "txt")
+        self.assertEqual(text_field["value"], "Hello World")
+        
+        # Single select - single entry with responseValue
+        self.assertIn("A_2", field_keys)
+        single_field = next(f for f in fields if f["key"] == "A_2")
+        self.assertEqual(single_field["type"], "rad")
+        self.assertEqual(single_field["value"], "a")  # responseValue, not responseText
+        
+        # Multi-select - unpacked into multiple entries (same key for all entries)
+        self.assertGreaterEqual(field_keys.count("A_3"), 2)
+        multi_entries = [f for f in fields if f["key"] == "A_3"]
+        multi_field_0, multi_field_1 = multi_entries[0], multi_entries[1]
+        self.assertEqual(multi_field_0["type"], "mcs")
+        self.assertEqual(multi_field_0["value"], "1")  # responseValue for "Choice 1"
+        self.assertEqual(multi_field_1["type"], "mcs")
+        self.assertEqual(multi_field_1["value"], "3")  # responseValue for "Choice 3"
+        
+        # Object array - unpacked into aN/bN pairs
+        self.assertIn("a0_A_4", field_keys)
+        self.assertIn("b0_A_4", field_keys)
+        self.assertIn("a1_A_4", field_keys)
+        self.assertIn("b1_A_4", field_keys)
+        
+        a0_field = next(f for f in fields if f["key"] == "a0_A_4")
+        b0_field = next(f for f in fields if f["key"] == "b0_A_4")
+        a1_field = next(f for f in fields if f["key"] == "a1_A_4")
+        b1_field = next(f for f in fields if f["key"] == "b1_A_4")
+        
+        self.assertEqual(a0_field["type"], "gbdy")
+        self.assertEqual(a0_field["value"], "0")  # responseValue for "Head"
+        self.assertEqual(b0_field["type"], "gbdy")
+        self.assertEqual(b0_field["value"], "soft tissue")
+        
+        self.assertEqual(a1_field["type"], "gbdy")
+        self.assertEqual(a1_field["value"], "1")  # responseValue for "Arm"
+        self.assertEqual(b1_field["type"], "gbdy")
+        self.assertEqual(b1_field["value"], "bruised")
+        
+        # Verify all fields have original types
+        for field in fields:
+            self.assertIn("type", field)
+            self.assertIn("value", field)
+            # All types should be original PCC types
+            self.assertIn(field["type"], ["txt", "rad", "mcs", "gbdy"])
+
+    def test_reverse_map_pcc_ui_defaults(self):
+        """Test reverse_map method with PCC-UI defaults."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test data with some fields
+        model_response = {
+            "table_name": "MHCS Nursing Weekly Skin Check",
+            "sections": {
+                "A.Test Section": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Test Question": "Test Value"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Test with default PCC-UI parameters
+        result = pcc.reverse_map(21244831, model_response)
+        
+        # Verify structure with new defaults
+        self.assertIn("assessmentDescription", result)
+        self.assertIn("templateId", result)
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], list)
+        
+        # Verify the data structure has the new defaults
+        if result["data"]:
+            first_section = result["data"][0]
+            self.assertIn("sectionCode", first_section)
+            self.assertIn("fields", first_section)  # properties_key = "fields"
+            self.assertIsInstance(first_section["fields"], list)  # pack_properties_as = "array"
+            
+            # Verify fields is an array of objects
+            if first_section["fields"]:
+                first_field = first_section["fields"][0]
+                self.assertIsInstance(first_field, dict)
+                self.assertIn("type", first_field)
+                self.assertIn("value", first_field)
+        
+        # Test that explicit parameters override defaults
+        result_explicit = pcc.reverse_map(
+            21244831, 
+            model_response,
+            formatter_name="default",
+            group_by_containers=["sections"],
+            properties_key="properties",
+            pack_properties_as="object"
+        )
+        
+        # Should have different structure
+        if result_explicit["data"]:
+            first_section = result_explicit["data"][0]
+            self.assertIn("properties", first_section)  # properties_key = "properties"
+            self.assertIsInstance(first_section["properties"], dict)  # pack_properties_as = "object"
+
+    def test_reverse_map_by_formatter_name(self):
+        """Test reverse_map method with different formatter names."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test data - use a simple structure that should work
+        model_response = {
+            "table_name": "MHCS Nursing Weekly Skin Check",
+            "sections": {}
+        }
+        
+        # Test with default formatter (pcc-ui)
+        result_default = pcc.reverse_map(21244831, model_response)
+        self.assertIn("assessmentDescription", result_default)
+        self.assertIn("templateId", result_default)
+        self.assertIn("data", result_default)
+        
+        # Test with explicit pcc-ui formatter name (should be same as default)
+        result_explicit = pcc.reverse_map(21244831, model_response, formatter_name="pcc-ui")
+        self.assertEqual(result_default, result_explicit)
+        
+        # Test with default formatter (different output format)
+        result_default_formatter = pcc.reverse_map(21244831, model_response, formatter_name="default")
+        self.assertIn("assessmentDescription", result_default_formatter)
+        self.assertIn("templateId", result_default_formatter)
+        self.assertIn("data", result_default_formatter)
+        
+        # Test with custom parameters
+        result_custom = pcc.reverse_map(
+            21244831, 
+            model_response, 
+            formatter_name="default",
+            group_by_containers=["sections"],
+            properties_key="fields",
+            pack_properties_as="array"
+        )
+        self.assertIn("assessmentDescription", result_custom)
+        self.assertIn("templateId", result_custom)
+        self.assertIn("data", result_custom)
+        
+        # Verify the data structure has the custom properties_key
+        if result_custom["data"]:
+            first_section = result_custom["data"][0]
+            self.assertIn("fields", first_section)
+            self.assertIsInstance(first_section["fields"], list)
+
     def test_object_array_validation_strict_schema(self):
         """Test that object_array (gbdy) fields enforce strict schema validation."""
         pcc = PCCAssessmentSchema()
@@ -2251,6 +2508,74 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             json.dump(model_response, f, indent=2, ensure_ascii=False)
         
         print(f"Saved complete model response for {assessment_name} to {filepath}")
+
+    def test_generate_pcc_ui_formatted_outputs_all_assessments(self):
+        """Generate complete model responses and save PCC-UI formatted outputs for all assessments."""
+        pcc = PCCAssessmentSchema()
+        
+        assessments = [
+            (21242733, "MHCS IDT 5 Day Section GG"),
+            (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21242741, "MHCS Nursing Daily Skilled Note"),
+            (21244831, "MHCS Nursing Weekly Skin Check")
+        ]
+        
+        # Create output directory
+        output_dir = os.path.join(os.path.dirname(__file__), "_pcc_ui_formatted_outputs")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for assessment_id, assessment_name in assessments:
+            with self.subTest(assessment=assessment_name):
+                # Generate complete model response by following JSON schema structure
+                model_response = self._generate_model_from_json_schema(pcc.get_json_schema(assessment_id))
+                
+                # Validate the model response
+                is_valid, errors = pcc.validate(assessment_id, model_response)
+                self.assertTrue(is_valid, 
+                              f"Model validation failed for {assessment_name}: {errors}")
+                
+                # Use PCC wrapper's reverse_map with pcc-ui formatter defaults
+                formatted_output = pcc.reverse_map(assessment_id, model_response)
+                
+                # Verify output structure
+                self.assertIn("assessmentDescription", formatted_output)
+                self.assertIn("templateId", formatted_output)
+                self.assertIn("data", formatted_output)
+                self.assertIsInstance(formatted_output["data"], list)
+                self.assertGreater(len(formatted_output["data"]), 0)
+                
+                # Verify pcc-ui formatter behavior (fields array format)
+                for section in formatted_output["data"]:
+                    self.assertIn("sectionCode", section)
+                    self.assertIn("fields", section)
+                    self.assertIsInstance(section["fields"], list)
+                    
+                    # Check that fields have the expected structure
+                    for field in section["fields"]:
+                        self.assertIn("key", field)
+                        self.assertIn("type", field)
+                        self.assertIn("value", field)
+                        # Verify type is original schema type (not target type)
+                        self.assertIn(field["type"], ["txt", "num", "numde", "dte", "dttm", "chk", "diag", "hck", 
+                                                   "rad", "radh", "cmb", "mcs", "mcsh", "gbdy"])
+                
+                # Save formatted output to file
+                filename = f"{assessment_id}_{assessment_name.replace(' ', '_')}_pcc_ui_formatted.json"
+                filepath = os.path.join(output_dir, filename)
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(formatted_output, f, indent=2, ensure_ascii=False)
+                
+                print(f"Saved PCC-UI formatted output for {assessment_name} to {filepath}")
+                
+                # Also save the model response for reference
+                model_filename = f"{assessment_id}_{assessment_name.replace(' ', '_')}_model.json"
+                model_filepath = os.path.join(output_dir, model_filename)
+                
+                with open(model_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(model_response, f, indent=2, ensure_ascii=False)
+                
+                print(f"Saved model response for {assessment_name} to {model_filepath}")
 
 
 if __name__ == "__main__":

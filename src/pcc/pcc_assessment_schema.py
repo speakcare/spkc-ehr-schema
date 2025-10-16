@@ -343,6 +343,130 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("default", "diag", pcc_diagnosis_formatter)
         self.engine.register_reverse_formatter("default", "hck", pcc_hck_formatter)
         
+        # PCC-UI formatters with unpacking capabilities
+        def pcc_ui_basic_formatter(engine, field_meta, model_value, table_name):
+            """Format basic fields with original type."""
+            return [{
+                "key": field_meta["key"],
+                "type": field_meta["original_schema_type"],
+                "value": model_value
+            }]
+        
+        def pcc_ui_single_select_formatter(engine, field_meta, model_value, table_name):
+            """Format single select - extract responseValue."""
+            if model_value is None:
+                return [{
+                    "key": field_meta["key"],
+                    "type": field_meta["original_schema_type"],
+                    "value": None
+                }]
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            
+            response_value = model_value
+            for option in response_options:
+                if option.get("responseText") == model_value:
+                    response_value = option.get("responseValue")
+                    break
+            
+            return [{
+                "key": field_meta["key"],
+                "type": field_meta["original_schema_type"],
+                "value": response_value
+            }]
+        
+        def pcc_ui_multi_select_formatter(engine, field_meta, model_value, table_name):
+            """Format multi-select - UNPACK into separate fields."""
+            if not model_value or not isinstance(model_value, list):
+                return []
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            base_key = field_meta["key"]
+            original_type = field_meta["original_schema_type"]
+            
+            results = []
+            for i, selected_text in enumerate(model_value):
+                response_value = selected_text
+                for option in response_options:
+                    if option.get("responseText") == selected_text:
+                        response_value = option.get("responseValue")
+                        break
+                
+                results.append({
+                    "key": base_key,
+                    "type": original_type,
+                    "value": response_value,
+                    "_original_field_key": base_key,
+                    # Provide unique storage key so engine can store without collision
+                    "_storage_key": f"{base_key}__{i}"
+                })
+            
+            return results
+        
+        def pcc_ui_object_array_formatter(engine, field_meta, model_value, table_name):
+            """Format object array - UNPACK into aN/bN pairs."""
+            if not model_value or not isinstance(model_value, list):
+                return []
+            
+            field_schema = field_meta["field_schema"]
+            response_options = field_schema.get("responseOptions", [])
+            base_key = field_meta["key"]
+            original_type = field_meta["original_schema_type"]
+            
+            text_to_value = {opt["responseText"]: opt["responseValue"] for opt in response_options}
+            
+            results = []
+            for idx, item in enumerate(model_value):
+                entry_text = item.get("entry", "")
+                description_text = item.get("description", "")
+                entry_value = text_to_value.get(entry_text, "")
+                
+                results.append({
+                    "key": base_key,
+                    "type": original_type,
+                    "value": entry_value,
+                    "_original_field_key": base_key,
+                    "_storage_key": f"a{idx}_{base_key}",
+                    "_display_key": f"a{idx}_{base_key}"
+                })
+                
+                results.append({
+                    "key": base_key,
+                    "type": original_type,
+                    "value": description_text,
+                    "_original_field_key": base_key,
+                    "_storage_key": f"b{idx}_{base_key}",
+                    "_display_key": f"b{idx}_{base_key}"
+                })
+            
+            return results
+        
+        def pcc_ui_instructions_formatter(engine, field_meta, model_value, table_name):
+            """Omit instruction fields."""
+            return []
+        
+        # Register pcc-ui formatter set with specialized unpacking
+        self.engine.register_reverse_formatter("pcc-ui", "txt", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "num", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "numde", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "dte", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "dttm", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "chk", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "diag", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "hck", pcc_ui_basic_formatter)
+
+        self.engine.register_reverse_formatter("pcc-ui", "rad", pcc_ui_single_select_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "radh", pcc_ui_single_select_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "cmb", pcc_ui_single_select_formatter)
+
+        self.engine.register_reverse_formatter("pcc-ui", "mcs", pcc_ui_multi_select_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "mcsh", pcc_ui_multi_select_formatter)
+
+        self.engine.register_reverse_formatter("pcc-ui", "gbdy", pcc_ui_object_array_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "inst", pcc_ui_instructions_formatter)
+        
         # Load and register the 4 assessment templates
         self._load_and_register_templates()
     
@@ -449,6 +573,41 @@ class PCCAssessmentSchema:
         """
         return self.engine.list_tables()
     
+    def reverse_map(self, assessment_identifier: Union[int, str], model_response: Dict[str, Any], 
+                   formatter_name: str = "pcc-ui", group_by_containers: Optional[List[str]] = None,
+                   properties_key: str = "fields", pack_properties_as: str = "array") -> Dict[str, Any]:
+        """
+        Reverse map a model response back to the original external schema format.
+        
+        Args:
+            assessment_identifier: Either an integer assessment ID or string assessment name
+            model_response: The model response data to reverse map
+            formatter_name: Name of the formatter set to use (default: "pcc-ui")
+            group_by_containers: List of container names to group by (default: ["sections"])
+            properties_key: Name for the innermost properties container (default: "fields")
+            pack_properties_as: Format for properties - "object" or "array" (default: "array")
+            
+        Returns:
+            Dictionary with reverse mapped data in the specified format
+        """
+        # Default to grouping by sections for PCC assessments
+        if group_by_containers is None:
+            group_by_containers = ["sections"]
+        
+        # Resolve assessment identifier to table name
+        table_id = self.engine._resolve_table_id(assessment_identifier)
+        table_data = self.engine._SchemaEngine__tables[table_id]
+        table_name = table_data["table_name"]
+            
+        return self.engine.reverse_map(
+            table_name, 
+            model_response, 
+            formatter_name=formatter_name,
+            group_by_containers=group_by_containers,
+            properties_key=properties_key,
+            pack_properties_as=pack_properties_as
+        )
+
     def list_assessments_info(self) -> List[Dict[str, Any]]:
         """
         Return a list of registered assessments with their id and name.
