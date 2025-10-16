@@ -3,18 +3,13 @@ venv/
 bin/
 env/
 lib/
-playground/
-backend/tmp/
-deploy/customer-policies/
-recordings/
-records/
+tests/pcc/_pcc_ui_formatted_outputs/
+tests/pcc/_pcc_formatted_outputs/
+tests/pcc/_complete_model_responses/
+tests/pcc/_formatted_outputs/
 
 # Ignore the .env file
 .env
-.env.ec2
-# keys files
-*.pem
-
 # Other common Python ignores
 __pycache__/
 *.pyc
@@ -29,11 +24,3 @@ __pycache__/
 .DS_Store
 
 # Ignore database files
-db/
-test_db/
-
-# Ignore output dirs
-out/
-
-# ignore playground
-playground/

@@ -443,6 +443,22 @@ class PCCAssessmentSchema:
             
             return results
         
+        def pcc_ui_checkbox_formatter(engine, field_meta, model_value, table_name):
+            """Format checkbox - convert true/false to 1/null."""
+            # Convert boolean to PCC format: true -> 1, false -> null
+            if model_value is True:
+                value = 1
+            elif model_value is False:
+                value = None
+            else:
+                value = model_value  # Keep as-is if not boolean
+            
+            return [{
+                "key": field_meta["key"],
+                "type": field_meta["original_schema_type"],
+                "value": value
+            }]
+        
         def pcc_ui_instructions_formatter(engine, field_meta, model_value, table_name):
             """Omit instruction fields."""
             return []
@@ -453,7 +469,7 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("pcc-ui", "numde", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "dte", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "dttm", pcc_ui_basic_formatter)
-        self.engine.register_reverse_formatter("pcc-ui", "chk", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "chk", pcc_ui_checkbox_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "diag", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "hck", pcc_ui_basic_formatter)
 

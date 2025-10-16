@@ -38,7 +38,8 @@ def _generate_value_for_field(field_meta: Dict[str, Any]) -> Any:
     if original_type in ("num", "numde") or target_type in ("number", "integer", "positive_integer", "positive_number"):
         return 42 if target_type in ("number", "positive_number") else 7
     if original_type == "chk" or target_type == "boolean":
-        return True
+        # Return False for some checkboxes to test null conversion
+        return len(key) % 3 == 0
     if original_type in ("dte",) or target_type == "date":
         return "1950-01-15"
     if original_type in ("dttm",) or target_type == "datetime":
@@ -2201,12 +2202,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                             
                             for question_name, question_def in questions_schema.items():
                                 # Generate value based on question schema
-                                value = self._generate_value_from_question_schema(question_def)
+                                value = self._generate_value_from_question_schema(question_def, question_name=question_name)
                                 model["sections"][section_name]["assessmentQuestionGroups"][group_name]["questions"][question_name] = value
         
         return model
 
-    def _generate_value_from_question_schema(self, question_def, index=0):
+    def _generate_value_from_question_schema(self, question_def, index=0, question_name=None):
         """Generate a valid value based on the question schema definition."""
         question_type = question_def.get("type")
         
@@ -2240,7 +2241,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             return "Sample text"
             
         elif question_type == "boolean":
-            return True
+            # Return True for some checkboxes to test both 1 and null conversion
+            # Use question name hash to alternate between True/False
+            if question_name:
+                return hash(question_name) % 2 == 0
+            else:
+                return True  # Default to True if no name
             
         elif question_type in ["integer", "number"]:
             return 42
@@ -2256,7 +2262,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 
                 result = []
                 for i in range(num_items):
-                    item = self._generate_value_from_question_schema(items_schema, index=i)
+                    item = self._generate_value_from_question_schema(items_schema, index=i, question_name=f"{question_name}_item_{i}")
                     result.append(item)
                 return result
             return []
