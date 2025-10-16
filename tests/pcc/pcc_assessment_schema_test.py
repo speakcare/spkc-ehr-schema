@@ -131,14 +131,12 @@ def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) ->
             field_schema = f.get("field_schema", {})
             response_options = field_schema.get("responseOptions", [])
             if response_options:
-                # Generate 3-5 sample entries
-                import random
-                num_entries = random.randint(3, 5)
+                # Generate up to 4 entries using first 4 options
+                num_entries = min(4, len(response_options))
                 entries = []
                 
-                for _ in range(num_entries):
-                    # Pick a random response option
-                    option = random.choice(response_options)
+                for i in range(num_entries):
+                    option = response_options[i]
                     entry_text = option.get("responseText", "")
                     description = f"Sample description for {entry_text}"
                     entries.append({
@@ -1655,7 +1653,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         return model
 
-    def _generate_value_from_question_schema(self, question_def):
+    def _generate_value_from_question_schema(self, question_def, index=0):
         """Generate a valid value based on the question schema definition."""
         question_type = question_def.get("type")
         
@@ -1680,7 +1678,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             elif "enum" in question_def:
                 enum_values = [v for v in question_def["enum"] if v is not None]
                 if enum_values:
-                    return enum_values[0]  # Return first valid option
+                    # Use index to pick different enum values for array items
+                    return enum_values[index % len(enum_values)]
             # Check if it's a date field by looking at description
             elif "description" in question_def and "date" in question_def["description"].lower():
                 return "2024-12-15"
@@ -1699,13 +1698,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 items_schema = question_def["items"]
                 max_items = question_def.get("maxItems", 10)
                 
-                # Generate 3-5 sample items or up to maxItems, whichever is smaller
-                import random
-                num_items = min(random.randint(3, 5), max_items)
+                # Generate up to 4 items or up to maxItems, whichever is smaller
+                num_items = min(4, max_items)
                 
                 result = []
-                for _ in range(num_items):
-                    item = self._generate_value_from_question_schema(items_schema)
+                for i in range(num_items):
+                    item = self._generate_value_from_question_schema(items_schema, index=i)
                     result.append(item)
                 return result
             return []
@@ -1715,7 +1713,15 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             if "properties" in question_def:
                 obj = {}
                 for prop_name, prop_def in question_def["properties"].items():
-                    obj[prop_name] = self._generate_value_from_question_schema(prop_def)
+                    if prop_name == "entry" and "enum" in prop_def:
+                        # For entry fields with enum, use the index to pick different values
+                        enum_values = [v for v in prop_def["enum"] if v is not None]
+                        if enum_values:
+                            obj[prop_name] = enum_values[index % len(enum_values)]
+                        else:
+                            obj[prop_name] = self._generate_value_from_question_schema(prop_def)
+                    else:
+                        obj[prop_name] = self._generate_value_from_question_schema(prop_def)
                 return obj
             return {}
         
@@ -1816,14 +1822,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             field_schema = field_meta.get("field_schema", {})
             response_options = field_schema.get("responseOptions", [])
             if response_options:
-                # Generate 3-5 sample entries
-                import random
-                num_entries = random.randint(3, 5)
+                # Generate up to 4 entries using first 4 options
+                num_entries = min(4, len(response_options))
                 entries = []
                 
-                for _ in range(num_entries):
-                    # Pick a random response option
-                    option = random.choice(response_options)
+                for i in range(num_entries):
+                    option = response_options[i]
                     entry_text = option.get("responseText", "")
                     description = f"Sample description for {entry_text}"
                     entries.append({
