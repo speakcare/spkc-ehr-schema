@@ -1817,6 +1817,24 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("value", field)
             # All types should be original PCC types
             self.assertIn(field["type"], ["txt", "rad", "mcs", "gbdy"])
+            
+            # Verify html_type is present and correct
+            self.assertIn("html_type", field)
+            self.assertIsInstance(field["html_type"], str)
+            
+            # Verify some specific mappings
+            if field["type"] == "txt":
+                self.assertIn(field["html_type"], ["textarea_singleline", "textarea_multiline"])
+            elif field["type"] == "rad":
+                self.assertEqual(field["html_type"], "radio_buttons")
+            elif field["type"] == "mcs":
+                self.assertEqual(field["html_type"], "checkbox_multi")
+            elif field["type"] == "gbdy":
+                # For gbdy fields, html_type depends on whether it's an entry or description
+                if field["key"].startswith("a"):
+                    self.assertEqual(field["html_type"], "combobox")
+                elif field["key"].startswith("b"):
+                    self.assertEqual(field["html_type"], "textarea_singleline")
 
     def test_reverse_map_pcc_ui_defaults(self):
         """Test reverse_map method with PCC-UI defaults."""

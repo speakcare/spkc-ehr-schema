@@ -344,24 +344,56 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("default", "hck", pcc_hck_formatter)
         
         # PCC-UI formatters with unpacking capabilities
+        def get_html_type(original_type, field_schema=None):
+            """Determine HTML input type based on PCC field type and characteristics."""
+            match original_type:
+                case "rad" | "radh" | "hck":
+                    return "radio_buttons"
+                case "cmb":
+                    return "combobox"
+                case "chk":
+                    return "checkbox_single"
+                case "mcs" | "mcsh":
+                    return "checkbox_multi"
+                case "txt" | "diag":
+                    length = field_schema.get("length", 0) if field_schema else 0
+                    return "textarea_singleline" if length <= 50 else "textarea_multiline"
+                case "dte" | "dttm":
+                    return "text"
+                case "num" | "numde":
+                    return "number"
+                case "gbdy_entry":
+                    return "combobox"
+                case "gbdy_description":
+                    return "textarea_singleline"
+                case _:
+                    return "text"  # Default fallback
+        
         def pcc_ui_basic_formatter(engine, field_meta, model_value, table_name):
             """Format basic fields with original type."""
+            original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            
             return [{
                 "key": field_meta["key"],
-                "type": field_meta["original_schema_type"],
+                "type": original_type,
+                "html_type": get_html_type(original_type, field_schema),
                 "value": model_value
             }]
         
         def pcc_ui_single_select_formatter(engine, field_meta, model_value, table_name):
             """Format single select - extract responseValue."""
+            original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            
             if model_value is None:
                 return [{
                     "key": field_meta["key"],
-                    "type": field_meta["original_schema_type"],
+                    "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
                     "value": None
                 }]
             
-            field_schema = field_meta["field_schema"]
             response_options = field_schema.get("responseOptions", [])
             
             response_value = model_value
@@ -372,7 +404,8 @@ class PCCAssessmentSchema:
             
             return [{
                 "key": field_meta["key"],
-                "type": field_meta["original_schema_type"],
+                "type": original_type,
+                "html_type": get_html_type(original_type, field_schema),
                 "value": response_value
             }]
         
@@ -397,6 +430,7 @@ class PCCAssessmentSchema:
                 results.append({
                     "key": base_key,
                     "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
                     "value": response_value,
                     "_original_field_key": base_key,
                     # Provide unique storage key so engine can store without collision
@@ -426,6 +460,7 @@ class PCCAssessmentSchema:
                 results.append({
                     "key": base_key,
                     "type": original_type,
+                    "html_type": get_html_type(f"{original_type}_entry", field_schema),
                     "value": entry_value,
                     "_original_field_key": base_key,
                     "_storage_key": f"a{idx}_{base_key}",
@@ -435,6 +470,7 @@ class PCCAssessmentSchema:
                 results.append({
                     "key": base_key,
                     "type": original_type,
+                    "html_type": get_html_type(f"{original_type}_description", field_schema),
                     "value": description_text,
                     "_original_field_key": base_key,
                     "_storage_key": f"b{idx}_{base_key}",
@@ -445,6 +481,9 @@ class PCCAssessmentSchema:
         
         def pcc_ui_checkbox_formatter(engine, field_meta, model_value, table_name):
             """Format checkbox - convert true/false to 1/null."""
+            original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            
             # Convert boolean to PCC format: true -> 1, false -> null
             if model_value is True:
                 value = 1
@@ -455,7 +494,8 @@ class PCCAssessmentSchema:
             
             return [{
                 "key": field_meta["key"],
-                "type": field_meta["original_schema_type"],
+                "type": original_type,
+                "html_type": get_html_type(original_type, field_schema),
                 "value": value
             }]
         
