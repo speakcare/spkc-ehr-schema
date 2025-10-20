@@ -398,7 +398,9 @@ class PCCAssessmentSchema:
             
             response_value = model_value
             for option in response_options:
-                if option.get("responseText") == model_value:
+                # Sanitize the responseText to match the sanitized model_value
+                sanitized_response_text = engine._sanitize_html(option.get("responseText", ""))
+                if sanitized_response_text == model_value:
                     response_value = option.get("responseValue")
                     break
             
@@ -423,7 +425,9 @@ class PCCAssessmentSchema:
             for i, selected_text in enumerate(model_value):
                 response_value = selected_text
                 for option in response_options:
-                    if option.get("responseText") == selected_text:
+                    # Sanitize the responseText to match the sanitized model_value
+                    sanitized_response_text = engine._sanitize_html(option.get("responseText", ""))
+                    if sanitized_response_text == selected_text:
                         response_value = option.get("responseValue")
                         break
                 
@@ -449,7 +453,8 @@ class PCCAssessmentSchema:
             base_key = field_meta["key"]
             original_type = field_meta["original_schema_type"]
             
-            text_to_value = {opt["responseText"]: opt["responseValue"] for opt in response_options}
+            # Create mapping using sanitized responseText
+            text_to_value = {engine._sanitize_html(opt["responseText"]): opt["responseValue"] for opt in response_options}
             
             results = []
             for idx, item in enumerate(model_value):

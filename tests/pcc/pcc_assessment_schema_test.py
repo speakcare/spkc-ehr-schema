@@ -2250,8 +2250,18 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             elif "enum" in question_def:
                 enum_values = [v for v in question_def["enum"] if v is not None]
                 if enum_values:
-                    # Use index to pick different enum values for array items
-                    return enum_values[index % len(enum_values)]
+                    # Filter out special response values for radio buttons (prefer valid digits/letters)
+                    # Avoid responseText values that start with "Not assessed" or "Blank"
+                    valid_values = [
+                        v for v in enum_values 
+                        if not (isinstance(v, str) and (v.startswith("Not assessed") or v.startswith("Blank") or v == "Unable to answer"))
+                    ]
+                    if valid_values:
+                        # Use index to pick different valid enum values for array items
+                        return valid_values[index % len(valid_values)]
+                    else:
+                        # Fallback to any enum value if no valid ones found
+                        return enum_values[index % len(enum_values)]
             # Check if it's a date field by looking at description
             elif "description" in question_def and "date" in question_def["description"].lower():
                 return "2024-12-15"
@@ -2259,10 +2269,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             return "Sample text"
             
         elif question_type == "boolean":
-            # Return True for some checkboxes to test both 1 and null conversion
-            # Use question name hash to alternate between True/False
+            # Prefer true over false in a 3:1 ratio for more realistic test data
+            # Use question name hash to ensure consistent results for same field
             if question_name:
-                return hash(question_name) % 2 == 0
+                hash_value = hash(question_name) % 4  # 0, 1, 2, 3
+                return hash_value < 3  # 3 out of 4 cases return True
             else:
                 return True  # Default to True if no name
             
@@ -2348,22 +2359,45 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             return 42
             
         elif target_type == "boolean" or original_type == "chk":
-            return True
+            # Prefer true over false in a 3:1 ratio for more realistic test data
+            # Use field key hash to ensure consistent results for same field
+            field_key = field_meta.get("key", "")
+            hash_value = hash(field_key) % 4  # 0, 1, 2, 3
+            return hash_value < 3  # 3 out of 4 cases return True
             
         elif target_type == "single_select" or original_type in ["rad", "radh", "cmb", "hck"]:
             response_options = field_meta.get("responseOptions", [])
             if response_options:
-                # Return the first responseText
-                return response_options[0]["responseText"]
+                # Filter out special response values (prefer valid digits/letters)
+                # Avoid responseText values that start with "Not assessed" or "Blank"
+                valid_options = [
+                    opt for opt in response_options 
+                    if not (opt.get("responseText", "").startswith("Not assessed") or 
+                           opt.get("responseText", "").startswith("Blank") or 
+                           opt.get("responseText") == "Unable to answer")
+                ]
+                if valid_options:
+                    return valid_options[0]["responseText"]
+                else:
+                    # Fallback to first option if no valid ones found
+                    return response_options[0]["responseText"]
             
             # If no responseOptions, try to get enum values from field schema
             field_schema = field_meta.get("field_schema", {})
             enum_values = field_schema.get("enum")
             if enum_values and len(enum_values) > 0:
-                # Filter out None values and return the first valid option
-                valid_options = [v for v in enum_values if v is not None]
+                # Filter out None values and special response values
+                valid_options = [
+                    v for v in enum_values 
+                    if v is not None and not (isinstance(v, str) and (v.startswith("Not assessed") or v.startswith("Blank") or v == "Unable to answer"))
+                ]
                 if valid_options:
                     return valid_options[0]
+                else:
+                    # Fallback to any non-None value if no valid ones found
+                    fallback_options = [v for v in enum_values if v is not None]
+                    if fallback_options:
+                        return fallback_options[0]
             
             # If no valid options found, return None (let validation handle it)
             return None
@@ -2515,6 +2549,91 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     self.assertIsInstance(field_value, dict, f"Table field {field_meta['key']} should be a dict")
                     self.assertGreater(len(field_value), 0, f"Table field {field_meta['key']} should have values")
 
+    def _validate_field_value_type(self, field_type, value, field_key):
+        """Validate that a field value conforms to its expected type."""
+        if field_type in ["txt", "diag"]:
+            # Text fields should have string values or None
+            self.assertTrue(
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
+            )
+        elif field_type in ["num", "numde"]:
+            # Numeric fields should have numeric values or None
+            self.assertTrue(
+                isinstance(value, (int, float)) or value is None,
+                f"Field {field_key} (type: {field_type}) should have numeric or None value, got {type(value).__name__}: {value}"
+            )
+        elif field_type == "chk":
+            # Checkbox fields should have 1, None, or boolean values
+            self.assertTrue(
+                value in [1, None, True, False],
+                f"Field {field_key} (type: {field_type}) should have 1, None, True, or False value, got {type(value).__name__}: {value}"
+            )
+        elif field_type in ["rad", "radh", "cmb", "hck"]:
+            # Single select fields should have responseValue codes (1-2 chars) or None
+            self.assertTrue(
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
+            )
+            if isinstance(value, str):
+                # ResponseValue codes should be 1-2 characters (letters or numbers)
+                self.assertLessEqual(
+                    len(value), 2,
+                    f"Field {field_key} (type: {field_type}) should have 1-2 character responseValue code, got: {value}"
+                )
+                # Should be alphanumeric only
+                self.assertRegex(
+                    value, r'^[a-zA-Z0-9]+$',
+                    f"Field {field_key} (type: {field_type}) should have alphanumeric responseValue code, got: {value}"
+                )
+        elif field_type in ["mcs", "mcsh"]:
+            # Multi-select fields should have responseValue codes (1-2 chars) or None
+            self.assertTrue(
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
+            )
+            if isinstance(value, str):
+                # ResponseValue codes should be 1-2 characters (letters or numbers)
+                self.assertLessEqual(
+                    len(value), 2,
+                    f"Field {field_key} (type: {field_type}) should have 1-2 character responseValue code, got: {value}"
+                )
+                # Should be alphanumeric only
+                self.assertRegex(
+                    value, r'^[a-zA-Z0-9]+$',
+                    f"Field {field_key} (type: {field_type}) should have alphanumeric responseValue code, got: {value}"
+                )
+        elif field_type in ["dte", "dttm"]:
+            # Date/datetime fields should have string values or None
+            self.assertTrue(
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
+            )
+            if isinstance(value, str) and value:
+                # Date strings should be in ISO format
+                if field_type == "dte":
+                    self.assertRegex(
+                        value, r'^\d{4}-\d{2}-\d{2}$',
+                        f"Field {field_key} (type: {field_type}) should have ISO date format (YYYY-MM-DD), got: {value}"
+                    )
+                elif field_type == "dttm":
+                    self.assertRegex(
+                        value, r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',
+                        f"Field {field_key} (type: {field_type}) should have ISO datetime format, got: {value}"
+                    )
+        elif field_type == "gbdy":
+            # Table fields should have string values or None
+            self.assertTrue(
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
+            )
+        else:
+            # Unknown field type - just check it's not an unexpected type
+            self.assertNotIsInstance(
+                value, (list, dict),
+                f"Field {field_key} (type: {field_type}) should not have complex types like list/dict, got {type(value).__name__}: {value}"
+            )
+
     def _save_complete_model_response(self, assessment_id, assessment_name, model_response):
         """Save complete model response to file for inspection."""
         import os
@@ -2574,14 +2693,17 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     self.assertIn("fields", section)
                     self.assertIsInstance(section["fields"], list)
                     
-                    # Check that fields have the expected structure
-                    for field in section["fields"]:
-                        self.assertIn("key", field)
-                        self.assertIn("type", field)
-                        self.assertIn("value", field)
-                        # Verify type is original schema type (not target type)
-                        self.assertIn(field["type"], ["txt", "num", "numde", "dte", "dttm", "chk", "diag", "hck", 
-                                                   "rad", "radh", "cmb", "mcs", "mcsh", "gbdy"])
+                # Check that fields have the expected structure
+                for field in section["fields"]:
+                    self.assertIn("key", field)
+                    self.assertIn("type", field)
+                    self.assertIn("value", field)
+                    # Verify type is original schema type (not target type)
+                    self.assertIn(field["type"], ["txt", "num", "numde", "dte", "dttm", "chk", "diag", "hck", 
+                                               "rad", "radh", "cmb", "mcs", "mcsh", "gbdy"])
+                    
+                    # Validate that values conform to field types
+                    self._validate_field_value_type(field["type"], field["value"], field["key"])
                 
                 # Save formatted output to file
                 filename = f"{assessment_id}_{assessment_name.replace(' ', '_')}_pcc_ui_formatted.json"
