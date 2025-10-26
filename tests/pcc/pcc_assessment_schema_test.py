@@ -2692,10 +2692,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
             )
         elif field_type in ["num", "numde"]:
-            # Numeric fields should have numeric values or None
+            # Numeric fields should have string values (for pcc-ui formatter) or None
             self.assertTrue(
-                isinstance(value, (int, float)) or value is None,
-                f"Field {field_key} (type: {field_type}) should have numeric or None value, got {type(value).__name__}: {value}"
+                isinstance(value, str) or value is None,
+                f"Field {field_key} (type: {field_type}) should have string or None value, got {type(value).__name__}: {value}"
             )
         elif field_type == "chk":
             # Checkbox fields should have "1", "null", 1, None, or boolean values

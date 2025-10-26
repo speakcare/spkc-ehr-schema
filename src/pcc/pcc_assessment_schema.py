@@ -361,7 +361,7 @@ class PCCAssessmentSchema:
                 case "dte" | "dttm":
                     return "text"
                 case "num" | "numde":
-                    return "number"
+                    return "textarea_singleline"
                 case "gbdy_entry":
                     return "combobox"
                 case "gbdy_description":
@@ -373,6 +373,22 @@ class PCCAssessmentSchema:
             """Format basic fields with original type."""
             original_type = field_meta["original_schema_type"]
             field_schema = field_meta.get("field_schema", {})
+            
+            return [{
+                "key": field_meta["key"],
+                "type": original_type,
+                "html_type": get_html_type(original_type, field_schema),
+                "value": model_value
+            }]
+        
+        def pcc_ui_number_formatter(engine, field_meta, model_value, table_name):
+            """Format number fields - convert to string for UI."""
+            original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            
+            # Convert numeric values to strings
+            if model_value is not None:
+                model_value = str(model_value)
             
             return [{
                 "key": field_meta["key"],
@@ -510,8 +526,8 @@ class PCCAssessmentSchema:
         
         # Register pcc-ui formatter set with specialized unpacking
         self.engine.register_reverse_formatter("pcc-ui", "txt", pcc_ui_basic_formatter)
-        self.engine.register_reverse_formatter("pcc-ui", "num", pcc_ui_basic_formatter)
-        self.engine.register_reverse_formatter("pcc-ui", "numde", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "num", pcc_ui_number_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "numde", pcc_ui_number_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "dte", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "dttm", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "chk", pcc_ui_checkbox_formatter)
