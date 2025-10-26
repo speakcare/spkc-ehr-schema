@@ -3090,11 +3090,11 @@ class TestSchemaEngine(unittest.TestCase):
         
         # Verify grouped structure
         self.assertIn("table_name", grouped_result)  # schema metadata
-        self.assertIn("data", grouped_result)
-        self.assertIsInstance(grouped_result["data"], list)
-        self.assertEqual(len(grouped_result["data"]), 1)  # One animals group
+        self.assertIn("animals", grouped_result)
+        self.assertIsInstance(grouped_result["animals"], list)
+        self.assertEqual(len(grouped_result["animals"]), 1)  # One animals group
         
-        animals_group = grouped_result["data"][0]
+        animals_group = grouped_result["animals"][0]
         self.assertIn("class_name", animals_group)
         self.assertIn("properties", animals_group)
         
