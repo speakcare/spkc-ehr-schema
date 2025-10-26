@@ -1143,16 +1143,16 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify grouped structure
         self.assertIn("assessmentDescription", result)  # schema metadata
         self.assertIn("templateId", result)  # schema metadata
-        self.assertIn("data", result)
-        self.assertIsInstance(result["data"], list)
-        self.assertEqual(len(result["data"]), 2)  # Two sections
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], list)
+        self.assertEqual(len(result["sections"]), 2)  # Two sections
         
         # Find section A
-        section_a = next(s for s in result["data"] if s.get("sectionCode") == "A")
+        section_a = next(s for s in result["sections"] if s.get("sectionCode") == "A")
         self.assertEqual(section_a["properties"]["A_1"], {"type": "text", "value": "John Doe"})
         
         # Find section B
-        section_b = next(s for s in result["data"] if s.get("sectionCode") == "B")
+        section_b = next(s for s in result["sections"] if s.get("sectionCode") == "B")
         self.assertEqual(section_b["properties"]["B_1"], {"type": "text", "value": "120/80"})
 
     def test_formatter_access_to_original_schema_type(self):
@@ -1755,12 +1755,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify structure
         self.assertIn("assessmentDescription", result)
         self.assertIn("templateId", result)
-        self.assertIn("data", result)
-        self.assertIsInstance(result["data"], list)
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], list)
         
         # Verify section structure
-        self.assertEqual(len(result["data"]), 1)
-        section = result["data"][0]
+        self.assertEqual(len(result["sections"]), 1)
+        section = result["sections"][0]
         self.assertIn("sectionCode", section)
         self.assertIn("fields", section)
         self.assertIsInstance(section["fields"], list)
@@ -1862,12 +1862,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify structure with new defaults
         self.assertIn("assessmentDescription", result)
         self.assertIn("templateId", result)
-        self.assertIn("data", result)
-        self.assertIsInstance(result["data"], list)
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], list)
         
         # Verify the data structure has the new defaults
-        if result["data"]:
-            first_section = result["data"][0]
+        if result["sections"]:
+            first_section = result["sections"][0]
             self.assertIn("sectionCode", first_section)
             self.assertIn("fields", first_section)  # properties_key = "fields"
             self.assertIsInstance(first_section["fields"], list)  # pack_properties_as = "array"
@@ -1890,8 +1890,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         )
         
         # Should have different structure
-        if result_explicit["data"]:
-            first_section = result_explicit["data"][0]
+        if result_explicit["sections"]:
+            first_section = result_explicit["sections"][0]
             self.assertIn("properties", first_section)  # properties_key = "properties"
             self.assertIsInstance(first_section["properties"], dict)  # pack_properties_as = "object"
 
@@ -1909,7 +1909,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result_default = pcc.reverse_map(21244831, model_response)
         self.assertIn("assessmentDescription", result_default)
         self.assertIn("templateId", result_default)
-        self.assertIn("data", result_default)
+        self.assertIn("sections", result_default)
         
         # Test with explicit pcc-ui formatter name (should be same as default)
         result_explicit = pcc.reverse_map(21244831, model_response, formatter_name="pcc-ui")
@@ -1919,7 +1919,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result_default_formatter = pcc.reverse_map(21244831, model_response, formatter_name="default")
         self.assertIn("assessmentDescription", result_default_formatter)
         self.assertIn("templateId", result_default_formatter)
-        self.assertIn("data", result_default_formatter)
+        self.assertIn("sections", result_default_formatter)
         
         # Test with custom parameters
         result_custom = pcc.reverse_map(
@@ -1932,11 +1932,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         )
         self.assertIn("assessmentDescription", result_custom)
         self.assertIn("templateId", result_custom)
-        self.assertIn("data", result_custom)
+        self.assertIn("sections", result_custom)
         
         # Verify the data structure has the custom properties_key
-        if result_custom["data"]:
-            first_section = result_custom["data"][0]
+        if result_custom["sections"]:
+            first_section = result_custom["sections"][0]
             self.assertIn("fields", first_section)
             self.assertIsInstance(first_section["fields"], list)
 
@@ -2120,9 +2120,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertTrue(os.path.exists(res["path"]))
         self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
         self.assertIn("templateId", res["grouped"])  # schema metadata
-        self.assertIn("data", res["grouped"])
-        self.assertIsInstance(res["grouped"]["data"], list)
-        self.assertGreater(len(res["grouped"]["data"]), 0)
+        self.assertIn("sections", res["grouped"])
+        self.assertIsInstance(res["grouped"]["sections"], list)
+        self.assertGreater(len(res["grouped"]["sections"]), 0)
 
     def test_generate_and_save_formatted_output_admission(self):
         pcc = PCCAssessmentSchema()
@@ -2131,9 +2131,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertTrue(os.path.exists(res["path"]))
         self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
         self.assertIn("templateId", res["grouped"])  # schema metadata
-        self.assertIn("data", res["grouped"])
-        self.assertIsInstance(res["grouped"]["data"], list)
-        self.assertGreater(len(res["grouped"]["data"]), 0)
+        self.assertIn("sections", res["grouped"])
+        self.assertIsInstance(res["grouped"]["sections"], list)
+        self.assertGreater(len(res["grouped"]["sections"]), 0)
 
     def test_generate_and_save_formatted_output_daily(self):
         pcc = PCCAssessmentSchema()
@@ -2142,9 +2142,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertTrue(os.path.exists(res["path"]))
         self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
         self.assertIn("templateId", res["grouped"])  # schema metadata
-        self.assertIn("data", res["grouped"])
-        self.assertIsInstance(res["grouped"]["data"], list)
-        self.assertGreater(len(res["grouped"]["data"]), 0)
+        self.assertIn("sections", res["grouped"])
+        self.assertIsInstance(res["grouped"]["sections"], list)
+        self.assertGreater(len(res["grouped"]["sections"]), 0)
 
     def test_generate_and_save_formatted_output_skin(self):
         pcc = PCCAssessmentSchema()
@@ -2153,9 +2153,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertTrue(os.path.exists(res["path"]))
         self.assertIn("assessmentDescription", res["grouped"])  # schema metadata
         self.assertIn("templateId", res["grouped"])  # schema metadata
-        self.assertIn("data", res["grouped"])
-        self.assertIsInstance(res["grouped"]["data"], list)
-        self.assertGreater(len(res["grouped"]["data"]), 0)
+        self.assertIn("sections", res["grouped"])
+        self.assertIsInstance(res["grouped"]["sections"], list)
+        self.assertGreater(len(res["grouped"]["sections"]), 0)
 
     def test_generate_complete_model_responses_all_assessments(self):
         """Generate complete model responses with valid values for all fields in all assessments."""
@@ -2186,9 +2186,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 reverse_result = pcc.engine.reverse_map(assessment_name, model_response, group_by_containers=["sections"])
                 self.assertIn("assessmentDescription", reverse_result)  # schema metadata
                 self.assertIn("templateId", reverse_result)  # schema metadata
-                self.assertIn("data", reverse_result)
-                self.assertIsInstance(reverse_result["data"], list)
-                self.assertGreater(len(reverse_result["data"]), 0)
+                self.assertIn("sections", reverse_result)
+                self.assertIsInstance(reverse_result["sections"], list)
+                self.assertGreater(len(reverse_result["sections"]), 0)
                 
                 # Save the complete model response for inspection
                 self._save_complete_model_response(assessment_id, assessment_name, model_response)
@@ -2683,12 +2683,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 # Verify output structure
                 self.assertIn("assessmentDescription", formatted_output)
                 self.assertIn("templateId", formatted_output)
-                self.assertIn("data", formatted_output)
-                self.assertIsInstance(formatted_output["data"], list)
-                self.assertGreater(len(formatted_output["data"]), 0)
+                self.assertIn("sections", formatted_output)
+                self.assertIsInstance(formatted_output["sections"], list)
+                self.assertGreater(len(formatted_output["sections"]), 0)
                 
                 # Verify pcc-ui formatter behavior (fields array format)
-                for section in formatted_output["data"]:
+                for section in formatted_output["sections"]:
                     self.assertIn("sectionCode", section)
                     self.assertIn("fields", section)
                     self.assertIsInstance(section["fields"], list)

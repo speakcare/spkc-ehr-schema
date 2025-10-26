@@ -1510,7 +1510,8 @@ class SchemaEngine:
             result[schema_id_field] = external_schema[schema_id_field]
         
         # Add the formatted data
-        result["data"] = grouped_data
+        data_name = group_by_containers[0] if group_by_containers  else "data"
+        result[data_name] = grouped_data
         
         return result
 
