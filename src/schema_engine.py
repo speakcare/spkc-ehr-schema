@@ -1391,7 +1391,9 @@ class SchemaEngine:
         formatter_name: str = "default",
         group_by_containers: Optional[List[str]] = None,
         properties_key: str = "properties",
-        pack_properties_as: str = "object"
+        pack_properties_as: str = "object",
+        pack_containers_as: str = "array",
+        metadata_field_overrides: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Map model response back to original external schema format using named formatter set.
@@ -1404,26 +1406,49 @@ class SchemaEngine:
                 (e.g., ["sections"] groups answers by section)
             properties_key: Name for the innermost container (default: "properties")
             pack_properties_as: Format for the innermost container - either "object" or "array" (default: "object")
+            pack_containers_as: Format for container nesting layers - either "array" or "object" (default: "array")
+            metadata_field_overrides: Optional dict to customize metadata field names and values.
+                Supports keys: "schema_name", "schema_id", "schema_type".
+                Values can be strings (field names) or dicts with "name" and "value" keys.
+                Example: {
+                    "schema_name": "assessment_title",
+                    "schema_id": "assessment_std_id",
+                    "schema_type": {"name": "doc_type", "value": "pcc_assessment"}
+                }
+                Default: None (uses original meta-schema field names)
         
         Returns:
             Dictionary with schema metadata and formatted data:
             {
+                <schema_type_field>: <schema_type_value>,  # if schema_type_value is not empty
                 <schema_name_field>: <schema_name_value>,
                 <schema_id_field>: <schema_id_value>,  # if defined in meta-schema
                 "data": [
                     {
                         "properties": {...}  # for flat
                     }
-                    # OR for grouped:
+                    # OR for grouped (pack_containers_as="array"):
                     {
                         <container_key>: <container_value>,
                         "properties": {...}
                     }
+                    # OR for grouped (pack_containers_as="object"):
+                    {
+                        <container_key>: {
+                            "properties": {...}
+                        }
+                    }
                 ]
+                # OR when pack_containers_as="object":
+                "data": {
+                    <container_key>: {
+                        "properties": {...}
+                    }
+                }
             }
         
         Raises:
-            ValueError: If table_name not registered, formatter_name not registered, or pack_properties_as is invalid
+            ValueError: If table_name not registered, formatter_name not registered, pack_properties_as is invalid, or pack_containers_as is invalid
         """
         if table_name not in self.__table_names:
             raise ValueError(f"Table '{table_name}' not registered")
@@ -1436,6 +1461,10 @@ class SchemaEngine:
         # Validate pack_properties_as parameter
         if pack_properties_as not in ["object", "array"]:
             raise ValueError(f"pack_properties_as must be 'object' or 'array', got '{pack_properties_as}'")
+        
+        # Validate pack_containers_as parameter
+        if pack_containers_as not in ["object", "array"]:
+            raise ValueError(f"pack_containers_as must be 'object' or 'array', got '{pack_containers_as}'")
         
         table_id = self.__table_names[table_name]
         schema_data = self.__tables[table_id]
@@ -1474,7 +1503,7 @@ class SchemaEngine:
         # Step 2: Structure the data
         if group_by_containers:
             # Group by containers and rename "data" to properties_key
-            grouped_data = self._group_by_containers(formatted_results, field_index, group_by_containers, properties_key, pack_properties_as)
+            grouped_data = self._group_by_containers(formatted_results, field_index, group_by_containers, properties_key, pack_properties_as, pack_containers_as)
         else:
             # Flat output: wrap in array with properties_key
             if pack_properties_as == "object":
@@ -1496,18 +1525,46 @@ class SchemaEngine:
                     array_properties.append(array_item)
                 grouped_data = [{properties_key: array_properties}]
         
-        # Step 3: Extract schema metadata
+        # Step 3: Extract schema metadata with overrides
         result = {}
+        
+        # Apply field name overrides (default to original meta-schema names)
+        if metadata_field_overrides is None:
+            metadata_field_overrides = {}
+        
+        # Handle schema_type (can be string with name or dict with name and value)
+        schema_type_config = metadata_field_overrides.get("schema_type")
+        if schema_type_config:
+            if isinstance(schema_type_config, dict):
+                schema_type_field = schema_type_config.get("name", "")
+                schema_type_value = schema_type_config.get("value", "")
+                if schema_type_field and schema_type_value:
+                    result[schema_type_field] = schema_type_value
+            elif isinstance(schema_type_config, str):
+                # Just field name, no value - don't add
+                pass
         
         # Add schema_name if defined
         schema_name_field = self.__meta_schema.get("schema_name")
         if schema_name_field and schema_name_field in external_schema:
-            result[schema_name_field] = external_schema[schema_name_field]
+            output_field_name = metadata_field_overrides.get("schema_name", schema_name_field)
+            # Use override only if it's a non-empty string, otherwise use original
+            if isinstance(output_field_name, str) and output_field_name:
+                result[output_field_name] = external_schema[schema_name_field]
+            elif output_field_name == schema_name_field or not output_field_name:
+                # Fall back to original field name if override is empty or not provided
+                result[schema_name_field] = external_schema[schema_name_field]
         
         # Add schema_id if defined
         schema_id_field = self.__meta_schema.get("schema_id")
         if schema_id_field and schema_id_field in external_schema:
-            result[schema_id_field] = external_schema[schema_id_field]
+            output_field_name = metadata_field_overrides.get("schema_id", schema_id_field)
+            # Use override only if it's a non-empty string, otherwise use original
+            if isinstance(output_field_name, str) and output_field_name:
+                result[output_field_name] = external_schema[schema_id_field]
+            elif output_field_name == schema_id_field or not output_field_name:
+                # Fall back to original field name if override is empty or not provided
+                result[schema_id_field] = external_schema[schema_id_field]
         
         # Add the formatted data
         data_name = group_by_containers[0] if group_by_containers  else "data"
@@ -1603,8 +1660,9 @@ class SchemaEngine:
         field_index: List[Dict[str, Any]],
         container_names: List[str],
         properties_key: str = "properties",
-        pack_properties_as: str = "object"
-    ) -> List[Dict[str, Any]]:
+        pack_properties_as: str = "object",
+        pack_containers_as: str = "array"
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Group formatted results by container hierarchy.
         
@@ -1614,9 +1672,10 @@ class SchemaEngine:
             container_names: List of container names to group by (e.g., ["sections"])
             properties_key: Name for the innermost container (default: "properties")
             pack_properties_as: Format for the innermost container - either "object" or "array" (default: "object")
+            pack_containers_as: Format for container layers - either "array" or "object" (default: "array")
         
         Returns:
-            List of dicts, each representing a container group
+            List of dicts when pack_containers_as="array", or Dict when pack_containers_as="object"
         """
         # Build mapping of field keys to their container paths
         key_to_container = {}
@@ -1672,42 +1731,72 @@ class SchemaEngine:
             # Store full field_result; we'll strip internal metadata at output assembly time
             groups[container_key]["properties"][field_key] = field_result
         
-        # Convert to list and add container key fields
-        result = []
-        for container_key, group_data in groups.items():
-            container_meta = group_data["_container_meta"]
+        # Convert to list/dict and add container key fields
+        if pack_containers_as == "array":
+            # Existing array logic
+            result = []
+            for container_key, group_data in groups.items():
+                container_meta = group_data["_container_meta"]
+                
+                # Get container key field name from meta-schema
+                # The container's "key" field tells us which property holds the container identifier
+                container_key_field = container_meta.get("key_field")  # e.g., "sectionCode"
+                
+                group = {}
+                if container_key_field:
+                    group[container_key_field] = container_key
+                
+                # Format properties based on pack_properties_as
+                if pack_properties_as == "object":
+                    group[properties_key] = group_data["properties"]
+                else:  # array
+                    array_properties = []
+                    for key, value in group_data["properties"].items():
+                        display_key = (
+                            value.get("_display_key")
+                            if isinstance(value, dict) and value.get("_display_key") is not None
+                            else (value.get("_original_field_key", key) if isinstance(value, dict) else key)
+                        )
+                        array_item = {"key": display_key}
+                        if isinstance(value, dict):
+                            for k, v in value.items():
+                                if k == "key" or (isinstance(k, str) and k.startswith("_")):
+                                    continue
+                                array_item[k] = v
+                        array_properties.append(array_item)
+                    group[properties_key] = array_properties
+                
+                result.append(group)
             
-            # Get container key field name from meta-schema
-            # The container's "key" field tells us which property holds the container identifier
-            container_key_field = container_meta.get("key_field")  # e.g., "sectionCode"
+            return result
+        else:  # pack_containers_as == "object"
+            # New object packing logic
+            result = {}
+            for container_key, group_data in groups.items():
+                # Format properties based on pack_properties_as (same as array case)
+                if pack_properties_as == "object":
+                    properties_data = group_data["properties"]
+                else:  # array
+                    array_properties = []
+                    for key, value in group_data["properties"].items():
+                        display_key = (
+                            value.get("_display_key")
+                            if isinstance(value, dict) and value.get("_display_key") is not None
+                            else (value.get("_original_field_key", key) if isinstance(value, dict) else key)
+                        )
+                        array_item = {"key": display_key}
+                        if isinstance(value, dict):
+                            for k, v in value.items():
+                                if k == "key" or (isinstance(k, str) and k.startswith("_")):
+                                    continue
+                                array_item[k] = v
+                        array_properties.append(array_item)
+                    properties_data = array_properties
+                
+                # Use container_key as the object key
+                result[container_key] = {properties_key: properties_data}
             
-            group = {}
-            if container_key_field:
-                group[container_key_field] = container_key
-            
-            # Format properties based on pack_properties_as
-            if pack_properties_as == "object":
-                group[properties_key] = group_data["properties"]
-            else:  # array
-                array_properties = []
-                for key, value in group_data["properties"].items():
-                    display_key = (
-                        value.get("_display_key")
-                        if isinstance(value, dict) and value.get("_display_key") is not None
-                        else (value.get("_original_field_key", key) if isinstance(value, dict) else key)
-                    )
-                    array_item = {"key": display_key}
-                    if isinstance(value, dict):
-                        for k, v in value.items():
-                            if k == "key" or (isinstance(k, str) and k.startswith("_")):
-                                continue
-                            array_item[k] = v
-                    array_properties.append(array_item)
-                group[properties_key] = array_properties
-            
-            result.append(group)
-        
-        return result
+            return result
 
 
 # ----------------------------- Default Schema Builders -----------------------------

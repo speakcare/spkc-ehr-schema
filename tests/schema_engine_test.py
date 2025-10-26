@@ -35,6 +35,7 @@ class TestSchemaEngine(unittest.TestCase):
         # Meta-schema language definition for flat tables
         self.flat_meta_schema = {
             "schema_name": "table_name",
+            "schema_id": "table_id",
             "properties": {
                 "properties_name": "fields",
                 "property": {
@@ -2324,6 +2325,340 @@ class TestSchemaEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.reverse_map("nonexistent_table", model_response)
 
+    def test_reverse_map_with_metadata_overrides(self):
+        """Test reverse mapping with custom metadata field names."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "table_id": 123,
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe"
+            }
+        }
+        
+        # Test with metadata overrides and schema_type
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_name": "custom_name",
+                "schema_id": "custom_id",
+                "schema_type": {"name": "doc_type", "value": "test_document"}
+            }
+        )
+        
+        # Verify custom field names
+        self.assertIn("doc_type", result)
+        self.assertEqual(result["doc_type"], "test_document")
+        self.assertIn("custom_name", result)
+        self.assertEqual(result["custom_name"], "Test Table")
+        self.assertIn("custom_id", result)
+        self.assertEqual(result["custom_id"], 123)
+        self.assertNotIn("table_name", result)
+        self.assertNotIn("table_id", result)
+        
+        # Test with empty schema_type value (field should be omitted)
+        result2 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"name": "doc_type", "value": ""}
+            }
+        )
+        self.assertNotIn("doc_type", result2)
+        
+        # Test with empty schema_type field name (field should be omitted)
+        result3 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"name": "", "value": "test_value"}
+            }
+        )
+        self.assertNotIn("doc_type", result3)
+        self.assertNotIn("", result3)
+
+    def test_metadata_overrides_partial(self):
+        """Test metadata overrides with only some fields customized."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "table_id": 456,
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(2, table_schema)
+        
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe"
+            }
+        }
+        
+        # Test: Only schema_name override
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_name": "custom_name"
+            }
+        )
+        self.assertIn("custom_name", result)
+        self.assertEqual(result["custom_name"], "Test Table")
+        self.assertIn("table_id", result)  # Original name preserved
+        self.assertEqual(result["table_id"], 456)
+        
+        # Test: Only schema_id override
+        result2 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_id": "custom_id"
+            }
+        )
+        self.assertIn("custom_id", result2)
+        self.assertEqual(result2["custom_id"], 456)
+        self.assertIn("table_name", result2)  # Original name preserved
+        self.assertEqual(result2["table_name"], "Test Table")
+        
+        # Test: Only schema_type (with value)
+        result3 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"name": "doc_type", "value": "test_value"}
+            }
+        )
+        self.assertIn("doc_type", result3)
+        self.assertEqual(result3["doc_type"], "test_value")
+        self.assertIn("table_name", result3)  # Original names preserved
+        self.assertIn("table_id", result3)
+
+    def test_metadata_overrides_schema_type_invalid_structure(self):
+        """Test handling of invalid schema_type structures."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "table_id": 789,
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(3, table_schema)
+        
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe"
+            }
+        }
+        
+        # Test: schema_type as string (not dict) - should be ignored
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": "just_a_string"  # Invalid structure
+            }
+        )
+        # Should not add schema_type field
+        self.assertNotIn("doc_type", result)
+        self.assertNotIn("just_a_string", result)
+        self.assertIn("table_name", result)
+        
+        # Test: schema_type dict missing "name" key
+        result2 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"value": "test_value"}  # Missing "name"
+            }
+        )
+        self.assertNotIn("doc_type", result2)
+        
+        # Test: schema_type dict missing "value" key
+        result3 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"name": "doc_type"}  # Missing "value"
+            }
+        )
+        self.assertNotIn("doc_type", result3)
+
+    def test_metadata_overrides_empty_and_none_values(self):
+        """Test handling of empty and None values in overrides."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "table_id": 999,
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(4, table_schema)
+        
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
+        model_response = {
+            "fields": {
+                "Patient Name": "John Doe"
+            }
+        }
+        
+        # Test: Empty string for schema_name - should use original
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_name": "",  # Empty string - should fall back to original
+                "schema_type": {"name": "doc_type", "value": "test"}
+            }
+        )
+        self.assertIn("table_name", result)  # Original name preserved
+        self.assertNotIn("", result)  # Empty string should not be used as field name
+        self.assertIn("doc_type", result)
+        
+        # Test: None value for schema_type
+        result2 = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_type": {"name": "doc_type", "value": None}  # None value
+            }
+        )
+        # Should treat None as empty and omit field
+        self.assertNotIn("doc_type", result2)
+
+    def test_metadata_overrides_without_meta_schema_fields(self):
+        """Test behavior when meta-schema doesn't have schema_name or schema_id."""
+        # Create a minimal meta-schema without schema_id
+        minimal_meta_schema = {
+            "schema_name": "name",
+            "properties": {
+                "properties_name": "items",
+                "property": {
+                    "key": "id",
+                    "name": "name",
+                    "type": "type",
+                    "validation": {
+                        "allowed_types": ["text"],
+                        "type_constraints": {
+                            "text": {
+                                "target_type": "string",
+                                "requires_options": False
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        engine = SchemaEngine(minimal_meta_schema)
+        
+        table_schema = {
+            "name": "Test",
+            "items": [
+                {
+                    "id": "item1",
+                    "name": "Item 1",
+                    "type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(5, table_schema)
+        
+        def test_text_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_text_formatter)
+        
+        model_response = {
+            "items": {
+                "Item 1": "Test Value"
+            }
+        }
+        
+        # Test: schema_id not in meta-schema - should be ignored
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            metadata_field_overrides={
+                "schema_name": "custom_name",
+                "schema_id": "custom_id",  # Not in meta-schema
+                "schema_type": {"name": "doc_type", "value": "test"}
+            }
+        )
+        self.assertIn("custom_name", result)
+        self.assertNotIn("custom_id", result)  # No schema_id in meta-schema
+        self.assertIn("doc_type", result)
+
     def test_reverse_map_with_nulls(self):
         """Test reverse mapping includes null values."""
         engine = SchemaEngine(self.flat_meta_schema)
@@ -3121,6 +3456,212 @@ class TestSchemaEngine(unittest.TestCase):
         
         print(f"\n5. Total fields processed: {len(field_metadata)}")
         print(f"6. Max nesting level used: {max(len(f.get('level_keys', [])) for f in field_metadata)}")
+
+    def test_reverse_map_pack_containers_as_object(self):
+        """Test reverse_map with containers packed as object."""
+        # Setup: Create simple nested meta-schema
+        meta_schema = {
+            "schema_name": "tableName",
+            "container": {
+                "container_name": "sections",
+                "container_type": "array",
+                "object": {
+                    "key": "sectionCode",
+                    "name": "sectionName",
+                    "properties": {
+                        "properties_name": "fields",
+                        "property": {
+                            "key": "fieldKey",
+                            "name": "fieldName",
+                            "type": "fieldType",
+                            "validation": {
+                                "allowed_types": ["text"],
+                                "type_constraints": {
+                                    "text": {
+                                        "target_type": "string",
+                                        "requires_options": False
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        engine = SchemaEngine(meta_schema)
+        
+        # Register formatter
+        def test_formatter(engine_instance, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_formatter)
+        
+        # Register table
+        external_schema = {
+            "tableName": "Test Table",
+            "sections": [
+                {
+                    "sectionCode": "section1",
+                    "sectionName": "Section One",
+                    "fields": [
+                        {"fieldKey": "field1", "fieldName": "Field 1", "fieldType": "text"}
+                    ]
+                },
+                {
+                    "sectionCode": "section2",
+                    "sectionName": "Section Two",
+                    "fields": [
+                        {"fieldKey": "field2", "fieldName": "Field 2", "fieldType": "text"}
+                    ]
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, external_schema)
+        
+        # Create model response
+        model_response = {
+            "table_name": "Test Table",
+            "sections": {
+                "section1.Section One": {
+                    "fields": {
+                        "Field 1": "value1"
+                    }
+                },
+                "section2.Section Two": {
+                    "fields": {
+                        "Field 2": "value2"
+                    }
+                }
+            }
+        }
+        
+        # Test with pack_containers_as="object"
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            group_by_containers=["sections"],
+            pack_containers_as="object"
+        )
+        
+        # Verify sections is an object (not array)
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], dict)
+        
+        # Verify sections are keyed by section code
+        self.assertIn("section1", result["sections"])
+        self.assertIn("section2", result["sections"])
+        
+        # Verify each section has properties
+        section1 = result["sections"]["section1"]
+        self.assertIn("properties", section1)
+        self.assertIsInstance(section1["properties"], dict)
+        
+        section2 = result["sections"]["section2"]
+        self.assertIn("properties", section2)
+        self.assertIsInstance(section2["properties"], dict)
+        
+        # Verify field data
+        self.assertIn("field1", section1["properties"])
+        self.assertEqual(section1["properties"]["field1"]["value"], "value1")
+        self.assertIn("field2", section2["properties"])
+        self.assertEqual(section2["properties"]["field2"]["value"], "value2")
+
+    def test_reverse_map_pack_containers_object_properties_array(self):
+        """Test pack_containers_as='object' with pack_properties_as='array'."""
+        # Setup: Create simple nested meta-schema (same as above)
+        meta_schema = {
+            "schema_name": "tableName",
+            "container": {
+                "container_name": "sections",
+                "container_type": "array",
+                "object": {
+                    "key": "sectionCode",
+                    "name": "sectionName",
+                    "properties": {
+                        "properties_name": "fields",
+                        "property": {
+                            "key": "fieldKey",
+                            "name": "fieldName",
+                            "type": "fieldType",
+                            "validation": {
+                                "allowed_types": ["text"],
+                                "type_constraints": {
+                                    "text": {
+                                        "target_type": "string",
+                                        "requires_options": False
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        engine = SchemaEngine(meta_schema)
+        
+        # Register formatter
+        def test_formatter(engine_instance, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_formatter)
+        
+        # Register table
+        external_schema = {
+            "tableName": "Test Table",
+            "sections": [
+                {
+                    "sectionCode": "section1",
+                    "sectionName": "Section One",
+                    "fields": [
+                        {"fieldKey": "field1", "fieldName": "Field 1", "fieldType": "text"}
+                    ]
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, external_schema)
+        
+        # Create model response
+        model_response = {
+            "table_name": "Test Table",
+            "sections": {
+                "section1.Section One": {
+                    "fields": {
+                        "Field 1": "value1"
+                    }
+                }
+            }
+        }
+        
+        # Test with pack_containers_as="object" and pack_properties_as="array"
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            group_by_containers=["sections"],
+            pack_containers_as="object",
+            pack_properties_as="array"
+        )
+        
+        # Verify sections is an object
+        self.assertIsInstance(result["sections"], dict)
+        
+        # Verify properties within the section is an array
+        section1 = result["sections"]["section1"]
+        self.assertIn("properties", section1)
+        self.assertIsInstance(section1["properties"], list)
+        
+        # Verify array items have correct structure
+        self.assertGreater(len(section1["properties"]), 0)
+        field = section1["properties"][0]
+        self.assertIn("key", field)
+        self.assertIn("type", field)
+        self.assertIn("value", field)
+        self.assertEqual(field["value"], "value1")
 
 
 if __name__ == "__main__":
