@@ -1749,8 +1749,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             }
         }
         
-        # Test with pcc-ui formatter
-        result = pcc.reverse_map(99999, model_response, formatter_name="pcc-ui")
+        # Test with pcc-ui formatter - use array for backward compatibility
+        result = pcc.reverse_map(99999, model_response, formatter_name="pcc-ui", pack_containers_as="array")
         
         # Verify structure
         self.assertIn("assessmentDescription", result)
@@ -1857,7 +1857,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         
         # Test with default PCC-UI parameters
-        result = pcc.reverse_map(21244831, model_response)
+        result = pcc.reverse_map(21244831, model_response, pack_containers_as="array")
         
         # Verify structure with new defaults
         self.assertIn("assessmentDescription", result)
@@ -1886,7 +1886,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             formatter_name="default",
             group_by_containers=["sections"],
             properties_key="properties",
-            pack_properties_as="object"
+            pack_properties_as="object",
+            pack_containers_as="array"
         )
         
         # Should have different structure
@@ -1905,18 +1906,18 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             "sections": {}
         }
         
-        # Test with default formatter (pcc-ui)
-        result_default = pcc.reverse_map(21244831, model_response)
+        # Test with default formatter (pcc-ui) - use array for backward compatibility
+        result_default = pcc.reverse_map(21244831, model_response, pack_containers_as="array")
         self.assertIn("assessmentDescription", result_default)
         self.assertIn("templateId", result_default)
         self.assertIn("sections", result_default)
         
         # Test with explicit pcc-ui formatter name (should be same as default)
-        result_explicit = pcc.reverse_map(21244831, model_response, formatter_name="pcc-ui")
+        result_explicit = pcc.reverse_map(21244831, model_response, formatter_name="pcc-ui", pack_containers_as="array")
         self.assertEqual(result_default, result_explicit)
         
         # Test with default formatter (different output format)
-        result_default_formatter = pcc.reverse_map(21244831, model_response, formatter_name="default")
+        result_default_formatter = pcc.reverse_map(21244831, model_response, formatter_name="default", pack_containers_as="array")
         self.assertIn("assessmentDescription", result_default_formatter)
         self.assertIn("templateId", result_default_formatter)
         self.assertIn("sections", result_default_formatter)
@@ -1928,7 +1929,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             formatter_name="default",
             group_by_containers=["sections"],
             properties_key="fields",
-            pack_properties_as="array"
+            pack_properties_as="array",
+            pack_containers_as="array"
         )
         self.assertIn("assessmentDescription", result_custom)
         self.assertIn("templateId", result_custom)
