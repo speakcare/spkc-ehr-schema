@@ -636,7 +636,8 @@ class PCCAssessmentSchema:
     
     def reverse_map(self, assessment_identifier: Union[int, str], model_response: Dict[str, Any], 
                    formatter_name: str = "pcc-ui", group_by_containers: Optional[List[str]] = None,
-                   properties_key: str = "fields", pack_properties_as: str = "array") -> Dict[str, Any]:
+                   properties_key: str = "fields", pack_properties_as: str = "array",
+                   pack_containers_as: str = "array") -> Dict[str, Any]:
         """
         Reverse map a model response back to the original external schema format.
         
@@ -647,6 +648,7 @@ class PCCAssessmentSchema:
             group_by_containers: List of container names to group by (default: ["sections"])
             properties_key: Name for the innermost properties container (default: "fields")
             pack_properties_as: Format for properties - "object" or "array" (default: "array")
+            pack_containers_as: Format for container layers - "array" or "object" (default: "array")
             
         Returns:
             Dictionary with reverse mapped data in the specified format
@@ -666,7 +668,8 @@ class PCCAssessmentSchema:
             formatter_name=formatter_name,
             group_by_containers=group_by_containers,
             properties_key=properties_key,
-            pack_properties_as=pack_properties_as
+            pack_properties_as=pack_properties_as,
+            pack_containers_as=pack_containers_as
         )
 
     def list_assessments_info(self) -> List[Dict[str, Any]]:

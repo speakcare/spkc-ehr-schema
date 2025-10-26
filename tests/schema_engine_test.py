@@ -3122,6 +3122,212 @@ class TestSchemaEngine(unittest.TestCase):
         print(f"\n5. Total fields processed: {len(field_metadata)}")
         print(f"6. Max nesting level used: {max(len(f.get('level_keys', [])) for f in field_metadata)}")
 
+    def test_reverse_map_pack_containers_as_object(self):
+        """Test reverse_map with containers packed as object."""
+        # Setup: Create simple nested meta-schema
+        meta_schema = {
+            "schema_name": "tableName",
+            "container": {
+                "container_name": "sections",
+                "container_type": "array",
+                "object": {
+                    "key": "sectionCode",
+                    "name": "sectionName",
+                    "properties": {
+                        "properties_name": "fields",
+                        "property": {
+                            "key": "fieldKey",
+                            "name": "fieldName",
+                            "type": "fieldType",
+                            "validation": {
+                                "allowed_types": ["text"],
+                                "type_constraints": {
+                                    "text": {
+                                        "target_type": "string",
+                                        "requires_options": False
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        engine = SchemaEngine(meta_schema)
+        
+        # Register formatter
+        def test_formatter(engine_instance, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_formatter)
+        
+        # Register table
+        external_schema = {
+            "tableName": "Test Table",
+            "sections": [
+                {
+                    "sectionCode": "section1",
+                    "sectionName": "Section One",
+                    "fields": [
+                        {"fieldKey": "field1", "fieldName": "Field 1", "fieldType": "text"}
+                    ]
+                },
+                {
+                    "sectionCode": "section2",
+                    "sectionName": "Section Two",
+                    "fields": [
+                        {"fieldKey": "field2", "fieldName": "Field 2", "fieldType": "text"}
+                    ]
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, external_schema)
+        
+        # Create model response
+        model_response = {
+            "table_name": "Test Table",
+            "sections": {
+                "section1.Section One": {
+                    "fields": {
+                        "Field 1": "value1"
+                    }
+                },
+                "section2.Section Two": {
+                    "fields": {
+                        "Field 2": "value2"
+                    }
+                }
+            }
+        }
+        
+        # Test with pack_containers_as="object"
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            group_by_containers=["sections"],
+            pack_containers_as="object"
+        )
+        
+        # Verify sections is an object (not array)
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], dict)
+        
+        # Verify sections are keyed by section code
+        self.assertIn("section1", result["sections"])
+        self.assertIn("section2", result["sections"])
+        
+        # Verify each section has properties
+        section1 = result["sections"]["section1"]
+        self.assertIn("properties", section1)
+        self.assertIsInstance(section1["properties"], dict)
+        
+        section2 = result["sections"]["section2"]
+        self.assertIn("properties", section2)
+        self.assertIsInstance(section2["properties"], dict)
+        
+        # Verify field data
+        self.assertIn("field1", section1["properties"])
+        self.assertEqual(section1["properties"]["field1"]["value"], "value1")
+        self.assertIn("field2", section2["properties"])
+        self.assertEqual(section2["properties"]["field2"]["value"], "value2")
+
+    def test_reverse_map_pack_containers_object_properties_array(self):
+        """Test pack_containers_as='object' with pack_properties_as='array'."""
+        # Setup: Create simple nested meta-schema (same as above)
+        meta_schema = {
+            "schema_name": "tableName",
+            "container": {
+                "container_name": "sections",
+                "container_type": "array",
+                "object": {
+                    "key": "sectionCode",
+                    "name": "sectionName",
+                    "properties": {
+                        "properties_name": "fields",
+                        "property": {
+                            "key": "fieldKey",
+                            "name": "fieldName",
+                            "type": "fieldType",
+                            "validation": {
+                                "allowed_types": ["text"],
+                                "type_constraints": {
+                                    "text": {
+                                        "target_type": "string",
+                                        "requires_options": False
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        engine = SchemaEngine(meta_schema)
+        
+        # Register formatter
+        def test_formatter(engine_instance, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine.register_reverse_formatter("test", "text", test_formatter)
+        
+        # Register table
+        external_schema = {
+            "tableName": "Test Table",
+            "sections": [
+                {
+                    "sectionCode": "section1",
+                    "sectionName": "Section One",
+                    "fields": [
+                        {"fieldKey": "field1", "fieldName": "Field 1", "fieldType": "text"}
+                    ]
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, external_schema)
+        
+        # Create model response
+        model_response = {
+            "table_name": "Test Table",
+            "sections": {
+                "section1.Section One": {
+                    "fields": {
+                        "Field 1": "value1"
+                    }
+                }
+            }
+        }
+        
+        # Test with pack_containers_as="object" and pack_properties_as="array"
+        result = engine.reverse_map(
+            table_name,
+            model_response,
+            formatter_name="test",
+            group_by_containers=["sections"],
+            pack_containers_as="object",
+            pack_properties_as="array"
+        )
+        
+        # Verify sections is an object
+        self.assertIsInstance(result["sections"], dict)
+        
+        # Verify properties within the section is an array
+        section1 = result["sections"]["section1"]
+        self.assertIn("properties", section1)
+        self.assertIsInstance(section1["properties"], list)
+        
+        # Verify array items have correct structure
+        self.assertGreater(len(section1["properties"]), 0)
+        field = section1["properties"][0]
+        self.assertIn("key", field)
+        self.assertIn("type", field)
+        self.assertIn("value", field)
+        self.assertEqual(field["value"], "value1")
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages
