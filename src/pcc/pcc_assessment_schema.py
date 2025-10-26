@@ -203,7 +203,7 @@ class PCCAssessmentSchema:
         
         def pcc_chk_reverse_formatter(engine, field_meta, model_value, table_name):
             """Reverse formatter for PCC checkbox - converts boolean to 1/None."""
-            value = 1 if model_value else None
+            value = "1" if model_value else "null"
             return {field_meta["key"]: {"type": "checkbox", "value": value}}
         
         def pcc_radio_formatter(engine, field_meta, model_value, table_name):
@@ -485,15 +485,15 @@ class PCCAssessmentSchema:
             return results
         
         def pcc_ui_checkbox_formatter(engine, field_meta, model_value, table_name):
-            """Format checkbox - convert true/false to 1/null."""
+            """Format checkbox - convert true/false to "1"/"null"."""
             original_type = field_meta["original_schema_type"]
             field_schema = field_meta.get("field_schema", {})
             
-            # Convert boolean to PCC format: true -> 1, false -> null
+            # Convert boolean to PCC format: true -> "1", false -> "null"
             if model_value is True:
-                value = 1
+                value = "1"
             elif model_value is False:
-                value = None
+                value = "null"
             else:
                 value = model_value  # Keep as-is if not boolean
             
@@ -637,7 +637,8 @@ class PCCAssessmentSchema:
     def reverse_map(self, assessment_identifier: Union[int, str], model_response: Dict[str, Any], 
                    formatter_name: str = "pcc-ui", group_by_containers: Optional[List[str]] = None,
                    properties_key: str = "fields", pack_properties_as: str = "array",
-                   pack_containers_as: str = "object") -> Dict[str, Any]:
+                   pack_containers_as: str = "object",
+                   metadata_field_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Reverse map a model response back to the original external schema format.
         
@@ -649,6 +650,13 @@ class PCCAssessmentSchema:
             properties_key: Name for the innermost properties container (default: "fields")
             pack_properties_as: Format for properties - "object" or "array" (default: "array")
             pack_containers_as: Format for container layers - "array" or "object" (default: "object")
+            metadata_field_overrides: Optional dict to customize metadata field names.
+                Example: {
+                    "schema_name": "assessment_title",
+                    "schema_id": "assessment_std_id",
+                    "schema_type": {"name": "doc_type", "value": "pcc_assessment"}
+                }
+                Default: None (uses PCC defaults with doc_type=pcc_assessment)
             
         Returns:
             Dictionary with reverse mapped data in the specified format
@@ -656,6 +664,14 @@ class PCCAssessmentSchema:
         # Default to grouping by sections for PCC assessments
         if group_by_containers is None:
             group_by_containers = ["sections"]
+        
+        # Apply PCC-specific default field name overrides if not provided
+        if metadata_field_overrides is None:
+            metadata_field_overrides = {
+                "schema_name": "assessment_title",
+                "schema_id": "assessment_std_id",
+                "schema_type": {"name": "doc_type", "value": "pcc_assessment"}
+            }
         
         # Resolve assessment identifier to table name
         table_id = self.engine._resolve_table_id(assessment_identifier)
@@ -669,7 +685,8 @@ class PCCAssessmentSchema:
             group_by_containers=group_by_containers,
             properties_key=properties_key,
             pack_properties_as=pack_properties_as,
-            pack_containers_as=pack_containers_as
+            pack_containers_as=pack_containers_as,
+            metadata_field_overrides=metadata_field_overrides
         )
 
     def list_assessments_info(self) -> List[Dict[str, Any]]:

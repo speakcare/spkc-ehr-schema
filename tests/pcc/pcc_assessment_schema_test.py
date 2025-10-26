@@ -960,12 +960,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Reverse map
         result = pcc.engine.reverse_map(assessment_name, model_response)
         
-        # Verify boolean to 1/None conversion
+        # Verify boolean to "1"/"null" conversion
         self.assertIn("assessmentDescription", result)  # schema metadata
         self.assertIn("templateId", result)  # schema metadata
         self.assertIsInstance(result["data"], list)
         self.assertEqual(len(result["data"]), 1)
-        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": 1})  # True -> 1
+        self.assertEqual(result["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": "1"})  # True -> "1"
         
         # Test false case
         model_response_false = {
@@ -988,7 +988,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertIn("templateId", result_false)  # schema metadata
         self.assertIsInstance(result_false["data"], list)
         self.assertEqual(len(result_false["data"]), 1)
-        self.assertEqual(result_false["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": None})  # False -> None
+        self.assertEqual(result_false["data"][0]["properties"]["A_1"], {"type": "checkbox", "value": "null"})  # False -> "null"
 
     def test_pcc_object_array_reverse(self):
         """Test PCC object array reverse formatter."""
@@ -1753,8 +1753,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         result = pcc.reverse_map(99999, model_response, formatter_name="pcc-ui", pack_containers_as="array")
         
         # Verify structure
-        self.assertIn("assessmentDescription", result)
-        self.assertIn("templateId", result)
+        self.assertIn("doc_type", result)
+        self.assertEqual(result["doc_type"], "pcc_assessment")
+        self.assertIn("assessment_title", result)
+        self.assertIn("assessment_std_id", result)
         self.assertIn("sections", result)
         self.assertIsInstance(result["sections"], list)
         
@@ -1856,10 +1858,19 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             }
         }
         
-        # Test with default PCC-UI parameters
-        result = pcc.reverse_map(21244831, model_response, pack_containers_as="array")
+        # Test with default PCC-UI parameters (explicitly request old field names for backward compatibility)
+        result = pcc.reverse_map(
+            21244831, 
+            model_response, 
+            pack_containers_as="array",
+            metadata_field_overrides={
+                "schema_name": "assessmentDescription",  # Use old field name
+                "schema_id": "templateId",  # Use old field name
+                "schema_type": {"name": "", "value": ""}  # Don't add doc_type
+            }
+        )
         
-        # Verify structure with new defaults
+        # Verify structure (uses old field names as requested)
         self.assertIn("assessmentDescription", result)
         self.assertIn("templateId", result)
         self.assertIn("sections", result)
@@ -1908,8 +1919,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # Test with default formatter (pcc-ui) - use array for backward compatibility
         result_default = pcc.reverse_map(21244831, model_response, pack_containers_as="array")
-        self.assertIn("assessmentDescription", result_default)
-        self.assertIn("templateId", result_default)
+        self.assertIn("doc_type", result_default)
+        self.assertIn("assessment_title", result_default)
+        self.assertIn("assessment_std_id", result_default)
         self.assertIn("sections", result_default)
         
         # Test with explicit pcc-ui formatter name (should be same as default)
@@ -1918,8 +1930,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # Test with default formatter (different output format)
         result_default_formatter = pcc.reverse_map(21244831, model_response, formatter_name="default", pack_containers_as="array")
-        self.assertIn("assessmentDescription", result_default_formatter)
-        self.assertIn("templateId", result_default_formatter)
+        self.assertIn("doc_type", result_default_formatter)
+        self.assertIn("assessment_title", result_default_formatter)
+        self.assertIn("assessment_std_id", result_default_formatter)
         self.assertIn("sections", result_default_formatter)
         
         # Test with custom parameters
@@ -1932,8 +1945,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             pack_properties_as="array",
             pack_containers_as="array"
         )
-        self.assertIn("assessmentDescription", result_custom)
-        self.assertIn("templateId", result_custom)
+        self.assertIn("doc_type", result_custom)
+        self.assertIn("assessment_title", result_custom)
+        self.assertIn("assessment_std_id", result_custom)
         self.assertIn("sections", result_custom)
         
         # Verify the data structure has the custom properties_key
@@ -1981,8 +1995,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         )
         
         # Verify structure
-        self.assertIn("assessmentDescription", result)
-        self.assertIn("templateId", result)
+        self.assertIn("doc_type", result)
+        self.assertEqual(result["doc_type"], "pcc_assessment")
+        self.assertIn("assessment_title", result)
+        self.assertIn("assessment_std_id", result)
         self.assertIn("sections", result)
         
         # Verify sections is a dict (object), not a list (array)
@@ -2013,6 +2029,50 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("key", field)
             self.assertIn("type", field)
             self.assertIn("value", field)
+
+    def test_reverse_map_with_pcc_defaults(self):
+        """Test that PCC reverse_map applies default field name overrides."""
+        pcc = PCCAssessmentSchema()
+        
+        # Get a complete model response from test data
+        complete_model_path = os.path.join(
+            os.path.dirname(__file__),
+            "_complete_model_responses",
+            "21244981_MHCS_Nursing_Admission_Assessment_-_V_5_complete_model.json"
+        )
+        
+        with open(complete_model_path, 'r') as f:
+            model_response = json.load(f)
+        
+        result = pcc.reverse_map(21244981, model_response, formatter_name="pcc-ui")
+        
+        # Verify PCC default field names
+        self.assertIn("doc_type", result)
+        self.assertEqual(result["doc_type"], "pcc_assessment")
+        self.assertIn("assessment_title", result)
+        self.assertIn("assessment_std_id", result)
+        self.assertEqual(result["assessment_std_id"], 21244981)
+        
+        # Verify original field names are not present
+        self.assertNotIn("assessmentDescription", result)
+        self.assertNotIn("templateId", result)
+        
+        # Test with custom overrides
+        result2 = pcc.reverse_map(
+            21244981,
+            model_response,
+            formatter_name="pcc-ui",
+            metadata_field_overrides={
+                "schema_name": "form_name",
+                "schema_id": "form_id",
+                "schema_type": {"name": "type", "value": "custom_doc"}
+            }
+        )
+        
+        self.assertIn("type", result2)
+        self.assertEqual(result2["type"], "custom_doc")
+        self.assertIn("form_name", result2)
+        self.assertIn("form_id", result2)
 
     def test_object_array_validation_strict_schema(self):
         """Test that object_array (gbdy) fields enforce strict schema validation."""
@@ -2638,10 +2698,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 f"Field {field_key} (type: {field_type}) should have numeric or None value, got {type(value).__name__}: {value}"
             )
         elif field_type == "chk":
-            # Checkbox fields should have 1, None, or boolean values
+            # Checkbox fields should have "1", "null", 1, None, or boolean values
+            # (pcc-ui formatter returns 1/None, default returns "1"/"null")
             self.assertTrue(
-                value in [1, None, True, False],
-                f"Field {field_key} (type: {field_type}) should have 1, None, True, or False value, got {type(value).__name__}: {value}"
+                value in ["1", "null", 1, None, True, False],
+                f"Field {field_key} (type: {field_type}) should have \"1\", \"null\", 1, None, True, or False value, got {type(value).__name__}: {value}"
             )
         elif field_type in ["rad", "radh", "cmb", "hck"]:
             # Single select fields should have responseValue codes or None
@@ -2741,8 +2802,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 formatted_output = pcc.reverse_map(assessment_id, model_response, pack_containers_as="object")
                 
                 # Verify output structure
-                self.assertIn("assessmentDescription", formatted_output)
-                self.assertIn("templateId", formatted_output)
+                self.assertIn("doc_type", formatted_output)
+                self.assertEqual(formatted_output["doc_type"], "pcc_assessment")
+                self.assertIn("assessment_title", formatted_output)
+                self.assertIn("assessment_std_id", formatted_output)
                 self.assertIn("sections", formatted_output)
                 self.assertIsInstance(formatted_output["sections"], dict)  # Now an object, not a list
                 self.assertGreater(len(formatted_output["sections"]), 0)
