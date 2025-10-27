@@ -38,6 +38,14 @@ fields = pcc.get_field_metadata(21244981)
 # target_type, level_keys, property_key, field_schema
 ```
 
+## Container counts
+
+```python
+num_sections = pcc.get_num_sections(21244981)  # -> int, number of sections
+# Also works with string identifier:
+num_sections = pcc.get_num_sections("MHCS Nursing Admission Assessment - V 5")
+```
+
 ## Reverse mapping (named formatters)
 
 Reverse mapping converts a validated model response back to an application-specific format using named formatter sets.
