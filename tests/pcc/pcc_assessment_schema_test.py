@@ -2245,7 +2245,32 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         ids = {e["id"] for e in info}
         self.assertEqual(set(expected.keys()), ids)
         for e in info:
-            self.assertEqual(expected[e["id"]], e["name"]) 
+            self.assertEqual(expected[e["id"]], e["name"])
+    
+    def test_get_num_sections(self):
+        """Test get_num_sections method returns correct counts for assessments."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test with IDT GG (template 21242733)
+        num_sections = pcc.get_num_sections(21242733)
+        self.assertIsInstance(num_sections, int)
+        self.assertGreater(num_sections, 0)
+        
+        # Test with string identifier
+        num_sections_by_name = pcc.get_num_sections("MHCS IDT 5 Day Section GG")
+        self.assertEqual(num_sections, num_sections_by_name)
+        
+        # Test with other assessments
+        num_sections_admission = pcc.get_num_sections(21244981)
+        self.assertIsInstance(num_sections_admission, int)
+        self.assertGreater(num_sections_admission, 0)
+        
+        # Test error for unknown assessment
+        with self.assertRaises(ValueError):
+            pcc.get_num_sections("Unknown Assessment")
+        
+        with self.assertRaises(ValueError):
+            pcc.get_num_sections(99999)
 
     def test_generate_and_save_formatted_output_idt_gg(self):
         pcc = PCCAssessmentSchema()

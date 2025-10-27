@@ -521,13 +521,14 @@ class SchemaEngine:
         elif len(self.__tables) >= MAX_TABLES_PER_ENGINE:
             raise ValueError(f"Maximum number of tables reached: {MAX_TABLES_PER_ENGINE}")
 
-        json_schema, field_index = self._build_table_schema(external_schema, table_name)
+        json_schema, field_index, container_counts = self._build_table_schema(external_schema, table_name)
 
         self.__tables[table_id] = {
             "external_schema": external_schema,
             "json_schema": json_schema,
             "field_index": field_index,  # list of {key, id, level_keys}
             "table_name": table_name,
+            "container_counts": container_counts,  # dict mapping container_name -> count
         }
         
         # Update name-to-ID mapping
@@ -598,6 +599,27 @@ class SchemaEngine:
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
         return rec["field_index"]
+
+    def get_container_count(self, table_identifier: Union[int, str], container_name: str) -> int:
+        """Get the count of items in a top-level container for a registered table.
+        
+        Args:
+            table_identifier: Either an integer table ID or string table name
+            container_name: Name of the top-level container (e.g., "sections")
+            
+        Returns:
+            Count of items in the container, or 0 if container not found
+            
+        Raises:
+            KeyError: If table_identifier not found
+        """
+        table_id = self._resolve_table_id(table_identifier)
+        rec = self.__tables.get(table_id)
+        if not rec:
+            raise KeyError(f"Unknown table_id: {table_id}")
+        
+        container_counts = rec.get("container_counts", {})
+        return container_counts.get(container_name, 0)
 
     def clear(self) -> None:
         """Clear all registered tables and reset state."""
@@ -746,8 +768,13 @@ class SchemaEngine:
         """Set the required list on an object node."""
         node["required"] = required
 
-    def _build_table_schema(self, external_schema: Dict[str, Any], table_name: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """Build the table JSON schema and collect bottom-level field index."""
+    def _build_table_schema(self, external_schema: Dict[str, Any], table_name: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, int]]:
+        """Build the table JSON schema and collect bottom-level field index.
+        
+        Returns:
+            Tuple of (json_schema, field_index, container_counts)
+            container_counts: dict mapping container_name -> count for top-level containers
+        """
         if not isinstance(external_schema, dict):
             raise TypeError("external_schema must be a dict")
 
@@ -763,7 +790,7 @@ class SchemaEngine:
         else:
             raise ValueError("Meta-schema must contain either 'properties' or 'container'")
 
-    def _build_flat_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def _build_flat_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, int]]:
         """Build JSON schema for flat structure (no containers)."""
         properties_def = self.__meta_schema["properties"]
         properties_name = properties_def["properties_name"]
@@ -798,9 +825,9 @@ class SchemaEngine:
             "required": ["table_name", properties_name],
         }
 
-        return root, field_index
+        return root, field_index, {}
 
-    def _build_nested_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def _build_nested_schema(self, external_schema: Dict[str, Any], table_name: str, table_title: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, int]]:
         """Build JSON schema for nested structure (with containers) - object-based approach."""
         container_def = self.__meta_schema["container"]
         container_name = container_def["container_name"]
@@ -809,6 +836,9 @@ class SchemaEngine:
         container_array = external_schema.get(container_name, [])
         if not isinstance(container_array, list):
             raise ValueError(f"Expected array at '{container_name}', got {type(container_array)}")
+
+        # Calculate container count for top-level container
+        container_counts = {container_name: len(container_array)}
 
         # Build the root object schema with object-based container
         root_properties: Dict[str, Any] = {}
@@ -837,7 +867,7 @@ class SchemaEngine:
             "required": ["table_name"] + root_required,
         }
 
-        return root, field_index
+        return root, field_index, container_counts
 
     def _process_properties(self, properties_array: List[Dict[str, Any]], property_def: Dict[str, Any], level_keys: List[str]) -> Tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
         """Unified method to process properties array and build field schemas."""

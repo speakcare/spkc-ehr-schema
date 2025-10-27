@@ -1962,6 +1962,107 @@ class TestSchemaEngine(unittest.TestCase):
             self.flat_engine.get_field_metadata(999)
         self.assertIn("Unknown table_id: 999", str(cm.exception))
 
+    def test_get_container_count(self):
+        """Test get_container_count method for both flat and nested schemas."""
+        # Test with flat schema (no containers) - should return 0
+        flat_schema = {
+            "table_name": "Flat Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Field 1",
+                    "field_type": "text"
+                }
+            ]
+        }
+        table_id, _ = self.flat_engine.register_table(None, flat_schema)
+        
+        # Flat schema has no containers, so count should be 0
+        count = self.flat_engine.get_container_count(table_id, "any_container")
+        self.assertEqual(count, 0)
+        
+        # Test with nested schema (has containers) using correct field names
+        nested_schema = {
+            "assessmentDescription": "Nested Table",
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Section A",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Group 1",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Question A1",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sectionCode": "B", 
+                    "sectionDescription": "Section B",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Group 1",
+                            "questions": [
+                                {
+                                    "questionKey": "B_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Question B1",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sectionCode": "C",
+                    "sectionDescription": "Section C",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupTitle": "Group 1",
+                            "questions": [
+                                {
+                                    "questionKey": "C_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Question C1",
+                                    "questionType": "txt"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Register nested schema
+        nested_table_id, _ = self.nested_engine.register_table(None, nested_schema)
+        
+        # Get count for top-level container
+        count = self.nested_engine.get_container_count(nested_table_id, "sections")
+        self.assertEqual(count, 3)
+        
+        # Try to get count for non-existent container - should return 0
+        count = self.nested_engine.get_container_count(nested_table_id, "nonexistent")
+        self.assertEqual(count, 0)
+        
+        # Test lookup by name
+        count = self.nested_engine.get_container_count("Nested Table", "sections")
+        self.assertEqual(count, 3)
+        
+        # Test error for unknown table
+        with self.assertRaises(ValueError) as cm:
+            self.nested_engine.get_container_count("Unknown Table", "sections")
+        self.assertIn("Unknown table_name: Unknown Table", str(cm.exception))
+
     def test_instructions_type(self):
         """Test instructions field type with title.name const value."""
         # Create meta-schema with instructions type

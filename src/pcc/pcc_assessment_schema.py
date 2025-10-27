@@ -616,6 +616,21 @@ class PCCAssessmentSchema:
         """
         return self.engine.get_json_schema(assessment_identifier)
     
+    def get_num_sections(self, assessment_identifier: Union[int, str]) -> int:
+        """
+        Get the number of sections in a registered assessment.
+        
+        Args:
+            assessment_identifier: Either an integer assessment ID or string assessment name
+            
+        Returns:
+            Number of sections in the assessment
+            
+        Raises:
+            KeyError: If assessment_identifier not found
+        """
+        return self.engine.get_container_count(assessment_identifier, "sections")
+    
     def validate(self, assessment_identifier: Union[int, str], data: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """
         Validate data against a registered assessment schema.
