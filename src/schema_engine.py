@@ -407,11 +407,31 @@ class SchemaEngine:
     # ----------------------------- Public API ---------------------------------
 
     @staticmethod
-    def _sanitize_html(text: Any) -> Any:
-        """Remove all HTML tags from a string; pass through non-strings unchanged."""
+    def _sanitize_for_json(text: Any) -> Any:
+        """Remove HTML tags and JSON-breaking characters; pass through non-strings unchanged."""
         if not isinstance(text, str):
             return text
+        
+        # Step 1: Remove HTML tags
         clean_text = re.sub(r"<[^>]+>", "", text)
+        
+        # Step 2: Remove JSON-breaking characters
+        # Replace double quotes with empty string
+        clean_text = clean_text.replace('"', '')
+        
+        # Replace backslashes with space
+        clean_text = clean_text.replace('\\', ' ')
+        
+        # Remove control characters (newlines, tabs, carriage returns, etc.)
+        clean_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', clean_text)
+        
+        # Remove single quotes
+        clean_text = clean_text.replace("'", "")
+        
+        # Remove brackets and braces that can confuse parsers
+        clean_text = re.sub(r'[\[\]{}]', '', clean_text)
+        
+        # Step 3: Normalize whitespace
         return " ".join(clean_text.split())
 
     def register_options_extractor(self, extractor_name: str, extractor_func: Callable[[Any], List[str]]) -> None:
@@ -509,7 +529,7 @@ class SchemaEngine:
         
         # Extract table name from external schema using meta-schema
         schema_name_field = self.__meta_schema.get("schema_name")
-        table_name =  self._sanitize_html(external_schema.get(schema_name_field, "Unknown Table")) if schema_name_field else "Unknown Table"
+        table_name =  self._sanitize_for_json(external_schema.get(schema_name_field, "Unknown Table")) if schema_name_field else "Unknown Table"
         
         if table_id in self.__tables:
             # Remove old name mapping if it exists
@@ -884,8 +904,8 @@ class SchemaEngine:
             # Get field name/title and sanitize (use name if available, fallback to key)
             name_field_key = property_def.get("name", "")
             title_field_key = property_def.get("title", "")
-            field_name = self._sanitize_html(prop.get(name_field_key, field_key))
-            field_title_value = self._sanitize_html(prop.get(title_field_key, "") if title_field_key else "")
+            field_name = self._sanitize_for_json(prop.get(name_field_key, field_key))
+            field_title_value = self._sanitize_for_json(prop.get(title_field_key, "") if title_field_key else "")
             
             # Build field schema (returns tuple including optional virtual_children_metadata)
             property_key_override, json_schema, target_type, virtual_children_metadata = self._build_property_schema(prop, property_def)
@@ -943,7 +963,7 @@ class SchemaEngine:
                 parent_id_value = prop.get(property_def.get("id", ""), "") if "id" in property_def else ""
                 parent_title_value = prop.get(property_def.get("title", ""), "") if "title" in property_def else ""
                 # Sanitize parent title to ensure no HTML tags propagate to children metadata
-                parent_title_value = self._sanitize_html(parent_title_value)
+                parent_title_value = self._sanitize_for_json(parent_title_value)
                 
                 for child in virtual_children_metadata:
                     child_name = child.get("child_property_name")
@@ -997,7 +1017,7 @@ class SchemaEngine:
                 if "key" in object_def:
                     current_level_key = item.get(object_def["key"])
                 if "name" in object_def:
-                    current_level_name = self._sanitize_html(item.get(object_def["name"]))
+                    current_level_name = self._sanitize_for_json(item.get(object_def["name"]))
                 
                 # Early exit: Skip items without key
                 if not current_level_key:
@@ -1058,7 +1078,7 @@ class SchemaEngine:
                 if "key" in object_def:
                     current_level_key = item.get(object_def["key"])
                 if "name" in object_def:
-                    current_level_name = self._sanitize_html(item.get(object_def["name"]))
+                    current_level_name = self._sanitize_for_json(item.get(object_def["name"]))
                 
                 # Create property name using key.name format
                 if current_level_key and current_level_name:
@@ -1155,7 +1175,7 @@ class SchemaEngine:
             
             # Handle simple list[str] options directly
             if isinstance(options, list) and all(isinstance(item, str) for item in options):
-                enum_values = [self._sanitize_html(v) for v in options]
+                enum_values = [self._sanitize_for_json(v) for v in options]
             elif options_extractor_name:
                 # Use extractor function
                 extractor_func = self.__options_extractor_registry.get(options_extractor_name)
@@ -1165,7 +1185,7 @@ class SchemaEngine:
                 if not isinstance(enum_values, list) or not all(isinstance(v, str) for v in enum_values):
                     raise ValueError("Extractor function must return List[str]")
                 # Sanitize returned enum strings
-                enum_values = [self._sanitize_html(v) for v in enum_values]
+                enum_values = [self._sanitize_for_json(v) for v in enum_values]
             else:
                 raise ValueError(f"Field type '{field_type}' requires options but no extractor provided")
 
@@ -1940,8 +1960,8 @@ def _instructions_schema_builder(engine: SchemaEngine, target_type: str, enum_va
     # Sanitize title and name to strip any HTML tags at ingestion time
     raw_title_value = field_schema.get(title_field, "") if title_field else ""
     raw_name_value = field_schema.get(name_field, "") if name_field else ""
-    title_value = engine._sanitize_html(raw_title_value)
-    name_value = engine._sanitize_html(raw_name_value)
+    title_value = engine._sanitize_for_json(raw_title_value)
+    name_value = engine._sanitize_for_json(raw_name_value)
     
     # Build property key: "<id>.Instructions" if id exists, else "Instructions"
     if id_value:

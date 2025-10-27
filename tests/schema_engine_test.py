@@ -3764,6 +3764,180 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIn("value", field)
         self.assertEqual(field["value"], "value1")
 
+    def test_sanitize_for_json(self):
+        """Test that _sanitize_for_json removes all JSON-breaking characters."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        # Test double quotes
+        self.assertEqual(engine._sanitize_for_json('If "yes" then proceed'), 'If yes then proceed')
+        
+        # Test single quotes
+        self.assertEqual(engine._sanitize_for_json("It's working"), 'Its working')
+        
+        # Test backslashes
+        self.assertEqual(engine._sanitize_for_json('Path\\to\\file'), 'Path to file')
+        
+        # Test control characters
+        self.assertEqual(engine._sanitize_for_json('Line1\nLine2\tTabbed'), 'Line1 Line2 Tabbed')
+        
+        # Test brackets and braces
+        self.assertEqual(engine._sanitize_for_json('Array[0] and {key}'), 'Array0 and key')
+        
+        # Test HTML tags (existing functionality)
+        self.assertEqual(engine._sanitize_for_json('<b>Bold text</b>'), 'Bold text')
+        
+        # Test combined cases
+        self.assertEqual(engine._sanitize_for_json('<b>If "yes"</b> then [proceed]'), 'If yes then proceed')
+        
+        # Test non-strings pass through
+        self.assertIsNone(engine._sanitize_for_json(None))
+        self.assertEqual(engine._sanitize_for_json(123), 123)
+        self.assertEqual(engine._sanitize_for_json(True), True)
+        
+        # Test the actual problematic case from MHCS Nursing Daily Skilled Note
+        problematic_text = 'If the answer to question 3 is "yes", what type of precautions are in place?'
+        expected = 'If the answer to question 3 is yes, what type of precautions are in place?'
+        self.assertEqual(engine._sanitize_for_json(problematic_text), expected)
+        
+        # Test complex case with multiple special characters
+        # Note: Parentheses are NOT removed, only brackets and braces
+        complex_text = '<i>If the answer is "yes" (see [section] for details), proceed with {action}'
+        self.assertEqual(engine._sanitize_for_json(complex_text), 'If the answer is yes (see section for details), proceed with action')
+        
+        # Test edge cases
+        # Empty string
+        self.assertEqual(engine._sanitize_for_json(''), '')
+        
+        # String with only special characters
+        # Note: <> are only removed when part of HTML tags, standalone they remain
+        self.assertEqual(engine._sanitize_for_json('"\\[]{}<>'), '<>')
+        
+        # String with only whitespace and special characters
+        self.assertEqual(engine._sanitize_for_json('  "\\ \n\t[]{}  '), '')
+        
+        # Multiple consecutive quotes
+        self.assertEqual(engine._sanitize_for_json('Test ""input"" here'), 'Test input here')
+        
+        # Multiple consecutive backslashes
+        # Backslashes become spaces which are normalized to single space
+        self.assertEqual(engine._sanitize_for_json('Path\\\\to\\\\file'), 'Path to file')
+        
+        # Mixed quotes and backslashes
+        # Backslashes become spaces which are then normalized
+        self.assertEqual(engine._sanitize_for_json('"quote" and \\\\slashes'), 'quote and slashes')
+        
+        # Unicode characters (should pass through)
+        self.assertEqual(engine._sanitize_for_json('Café "café" with [brackets]'), 'Café café with brackets')
+        
+        # HTML entities in tags
+        self.assertEqual(engine._sanitize_for_json('<span attr="value">Text</span>'), 'Text')
+        
+        # Angle brackets - HTML tag regex removes everything from < to >
+        # Note: The regex <[^>]+> will match "< 10" (space to >) and "> 15" (from > to end)
+        # So "5 < 10" becomes "5 " (leading < and 10 are removed)
+        self.assertEqual(engine._sanitize_for_json('5 < 10 and 20 > 15'), '5 15')
+        
+        # Very long string with special characters
+        long_text = 'Start ' + ('"' * 10) + ' middle ' + ('\\' * 10) + ' end'
+        result = engine._sanitize_for_json(long_text)
+        self.assertNotIn('"', result)
+        self.assertEqual(result.count(' '), 2)  # Only the intentional spaces remain
+        
+        # Newline and tab characters
+        self.assertEqual(engine._sanitize_for_json('Line1\nLine2\tTabbed\nLine3'), 'Line1 Line2 Tabbed Line3')
+        
+        # Carriage return
+        self.assertEqual(engine._sanitize_for_json('With\rCarriage'), 'With Carriage')
+        
+        # Mixed HTML and special characters
+        self.assertEqual(engine._sanitize_for_json('<b>Bold "text"</b> with {braces}'), 'Bold text with braces')
+        
+        # Test that parentheses are preserved
+        self.assertEqual(engine._sanitize_for_json('Text (with parentheses) and [brackets]'), 'Text (with parentheses) and brackets')
+    
+    def test_schema_generation_with_special_characters(self):
+        """Test that fields with special characters produce valid JSON schema."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        # Schema with problematic question text
+        schema = {
+            "table_name": "Test Table",
+            "table_id": 1,
+            "fields": [{
+                "field_id": "q1",
+                "field_number": "1",
+                "field_name": 'If the answer is "yes", proceed',
+                "field_type": "text"
+            }, {
+                "field_id": "q2",
+                "field_number": "2",
+                "field_name": 'Path\\to\\file with {brackets} and [arrays]',
+                "field_type": "text"
+            }]
+        }
+        
+        table_id, table_name = engine.register_table(1, schema)
+        json_schema = engine.get_json_schema(table_name)
+        
+        # Verify schema is valid JSON (no quotes in property key)
+        sanitized_q1 = 'If the answer is yes, proceed'
+        sanitized_q2 = 'Path to file with brackets and arrays'
+        
+        # The properties are nested under "fields" for flat schemas
+        fields_props = json_schema["properties"]["fields"]["properties"]
+        self.assertIn(sanitized_q1, fields_props)
+        self.assertIn(sanitized_q2, fields_props)
+        
+        # Verify no problematic characters in property keys
+        for key in fields_props.keys():
+            self.assertNotIn('"', key, f"Found quote in property key: {key}")
+            self.assertNotIn('\\', key, f"Found backslash in property key: {key}")
+            self.assertNotIn('[', key, f"Found bracket in property key: {key}")
+            self.assertNotIn(']', key, f"Found bracket in property key: {key}")
+            self.assertNotIn('{', key, f"Found brace in property key: {key}")
+            self.assertNotIn('}', key, f"Found brace in property key: {key}")
+    
+    def test_reverse_map_with_sanitized_keys(self):
+        """Test that reverse mapping works when field names contain special characters."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        # Define a test formatter
+        def test_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        # Register schema with problematic field name
+        schema = {
+            "table_name": "Test Table",
+            "table_id": 1,
+            "fields": [{
+                "field_id": "precautions",
+                "field_number": "1",
+                "field_name": 'If the answer to question 3 is "yes", what type of precautions are in place?',
+                "field_type": "text"
+            }]
+        }
+        
+        engine.register_table(1, schema)
+        engine.register_reverse_formatter("test", "text", test_formatter)
+        
+        # Model response MUST use the sanitized property key
+        sanitized_key = "If the answer to question 3 is yes, what type of precautions are in place?"
+        model_response = {
+            "fields": {
+                sanitized_key: "Contact precautions"
+            }
+        }
+        
+        # Reverse map should successfully find and map the field
+        result = engine.reverse_map("Test Table", model_response, formatter_name="test")
+        
+        # Verify the field was found and mapped back to original field_id
+        self.assertIn("data", result)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIn("properties", result["data"][0])
+        self.assertIn("precautions", result["data"][0]["properties"])
+        self.assertEqual(result["data"][0]["properties"]["precautions"]["value"], "Contact precautions")
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages

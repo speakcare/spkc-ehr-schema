@@ -68,11 +68,9 @@ def _generate_value_for_field(field_meta: Dict[str, Any]) -> Any:
 def _sanitize_text_for_model(s: Any) -> Any:
     if not isinstance(s, str):
         return s
-    # Remove basic HTML tags and collapse consecutive whitespace
-    import re
-    s = re.sub(r"<[^>]+>", "", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    # Use the same sanitization as schema engine to match enum values
+    from schema_engine import SchemaEngine
+    return SchemaEngine._sanitize_for_json(s)
 
 
 def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) -> Dict[str, Any]:
@@ -110,7 +108,8 @@ def _build_valid_model_response(pcc: PCCAssessmentSchema, assessment_id: int) ->
             continue
         section_key = level_keys[1]
         group_key = level_keys[3]
-        question_name = f.get("name")
+        # Use property_key (sanitized) instead of name to match the JSON schema
+        question_name = f.get("property_key") or f.get("name")
         target_type = f.get("target_type")
         original_type = f.get("original_schema_type")
 
@@ -2525,23 +2524,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             return hash_value < 3  # 3 out of 4 cases return True
             
         elif target_type == "single_select" or original_type in ["rad", "radh", "cmb", "hck"]:
-            response_options = field_meta.get("responseOptions", [])
-            if response_options:
-                # Filter out special response values (prefer valid digits/letters)
-                # Avoid responseText values that start with "Not assessed" or "Blank"
-                valid_options = [
-                    opt for opt in response_options 
-                    if not (opt.get("responseText", "").startswith("Not assessed") or 
-                           opt.get("responseText", "").startswith("Blank") or 
-                           opt.get("responseText") == "Unable to answer")
-                ]
-                if valid_options:
-                    return valid_options[0]["responseText"]
-                else:
-                    # Fallback to first option if no valid ones found
-                    return response_options[0]["responseText"]
-            
-            # If no responseOptions, try to get enum values from field schema
+            # First, try to get enum values from field schema (already sanitized)
             field_schema = field_meta.get("field_schema", {})
             enum_values = field_schema.get("enum")
             if enum_values and len(enum_values) > 0:
@@ -2554,21 +2537,37 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     return valid_options[0]
                 else:
                     # Fallback to any non-None value if no valid ones found
-                    fallback_options = [v for v in enum_values if v is not None]
-                    if fallback_options:
-                        return fallback_options[0]
+                    non_none_values = [v for v in enum_values if v is not None]
+                    if non_none_values:
+                        return non_none_values[0]
+            
+            # If no enum values, use responseOptions and sanitize the responseText
+            response_options = field_meta.get("responseOptions", [])
+            if response_options:
+                # Filter out special response values (prefer valid digits/letters)
+                # Avoid responseText values that start with "Not assessed" or "Blank"
+                valid_options = [
+                    opt for opt in response_options 
+                    if not (opt.get("responseText", "").startswith("Not assessed") or 
+                           opt.get("responseText", "").startswith("Blank") or 
+                           opt.get("responseText") == "Unable to answer")
+                ]
+                if valid_options:
+                    # Sanitize the responseText to match what the schema expects
+                    raw_response_text = valid_options[0]["responseText"]
+                    from schema_engine import SchemaEngine
+                    return SchemaEngine._sanitize_for_json(raw_response_text)
+                else:
+                    # Fallback to first option if no valid ones found
+                    raw_response_text = response_options[0]["responseText"]
+                    from schema_engine import SchemaEngine
+                    return SchemaEngine._sanitize_for_json(raw_response_text)
             
             # If no valid options found, return None (let validation handle it)
             return None
             
         elif target_type == "multiple_select" or original_type in ["mcs", "mcsh"]:
-            response_options = field_meta.get("responseOptions", [])
-            if response_options:
-                # Return first 2-3 options as array, but ensure they're valid responseText values
-                max_options = min(3, len(response_options))
-                return [opt["responseText"] for opt in response_options[:max_options]]
-            
-            # If no responseOptions, try to get enum values from field schema
+            # First, try to get enum values from field schema (already sanitized)
             field_schema = field_meta.get("field_schema", {})
             enum_values = field_schema.get("enum")
             if enum_values and len(enum_values) > 0:
@@ -2577,6 +2576,14 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 if valid_options:
                     max_options = min(2, len(valid_options))
                     return valid_options[:max_options]
+            
+            # If no enum values, use responseOptions and sanitize the responseText
+            response_options = field_meta.get("responseOptions", [])
+            if response_options:
+                # Return first 2-3 options as array, but sanitize the responseText
+                max_options = min(3, len(response_options))
+                from schema_engine import SchemaEngine
+                return [SchemaEngine._sanitize_for_json(opt["responseText"]) for opt in response_options[:max_options]]
             
             # If no valid options found, return empty list for multi-select
             return []
@@ -2869,6 +2876,84 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     json.dump(model_response, f, indent=2, ensure_ascii=False)
                 
                 print(f"Saved model response for {assessment_name} to {model_filepath}")
+
+    def test_nursing_daily_skilled_note_special_characters(self):
+        """Test that the actual problematic question from MHCS Nursing Daily Skilled Note works correctly."""
+        pcc = PCCAssessmentSchema()
+        
+        # Get the schema for the nursing daily skilled note (templateId: 21242741)
+        json_schema = pcc.get_json_schema(21242741)
+        
+        # Verify schema is valid JSON by checking no problematic characters in property keys
+        def check_keys_for_special_chars(obj, path=""):
+            """Recursively check all keys in the schema for special characters."""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    # Check the key itself
+                    self.assertNotIn('"', key, f"Found quote in key at path {path}.{key}")
+                    self.assertNotIn('\\', key, f"Found backslash in key at path {path}.{key}")
+                    # Recursively check nested objects
+                    if isinstance(value, dict):
+                        check_keys_for_special_chars(value, f"{path}.{key}")
+                    elif isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, dict):
+                                check_keys_for_special_chars(item, f"{path}.{key}")
+        
+        # Check the entire schema for special characters
+        check_keys_for_special_chars(json_schema)
+        
+        # Find the problematic question in the schema
+        # Original: 'If the answer to question 3 is "yes", what type of precautions are in place?'
+        # Expected sanitized: 'If the answer to question 3 is yes, what type of precautions are in place?'
+        
+        sections_schema = json_schema["properties"]["sections"]["properties"]
+        cust_section = sections_schema.get("Cust.MHCS Nursing Daily Skilled Note")
+        
+        if cust_section:
+            # Drill down to find the questions in section K (Infections)
+            k_group = cust_section["properties"]["assessmentQuestionGroups"]["properties"].get("K.Infections")
+            
+            if k_group:
+                questions = k_group["properties"]["questions"]["properties"]
+                
+                # Find the sanitized version of the problematic question
+                sanitized_key = "If the answer to question 3 is yes, what type of precautions are in place?"
+                
+                # The question should exist with the sanitized key
+                self.assertIn(sanitized_key, questions, 
+                    f"Expected sanitized question not found. Available keys: {list(questions.keys())}")
+                
+                # Verify the question's schema is valid
+                question_schema = questions[sanitized_key]
+                self.assertIn("enum", question_schema)
+        
+        # Test reverse mapping with the sanitized key
+        model_response = {
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "K.Infections": {
+                            "questions": {
+                                "If the answer to question 3 is yes, what type of precautions are in place?": "Contact"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # This should work without errors
+        result = pcc.reverse_map(21242741, model_response, formatter_name="pcc-ui")
+        
+        # Verify the result has valid structure
+        self.assertIn("sections", result)
+        
+        # Verify we can still access the fields even with sanitized keys
+        sections = result["sections"]
+        self.assertIsInstance(sections, dict)
+        if "Cust.MHCS Nursing Daily Skilled Note" in sections:
+            self.assertIsInstance(sections["Cust.MHCS Nursing Daily Skilled Note"], dict)
 
 
 if __name__ == "__main__":
