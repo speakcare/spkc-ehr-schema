@@ -122,6 +122,102 @@ pcc.engine.register_reverse_formatter("my-ui", "txt", my_text_formatter)
 custom = pcc.reverse_map(21244981, model_response, formatter_name="my-ui")
 ```
 
+## Schema Enrichment with Model Instructions
+
+You can enrich PCC assessment schemas with model instructions from CSV files. The CSV should contain field keys and corresponding guidance text for the AI model.
+
+### Basic Usage
+
+```python
+from pcc.pcc_assessment_schema import PCCAssessmentSchema
+from csv_to_dict import read_key_value_csv_path
+
+# Initialize PCC wrapper
+pcc = PCCAssessmentSchema()
+
+# The template is already registered, but if registering a new one:
+# assessment_id, assessment_name = pcc.register_assessment(template_id, template_data)
+assessment_name = "MHCS Nursing Admission Assessment - V 5"
+assessment_id = 21244981
+
+# Load your model instructions CSV
+# Note: The CSV files in tests/pcc/model_instructions are for test/example only
+# You should provide your own CSV files with Key and Guidelines columns
+enrichment_dict = read_key_value_csv_path(
+    csv_path="your_model_instructions.csv",
+    key_col="Key",              # Column with field keys (e.g., "1_A", "1_B", etc.)
+    value_col="Guidelines",       # Column with enrichment text
+    key_prefix="Cust",            # Prefix keys with "Cust_" to match PCC field keys
+    sanitize_values=True,         # Remove HTML tags and special characters
+    skip_blank_keys=True,        # Skip empty keys
+    strip_whitespace=True,       # Normalize whitespace
+)
+
+# Enrich the assessment schema
+unmatched_keys = pcc.engine.enrich_schema(assessment_name, enrichment_dict)
+
+# Check for unmatched keys (CSV keys not found in schema)
+if len(unmatched_keys) == 0:
+    print("✓ All enrichment keys matched!")
+else:
+    print(f"⚠ {len(unmatched_keys)} unmatched keys: {unmatched_keys}")
+
+# Get enriched JSON schema for AI consumption
+enriched_schema = pcc.get_json_schema(assessment_id)
+```
+
+### CSV File Format
+
+Your CSV should have at least two columns:
+
+```csv
+Key,Guidelines,Other columns...
+1_A,"Check audio first for patient report...","..."
+1_B,"If not in audio, check nursing notes...","..."
+2_C,"Extract from database if available...","..."
+```
+
+The enrichment process will:
+1. Read the CSV file
+2. Prefix each key with "Cust_" (unless already prefixed)
+3. Sanitize values to remove HTML tags and special characters
+4. Match keys to schema fields
+5. Append enrichment text to each field's description
+6. Return list of any unmatched keys
+
+### Complete Example
+
+```python
+from pcc.pcc_assessment_schema import PCCAssessmentSchema
+from csv_to_dict import read_key_value_csv_path
+
+# Initialize PCC wrapper
+pcc = PCCAssessmentSchema()
+
+# Register an assessment (or use existing)
+assessment_id, assessment_name = pcc.register_assessment(
+    template_id=21244981,
+    template_data=your_template_data
+)
+
+# Load and apply model instructions
+enrichment_dict = read_key_value_csv_path(
+    "model_instructions.csv",
+    key_col="Key",
+    value_col="Guidelines",
+    key_prefix="Cust",
+    sanitize_values=True,
+)
+
+unmatched_keys = pcc.engine.enrich_schema(assessment_name, enrichment_dict)
+
+# Verify enrichment succeeded
+assert len(unmatched_keys) == 0, f"Unmatched keys: {unmatched_keys}"
+
+# Use enriched schema for AI model
+json_schema = pcc.get_json_schema(assessment_id)
+```
+
 ## Templates
 
 On initialization, the wrapper registers four templates from `src/pcc/assmnt_templates` using each file's `templateId`:
@@ -130,4 +226,6 @@ On initialization, the wrapper registers four templates from `src/pcc/assmnt_tem
 - MHCS_Nursing_Admission_Assessment_-_V_5.json (21244981)
 - MHCS_Nursing_Daily_Skilled_Note.json (21242741)
 - MHCS_Nursing_Weekly_Skin_Check.json (21244831)
+
+**Note**: CSV files in `tests/pcc/model_instructions/` are provided for testing and demonstration purposes only. Production deployments should use actual CSV files provided by the user with the required Key and Guidelines columns.
 

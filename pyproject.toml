@@ -10,6 +10,7 @@ packages = [{include = "src"}]
 python = "^3.12"
 jsonschema = "4.25.1"
 jsonschema-specifications = "2025.9.1"
+boto3 = "1.35.0"
 speakcare-common = {git = "https://github.com/speakcare/speakcare-common.git", branch = "main"}
 
 [tool.poetry.group.dev.dependencies]
@@ -19,6 +20,7 @@ pytest-mock = "3.15.0"
 black = "25.1.0"
 flake8 = "7.3.0"
 mypy = "1.17.1"
+
 
 [build-system]
 requires = ["poetry-core"]

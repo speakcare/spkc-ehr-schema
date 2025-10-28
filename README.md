@@ -11,7 +11,8 @@ The SPKC EHR Schema Engine provides a generic, database-agnostic solution for co
 - **Generic Schema Conversion**: Convert any external schema language to OpenAI-compatible JSON Schema
 - **Meta-Schema Language**: Define how external schemas work using a meta-schema language
 - **Schema Validation**: Validate data against generated schemas with custom validators
-- **Schema Enrichment**: Add contextual descriptions to schema properties
+- **Schema Enrichment**: Add contextual descriptions to schema properties from CSV files
+- **CSV to Dict Utilities**: Convert CSV model instructions into enrichment dictionaries
 - **Reverse Conversion**: Map AI model responses back to original external schema format
 - **Container Grouping**: Group responses by hierarchical containers
 - **Virtual Containers**: Expand single fields into nested objects with multiple properties
@@ -106,6 +107,72 @@ is_valid, errors = engine.validate(table_id, data)
 
 # Convert model response back to original format
 result = engine.reverse_map(table_name, model_response)
+```
+
+### Schema Enrichment from CSV
+
+The engine supports enriching schema descriptions with contextual information from CSV files using the `csv_to_dict` utility:
+
+```python
+from src.schema_engine import SchemaEngine
+from src.csv_to_dict import read_key_value_csv_path
+
+# Initialize engine and register your schema
+engine = SchemaEngine(meta_schema)
+table_id, table_name = engine.register_table(None, external_schema)
+
+# Load enrichment data from CSV file
+enrichment_dict = read_key_value_csv_path(
+    csv_path="model_instructions.csv",
+    key_col="Key",                    # Column name for field keys
+    value_col="Guidelines",           # Column name for enrichment text
+    key_prefix="Cust",                 # Optional: prefix all keys with "Cust_"
+    sanitize_values=True,              # Optional: remove HTML and special characters
+    skip_blank_keys=True,             # Optional: skip empty keys (default: True)
+    strip_whitespace=True,            # Optional: strip whitespace (default: True)
+    case_insensitive=False,          # Optional: case-insensitive column matching
+    on_duplicate="last"               # Optional: how to handle duplicates
+)
+
+# Enrich the schema and check for unmatched keys
+unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
+
+# Verify all keys matched (positive case)
+if len(unmatched_keys) == 0:
+    print("✓ All enrichment keys matched successfully!")
+else:
+    print(f"⚠ Found {len(unmatched_keys)} unmatched keys: {unmatched_keys}")
+    # Optionally remove unmatched keys from your CSV or update the schema
+```
+
+#### CSV to Dict Parameters
+
+- **`csv_path`**: Path to your CSV file (local file path, or use `read_key_value_csv_s3()` for S3)
+- **`key_col`**: Column name containing field keys (must match schema field keys)
+- **`value_col`**: Column name containing enrichment text/descriptions
+- **`key_prefix`** (optional): Automatically prefix keys with a string (e.g., "Cust_" for PointClickCare)
+- **`sanitize_values`** (optional, default: `False`): Remove HTML tags and JSON-breaking characters from values
+- **`skip_blank_keys`** (optional, default: `True`): Skip rows where the key is empty/whitespace
+- **`strip_whitespace`** (optional, default: `True`): Strip leading/trailing whitespace from keys and values
+- **`case_insensitive`** (optional, default: `False`): Match column names case-insensitively
+- **`on_duplicate`** (optional, default: `"last"`): How to handle duplicate keys:
+  - `"last"`: Last value wins
+  - `"first"`: First value wins
+  - `"error"`: Raise ValueError
+  - `"concat"`: Concatenate values with separator (default: ". ")
+
+#### Handling Unmatched Keys
+
+The `enrich_schema()` method returns a list of unmatched keys. Use this to:
+- Validate CSV data quality
+- Identify missing schema fields
+- Debug mismatches between CSV and schema
+
+```python
+unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
+if len(unmatched_keys) > 0:
+    # Log or handle unmatched keys
+    logger.warning(f"Unmatched enrichment keys: {unmatched_keys}")
 ```
 
 ### PointClickCare Integration

@@ -333,6 +333,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import logging
 import re
 
+from sanitize_text import sanitize_for_json
+
 try:
     # Prefer modern validator if available
     import jsonschema
@@ -408,31 +410,12 @@ class SchemaEngine:
 
     @staticmethod
     def _sanitize_for_json(text: Any) -> Any:
-        """Remove HTML tags and JSON-breaking characters; pass through non-strings unchanged."""
-        if not isinstance(text, str):
-            return text
+        """
+        Remove HTML tags and JSON-breaking characters; pass through non-strings unchanged.
         
-        # Step 1: Remove HTML tags
-        clean_text = re.sub(r"<[^>]+>", "", text)
-        
-        # Step 2: Remove JSON-breaking characters
-        # Replace double quotes with empty string
-        clean_text = clean_text.replace('"', '')
-        
-        # Replace backslashes with space
-        clean_text = clean_text.replace('\\', ' ')
-        
-        # Remove control characters (newlines, tabs, carriage returns, etc.)
-        clean_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', clean_text)
-        
-        # Remove single quotes
-        clean_text = clean_text.replace("'", "")
-        
-        # Remove brackets and braces that can confuse parsers
-        clean_text = re.sub(r'[\[\]{}]', '', clean_text)
-        
-        # Step 3: Normalize whitespace
-        return " ".join(clean_text.split())
+        This method delegates to the shared sanitize_for_json function.
+        """
+        return sanitize_for_json(text)
 
     def register_options_extractor(self, extractor_name: str, extractor_func: Callable[[Any], List[str]]) -> None:
         """Register an options extractor function."""
@@ -1390,13 +1373,16 @@ class SchemaEngine:
             return f"{loc}: {err.message}"
         return err.message
 
-    def enrich_schema(self, table_name: str, enrichment_dict: Dict[str, str]) -> None:
+    def enrich_schema(self, table_name: str, enrichment_dict: Dict[str, str]) -> List[str]:
         """
         Enrich schema property descriptions with additional context.
         
         Args:
             table_name: The name of the registered table
             enrichment_dict: Dict mapping field keys to description text
+        
+        Returns:
+            List of field keys that were not found in the schema
         
         Raises:
             ValueError: If table_name not registered
@@ -1409,11 +1395,15 @@ class SchemaEngine:
         json_schema = schema_data["json_schema"]
         field_index = schema_data["field_index"]
         
+        unmatched_keys: List[str] = []
+        
         # For each enrichment entry, find field in index and update description
         for field_key, enrichment_text in enrichment_dict.items():
             # Find field metadata
             field_meta = next((f for f in field_index if f.get("key") == field_key), None)
             if not field_meta:
+                logger.warning(f"Field '{field_key}' not found in field index for table '{table_name}'")
+                unmatched_keys.append(field_key)
                 continue
             
             # Navigate to the property in json_schema using level_keys
@@ -1433,6 +1423,8 @@ class SchemaEngine:
                     prop_schema["description"] = f"{existing_desc}\n\n{enrichment_text}"
                 else:
                     prop_schema["description"] = enrichment_text
+        
+        return unmatched_keys
 
     def reverse_map(
         self,

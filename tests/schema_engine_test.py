@@ -2329,7 +2329,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(node["required"], ["Child1", "Child2"])
 
     def test_enrich_schema(self):
-        """Test schema enrichment functionality."""
+        """Test schema enrichment functionality with all matching keys."""
         engine = SchemaEngine(self.flat_meta_schema)
         
         table_schema = {
@@ -2358,7 +2358,11 @@ class TestSchemaEngine(unittest.TestCase):
             "field2": "This field contains the patient's age in years"
         }
         
-        engine.enrich_schema(table_name, enrichment_dict)
+        unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
+        
+        # Verify no unmatched keys (positive case)
+        self.assertEqual(unmatched_keys, [])
+        self.assertIsInstance(unmatched_keys, list)
         
         # Verify enrichment was applied
         json_schema = engine.get_json_schema(table_id)
@@ -2373,6 +2377,57 @@ class TestSchemaEngine(unittest.TestCase):
         # Test error case
         with self.assertRaises(ValueError):
             engine.enrich_schema("nonexistent_table", {"field1": "test"})
+    
+    def test_enrich_schema_with_unmatched_keys(self):
+        """Test schema enrichment with some unmatched keys (negative case)."""
+        engine = SchemaEngine(self.flat_meta_schema)
+        
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "field2", 
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        table_id, table_name = engine.register_table(1, table_schema)
+        
+        # Enrich schema with some valid and some invalid field keys
+        enrichment_dict = {
+            "field1": "This field contains the patient's full name",
+            "field_nonexistent": "This field does not exist",
+            "field2": "This field contains the patient's age in years",
+            "another_invalid": "Another non-existent field"
+        }
+        
+        unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
+        
+        # Verify unmatched keys are returned (negative case)
+        self.assertEqual(len(unmatched_keys), 2)
+        self.assertIn("field_nonexistent", unmatched_keys)
+        self.assertIn("another_invalid", unmatched_keys)
+        self.assertNotIn("field1", unmatched_keys)
+        self.assertNotIn("field2", unmatched_keys)
+        
+        # Verify that valid fields were still enriched
+        json_schema = engine.get_json_schema(table_id)
+        fields_properties = json_schema["properties"]["fields"]["properties"]
+        
+        field1_schema = fields_properties["Patient Name"]
+        field2_schema = fields_properties["Patient Age"]
+        
+        self.assertIn("This field contains the patient's full name", field1_schema.get("description", ""))
+        self.assertIn("This field contains the patient's age in years", field2_schema.get("description", ""))
 
     def test_reverse_map_flat(self):
         """Test flat reverse mapping."""

@@ -1,0 +1,298 @@
+Key,Actual Question,Where to Extract,Where in Database,Guidelines
+1_A_1,Resident arrived via (ambulatory/stretcher/wheelchair),Audio,N/A,"Extract how resident arrived from nurse's description: ambulatory (walked in), stretcher (lying down transport), or wheelchair"
+1_A_2,Most Recent Blood Pressure,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_3,Most Recent Temperature,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_4,Most Recent Pulse,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_5,Most Recent Respiration,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_6,Most Recent O2 saturation,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_7,Most Recent Pain Level,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_8,Most Recent Weight,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_9,Most Recent Height,Audio or PCC,Vital Signs Patient Banner,"Priority order for vital signs documentation: (1) Use nurse's verbal report from audio if available. (2) If nurse has not taken vitals or this is a new admission, extract existing data from PCC system. (3) If neither audio nor PCC data exists, leave fields empty."
+1_A_10,"Cognitive Orientation (person, place, time, situation, comatose)",Audio Or Assumption,N/A,"If orientation not formally tested, infer from interactions during admission: appropriate responses to questions about name/why they're here (oriented to person/situation), knows current year or season (oriented to time), recognizes they're in a facility (oriented to place), no meaningful interaction (comatose). Mark all that apply based on conversation. Be conservative - only assume orientation if clear evidence of awareness during admission interaction."
+1_A_10a,Comatose Care Plan (auto-populates if comatose selected),Ignore,N/A,N/A
+1_A_11,"Special Needs on Admission (hospice, respite, palliative care)",Audio,N/A,N/A
+1_A_11a,Hospice Care Plan (auto-populates if hospice selected),Ignore,N/A,N/A
+1_A_12,Code Status (Full Code or DNR),Audio,N/A,"Extract code status ONLY if nurse states from advance directive or states physician order (""physician confirmed DNR"" or ""Full Code per transfer orders""). This is legal documentation - do not assume."
+1_A_12a,MD contacted and order obtained for code status,Audio,N/A,N/A
+1_A_12b,Explanation if MD not contacted,Audio,N/A,N/A
+1_A_12c,Full Code Care Plan (auto-populates if Full Code selected),Ignore,N/A,N/A
+1_A_12d,DNR Care Plan (auto-populates if DNR selected),Ignore,N/A,N/A
+1_A_13,Resident oriented to facility and room,Audio,N/A,"Mark ""Yes"" if nurse mentions explaining room features, bathroom location, call light use, or facility rules. Mark ""No"" if not mentioned or resident unable to participate."
+1_A_14,Does resident have valuables on site,Audio,N/A,N/A
+1_A_14a,Recommended valuables to be removed,Audio,N/A,N/A
+1_A_14b,List of valuables remaining,Audio,N/A,N/A
+1_A_15,Additional admission comments/observations,Audio,N/A,"Write any pertinent admission comments/observations that were not documented above, be conservative."
+1_B_1,"Initial discharge goals (community, LTC, other)",Audio OR Assumptions,N/A,"Extract stated goals if discussed with resident/family. If not explicitly discussed but nurse mentions ""admitted for rehab after hip surgery,"" assume ""Discharge to Community."" If nurse mentions ""long-term placement"" or ""no discharge plan,"" mark ""Remain LTC."" When uncertain, mark ""Discharge to Community"" as default for skilled rehab admission"
+1_B_1a,Description if other goal selected,Audio,N/A,N/A
+1_B_1b,Discharge Plan Care Plan (auto-populates),Ignore,N/A,N/A
+1_B_1c,LTC Care Plan (auto-populates),Ignore,N/A,N/A
+1_B_2,"Therapy Ordered on Admission (PT, OT, ST)",Audio,N/A,N/A
+1_B_2a,Therapy Care Plan (auto-populates if therapy ordered),Ignore,N/A,N/A
+1_C_1,Resident's preferred method of bathing,Audio,N/A,N/A
+1_C_1a,Description if other bathing method,Audio,N/A,N/A
+1_C_2,Resident's preferred bathing routine,Audio,N/A,N/A
+1_C_2a,Description if other bathing routine,Audio,N/A,N/A
+1_C_2b,Bathing/Shower Task (auto-populates based on routine),Ignore,N/A,N/A
+1_C_3,Resident's preferred wakeup time,Audio,N/A,N/A
+1_C_4,Resident's preferred bedtime,Audio,N/A,N/A
+1_C_5,Preferences Care Plan (auto-populates),Ignore,N/A,N/A
+1_C_6,Activity Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_1,Medication review completed,Audio,N/A,N.A
+2_D_1a,Potential medication issues identified,Audio,N/A,N/A
+2_D_1b,Physician contacted about medication issue,Audio,N/A,N/A
+2_D_1c,Name of Provider contacted,Audio,N/A,N/A
+2_D_1d,Date and time physician contacted,Audio,N/A,N/A
+2_D_1e,Actions recommended by physician,Audio,N/A,N/A
+2_D_2,Medication classes resident is receiving,Audio,N/A,"As nurse reads admission medication list aloud, identify and mark all medication classes present. Common classifications: Metoprolol/Carvedilol/Lisinopril = Cardiac; Hydrocodone/Oxycodone/Morphine = Pain; Cipro/Levaquin/Augmentin = Antibiotic; Lasix/Bumex = Diuretic; Warfarin/Eliquis/Xarelto = Anticoagulant; Insulin/Metformin/Glipizide = Diabetic; Prozac/Zoloft/Lexapro = Antidepressant; Ativan/Xanax/Klonopin = Antianxiety; Ambien/Lunesta/Trazodone = Sedative/Hypnotic; Seroquel/Risperdal/Zyprexa = Antipsychotic; Keppra/Gabapentin/Depakote = Anticonvulsant; Albuterol/Advair/Spiriva = Respiratory; Omeprazole/Pantoprazole = Gastrointestinal; Flomax/Detrol = Genitourinary; Synthroid/Levothyroxine = Thyroid."
+2_D_2m,Antidepressant Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2n,Antianxiety Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2o,Sedative/Hypnotic Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2a,Antipsychotic Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2b,Pain Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2c,Antibiotic Medication Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2d,Cardiovascular Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2e,Anticoagulant Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2f,Anticoagulant Task (auto-populates),Ignore,N/A,N/A
+2_D_2g,Diuretic Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2h,Respiratory Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2hh,Diabetes Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2i,Thyroid Disorder Care Plan (auto-populates),Ignore,N/A,N/A
+2_D_2j,Does resident choose to self-administer medications,Audio,N/A,N/A
+2_D_2k,Can resident read/identify each medication,Audio,N/A,"Extract if nurse tests resident's ability to read medication labels or identify medications by sight. Mark ""Fully capable"" if resident reads labels correctly or identifies all medications. Mark ""Unable"" if cannot read labels or identify medications. Leave blank if not tested."
+2_D_2l,Can resident state what each medication is for,Audio,N/A,"Extract if nurse asks resident to explain purpose of each medication. Mark ""Fully capable"" if resident correctly states therapeutic purpose (e.g., ""for blood pressure,"" ""for pain""). Mark ""Unable"" if cannot explain purposes. Leave blank if not tested."
+2_D_3,Can resident state correct timing for medications,Audio,N/A,"Extract if nurse asks resident when to take each medication. Mark ""Fully capable"" if resident correctly states timing (e.g., ""morning,"" ""twice daily,"" ""at bedtime""). Mark ""Unable"" if cannot state correct timing. Leave blank if not tested."
+2_D_3a,Can resident state correct medication dosage,Audio,N/A,"Extract if nurse asks resident to state how much medication to take. Mark ""Fully capable"" if resident correctly states dosage (e.g., ""one tablet,"" ""two pills""). Mark ""Unable"" if cannot state correct dosage. Leave blank if not tested."
+2_D_3b,Can resident open medication containers,Audio,N/A,"Extract if nurse observes resident opening pill bottles, blister packs, or other containers. Mark ""Fully capable"" if resident opens containers independently. Mark ""Unable"" if cannot open containers despite attempts. Leave blank if not tested."
+2_D_3c,Can resident measure appropriate medication amounts,Audio,N/A,"Extract if nurse observes resident pouring or removing correct number of pills/amount of liquid medication. Mark ""Fully capable"" if resident measures accurately. Mark ""Unable"" if cannot measure correctly. Leave blank if not tested."
+2_D_3d,Can resident document self-administration,Audio,N/A,"Extract if nurse tests resident's ability to record medication administration (writing date/time, initialing form). Mark ""Fully capable"" if resident documents correctly. Mark ""Unable"" if cannot document properly. Leave blank if not tested."
+2_D_3e,Can resident store medications securely,Audio,N/A,"Extract if nurse assesses how resident will store medications safely (locked box, drawer, away from others). Mark ""Fully capable"" if resident demonstrates appropriate storage plan. Mark ""Unable"" if cannot secure medications. Leave blank if not tested."
+2_D_3f,Can resident state PRN medication situations,Audio,N/A,"Extract if nurse asks when to take as-needed medications. Mark ""Fully capable"" if resident correctly identifies when PRN needed (e.g., ""when pain is severe,"" ""if I have heartburn""). Mark ""Capable with assistance"" if understands with prompting. Mark ""Unable"" if cannot identify appropriate use. Mark ""N/A"" if no PRN medications. Leave blank if not tested."
+2_D_3g,Can resident self-administer subcutaneous injections,Audio,N/A,"Extract if resident demonstrates giving self-injections (insulin, blood thinners). Mark ""Fully capable"" if performs injection correctly with proper technique. Mark ""Capable with assistance"" if needs setup help. Mark ""Unable"" if cannot perform safely. Mark ""N/A"" if no injectable medications. Leave blank if not tested."
+2_D_3h,Can resident self-administer inhalant medications,Audio,N/A,"Extract if resident demonstrates using inhaler or nebulizer. Mark ""Fully capable"" if uses correct technique independently. Mark ""Capable with assistance"" if needs reminders on technique. Mark ""Unable"" if cannot use properly. Mark ""N/A"" if no inhalant medications. Leave blank if not tested."
+2_D_3i,Can resident self-administer eye drops/ointments,Audio Or Assumption,N/A,"Extract if resident demonstrates applying eye drops or ointment. Mark ""Fully capable"" if administers correctly to correct eye. Mark ""Capable with assistance"" if needs help positioning bottle. Mark ""Unable"" if cannot administer safely. Mark ""N/A"" if no eye medications. Leave blank if not tested."
+2_D_3j,Can resident apply topical medications/patches,Audio Or Assumption,N/A,"Extract if resident demonstrates applying topical medications to correct location. Mark ""Fully capable"" if applies correctly per orders. Mark ""Capable with assistance"" if needs reminders. Mark ""Unable"" if cannot apply properly. Mark ""N/A"" if no topical medications. Leave blank if not tested."
+2_D_3k,Can resident self-administer ear drops,Audio Or Assumption,N/A,"Extract if resident demonstrates applying ear drops. Mark ""Fully capable"" if administers correctly to correct ear. Mark ""Capable with assistance"" if needs help positioning. Mark ""Unable"" if cannot administer safely. Mark ""N/A"" if no ear medications. Leave blank if not tested."
+2_D_3l,Can resident self-administer rectal suppositories,Audio Or Assumption,N/A,"Extract if resident demonstrates understanding of suppository administration. Mark ""Fully capable"" if can explain/demonstrate proper technique. Mark ""Capable with assistance"" if needs setup help. Mark ""Unable"" if cannot perform safely. Mark ""N/A"" if no rectal medications. Leave blank if not tested."
+2_D_3m,Can resident self-administer vaginal suppositories,Audio Or Assumption,N/A,"Extract if resident demonstrates understanding of vaginal suppository administration. Mark ""Fully capable"" if can explain/demonstrate proper technique. Mark ""Capable with assistance"" if needs setup help. Mark ""Unable"" if cannot perform safely. Mark ""N/A"" if no vaginal medications. Leave blank if not tested."
+2_D_3n,Can resident identify refill timing,Audio Or Assumption,N/A,"Extract if nurse asks when to request medication refills. Mark ""Fully capable"" if resident understands when supply runs low and how to request refills. Mark ""Capable with assistance"" if needs reminders. Mark ""Unable"" if cannot manage refills. Mark ""N/A"" if facility manages all refills. Leave blank if not tested."
+2_D_3o,Determination for self-administration (able/unable),Ignore,N/A,N/A
+2_D_3p,Improper/unsafe techniques used,Audio,N/A,N/A
+2_D_3q,Self-Administration Care Plan (auto-populates),Ignore,N/A,N/A
+3_E_1,Vision Status and assistive devices,Audio,N/A,N/A
+3_E_1a,Description if other vision status,Audio,N/A,N/A
+3_E_1b,Vision Care Plan (auto-populates if vision problems),Ignore,N/A,N/A
+3_E_1c,Vision Task (auto-populates),Audio,N/A,N/A
+3_E_2,Hearing Status and assistive devices,Audio,N/A,N/A
+3_E_2a,Description if other hearing status,Audio,N/A,N/A
+3_E_2b,Hearing Care Plan (auto-populates if hearing problems),Ignore,N/A,N/A
+3_E_2c,Hearing Aid Task (auto-populates),Ignore,N/A,N/A
+3_F_1,Communication methods,Audio Or Assumption,N/A,"If communication ability not explicitly assessed, infer from interactions: normal conversation throughout audio (verbal), difficulty speaking or nurse mentions communication barriers (mark alternative methods), language barriers mentioned (interpreter needed), uses writing or gestures (mark accordingly). Only mark alternative communication methods if clearly needed, otherwise assume verbal communication."
+3_F_1a,Communication Care Plan (auto-populates),Ignore,N/A,N/A
+3_F_1b,Interpreter Care Plan (auto-populates),Ignore,N/A,N/A
+3_F_2,Primary Language,Audio,N/A,N/A
+3_F_2a,Other language specification,Audio,N/A,N/A
+3_F_3,Additional communication comments,Audio,N/A,N/A
+3_G_1,Dining needs/considerations,Audio,N/A,N/A
+3_G_1a,NPO Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_1b,Assistive devices description,Audio,N/A,N/A
+3_G_1c,Eating Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_1d,Type of non-oral nutritional support,Audio,N/A,N/A
+3_G_1e,Non-Oral Nutritional Support Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_1f,Diet Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_1g,NPO Task (auto-populates),Audio,N/A,N/A
+3_G_2,Does resident wear dental appliance,Audio,N/A,N/A
+3_G_2a,Dental appliance details,Audio,N/A,N/A
+3_G_2aa,Does resident have appliance at facility,Audio,N/A,N/A
+3_G_2b,Dentures Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_3,Oral Status assessment,Audio,N/A,"Extract findings if nurse examines mouth and dictates observations. Mark ""unable to examine"" if no oral exam performed - full oral assessment may not occur within 24 hours of admission. Do not assume oral health status without documented examination."
+3_G_3a,Dental Concerns Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_4,Dehydration risk factors present,Audio,N/A,N/A
+3_G_4a,Dehydration Care Plan (auto-populates),Ignore,N/A,N/A
+3_G_5,Additional nutritional/oral comments,Audio,N/A,N/A
+3_H_1,Neurological signs/symptoms present,Audio,N/A,N/A
+3_H_1a,Seizures Care Plan (auto-populates),Ignore,N/A,N/A
+3_H_2,Behavior Pattern assessment,Audio Or Assumption,N/A,"Mark specific behaviors only if clearly stated or observed: family reports wandering, agitation noted during admission, exit-seeking mentioned, physical aggression described. If resident cooperative and appropriate throughout admission interaction, mark ""no behavior symptoms present."" Be conservative - only mark behavioral problems if explicitly documented or observed, not based on diagnoses alone."
+3_H_2a,Cognitive Function Care Plan (auto-populates),Ignore,N/A,N/A
+3_H_2b,Behavior Care Plan (auto-populates),Ignore,N/A,N/A
+3_H_2c,Elopement Care Plan (auto-populates),Ignore,N/A,N/A
+3_H_2d,Wandering Task (auto-populates),Ignore,N/A,N/A
+3_H_3,Additional neurological comments,Audio,N/A,N/A
+3_I_1,Does resident have skin abnormalities,Audio,N/A,N/A
+3_I_1a,Skin Integrity Care Plan (auto-populates),Ignore,N/A,N/A
+3_I_1b,Skin/Wound Care Plan (auto-populates),Ignore,N/A,N/A
+3_I_1c,Skin abnormality site descriptions,Audio,N/A,N/A
+3_I_2,Additional skin condition comments,Audio,N/A,N/A
+3_J_1,ADL assistance requirements,Audio OR Assumptions,N/A,"Extract ADL assistance needs if explicitly discussed. If not specified, infer from admission observations: arrived by stretcher (likely needs mobility/transfer assist), needed help to bathroom (toileting assist), nurse describes assisting with tasks. If ambulatory admission with no assistance mentioned and resident managing independently, assume independent unless limitations stated. Use observations of how resident functioned during admission process."
+3_J_1a,Does resident require mechanical lift for transfers,Audio,N/A,N/A
+3_J_1b,Transfers Care Plan (auto-populates),Ignore,N/A,N/A
+3_J_1c,Transfer Device Task (auto-populates),Ignore,N/A,N/A
+3_J_2,ADL Care Plan (auto-populates),Ignore,N/A,N/A
+3_J_3,Weight-bearing status,Audio,N/A,N/A
+3_J_3a,Weight Bearing Care Plan (auto-populates),Ignore,N/A,N/A
+3_J_4,Does resident require safety device,Audio,N/A,N/A
+3_J_4a,Safety interventions in place,Audio,N/A,N/A
+3_J_4b,Safety intervention care plan (auto-populates),Ignore,N/A,N/A
+3_J_5,Additional functional status comments,Audio,N/A,N/A
+3_K_1,Cardiovascular signs/symptoms present,Audio,N/A,N/A
+3_K_1a,Cardiovascular Care Plan (auto-populates),Ignore,N/A,N/A
+3_K_1b,Date of pacemaker insertion,Audio,N/A,N/A
+3_K_1c,Date of last pacemaker check,Audio,N/A,N/A
+3_K_1d,Pacemaker Care Plan (auto-populates),Ignore,N/A,N/A
+3_K_1e,Date of AID insertion,Audio,N/A,N/A
+3_K_1f,AID Care Plan (auto-populates),Ignore,N/A,N/A
+3_K_2,Additional cardiovascular comments,Audio,N/A,N/A
+3_L_1,Respiratory signs/symptoms present,Audio,N/A,N/A
+3_L_1a,Is resident receiving oxygen,Audio,N/A,N/A
+3_L_1b,Oxygen Care Plan (auto-populates),Ignore,N/A,N/A
+3_L_2a,Right Upper Lobe lung sounds,Audio,N/A,N/A
+3_L_2b,Right Lower Lobe lung sounds,Audio,N/A,N/A
+3_L_2c,Left Upper Lobe lung sounds,Audio,N/A,N/A
+3_L_2d,Left Lower Lobe lung sounds,Audio,N/A,N/A
+3_L_2e,Lung sound notes,Audio,N/A,N/A
+3_L_3,Quality of respirations,Audio,N/A,N/A
+3_L_3a,Is head of bed elevated to prevent SOB,Audio,N/A,N/A
+3_L_4,Does resident have tracheostomy,Audio,N/A,N/A
+3_L_4a,Tracheostomy size,Audio,N/A,N/A
+3_L_4b,Tracheostomy Care Plan (auto-populates),Ignore,N/A,N/A
+3_L_5,Additional respiratory comments,Audio,N/A,N/A
+3_M_1,Gastrointestinal signs/symptoms present,Audio,N/A,N/A
+3_M_1a,Bowel Incontinence Care Plan (auto-populates),Ignore,N/A,N/A
+3_M_1b,Bowel Diary Task (auto-populates),Ignore,N/A,N/A
+3_M_1c,Constipation Care Plan (auto-populates),Ignore,N/A,N/A
+3_M_2a,Right Upper Quadrant bowel sounds,Audio,N/A,N/A
+3_M_2b,Right Lower Quadrant bowel sounds,Audio,N/A,N/A
+3_M_2c,Left Upper Quadrant bowel sounds,Audio,N/A,N/A
+3_M_2d,Left Lower Quadrant bowel sounds,Audio,N/A,N/A
+3_M_3,Abdominal Observation,Audio,N/A,N/A
+3_M_4,Date of last bowel movement,Audio,N/A,N/A
+3_M_5,Does resident have ostomy,Audio,N/A,N/A
+3_M_5a,Ostomy Care Plan (auto-populates),Ignore,N/A,N/A
+3_M_5b,Ostomy Care Task (auto-populates),Ignore,N/A,N/A
+3_M_6,Additional gastrointestinal comments,Audio,N/A,N/A
+3_N_1,Genitourinary signs/symptoms present,Audio,N/A,N/A
+3_N_1a,Urinary Incontinence Care Plan (auto-populates),Ignore,N/A,N/A
+3_N_1b,Bladder Diary Task (auto-populates),Ignore,N/A,N/A
+3_N_2,Does resident have urinary catheter,Audio,N/A,N/A
+3_N_2a,Type of catheter being used,Audio,N/A,N/A
+3_N_2b,Catheter size and balloon size,Audio,N/A,N/A
+3_N_2c,Urinary Catheter Care Plan (auto-populates),Ignore,N/A,N/A
+3_N_2d,Urinary Catheter Care Task (auto-populates),Ignore,N/A,N/A
+3_N_3,Additional genitourinary comments,Audio,N/A,N/A
+3_O_1,Is resident receiving dialysis,Audio,N/A,N/A
+3_O_1a,Type of dialysis resident receiving,Audio,N/A,N/A
+3_O_1b,Location of dialysis access site,Audio,N/A,N/A
+3_O_1c,Dialysis Care Plan (auto-populates),Ignore,N/A,N/A
+3_O_2,Dialysis-related signs/symptoms present,Audio,N/A,N/A
+3_O_3,Additional dialysis comments,Audio,N/A,N/A
+4_P_1,Alcohol use,Audio,N/A,N/A
+4_P_1a,Alcohol amount and frequency,Audio,N/A,N/A
+4_P_2,Tobacco use,Audio,N/A,N/A
+4_P_2a,"Tobacco details (packs per day, duration)",Audio,N/A,N/A
+4_P_2b,Smoking Care Plan (auto-populates),Ignore,N/A,N/A
+4_R_1,Short-term memory status,Audio,N/A,N/A
+4_R_2,Long-term memory status,Audio,N/A,N/A
+4_R_3,Adequate memory/recall ability,Audio,N/A,N/A
+4_R_4,Decision-making ability for daily tasks,Audio,N/A,N/A
+4_R_5,Adequate vision for smoking,Audio,N/A,N/A
+4_R_6,Effective communication,Audio,N/A,N/A
+4_R_7,Can light and smoke cigarette safely,Audio,N/A,N/A
+4_R_8,Safe technique for extinguishing/disposing,Audio,N/A,N/A
+4_R_9,Can physically hold smoking device,Audio,N/A,N/A
+4_R_10,Understands designated smoking areas only,Audio,N/A,N/A
+4_R_11,Determination: safe smoker or impaired smoker,Audio,N/A,N/A
+4_R_12,Recommendations while smoking,Audio,N/A,N/A
+4_R_13,Smoking policy given to resident/responsible party,Audio,N/A,N/A
+4_R_13a,Explanation if policy not given,Audio,N/A,N/A
+4_R_14,Additional smoking assessment comments,Audio,N/A,N/A
+5_S_1,Is resident receiving antipsychotic medication requiring AIMS,Audio Or Assumption,N/A,"If antipsychotic medication status not explicitly stated, infer from medication lists or diagnoses: presence of medications like haloperidol, risperidone, quetiapine, aripiprazole, or diagnoses requiring antipsychotic treatment (AIMS required), absence of these medications (AIMS not required)."
+5_S_2,Muscles of Facial Expression assessment,Audio,N/A,N/A
+5_S_3,Lips and perioral area assessment,Audio,N/A,N/A
+5_S_4,Jaw movement assessment,Audio,N/A,N/A
+5_S_5,Tongue movement assessment,Audio,N/A,N/A
+5_S_6,Upper Extremities movement assessment,Audio,N/A,N/A
+5_S_7,Lower Extremities movement assessment,Audio,N/A,N/A
+5_S_8,"Neck, Shoulders and Hips movement assessment",Audio,N/A,N/A
+5_S_9,Severity of abnormal movements,Audio,N/A,N/A
+5_S_10,Incapacitation due to abnormal movements,Audio,N/A,N/A
+5_S_11,Awareness of abnormal movements,Audio,N/A,N/A
+5_S_12,Current problem with teeth/dentures,Audio,N/A,N/A
+5_S_13,Are dentures usually worn,Audio,N/A,N/A
+6_T_1,Is resident experiencing pain,Audio,N/A,N/A
+6_T_A,Pain present in last 5 days,Audio,N/A,N/A
+6_T_A1,Pain frequency over last 5 days,Audio,N/A,N/A
+6_T_A2,Pain effect on sleep,Audio,N/A,N/A
+6_T_A3,Pain interference with therapy activities,Audio,N/A,N/A
+6_T_A4,Pain interference with day-to-day activities,Audio,N/A,N/A
+6_T_1a,Date of pain onset if known,Audio,N/A,N/A
+6_T_1b,Pain Care Plan (auto-populates),Ignore,N/A,N/A
+6_T_2,Appropriate pain scale selection,Audio ,N/A,N/A
+6_T_2a,Numeric Rating Scale score,Audio,N/A,N/A
+6_T_2b,Verbal Descriptor Scale rating,Audio,N/A,N/A
+6_T_2c,Non-verbal indicators of pain present,Audio Or Assumption,N/A,"For non-communicative residents, mark pain behaviors nurse observes: grimacing, moaning, guarding, restlessness, tensed body, distressed appearance. Only mark indicators clearly observed and documented in audio. Do not mark based on diagnosis alone without observed behaviors"
+6_T_3,Location and description of pain,Audio,N/A,N/A
+6_T_4,Methods that relieve pain,Audio Or Assumption,N/A,"If pain relief preferences not formally assessed but pain is present, infer from treatment documentation and patient responses: scheduled pain medications (medication management), mentions of positioning for comfort (repositioning), use of heat/cold therapy (warm/cold compresses), other documented comfort measures. Only document methods that show evidence of effectiveness or patient preference."
+6_T_4a,Other pain relief methods description,Audio,N/A,N/A
+6_T_5,Is resident satisfied with pain control,Audio,N/A,N/A
+6_T_5a,Explanation if not satisfied with pain control,Audio,N/A,N/A
+6_T_6,Additional pain assessment comments,Audio,N/A,N/A
+7_A_1,Sensory perception - ability to respond to pressure discomfort,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition. Infer from cognitive status and pain responses - normal cognition + appropriate pain responses (no impairment/4 points), responds to commands but limited communication (slightly limited/3 points), responds only to painful stimuli or has sensory deficits (very limited/2 points), unresponsive or heavily sedated (completely limited/1 point)."
+7_A_2,Moisture - degree skin exposed to moisture,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition Assess from incontinence status and documented skin conditions - continent with dry skin (rarely moist/4 points), occasional incontinence episodes (occasionally moist/3 points), frequent moisture issues requiring linen changes (very moist/2 points), constant incontinence or perspiration (constantly moist/1 point)."
+7_A_3,Activity - degree of physical activity,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition. Evaluate from mobility documentation - ambulates frequently and independently (walks frequently/4 points), limited walking with assistance (walks occasionally/3 points), wheelchair dependent or very limited mobility (chairfast/2 points), bedbound (bedfast/1 point)."
+7_A_4,Mobility - ability to change body position,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition. Assess from positioning and movement observations - independent position changes (no limitations/4 points), frequent minor position adjustments (slightly limited/3 points), occasional slight movements only (very limited/2 points), requires assistance for all position changes (completely immobile/1 point)."
+7_A_5,Nutrition - usual food intake pattern,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition. Infer from eating patterns and dietary documentation - eats most meals completely (excellent/4 points), eats over half of meals (adequate/3 points), eats about half of offered food (probably inadequate/2 points), poor intake or NPO status (very poor/1 point)."
+7_A_6,Friction and Shear assessment,Audio Or Assumption,N/A,"Score based on nurse's observations and information stated during admission. If not formally assessed question-by-question, score using nurse's general description of resident's condition. Evaluate from transfer needs and positioning - independent movement without sliding (no problem/3 points), minimal assistance with occasional sliding (potential problem/2 points), requires maximum assistance with frequent repositioning (problem/1 point)."
+8_U_1,Elopement risk - cognitive status,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Assess from orientation documentation - fully oriented to person/place/time or comatose (0 points), oriented x2 or lethargic (2 points), oriented x1 or periodic confusion noted (4 points), alert but continuous confusion documented (5 points)."
+8_U_2,History of elopement/wandering,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Infer from behavioral observations and history - no wandering behaviors documented and no elopement history (0 points), wandering noted but no elopement attempts (2 points), past elopement history but no recent exit-seeking (3 points), family concerns about leaving expressed (4 points), documented elopement history or current exit-seeking behaviors (5 points)."
+8_U_3,Mobility level for elopement risk,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Evaluate from functional status documentation - bedbound or requires total assistance (0 points), independent wheelchair use (2 points), walks with assistive device (3 points), independent motorized wheelchair (4 points), ambulates independently without devices (5 points)."
+8_U_4,Adjustment to facility placement,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Assess from interactions and behavioral notes - content with facility placement (0 points), some discontent but agreeable (2 points), disagrees with placement (3 points), expresses desire to leave (4 points), actively attempting to exit (5 points)."
+8_U2_1,Elopement risk score calculation,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Calculate total score: 0-9 (not at risk), 10-14 (at risk - requires picture in elopement book and wanderguard if available), 15+ (high risk - requires all interventions plus DON notification for interdisciplinary review). Score based on documented evidence rather than assumptions about potential behaviors."
+8_U2_2,Elopement risk level determination,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. Based on calculated elopement risk score: 0-9 points (not at risk - no interventions needed), 10-14 points (at risk - place picture in elopement book, apply wanderguard if available), 15+ points (high risk - place picture in elopement book, apply wanderguard if available, notify DON for interdisciplinary review)."
+8_U3_1,Appropriate interventions status,Audio Or Assumption,N/A,"Score elopement risk using information from admission assessment. Calculate total risk score. If formal elopement screen not completed, score conservatively based on available observations. If intervention review not explicitly documented but elopement risk identified, infer appropriate status: newly identified risk (interventions initiated), existing risk with ongoing monitoring (interventions reviewed), risk level changed or interventions not working (interventions modified)."
+8_U3_2,Physician orders requested,Audio,N/A,N/A
+8_U3_3,Family/responsible party notified,Audio,N/A,N/A
+8_U3_4,Care plan reviewed/updated,Audio,N/A,N/A
+8_U3_5,Additional elopement assessment comments,Audio,N/A,N/A
+9_V_1,Fall history - previous falls,,N/A,N/A
+9_V_2,Secondary diagnosis - multiple medical diagnoses,Audio,N/A,N/A
+9_V_3,Ambulatory aid use,Audio,N/A,N/A
+9_V_4,IV or IV access present,Audio,N/A,N/A
+9_V_5,Gait description,Audio,N/A,N/A
+9_V_6,Mental status - knows own ambulation limits,Audio Or Assumption,N/A,"Evaluate from cognitive assessment and safety awareness - demonstrates understanding of mobility limitations and asks for help appropriately (0 points), overestimates abilities, attempts unsafe transfers, or forgets limitations (15 points)."
+9_V_7,Fall Care Plan (auto-populates),Ignore,N/A,N/A
+10_X_1,Was resident admitted with active infection,Audio,N/A,N/A
+10_X_1a,Infection Care Plan (auto-populates),Ignore,N/A,N/A
+10_X_2,Is resident on isolation precautions,Audio,N/A,N/A
+10_X_2a,Type of isolation precautions in place,Audio,N/A,N/A
+10_X_2b,Isolation Precautions Care Plan (auto-populates),Ignore,N/A,N/A
+10_X_3,Additional infection-related comments,Audio,N/A,N/A
+11_A_1,Side rail type present,Audio,N/A,N/A
+11_A_2,Is resident immobile,Audio,N/A,N/A
+11_A_3,Is resident non-ambulatory,Audio,N/A,N/A
+11_A_4,Is resident's gait unsteady,Audio,N/A,N/A
+11_A_5,Is resident totally dependent for positioning,Audio,N/A,N/A
+11_A_6,Is resident unaware of safety deficiencies,Audio,N/A,N/A
+11_A_7,Does resident have impaired trunk/sitting balance,Audio,N/A,N/A
+11_A_8,Does resident have fall history,Audio,N/A,N/A
+11_A_9,Does resident have increased fall potential,Audio,N/A,N/A
+11_A_10,Is resident using siderails for transfer/mobility,Audio,N/A,N/A
+11_A_11,Is resident able to use call light,Audio,N/A,N/A
+11_B_12,Siderails serve as enabler,Audio,N/A,N/A
+11_B_13,Resident requested siderails raised,Audio,N/A,N/A
+11_B_14,Medical diagnosis warrants siderail use,Audio,N/A,N/A
+11_B_15,Resident totally dependent - rails not restraint,Audio,N/A,N/A
+11_B_16,Siderails needed based on status,Audio,N/A,N/A
+11_C_17,IDT review summary for siderail need,Audio,N/A,N/A
+12_Y_1,Does resident have vascular access device,Audio,N/A,N/A
+12_Y_1a,Type of vascular access device present,Audio,N/A,N/A
+12_Y_1b,Description if other device type,Audio,N/A,N/A
+12_Y_1c,Date of insertion if known,Audio,N/A,N/A
+12_Y_1d,Length of line if applicable,Audio,N/A,N/A
+12_Y_1e,Arm circumference,Audio,N/A,N/A
+12_Y_1f,IV Care Plan (auto-populates),Ignore,N/A,N/A
+12_Y_2,Description of IV site condition,Audio,N/A,N/A
+12_Y_3,Additional IV-related comments,Audio,N/A,N/A
+13_Z_1,Education provided to resident/responsible party,Audio Or Assumption,N/A,"If education not explicitly documented, infer from conditions and procedures: active diagnoses = disease management education, new medications = medication education, safety risks = safety education. Select multiple categories based on resident's needs."
+13_Z_2,COVID-19 Education provided,Audio,N/A,N/A
+13_Z_2a,COVID-19 Care Plan (auto-populates),Ignore,N/A,N/A
+13_Z_3,Additional education-related comments,Audio,N/A,N/A
+,RN Review - evaluation reviewed and approved,Audio,N/A,N/A
