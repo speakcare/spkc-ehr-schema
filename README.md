@@ -119,7 +119,7 @@ from src.csv_to_dict import read_key_value_csv_path
 
 # Initialize engine and register your schema
 engine = SchemaEngine(meta_schema)
-table_id, table_name = engine.register_table(None, external_schema)
+table_id, table_name = engine.register_table(table_name, external_schema)
 
 # Load enrichment data from CSV file
 enrichment_dict = read_key_value_csv_path(
@@ -131,7 +131,7 @@ enrichment_dict = read_key_value_csv_path(
     skip_blank_keys=True,             # Optional: skip empty keys (default: True)
     strip_whitespace=True,            # Optional: strip whitespace (default: True)
     case_insensitive=False,          # Optional: case-insensitive column matching
-    on_duplicate="last"               # Optional: how to handle duplicates
+    on_duplicate="concat"               # Optional: how to handle duplicates
 )
 
 # Enrich the schema and check for unmatched keys

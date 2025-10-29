@@ -86,22 +86,32 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 
                 # Load CSV model instructions using csv_to_dict
                 csv_path = str(self.instructions_dir / assessment["csv_file"])
-                enrichment_dict = read_key_value_csv_path(
-                    csv_path,
+                # Use wrapper to enrich directly from CSV
+                unmatched_keys = self.pcc_schema.enrich_assessment_from_csv(
+                    table_name,
+                    csv_path=csv_path,
                     key_col=assessment["csv_key_col"],
                     value_col=assessment["csv_value_col"],
-                    key_prefix="Cust",  # PCC question keys start with "Cust_"
-                    sanitize_values=True,  # Sanitize HTML and special chars
+                    key_prefix="Cust",
+                    sanitize_values=True,
                     skip_blank_keys=True,
                     strip_whitespace=True,
+                    case_insensitive=False,
+                    on_duplicate="concat",
                 )
                 
                 # Verify we got enrichment data
-                self.assertGreater(len(enrichment_dict), 0, 
+                local_dict = read_key_value_csv_path(
+                    csv_path,
+                    key_col=assessment["csv_key_col"],
+                    value_col=assessment["csv_value_col"],
+                    key_prefix="Cust",
+                    sanitize_values=True,
+                    skip_blank_keys=True,
+                    strip_whitespace=True,
+                )
+                self.assertGreater(len(local_dict), 0, 
                                    f"No enrichment data loaded from {assessment['csv_file']}")
-                
-                # Enrich the schema using the underlying engine
-                unmatched_keys = self.pcc_schema.engine.enrich_schema(table_name, enrichment_dict)
                 
                 # Verify return type (positive/negative cases)
                 self.assertIsInstance(unmatched_keys, list)
@@ -120,7 +130,18 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 enriched_count = 0
                 for field_meta in field_index:
                     field_key = field_meta.get("key")
-                    if field_key in enrichment_dict:
+                    # Retrieve description text by recomputing dictionary to check
+                    # Note: For performance in real code, caller can reuse their dict
+                    local_dict = read_key_value_csv_path(
+                        csv_path,
+                        key_col=assessment["csv_key_col"],
+                        value_col=assessment["csv_value_col"],
+                        key_prefix="Cust",
+                        sanitize_values=True,
+                        skip_blank_keys=True,
+                        strip_whitespace=True,
+                    )
+                    if field_key in local_dict:
                         # Check if the field description was updated
                         level_keys = field_meta.get("level_keys", [])
                         property_key = field_meta.get("property_key")
@@ -133,7 +154,7 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                         if property_key and "properties" in current:
                             prop_schema = current["properties"].get(property_key, {})
                             description = prop_schema.get("description", "")
-                            if enrichment_dict[field_key] in description:
+                            if local_dict[field_key] in description:
                                 enriched_count += 1
                 
                 # Verify that at least some fields were enriched
@@ -171,8 +192,18 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
             self.assertNotIn(">", value, f"HTML tags not sanitized in {key}")
             self.assertNotIn('"', value, f"Quotes not sanitized in {key}")
         
-        # Enrich the schema using the underlying engine
-        unmatched_keys = self.pcc_schema.engine.enrich_schema(table_name, enrichment_dict)
+        # Enrich the schema using the wrapper
+        unmatched_keys = self.pcc_schema.enrich_assessment_from_csv(
+            table_name,
+            csv_path=csv_path,
+            key_col="Key",
+            value_col="Guidelines",
+            key_prefix="Cust",
+            sanitize_values=True,
+            skip_blank_keys=True,
+            strip_whitespace=True,
+            on_duplicate="concat",
+        )
         
         # Verify no unmatched keys
         self.assertEqual(len(unmatched_keys), 0)
@@ -212,17 +243,18 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
         # Load CSV data - we'll use Guidelines column for enrichment
         csv_path = str(self.instructions_dir / "MHCS_Nursing_Daily_Skilled_Note.csv")
         
-        # Get the "Guidelines" column
-        enrichment_dict = read_key_value_csv_path(
-            csv_path,
+        # Enrich the schema using the wrapper
+        unmatched_keys = self.pcc_schema.enrich_assessment_from_csv(
+            table_name,
+            csv_path=csv_path,
             key_col="Key",
             value_col="Guidelines",
             key_prefix="Cust",
             sanitize_values=True,
+            skip_blank_keys=True,
+            strip_whitespace=True,
+            on_duplicate="concat",
         )
-        
-        # Enrich the schema using the underlying engine
-        unmatched_keys = self.pcc_schema.engine.enrich_schema(table_name, enrichment_dict)
         
         # Verify return type and that we got a list (may have unmatched keys if CSV has extra entries)
         self.assertIsInstance(unmatched_keys, list)
@@ -231,6 +263,15 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
         json_schema = self.pcc_schema.get_json_schema(table_id)
         field_index = self.pcc_schema.get_field_metadata(table_id)
         
+        # Build local dict for verification
+        enrichment_dict = read_key_value_csv_path(
+            csv_path,
+            key_col="Key",
+            value_col="Guidelines",
+            key_prefix="Cust",
+            sanitize_values=True,
+        )
+
         # Check a specific field
         if "Cust_A_1" in enrichment_dict:
             field_a1 = next((f for f in field_index if f.get("key") == "Cust_A_1"), None)

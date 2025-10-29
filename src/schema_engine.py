@@ -1373,27 +1373,25 @@ class SchemaEngine:
             return f"{loc}: {err.message}"
         return err.message
 
-    def enrich_schema(self, table_name: str, enrichment_dict: Dict[str, str]) -> List[str]:
+    def enrich_schema(self, table_identifier: Union[int, str], enrichment_dict: Dict[str, str]) -> List[str]:
         """
         Enrich schema property descriptions with additional context.
         
         Args:
-            table_name: The name of the registered table
+            table_identifier: The registered table identifier (ID or name)
             enrichment_dict: Dict mapping field keys to description text
         
         Returns:
             List of field keys that were not found in the schema
         
         Raises:
-            ValueError: If table_name not registered
+            ValueError: If table not registered
         """
-        if table_name not in self.__table_names:
-            raise ValueError(f"Table '{table_name}' not registered")
-        
-        table_id = self.__table_names[table_name]
+        table_id = self._resolve_table_id(table_identifier)
         schema_data = self.__tables[table_id]
         json_schema = schema_data["json_schema"]
         field_index = schema_data["field_index"]
+        table_name = schema_data["table_name"]
         
         unmatched_keys: List[str] = []
         

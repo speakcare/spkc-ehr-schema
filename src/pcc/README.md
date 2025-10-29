@@ -153,8 +153,47 @@ enrichment_dict = read_key_value_csv_path(
     strip_whitespace=True,       # Normalize whitespace
 )
 
-# Enrich the assessment schema
-unmatched_keys = pcc.engine.enrich_schema(assessment_name, enrichment_dict)
+# Option A: One-call enrichment from CSV (local or S3)
+unmatched_keys = pcc.enrich_assessment_from_csv(
+    assessment_name,
+    csv_path="your_model_instructions.csv",  # Local file example
+    key_col,                      # Must provide
+    value_col,                    # Must provide
+    key_prefix="Cust",            # default
+    sanitize_values=True,          # default True in the wrapper
+    skip_blank_keys=True,          # default True
+    strip_whitespace=False,        # default False
+    case_insensitive=False,        # default False
+    on_duplicate="concat",        # default "concat"
+)
+
+# Option A (S3 variant):
+unmatched_keys = pcc.enrich_assessment_from_csv(
+    assessment_name,
+    s3_bucket="my-bucket",
+    s3_key="path/to/your_model_instructions.csv",
+    key_col="Key",
+    value_col="Guidelines",
+    key_prefix="Cust",
+    sanitize_values=True,
+)
+
+# Option B: Manual control - load CSV then enrich
+enrichment_dict = read_key_value_csv_path(
+    csv_path="your_model_instructions.csv",
+    key_col="Key",
+    value_col="Guidelines",
+    key_prefix="Cust",
+    sanitize_values=True,
+)
+unmatched_keys = pcc.enrich_assessment_from_csv(
+    assessment_name,
+    csv_path="your_model_instructions.csv",
+    key_col="Key",
+    value_col="Guidelines",
+    key_prefix="Cust",
+    sanitize_values=True,
+)
 
 # Check for unmatched keys (CSV keys not found in schema)
 if len(unmatched_keys) == 0:
@@ -209,7 +248,14 @@ enrichment_dict = read_key_value_csv_path(
     sanitize_values=True,
 )
 
-unmatched_keys = pcc.engine.enrich_schema(assessment_name, enrichment_dict)
+unmatched_keys = pcc.enrich_assessment_from_csv(
+    assessment_name,
+    csv_path="model_instructions.csv",
+    key_col="Key",
+    value_col="Guidelines",
+    key_prefix="Cust",
+    sanitize_values=True,
+)
 
 # Verify enrichment succeeded
 assert len(unmatched_keys) == 0, f"Unmatched keys: {unmatched_keys}"

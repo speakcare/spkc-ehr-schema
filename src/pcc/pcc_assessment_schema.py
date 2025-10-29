@@ -16,6 +16,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from schema_engine import SchemaEngine
+from csv_to_dict import (
+    read_key_value_csv_path,
+    read_key_value_csv_s3,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -733,3 +737,76 @@ class PCCAssessmentSchema:
             name = schema.get("title", str(assessment_id))
             assessments_info.append({"id": assessment_id, "name": name})
         return assessments_info
+
+    def enrich_assessment_from_csv(
+        self,
+        assessment_identifier: Union[int, str],
+        *,
+        csv_path: Optional[str] = None,
+        s3_bucket: Optional[str] = None,
+        s3_key: Optional[str] = None,
+        key_col: str,
+        value_col: str,
+        key_prefix: Optional[str] = "Cust",
+        sanitize_values: bool = True,
+        skip_blank_keys: bool = True,
+        strip_whitespace: bool = False,
+        case_insensitive: bool = False,
+        on_duplicate: str = "concat",
+    ) -> List[str]:
+        """
+        Convenience wrapper: read enrichment CSV (local path or S3) and enrich assessment schema.
+
+        Exactly one of (csv_path) or (s3_bucket and s3_key) must be provided.
+
+        Args:
+            assessment_identifier: Assessment ID or name to enrich
+            csv_path: Local filesystem path to the CSV file
+            s3_bucket: S3 bucket name (if reading from S3)
+            s3_key: S3 object key (if reading from S3)
+            key_col: CSV column used for keys (required)
+            value_col: CSV column used for values (required)
+            key_prefix: If provided, prefix keys with "{key_prefix}_" unless already present (default: "Cust")
+            sanitize_values: Sanitize values by removing HTML/JSON-breaking chars (default: True)
+            skip_blank_keys: Skip empty/blank keys (default: True)
+            strip_whitespace: Strip leading/trailing whitespace from keys/values (default: False)
+            case_insensitive: Case-insensitive header matching (default: False)
+            on_duplicate: Duplicate handling policy: "last" | "first" | "error" | "concat" (default: "concat")
+
+        Returns:
+            List of unmatched keys returned by engine.enrich_schema.
+        """
+        if csv_path is None and not (s3_bucket and s3_key):
+            raise ValueError("Provide either csv_path or (s3_bucket and s3_key)")
+        if csv_path is not None and (s3_bucket or s3_key):
+            raise ValueError("Provide only one source: csv_path or s3_bucket+s3_key, not both")
+
+        # Build enrichment dict from CSV
+        if csv_path:
+            enrichment_dict = read_key_value_csv_path(
+                csv_path,
+                key_col=key_col,
+                value_col=value_col,
+                key_prefix=key_prefix,
+                sanitize_values=sanitize_values,
+                skip_blank_keys=skip_blank_keys,
+                strip_whitespace=strip_whitespace,
+                case_insensitive=case_insensitive,
+                on_duplicate=on_duplicate,
+            )
+        else:
+            enrichment_dict = read_key_value_csv_s3(
+                bucket=s3_bucket or "",
+                key=s3_key or "",
+                key_col=key_col,
+                value_col=value_col,
+                key_prefix=key_prefix,
+                sanitize_values=sanitize_values,
+                skip_blank_keys=skip_blank_keys,
+                strip_whitespace=strip_whitespace,
+                case_insensitive=case_insensitive,
+                on_duplicate=on_duplicate,
+            )
+
+        # Apply enrichment and return unmatched keys (engine resolves ID or name)
+        return self.engine.enrich_schema(assessment_identifier, enrichment_dict)
