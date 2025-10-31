@@ -3993,6 +3993,102 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIn("precautions", result["data"][0]["properties"])
         self.assertEqual(result["data"][0]["properties"]["precautions"]["value"], "Contact precautions")
 
+    def test_use_id_in_property_name_prevents_duplicates(self):
+        """Test that use_id_in_property_name flag prevents duplicate property names."""
+        # Create an engine WITHOUT the flag (default behavior)
+        engine_no_prefix = SchemaEngine(self.flat_meta_schema, use_id_in_property_name=False)
+        
+        # Create schema with duplicate question text (after sanitization)
+        external_schema_duplicates = {
+            "table_name": "Duplicate Test",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": 'If "other" selected, describe:',
+                    "field_type": "text"
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": 'If "other" selected, describe:',
+                    "field_type": "text"
+                }
+            ]
+        }
+        
+        engine_no_prefix.register_table(1, external_schema_duplicates)
+        schema_no_prefix = engine_no_prefix.get_json_schema(1)
+        
+        # Without prefix, we get duplicates in required array (this would fail JSON schema validation)
+        questions_no_prefix = schema_no_prefix["properties"]["fields"]["properties"]
+        required_no_prefix = schema_no_prefix["properties"]["fields"]["required"]
+        
+        # Verify we have duplicate property names (which would cause JSON schema validation to fail)
+        self.assertIn("If other selected, describe:", questions_no_prefix)
+        # Check if we have duplicates in required (would fail uniqueItems validation)
+        required_set_no_prefix = set(required_no_prefix)
+        if len(required_set_no_prefix) < len(required_no_prefix):
+            # We have duplicates - this is the problem
+            pass  # Expected without prefix
+        
+        # Now create an engine WITH the flag
+        engine_with_prefix = SchemaEngine(self.flat_meta_schema, use_id_in_property_name=True)
+        
+        engine_with_prefix.register_table(1, external_schema_duplicates)
+        schema_with_prefix = engine_with_prefix.get_json_schema(1)
+        
+        # With prefix, property names should be unique
+        questions_with_prefix = schema_with_prefix["properties"]["fields"]["properties"]
+        required_with_prefix = schema_with_prefix["properties"]["fields"]["required"]
+        
+        # Verify we have unique prefixed property names
+        self.assertIn("1. If other selected, describe:", questions_with_prefix)
+        self.assertIn("2. If other selected, describe:", questions_with_prefix)
+        
+        # Verify required array has unique items
+        required_set_with_prefix = set(required_with_prefix)
+        self.assertEqual(len(required_set_with_prefix), len(required_with_prefix), 
+                        "Required array should have unique items when using id prefix")
+        
+        # Validate the schema is valid JSON Schema (should pass validation)
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError:
+            from jsonschema import Draft7Validator as Draft202012Validator
+        
+        # This should NOT raise an error (schema is valid)
+        Draft202012Validator.check_schema(schema_with_prefix)
+        
+        # Test validation with prefixed property names
+        valid_data = {
+            "table_name": "Duplicate Test",
+            "fields": {
+                "1. If other selected, describe:": "First description",
+                "2. If other selected, describe:": "Second description"
+            }
+        }
+        
+        is_valid, errors = engine_with_prefix.validate(1, valid_data)
+        self.assertTrue(is_valid, f"Validation should pass with unique prefixed names: {errors}")
+        
+        # Test reverse mapping works with prefixed names
+        def test_formatter(engine, field_meta, model_value, table_name):
+            return {field_meta["key"]: {"type": "text", "value": model_value}}
+        
+        engine_with_prefix.register_reverse_formatter("test", "text", test_formatter)
+        
+        result = engine_with_prefix.reverse_map("Duplicate Test", valid_data, formatter_name="test")
+        
+        # Verify both fields were reverse mapped
+        self.assertIn("data", result)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIn("properties", result["data"][0])
+        self.assertIn("field1", result["data"][0]["properties"])
+        self.assertIn("field2", result["data"][0]["properties"])
+        self.assertEqual(result["data"][0]["properties"]["field1"]["value"], "First description")
+        self.assertEqual(result["data"][0]["properties"]["field2"]["value"], "Second description")
+
 
 if __name__ == "__main__":
     # Set up logging to see info messages

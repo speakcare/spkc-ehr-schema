@@ -166,7 +166,7 @@ class PCCAssessmentSchema:
     
     def __init__(self):
         """Initialize the PCC Assessment Schema engine."""
-        self.engine = SchemaEngine(PCC_META_SCHEMA)
+        self.engine = SchemaEngine(PCC_META_SCHEMA, use_id_in_property_name=True)
         
         # Register the options extractor
         self.engine.register_options_extractor("extract_response_options", extract_response_options)

@@ -14,6 +14,11 @@ from pathlib import Path
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
 
+try:
+    from jsonschema import Draft202012Validator
+except ImportError:
+    from jsonschema import Draft7Validator as Draft202012Validator
+
 from pcc.pcc_assessment_schema import PCCAssessmentSchema
 from csv_to_dict import read_key_value_csv_path
 
@@ -34,23 +39,23 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
             {
                 "name": "MHCS Nursing Weekly Skin Check",  # Matches template assessmentDescription
                 "template_file": "MHCS_Nursing_Weekly_Skin_Check.json",
-                "csv_file": "MHCS_Nursing_Weekly_Skin_Check.csv",
+                "csv_file": "Assessment Table - Skin Assessment.csv",
                 "csv_key_col": "Key",
-                "csv_value_col": "Guidelines",
+                "csv_value_col": "Where in Database",
                 "template_id": 21244831,
             },
             {
                 "name": "MHCS Nursing Daily Skilled Note",
                 "template_file": "MHCS_Nursing_Daily_Skilled_Note.json",
-                "csv_file": "MHCS_Nursing_Daily_Skilled_Note.csv",
+                "csv_file": "Assessment Table - Daily Skilled Nursing Note.csv",
                 "csv_key_col": "Key",
-                "csv_value_col": "Guidelines",
+                "csv_value_col": "Assumption Prompts, if not explicit in Transcript or Database",
                 "template_id": 21242741,
             },
             {
                 "name": "MHCS IDT 5 Day Section GG",
                 "template_file": "MHCS_IDT_5_Day_Section_GG.json",
-                "csv_file": "MHCS_IDT_5_Day_Section_GG.csv",
+                "csv_file": "Assessment Table - ADL GG Comprehensive.csv",
                 "csv_key_col": "Key",
                 "csv_value_col": "Guidelines",
                 "template_id": 21242733,
@@ -58,7 +63,7 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
             {
                 "name": "MHCS Nursing Admission Assessment - V 5",
                 "template_file": "MHCS_Nursing_Admission_Assessment_-_V_5.json",
-                "csv_file": "MHCS_Nursing_Admission_Assessment_-_V_5.csv",
+                "csv_file": "Assessment Table - Admission Note.csv",
                 "csv_key_col": "Key",
                 "csv_value_col": "Guidelines",
                 "template_id": 21244981,
@@ -83,6 +88,23 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 
                 self.assertEqual(table_id, assessment["template_id"])
                 self.assertEqual(table_name, assessment["name"])
+                
+                # Validate the schema BEFORE enrichment
+                json_schema_before = self.pcc_schema.get_json_schema(table_id)
+                try:
+                    Draft202012Validator.check_schema(json_schema_before)
+                except Exception as schema_error:
+                    error_msg = str(schema_error)
+                    if "non-unique elements" in error_msg:
+                        self.fail(
+                            f"JSON schema for {assessment['name']} is invalid BEFORE enrichment: "
+                            f"duplicate property keys/names detected. Error: {schema_error}"
+                        )
+                    else:
+                        self.fail(
+                            f"JSON schema for {assessment['name']} is not valid BEFORE enrichment: {schema_error}"
+                        )
+                print(f"  ✓ {assessment['name']}: Schema is valid before enrichment")
                 
                 # Load CSV model instructions using csv_to_dict
                 csv_path = str(self.instructions_dir / assessment["csv_file"])
@@ -123,7 +145,24 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                     print(f"  ✓ {assessment['name']}: All keys matched")
                 
                 # Verify enrichment was applied
-                json_schema = self.pcc_schema.get_json_schema(table_id)
+                json_schema_after = self.pcc_schema.get_json_schema(table_id)
+                
+                # Validate that the enriched JSON schema is still valid after enrichment
+                try:
+                    Draft202012Validator.check_schema(json_schema_after)
+                except Exception as schema_error:
+                    error_msg = str(schema_error)
+                    if "non-unique elements" in error_msg:
+                        self.fail(
+                            f"JSON schema for {assessment['name']} became invalid AFTER enrichment: "
+                            f"duplicate property keys/names detected. Error: {schema_error}"
+                        )
+                    else:
+                        self.fail(
+                            f"JSON schema for {assessment['name']} became invalid AFTER enrichment: {schema_error}"
+                        )
+                print(f"  ✓ {assessment['name']}: Schema is valid after enrichment")
+                
                 field_index = self.pcc_schema.get_field_metadata(table_id)
                 
                 # Count how many fields were enriched
@@ -146,8 +185,8 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                         level_keys = field_meta.get("level_keys", [])
                         property_key = field_meta.get("property_key")
                         
-                        # Navigate to the property in json_schema
-                        current = json_schema
+                        # Navigate to the property in json_schema_after
+                        current = json_schema_after
                         for key in level_keys:
                             current = current.get("properties", {}).get(key, {})
                         
@@ -210,6 +249,13 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
         
         # Get the JSON schema and verify specific field was enriched
         json_schema = self.pcc_schema.get_json_schema(table_id)
+        
+        # Validate that the enriched JSON schema is a valid JSON Schema
+        try:
+            Draft202012Validator.check_schema(json_schema)
+        except Exception as schema_error:
+            self.fail(f"JSON schema for Skin Check is not valid: {schema_error}")
+        
         field_index = self.pcc_schema.get_field_metadata(table_id)
         
         # Find field 1_A

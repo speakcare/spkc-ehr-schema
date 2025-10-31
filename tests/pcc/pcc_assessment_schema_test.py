@@ -415,14 +415,14 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Navigate to questions
         questions = json_schema["properties"]["sections"]["properties"]["AA.Identification Information"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]["properties"]
         
-        # Test text field (First Name)
-        self.assertIn("First", questions)
-        first_name_field = questions["First"]
+        # Test text field (First Name) - with questionNumber prefix "a"
+        self.assertIn("a. First", questions)
+        first_name_field = questions["a. First"]
         self.assertEqual(first_name_field["type"], ["string", "null"])
         
-        # Test text field (Last Name)
-        self.assertIn("Last", questions)
-        last_name_field = questions["Last"]
+        # Test text field (Last Name) - with questionNumber prefix "c"
+        self.assertIn("c. Last", questions)
+        last_name_field = questions["c. Last"]
         self.assertEqual(last_name_field["type"], ["string", "null"])
         
         # Navigate to GENDER questions
@@ -511,8 +511,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1": {
                             "questions": {
-                                "First": "John",
-                                "Last": "Doe"
+                                "a. First": "John",
+                                "c. Last": "Doe"
                             }
                         },
                         "2": {
@@ -705,7 +705,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         }
         assessment_id, _ = pcc.register_assessment(None, assessment)
         json_schema = pcc.get_json_schema(assessment_id)
-        fruits_field = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]["properties"]["Table of fruits"]
+        fruits_field = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]["properties"]["1. Table of fruits"]
         self.assertEqual(fruits_field["type"], "array")
         self.assertIn("maxItems", fruits_field)
         self.assertIn("items", fruits_field)
@@ -768,18 +768,18 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         questions = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1"]["properties"]["questions"]
         
         # Verify computed fields are NOT in the schema
-        self.assertNotIn("Computed total score", questions["properties"])
-        self.assertNotIn("Computed BMI", questions["properties"])
+        self.assertNotIn("1. Computed total score", questions["properties"])
+        self.assertNotIn("3. Computed BMI", questions["properties"])
         
-        # Verify regular field IS in the schema
-        self.assertIn("Patient height", questions["properties"])
+        # Verify regular field IS in the schema (with questionNumber prefix)
+        self.assertIn("2. Patient height", questions["properties"])
         
         # Verify computed fields are NOT in required list
-        self.assertNotIn("Computed total score", questions["required"])
-        self.assertNotIn("Computed BMI", questions["required"])
+        self.assertNotIn("1. Computed total score", questions["required"])
+        self.assertNotIn("3. Computed BMI", questions["required"])
         
-        # Verify regular field IS in required list
-        self.assertIn("Patient height", questions["required"])
+        # Verify regular field IS in required list (with questionNumber prefix)
+        self.assertIn("2. Patient height", questions["required"])
         
         # Verify only 1 field in questions (not 3)
         self.assertEqual(len(questions["properties"]), 1)
@@ -829,7 +829,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Resident arrived via:": "Wheelchair"
+                                "1. Resident arrived via:": "Wheelchair"
                             }
                         }
                     }
@@ -891,7 +891,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Select all that apply:": ["Option A", "Option C"]
+                                "1. Select all that apply:": ["Option A", "Option C"]
                             }
                         }
                     }
@@ -948,7 +948,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Is resident alert?": True
+                                "1. Is resident alert?": True
                             }
                         }
                     }
@@ -974,7 +974,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Is resident alert?": False
+                                "1. Is resident alert?": False
                             }
                         }
                     }
@@ -1035,7 +1035,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": [
+                                "1. Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": [
                                     {"entry": "Head", "description": "soft"},
                                     {"entry": "Leg", "description": "smooth"},
                                     {"entry": "Wrist", "description": "blue"}
@@ -1119,7 +1119,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Patient Name": "John Doe"
+                                "1. Patient Name": "John Doe"
                             }
                         }
                     }
@@ -1128,7 +1128,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Vital Signs": {
                             "questions": {
-                                "Blood Pressure": "120/80"
+                                "1. Blood Pressure": "120/80"
                             }
                         }
                     }
@@ -1208,8 +1208,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Patient Name": "John Doe",
-                                "Diagnosis": "Hypertension"
+                                "1. Patient Name": "John Doe",
+                                "2. Diagnosis": "Hypertension"
                             }
                         }
                     }
@@ -1282,7 +1282,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Basic Info": {
                             "questions": {
-                                "Gender": "Male"
+                                "1. Gender": "Male"
                             }
                         }
                     }
@@ -1734,10 +1734,10 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Text field": "Hello World",
-                                "Single select": "Option A",
-                                "Multi select": ["Choice 1", "Choice 3"],
-                                "Table field": [
+                                "1. Text field": "Hello World",
+                                "2. Single select": "Option A",
+                                "3. Multi select": ["Choice 1", "Choice 3"],
+                                "4. Table field": [
                                     {"entry": "Head", "description": "soft tissue"},
                                     {"entry": "Arm", "description": "bruised"}
                                 ]
@@ -2108,7 +2108,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         # 1. Verify schema structure
         # Navigate to the items schema for the gbdy field
-        items_schema = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1.Test Group"]["properties"]["questions"]["properties"]["Select skin locations"]
+        items_schema = json_schema["properties"]["sections"]["properties"]["A.Test Section"]["properties"]["assessmentQuestionGroups"]["properties"]["1.Test Group"]["properties"]["questions"]["properties"]["1. Select skin locations"]
         
         self.assertEqual(items_schema["type"], "array")
         self.assertIn("items", items_schema)
@@ -2126,7 +2126,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Select skin locations": [
+                                "1. Select skin locations": [
                                     {"entry": "Head", "description": "soft tissue"},
                                     {"entry": "Arm", "description": "bruised"}
                                 ]
@@ -2147,7 +2147,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Select skin locations": [
+                                "1. Select skin locations": [
                                     {"description": "soft tissue"}  # Missing 'entry'
                                 ]
                             }
@@ -2167,7 +2167,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Select skin locations": [
+                                "1. Select skin locations": [
                                     {"entry": "Head"}  # Missing 'description'
                                 ]
                             }
@@ -2187,7 +2187,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Select skin locations": [
+                                "1. Select skin locations": [
                                     {"entry": "Head", "description": "soft tissue", "extra": "field"}
                                 ]
                             }
@@ -2207,7 +2207,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     "assessmentQuestionGroups": {
                         "1.Test Group": {
                             "questions": {
-                                "Select skin locations": []
+                                "1. Select skin locations": []
                             }
                         }
                     }

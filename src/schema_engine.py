@@ -383,17 +383,20 @@ def _get_validator(internal_type: str) -> Optional[Callable]:
 class SchemaEngine:
     """Engine for comprehensive schema operations including conversion, validation, enrichment, and reverse mapping."""
 
-    def __init__(self, meta_schema_language: Dict[str, Any]) -> None:
+    def __init__(self, meta_schema_language: Dict[str, Any], use_id_in_property_name: bool = False) -> None:
         """
         Initialize a schema engine for one external "schema language".
 
         Args:
             meta_schema_language: Meta-schema definition describing the external schema language structure.
+            use_id_in_property_name: If True, prefix property names with id (e.g., "1a. Question text") 
+                                     to avoid duplicates. Default: False.
         """
         # Validate meta-schema language structure
         self.__validate_meta_schema(meta_schema_language)
         
         self.__meta_schema = meta_schema_language
+        self.__use_id_in_property_name = use_id_in_property_name
         self.__options_extractor_registry: Dict[str, Callable] = {}
         self.__instance_validator_registry: Dict[str, Callable] = {}
         self.__instance_field_schema_builder_registry: Dict[str, Callable] = {}
@@ -890,6 +893,10 @@ class SchemaEngine:
             field_name = self._sanitize_for_json(prop.get(name_field_key, field_key))
             field_title_value = self._sanitize_for_json(prop.get(title_field_key, "") if title_field_key else "")
             
+            # Get id field (e.g., questionNumber) if available for prefixing
+            id_field_key = property_def.get("id", "")
+            id_value = prop.get(id_field_key, "") if id_field_key else ""
+            
             # Build field schema (returns tuple including optional virtual_children_metadata)
             property_key_override, json_schema, target_type, virtual_children_metadata = self._build_property_schema(prop, property_def)
             
@@ -897,8 +904,16 @@ class SchemaEngine:
             if property_key_override is None and json_schema is None and target_type is None:
                 continue
             
-            # Use override if provided, otherwise use field_name
-            property_key = property_key_override if property_key_override else field_name
+            # Build property key: if override provided, use it; otherwise check if engine uses id in property names
+            if property_key_override:
+                property_key = property_key_override
+            else:
+                if self.__use_id_in_property_name and id_value:
+                    # Format id as prefix: "1a" -> "1a. Question text"
+                    property_key = f"{id_value}. {field_name}"
+                else:
+                    # Use field_name as-is (may cause collisions if duplicate)
+                    property_key = field_name
             
             properties[property_key] = json_schema
             required.append(property_key)
