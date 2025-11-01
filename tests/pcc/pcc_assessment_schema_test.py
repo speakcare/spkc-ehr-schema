@@ -9,9 +9,26 @@ from typing import Dict, Any
 
 import sys
 import os
+from pathlib import Path
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
 from pcc.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
+
+# Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
+_openai_chat_completion = None
+
+def _get_openai_chat_completion():
+    """Lazy import of openai_chat_completion to avoid import errors during pytest collection."""
+    global _openai_chat_completion
+    if _openai_chat_completion is None:
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'tests'))
+            from openai_client import openai_chat_completion
+            _openai_chat_completion = openai_chat_completion
+        except (ImportError, ModuleNotFoundError) as e:
+            # Return None to allow test to skip - don't fail during import
+            return None
+    return _openai_chat_completion
 
 
 def _ensure_dir(path: str) -> None:
@@ -2954,6 +2971,188 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertIsInstance(sections, dict)
         if "Cust.MHCS Nursing Daily Skilled Note" in sections:
             self.assertIsInstance(sections["Cust.MHCS Nursing Daily Skilled Note"], dict)
+
+
+@unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
+class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
+    """
+    Test that PCC assessment schemas are compatible with OpenAI JSON schema format.
+    Tests all 4 assessments both without and with enrichment, and verifies reverse_map works.
+    
+    Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
+    """
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.pcc_schema = PCCAssessmentSchema()
+        self.test_dir = Path(__file__).parent
+        self.templates_dir = self.test_dir.parent.parent / "src" / "pcc" / "assmnt_templates"
+        self.instructions_dir = self.test_dir / "model_instructions"
+        
+        # Define assessments to test (same as test_pcc_enrichment_from_csv.py)
+        self.assessments = [
+            {
+                "name": "MHCS Nursing Weekly Skin Check",
+                "template_file": "MHCS_Nursing_Weekly_Skin_Check.json",
+                "csv_file": "Assessment Table - Skin Assessment.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Where in Database",
+                "template_id": 21244831,
+            },
+            {
+                "name": "MHCS Nursing Daily Skilled Note",
+                "template_file": "MHCS_Nursing_Daily_Skilled_Note.json",
+                "csv_file": "Assessment Table - Daily Skilled Nursing Note.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Assumption Prompts, if not explicit in Transcript or Database",
+                "template_id": 21242741,
+            },
+            {
+                "name": "MHCS IDT 5 Day Section GG",
+                "template_file": "MHCS_IDT_5_Day_Section_GG.json",
+                "csv_file": "Assessment Table - ADL GG Comprehensive.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21242733,
+            },
+            {
+                "name": "MHCS Nursing Admission Assessment - V 5",
+                "template_file": "MHCS_Nursing_Admission_Assessment_-_V_5.json",
+                "csv_file": "Assessment Table - Admission Note.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21244981,
+            },
+        ]
+    
+    def test_assessments_openai_compatibility_without_enrichment(self):
+        """Test all 4 assessments with OpenAI API without enrichment and verify reverse_map."""
+        user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
+        
+        for assessment in self.assessments:
+            with self.subTest(assessment=assessment["name"]):
+                # Load and register assessment
+                template_path = self.templates_dir / assessment["template_file"]
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template_data = json.load(f)
+                
+                assessment_id, assessment_name = self.pcc_schema.register_assessment(
+                    assessment["template_id"],
+                    template_data
+                )
+                
+                self.assertEqual(assessment_id, assessment["template_id"])
+                self.assertEqual(assessment_name, assessment["name"])
+                
+                # Get JSON schema
+                json_schema = self.pcc_schema.get_json_schema(assessment_id)
+                
+                # Call OpenAI API
+                openai_chat_completion = _get_openai_chat_completion()
+                if openai_chat_completion is None:
+                    self.skipTest("OpenAI chat completion not available")
+                response_choices = openai_chat_completion(user_prompt=user_prompt, json_schema=json_schema, num_choices=1)
+                
+                # Verify finish_reason is "stop" (no schema errors)
+                self.assertEqual(len(response_choices), 1)
+                self.assertEqual(response_choices[0]["finish_reason"], "stop")
+                
+                # Parse response content as JSON
+                response_content = json.loads(response_choices[0]["content"])
+                self.assertIsInstance(response_content, dict)
+                
+                # Run reverse_map on the response
+                reverse_mapped = self.pcc_schema.reverse_map(
+                    assessment_id,
+                    response_content,
+                    formatter_name="pcc-ui"
+                )
+                
+                # Verify reverse_map produces expected structure
+                self.assertIn("doc_type", reverse_mapped)
+                self.assertEqual(reverse_mapped["doc_type"], "pcc_assessment")
+                self.assertIn("assessment_title", reverse_mapped)
+                self.assertIn("assessment_std_id", reverse_mapped)
+                self.assertEqual(reverse_mapped["assessment_std_id"], assessment_id)
+                # PCC formatter returns sections (object) not data (array) when pack_containers_as="object"
+                self.assertIn("sections", reverse_mapped)
+                self.assertIsInstance(reverse_mapped["sections"], dict)
+    
+    def test_assessments_openai_compatibility_with_enrichment(self):
+        """Test all 4 assessments with OpenAI API with enrichment and verify reverse_map."""
+        user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
+        
+        for assessment in self.assessments:
+            with self.subTest(assessment=assessment["name"]):
+                # Load and register assessment
+                template_path = self.templates_dir / assessment["template_file"]
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template_data = json.load(f)
+                
+                assessment_id, assessment_name = self.pcc_schema.register_assessment(
+                    assessment["template_id"],
+                    template_data
+                )
+                
+                self.assertEqual(assessment_id, assessment["template_id"])
+                self.assertEqual(assessment_name, assessment["name"])
+                
+                # Load and apply enrichment from CSV (same config as test_register_and_enrich_all_assessments)
+                csv_path = str(self.instructions_dir / assessment["csv_file"])
+                unmatched_keys = self.pcc_schema.enrich_assessment_from_csv(
+                    assessment_name,
+                    csv_path=csv_path,
+                    key_col=assessment["csv_key_col"],
+                    value_col=assessment["csv_value_col"],
+                    key_prefix="Cust",
+                    sanitize_values=True,
+                    skip_blank_keys=True,
+                    strip_whitespace=True,
+                    case_insensitive=False,
+                    on_duplicate="concat",
+                )
+                
+                # Log unmatched keys for debugging
+                if unmatched_keys:
+                    print(f"\n  ⚠ {assessment_name}: {len(unmatched_keys)} unmatched enrichment keys:")
+                    for key in sorted(unmatched_keys):
+                        print(f"      - {key}")
+                
+                # Get enriched JSON schema
+                enriched_json_schema = self.pcc_schema.get_json_schema(assessment_id)
+                
+                # Call OpenAI API with enriched schema
+                openai_chat_completion = _get_openai_chat_completion()
+                if openai_chat_completion is None:
+                    self.skipTest("OpenAI chat completion not available")
+                response_choices = openai_chat_completion(
+                    user_prompt=user_prompt, json_schema=enriched_json_schema, num_choices=1
+                )
+                
+                # Verify finish_reason is "stop" (no schema errors after enrichment)
+                self.assertEqual(len(response_choices), 1)
+                self.assertEqual(response_choices[0]["finish_reason"], "stop")
+                
+                # Parse enriched response content as JSON
+                enriched_response_content = json.loads(response_choices[0]["content"])
+                self.assertIsInstance(enriched_response_content, dict)
+                
+                # Run reverse_map on the enriched response to verify full cycle still works
+                reverse_mapped = self.pcc_schema.reverse_map(
+                    assessment_id,
+                    enriched_response_content,
+                    formatter_name="pcc-ui"
+                )
+                
+                # Verify reverse_map produces expected structure
+                self.assertIn("doc_type", reverse_mapped)
+                self.assertEqual(reverse_mapped["doc_type"], "pcc_assessment")
+                self.assertIn("assessment_title", reverse_mapped)
+                self.assertIn("assessment_std_id", reverse_mapped)
+                self.assertEqual(reverse_mapped["assessment_std_id"], assessment_id)
+                # PCC formatter returns sections (object) not data (array) when pack_containers_as="object"
+                self.assertIn("sections", reverse_mapped)
+                self.assertIsInstance(reverse_mapped["sections"], dict)
 
 
 if __name__ == "__main__":

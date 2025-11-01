@@ -26,6 +26,21 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from schema_engine import SchemaEngine
 
+# Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
+_openai_chat_completion = None
+
+def _get_openai_chat_completion():
+    """Lazy import of openai_chat_completion to avoid import errors during pytest collection."""
+    global _openai_chat_completion
+    if _openai_chat_completion is None:
+        try:
+            from tests import openai_client
+            _openai_chat_completion = openai_client.openai_chat_completion
+        except (ImportError, ModuleNotFoundError) as e:
+            # Return None to allow test to skip - don't fail during import
+            return None
+    return _openai_chat_completion
+
 
 class TestSchemaEngine(unittest.TestCase):
     """Test cases for SchemaEngine."""
@@ -3612,6 +3627,186 @@ class TestSchemaEngine(unittest.TestCase):
         
         print(f"\n5. Total fields processed: {len(field_metadata)}")
         print(f"6. Max nesting level used: {max(len(f.get('level_keys', [])) for f in field_metadata)}")
+
+    @unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
+    def test_zoo_openai_schema_compatibility(self):
+        """
+        Test that zoo schema is compatible with OpenAI JSON schema format.
+        Tests both before and after enrichment.
+        
+        Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
+        """
+        # Create zoo-specific meta-schema (simplified to avoid OpenAI nesting limits - 10 max)
+        # Using only 3 levels of nesting instead of 7 to stay within OpenAI's limits
+        zoo_meta_schema = {
+            "schema_name": "table_name",
+            "container": {
+                "container_name": "animals",
+                "container_type": "array",
+                "object": {
+                    "name": "animal_class",
+                    "key": "class_name",
+                    "container": {
+                        "container_name": "species",
+                        "container_type": "array",
+                        "object": {
+                            "name": "species_name",
+                            "key": "species_key",
+                            "properties": {
+                                "properties_name": "properties",
+                                "property": {
+                                    "key": "property_key",
+                                    "name": "property_name",
+                                    "type": "property_type",
+                                    "validation": {
+                                        "allowed_types": ["count", "health", "food_order"],
+                                        "type_constraints": {
+                                            "count": {
+                                                "target_type": "integer",
+                                                "requires_options": False
+                                            },
+                                            "health": {
+                                                "target_type": "single_select",
+                                                "requires_options": True,
+                                                "options_field": "health_options",
+                                                "options_extractor": "health_options_extractor"
+                                            },
+                                            "food_order": {
+                                                "target_type": "string",
+                                                "requires_options": False
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Create engine with zoo meta-schema
+        engine = SchemaEngine(zoo_meta_schema)
+        
+        # Register options extractors for zoo field types
+        def health_options_extractor(options_field_value):
+            """Extract health options from field schema."""
+            if not options_field_value:
+                return []
+            return [opt.get("label", "") for opt in options_field_value]
+        
+        engine.register_options_extractor("health_options_extractor", health_options_extractor)
+        
+        # Register zoo taxonomy table (simplified version for OpenAI compatibility testing)
+        zoo_schema = {
+            "table_name": "Zoo Animal Inventory",
+            "animals": [
+                {
+                    "class_name": "Mammalia",
+                    "animal_class": "Mammals",
+                    "species": [
+                        {
+                            "species_key": "canis_lupus",
+                            "species_name": "Gray Wolf",
+                            "properties": [
+                                {
+                                    "property_key": "count",
+                                    "property_name": "Count",
+                                    "property_type": "count"
+                                },
+                                {
+                                    "property_key": "health",
+                                    "property_name": "Health Status",
+                                    "property_type": "health",
+                                    "health_options": [
+                                        {"value": "E", "label": "Excellent"},
+                                        {"value": "G", "label": "Good"},
+                                        {"value": "F", "label": "Fair"},
+                                        {"value": "P", "label": "Poor"}
+                                    ]
+                                },
+                                {
+                                    "property_key": "food_order",
+                                    "property_name": "Food Order",
+                                    "property_type": "food_order"
+                                }
+                            ]
+                        },
+                        {
+                            "species_key": "felis_catus",
+                            "species_name": "Domestic Cat",
+                            "properties": [
+                                {
+                                    "property_key": "count",
+                                    "property_name": "Count",
+                                    "property_type": "count"
+                                },
+                                {
+                                    "property_key": "health",
+                                    "property_name": "Health Status",
+                                    "property_type": "health",
+                                    "health_options": [
+                                        {"value": "E", "label": "Excellent"},
+                                        {"value": "G", "label": "Good"},
+                                        {"value": "F", "label": "Fair"},
+                                        {"value": "P", "label": "Poor"}
+                                    ]
+                                },
+                                {
+                                    "property_key": "food_order",
+                                    "property_name": "Food Order",
+                                    "property_type": "food_order"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Register the zoo table
+        table_id, table_name = engine.register_table(1, zoo_schema)
+        
+        # Test without enrichment
+        json_schema = engine.get_json_schema(table_name)
+        user_prompt = "You need to fill in the information for the zoo as defined by the json schema."
+        
+        openai_chat_completion = _get_openai_chat_completion()
+        if openai_chat_completion is None:
+            self.skipTest("OpenAI chat completion not available - install 'openai' package to run this test")
+        response_choices = openai_chat_completion(user_prompt=user_prompt, json_schema=json_schema, num_choices=1)
+        
+        # Verify finish_reason is "stop" (no schema errors)
+        self.assertEqual(len(response_choices), 1)
+        self.assertEqual(response_choices[0]["finish_reason"], "stop")
+        
+        # Parse response content as JSON
+        response_content = json.loads(response_choices[0]["content"])
+        self.assertIsInstance(response_content, dict)
+        
+        # Test with enrichment
+        enrichment_dict = {
+            "count": "Number of animals of this species currently in the zoo.",
+            "health": "Overall health status of the animals. Select from the provided options.",
+            "food_order": "Detailed food requirements and feeding schedule for this species."
+        }
+        
+        unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
+        self.assertEqual(len(unmatched_keys), 0, f"All enrichment keys should match: {unmatched_keys}")
+        
+        # Get enriched JSON schema
+        enriched_json_schema = engine.get_json_schema(table_name)
+        
+        # Call OpenAI again with enriched schema
+        response_choices_enriched = openai_chat_completion(user_prompt=user_prompt, json_schema=enriched_json_schema, num_choices=1)
+        
+        # Verify finish_reason is "stop" (no schema errors after enrichment)
+        self.assertEqual(len(response_choices_enriched), 1)
+        self.assertEqual(response_choices_enriched[0]["finish_reason"], "stop")
+        
+        # Parse enriched response content as JSON
+        enriched_response_content = json.loads(response_choices_enriched[0]["content"])
+        self.assertIsInstance(enriched_response_content, dict)
 
     def test_reverse_map_pack_containers_as_object(self):
         """Test reverse_map with containers packed as object."""
