@@ -15,6 +15,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+poetry.lock
 
 # Ignore IDE specific files
 .idea/
