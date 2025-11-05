@@ -63,7 +63,7 @@ spkc-ehr-schema/
 ### Basic Usage
 
 ```python
-from src.schema_engine import SchemaEngine
+from schema_engine.schema_engine import SchemaEngine
 
 # Define meta-schema for your external schema language
 meta_schema = {
@@ -114,8 +114,8 @@ result = engine.reverse_map(table_name, model_response)
 The engine supports enriching schema descriptions with contextual information from CSV files using the `csv_to_dict` utility:
 
 ```python
-from src.schema_engine import SchemaEngine
-from src.csv_to_dict import read_key_value_csv_path
+from schema_engine.schema_engine import SchemaEngine
+from schema_engine.csv_to_dict import read_key_value_csv_path
 
 # Initialize engine and register your schema
 engine = SchemaEngine(meta_schema)
@@ -178,7 +178,7 @@ if len(unmatched_keys) > 0:
 ### PointClickCare Integration
 
 ```python
-from src.pcc.pcc_assessment_schema import PCCAssessmentSchema
+from pcc_schema.pcc_assessment_schema import PCCAssessmentSchema
 
 # Initialize PCC wrapper
 pcc_schema = PCCAssessmentSchema()

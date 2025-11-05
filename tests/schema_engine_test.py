@@ -23,8 +23,8 @@ import json
 import sys
 import os
 # Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
-from schema_engine import SchemaEngine
+#sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
+from schema_engine.schema_engine import SchemaEngine
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
 _openai_chat_completion = None
@@ -453,7 +453,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.flat_engine.register_table(1, external_schema)
         
         # Re-registration should log info and replace
-        with patch('schema_engine.logger') as mock_logger:
+        with patch('schema_engine.schema_engine.logger') as mock_logger:
             self.flat_engine.register_table(1, external_schema)
             mock_logger.info.assert_called_with("Re-registering table_id=%d (table_name=%s); replacing previous schema", 1, "Test Table")
         
@@ -1856,7 +1856,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(table_name_200, "Simple Test")
         
         # Test re-registration with same ID
-        with self.assertLogs('schema_engine', level='INFO') as cm:
+        with self.assertLogs('schema_engine.schema_engine', level='INFO') as cm:
             returned_id, returned_name = self.flat_engine.register_table(200, simple_external_schema)
             self.assertEqual(returned_id, 200)
             self.assertEqual(returned_name, "Simple Test")

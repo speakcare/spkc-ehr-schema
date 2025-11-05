@@ -5,9 +5,9 @@ from pathlib import Path
 import sys
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+#sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from csv_to_dict import (
+from schema_engine.csv_to_dict import (
     read_key_value_csv_path,
     read_key_value_csv_stream,
 )

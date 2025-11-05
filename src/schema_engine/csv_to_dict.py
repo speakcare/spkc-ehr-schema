@@ -3,7 +3,7 @@ from typing import Dict, Literal, TextIO, Optional
 from contextlib import closing
 import io
 
-from sanitize_text import sanitize_for_json
+from .sanitize_text import sanitize_for_json
 
 DuplicatePolicy = Literal["last", "first", "error", "concat"]
 

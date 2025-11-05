@@ -11,8 +11,8 @@ import sys
 import os
 from pathlib import Path
 # Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
-from pcc.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
+#sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
+from pcc_schema.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
 _openai_chat_completion = None
@@ -22,8 +22,8 @@ def _get_openai_chat_completion():
     global _openai_chat_completion
     if _openai_chat_completion is None:
         try:
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'tests'))
-            from openai_client import openai_chat_completion
+            #sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'tests'))
+            from tests.openai_client import openai_chat_completion
             _openai_chat_completion = openai_chat_completion
         except (ImportError, ModuleNotFoundError) as e:
             # Return None to allow test to skip - don't fail during import
@@ -86,7 +86,7 @@ def _sanitize_text_for_model(s: Any) -> Any:
     if not isinstance(s, str):
         return s
     # Use the same sanitization as schema engine to match enum values
-    from schema_engine import SchemaEngine
+    from schema_engine.schema_engine import SchemaEngine
     return SchemaEngine._sanitize_for_json(s)
 
 
@@ -2986,7 +2986,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
         """Set up test fixtures."""
         self.pcc_schema = PCCAssessmentSchema()
         self.test_dir = Path(__file__).parent
-        self.templates_dir = self.test_dir.parent.parent / "src" / "pcc" / "assmnt_templates"
+        self.templates_dir = self.test_dir.parent.parent / "src" / "pcc_schema" / "assmnt_templates"
         self.instructions_dir = self.test_dir / "model_instructions"
         
         # Define assessments to test (same as test_pcc_enrichment_from_csv.py)

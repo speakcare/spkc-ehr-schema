@@ -12,15 +12,15 @@ import os
 from pathlib import Path
 
 # Add src directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
+#sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
 
 try:
     from jsonschema import Draft202012Validator
 except ImportError:
     from jsonschema import Draft7Validator as Draft202012Validator
 
-from pcc.pcc_assessment_schema import PCCAssessmentSchema
-from csv_to_dict import read_key_value_csv_path
+from pcc_schema.pcc_assessment_schema import PCCAssessmentSchema
+from schema_engine.csv_to_dict import read_key_value_csv_path
 
 
 class TestPCCEnrichmentFromCSV(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
         """Set up test fixtures."""
         self.pcc_schema = PCCAssessmentSchema()
         self.test_dir = Path(__file__).parent
-        self.templates_dir = self.test_dir.parent.parent / "src" / "pcc" / "assmnt_templates"
+        self.templates_dir = self.test_dir.parent.parent / "src" / "pcc_schema" / "assmnt_templates"
         self.instructions_dir = self.test_dir / "model_instructions"
         
         # Define assessments to test

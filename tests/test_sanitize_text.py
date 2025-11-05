@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+#sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from sanitize_text import sanitize_for_json
+from schema_engine.sanitize_text import sanitize_for_json
 
 
 class TestSanitizeForJson:

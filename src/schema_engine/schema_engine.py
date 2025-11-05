@@ -333,7 +333,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import logging
 import re
 
-from sanitize_text import sanitize_for_json
+from .sanitize_text import sanitize_for_json
 
 try:
     # Prefer modern validator if available
@@ -554,7 +554,7 @@ class SchemaEngine:
         self.__last_allocated_id = candidate_id
         return candidate_id
 
-    def _resolve_table_id(self, table_identifier: Union[int, str]) -> int:
+    def resolve_table_id(self, table_identifier: Union[int, str]) -> int:
         """Resolve table identifier (name or ID) to integer table ID.
         
         Args:
@@ -600,7 +600,7 @@ class SchemaEngine:
         Returns:
             List of field metadata dictionaries
         """
-        table_id = self._resolve_table_id(table_identifier)
+        table_id = self.resolve_table_id(table_identifier)
         rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
@@ -619,7 +619,7 @@ class SchemaEngine:
         Raises:
             KeyError: If table_identifier not found
         """
-        table_id = self._resolve_table_id(table_identifier)
+        table_id = self.resolve_table_id(table_identifier)
         rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
@@ -642,7 +642,7 @@ class SchemaEngine:
         Returns:
             JSON schema dictionary
         """
-        table_id = self._resolve_table_id(table_identifier)
+        table_id = self.resolve_table_id(table_identifier)
         rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
@@ -660,7 +660,7 @@ class SchemaEngine:
             - is_valid: True if all validations pass
             - errors: List of error messages
         """
-        table_id = self._resolve_table_id(table_identifier)
+        table_id = self.resolve_table_id(table_identifier)
         rec = self.__tables.get(table_id)
         if not rec:
             raise KeyError(f"Unknown table_id: {table_id}")
@@ -1402,7 +1402,7 @@ class SchemaEngine:
         Raises:
             ValueError: If table not registered
         """
-        table_id = self._resolve_table_id(table_identifier)
+        table_id = self.resolve_table_id(table_identifier)
         schema_data = self.__tables[table_id]
         json_schema = schema_data["json_schema"]
         field_index = schema_data["field_index"]

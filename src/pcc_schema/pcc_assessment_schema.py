@@ -12,11 +12,8 @@ import json
 import os
 from typing import Dict, Any, List, Optional, Tuple, Union
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from schema_engine import SchemaEngine
-from csv_to_dict import (
+from schema_engine.schema_engine import SchemaEngine
+from schema_engine.csv_to_dict import (
     read_key_value_csv_path,
     read_key_value_csv_s3,
 )
@@ -709,7 +706,7 @@ class PCCAssessmentSchema:
             }
         
         # Resolve assessment identifier to table name
-        table_id = self.engine._resolve_table_id(assessment_identifier)
+        table_id = self.engine.resolve_table_id(assessment_identifier)
         table_data = self.engine._SchemaEngine__tables[table_id]
         table_name = table_data["table_name"]
             
@@ -810,3 +807,16 @@ class PCCAssessmentSchema:
 
         # Apply enrichment and return unmatched keys (engine resolves ID or name)
         return self.engine.enrich_schema(assessment_identifier, enrichment_dict)
+
+    def is_valid_assessment_identifier(self, assessment_identifier: Union[int, str]) -> bool:
+        """
+        Check if the assessment identifier is valid.
+        
+        Args:
+            assessment_identifier: Either an integer assessment ID or string assessment name
+            
+        Returns:
+            True if the assessment identifier is valid, False otherwise
+        """
+        return self.engine.resolve_table_id(assessment_identifier) is not None
+    
