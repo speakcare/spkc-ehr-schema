@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spkc-ehr-schema"
-version = "0.1.0"
+version = "1.0.1"
 description = "Engine for EHR schema manipulations"
 authors = ["SpeakCare Team"]
 readme = "README.md"
@@ -11,7 +11,8 @@ python = "^3.12"
 jsonschema = "4.25.1"
 jsonschema-specifications = "2025.9.1"
 boto3 = "1.35.0"
-speakcare-common = {git = "https://github.com/speakcare/speakcare-common.git", branch = "main"}
+speakcare-common = "1.1.6"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.4.2"
@@ -23,6 +24,12 @@ mypy = "1.17.1"
 openai = "^2.6.1"
 python-dotenv = "^1.2.1"
 
+
+
+[[tool.poetry.source]]
+name = "codeartifact"
+url = "https://speakcare-182399723275.d.codeartifact.us-east-1.amazonaws.com/pypi/python-packages/simple/"
+priority = "supplemental"
 
 [build-system]
 requires = ["poetry-core"]

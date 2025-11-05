@@ -7,6 +7,7 @@ tests/pcc/_pcc_ui_formatted_outputs/
 tests/pcc/_pcc_formatted_outputs/
 tests/pcc/_complete_model_responses/
 tests/pcc/_formatted_outputs/
+dist/
 
 # Ignore the .env file
 .env
