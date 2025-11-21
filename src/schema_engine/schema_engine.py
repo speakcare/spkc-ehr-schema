@@ -330,6 +330,7 @@ Notes:
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from copy import deepcopy
 import logging
 import re
 
@@ -1438,6 +1439,79 @@ class SchemaEngine:
                     prop_schema["description"] = enrichment_text
         
         return unmatched_keys
+
+    def get_schema_with_description_overrides(
+        self,
+        table_identifier: Union[int, str],
+        description_overrides: Dict[str, Optional[str]],
+    ) -> Dict[str, Any]:
+        """
+        Return a deep-copied schema with description overrides applied.
+
+        Args:
+            table_identifier: The registered table identifier (ID or name).
+            description_overrides: Mapping of field keys to replacement descriptions.
+                Use None to remove the description from the copied schema.
+
+        Returns:
+            A deep copy of the registered JSON schema with overrides applied.
+        """
+        if not isinstance(description_overrides, dict):
+            raise TypeError("description_overrides must be a dictionary.")
+
+        table_id = self.resolve_table_id(table_identifier)
+        schema_data = self.__tables[table_id]
+        original_schema = schema_data["json_schema"]
+        field_index = schema_data["field_index"]
+        table_name = schema_data["table_name"]
+
+        schema_copy = deepcopy(original_schema)
+
+        for field_key, override_text in description_overrides.items():
+            field_meta = next((f for f in field_index if f.get("key") == field_key), None)
+            if not field_meta:
+                logger.warning(
+                    "Field '%s' not found in field index for table '%s'", field_key, table_name
+                )
+                continue
+
+            level_keys = field_meta.get("level_keys", [])
+            property_key = field_meta.get("property_key")
+
+            if not property_key:
+                logger.warning(
+                    "Field '%s' missing property_key; cannot apply description override", field_key
+                )
+                continue
+
+            current: Optional[Dict[str, Any]] = schema_copy
+            for key in level_keys:
+                properties = current.get("properties") if isinstance(current, dict) else None
+                if not isinstance(properties, dict) or key not in properties:
+                    current = None
+                    break
+                current = properties[key]
+
+            if current is None:
+                logger.warning(
+                    "Path for field '%s' not found while applying description override", field_key
+                )
+                continue
+
+            properties = current.get("properties") if isinstance(current, dict) else None
+            if not isinstance(properties, dict) or property_key not in properties:
+                logger.warning(
+                    "Property '%s' for field '%s' not found in schema copy", property_key, field_key
+                )
+                continue
+
+            prop_schema = properties[property_key]
+            if override_text is None:
+                prop_schema.pop("description", None)
+            else:
+                prop_schema["description"] = override_text
+
+        return schema_copy
 
     def reverse_map(
         self,

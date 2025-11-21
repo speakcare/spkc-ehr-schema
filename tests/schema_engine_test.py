@@ -2444,6 +2444,107 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIn("This field contains the patient's full name", field1_schema.get("description", ""))
         self.assertIn("This field contains the patient's age in years", field2_schema.get("description", ""))
 
+    def test_build_schema_with_description_overrides_returns_copy(self):
+        """The override helper returns a deep-copied schema without mutating the stored version."""
+        engine = SchemaEngine(self.flat_meta_schema)
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text",
+                },
+            ],
+        }
+
+        table_id, table_name = engine.register_table(1, table_schema)
+
+        baseline_schema = engine.get_json_schema(table_id)
+        overrides = {
+            "field1": "Override for full name",
+            "field2": "Override for age in years",
+        }
+
+        overridden_schema = engine.get_schema_with_description_overrides(table_name, overrides)
+
+        # Returned schema is a new copy
+        self.assertIsNot(overridden_schema, baseline_schema)
+
+        baseline_props = baseline_schema["properties"]["fields"]["properties"]
+        overridden_props = overridden_schema["properties"]["fields"]["properties"]
+
+        # Original schema remains untouched
+        self.assertNotIn("description", baseline_props["Patient Name"])
+        self.assertNotIn("description", baseline_props["Patient Age"])
+
+        # Overrides replace description exactly
+        self.assertEqual("Override for full name", overridden_props["Patient Name"]["description"])
+        self.assertEqual("Override for age in years", overridden_props["Patient Age"]["description"])
+
+        # ensure get_json_schema still returns the original copy without overrides
+        fresh_schema = engine.get_json_schema(table_id)
+        self.assertNotIn("description", fresh_schema["properties"]["fields"]["properties"]["Patient Name"])
+        self.assertNotIn("description", fresh_schema["properties"]["fields"]["properties"]["Patient Age"])
+
+    def test_build_schema_with_description_overrides_handles_none_and_missing_keys(self):
+        """Overrides can remove descriptions and ignore unknown keys safely."""
+        engine = SchemaEngine(self.flat_meta_schema)
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text",
+                },
+            ],
+        }
+
+        table_id, table_name = engine.register_table(1, table_schema)
+
+        engine.enrich_schema(
+            table_name,
+            {
+                "field1": "Base description for name",
+                "field2": "Base description for age",
+            },
+        )
+
+        overridden_schema = engine.get_schema_with_description_overrides(
+            table_name,
+            {
+                "field1": None,
+                "field2": "Specific override",
+                "missing_field": "Should be ignored",
+            },
+        )
+
+        props = overridden_schema["properties"]["fields"]["properties"]
+        self.assertNotIn("description", props["Patient Name"])
+        self.assertEqual("Specific override", props["Patient Age"]["description"])
+
+        # Ensure original schema retains prior enrichment
+        original_props = engine.get_json_schema(table_id)["properties"]["fields"]["properties"]
+        self.assertIn("Base description for name", original_props["Patient Name"]["description"])
+        self.assertIn("Base description for age", original_props["Patient Age"]["description"])
+
     def test_reverse_map_flat(self):
         """Test flat reverse mapping."""
         engine = SchemaEngine(self.flat_meta_schema)

@@ -5,7 +5,7 @@ Tests for PointClickCare Assessment Schema wrapper.
 import json
 import unittest
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import sys
 import os
@@ -719,6 +719,56 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertIsNotNone(birthdate_meta, "Should have metadata for AA3 field")
         self.assertEqual(birthdate_meta["name"], "BIRTHDATE")
         self.assertEqual(birthdate_meta["target_type"], "date")
+
+    def test_get_schema_with_description_overrides(self):
+        """Ensure schema copy overrides replace and remove descriptions without mutating originals."""
+        assessment_id, _ = self.pcc_schema.register_assessment(None, self.mds_assessment)
+
+        # Seed baseline descriptions via enrichment so we can verify replacements and removals.
+        self.pcc_schema.engine.enrich_schema(
+            assessment_id,
+            {
+                "AA1a": "Baseline description for first name",
+                "AA2": "Baseline description for gender",
+            },
+        )
+
+        field_metadata = self.pcc_schema.get_field_metadata(assessment_id)
+        first_name_meta = next(field for field in field_metadata if field["key"] == "AA1a")
+        gender_meta = next(field for field in field_metadata if field["key"] == "AA2")
+
+        overrides = {
+            "AA1a": "Override description for first name",
+            "AA2": None,
+            "UNKNOWN_KEY": "should be ignored",
+        }
+
+        overridden_schema = self.pcc_schema.engine.get_schema_with_description_overrides(
+            assessment_id, overrides
+        )
+        original_schema = self.pcc_schema.get_json_schema(assessment_id)
+
+        def _get_property(schema: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+            node: Dict[str, Any] = schema
+            for key in meta["level_keys"]:
+                node = node["properties"][key]
+            return node["properties"][meta["property_key"]]
+
+        original_first_name = _get_property(original_schema, first_name_meta)
+        original_gender = _get_property(original_schema, gender_meta)
+        overridden_first_name = _get_property(overridden_schema, first_name_meta)
+        overridden_gender = _get_property(overridden_schema, gender_meta)
+
+        # Original schema stays enriched with baseline descriptions.
+        self.assertIn("Baseline description for first name", original_first_name.get("description", ""))
+        self.assertIn("Baseline description for gender", original_gender.get("description", ""))
+
+        # Overrides should replace description text and remove when None.
+        self.assertEqual(
+            "Override description for first name",
+            overridden_first_name.get("description"),
+        )
+        self.assertNotIn("description", overridden_gender)
 
     def test_instruction_fields(self):
         """Test that instruction fields are properly mapped with const values."""
@@ -3237,6 +3287,118 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 self.assertIn("assessment_std_id", reverse_mapped)
                 self.assertEqual(reverse_mapped["assessment_std_id"], assessment_id)
                 # PCC formatter returns sections (object) not data (array) when pack_containers_as="object"
+                self.assertIn("sections", reverse_mapped)
+                self.assertIsInstance(reverse_mapped["sections"], dict)
+
+    def test_assessments_openai_compatibility_with_enrichment_and_overrides(self):
+        """Test assessments with enrichment plus per-call description overrides to ensure compatibility."""
+        user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
+
+        for assessment in self.assessments:
+            with self.subTest(assessment=assessment["name"]):
+                template_path = self.templates_dir / assessment["template_file"]
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template_data = json.load(f)
+
+                assessment_id, assessment_name = self.pcc_schema.register_assessment(
+                    assessment["template_id"],
+                    template_data,
+                )
+
+                self.assertEqual(assessment_id, assessment["template_id"])
+                self.assertEqual(assessment_name, assessment["name"])
+
+                csv_path = str(self.instructions_dir / assessment["csv_file"])
+                self.pcc_schema.enrich_assessment_from_csv(
+                    assessment_name,
+                    csv_path=csv_path,
+                    key_col=assessment["csv_key_col"],
+                    value_col=assessment["csv_value_col"],
+                    key_prefix="Cust",
+                    sanitize_values=True,
+                    skip_blank_keys=True,
+                    strip_whitespace=True,
+                    case_insensitive=False,
+                    on_duplicate="concat",
+                )
+
+                # Capture a deep copy of the enriched schema to ensure override helper does not mutate it.
+                enriched_schema_snapshot = json.loads(json.dumps(self.pcc_schema.get_json_schema(assessment_id)))
+
+                field_metadata = self.pcc_schema.get_field_metadata(assessment_id)
+                override_targets = []
+                for meta in field_metadata:
+                    if meta.get("property_key"):
+                        override_targets.append(meta)
+                    if len(override_targets) == 3:
+                        break
+
+                # If there are less than 3 fields (edge case), continue with what we have.
+                overrides: Dict[str, Optional[str]] = {}
+                for idx, meta in enumerate(override_targets):
+                    if idx == 1:
+                        overrides[meta["key"]] = None  # exercise removal path
+                    else:
+                        overrides[meta["key"]] = f"Override for {meta['key']} in {assessment_name}"
+
+                overrides_schema = self.pcc_schema.engine.get_schema_with_description_overrides(
+                    assessment_id, overrides
+                )
+
+                # Confirm overrides applied only to copied schema
+                for meta in override_targets:
+                    level_keys = meta.get("level_keys", [])
+                    property_key = meta.get("property_key")
+
+                    def _resolve(schema: Dict[str, Any]) -> Dict[str, Any]:
+                        node: Dict[str, Any] = schema
+                        for key in level_keys:
+                            node = node["properties"][key]
+                        return node["properties"][property_key]
+
+                    original_prop = _resolve(enriched_schema_snapshot)
+                    overridden_prop = _resolve(overrides_schema)
+
+                    original_desc = original_prop.get("description")
+                    override_desc = overrides.get(meta["key"])
+
+                    if override_desc is None:
+                        self.assertNotIn("description", overridden_prop)
+                    else:
+                        self.assertEqual(overridden_prop.get("description"), override_desc)
+
+                    # Original schema snapshot should remain enriched
+                    if original_desc is not None:
+                        self.assertEqual(original_desc, original_prop.get("description"))
+
+                # Use OpenAI compatibility check with override schema
+                openai_chat_completion = _get_openai_chat_completion()
+                if openai_chat_completion is None:
+                    self.skipTest("OpenAI chat completion not available")
+
+                response_choices = openai_chat_completion(
+                    user_prompt=user_prompt,
+                    json_schema=overrides_schema,
+                    num_choices=1,
+                )
+
+                self.assertEqual(len(response_choices), 1)
+                self.assertEqual(response_choices[0]["finish_reason"], "stop")
+
+                response_content = json.loads(response_choices[0]["content"])
+                self.assertIsInstance(response_content, dict)
+
+                reverse_mapped = self.pcc_schema.reverse_map(
+                    assessment_id,
+                    response_content,
+                    formatter_name="pcc-ui",
+                )
+
+                self.assertIn("doc_type", reverse_mapped)
+                self.assertEqual(reverse_mapped["doc_type"], "pcc_assessment")
+                self.assertIn("assessment_title", reverse_mapped)
+                self.assertIn("assessment_std_id", reverse_mapped)
+                self.assertEqual(reverse_mapped["assessment_std_id"], assessment_id)
                 self.assertIn("sections", reverse_mapped)
                 self.assertIsInstance(reverse_mapped["sections"], dict)
 
