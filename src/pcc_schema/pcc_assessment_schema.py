@@ -10,6 +10,7 @@ API for working with PCC assessments.
 import logging
 import json
 import os
+from copy import deepcopy
 from typing import Dict, Any, List, Optional, Tuple, Union
 
 from schema_engine.schema_engine import SchemaEngine
@@ -151,6 +152,49 @@ def extract_response_options(options: List[Dict[str, Any]]) -> List[str]:
         return []
     
     return [option.get("responseText", "") for option in options if option.get("responseText")]
+
+
+def merge_update(current: Dict[str, Any], update: Dict[str, Any], updated_object_name: str) -> Dict[str, Any]:
+    """
+    Merge a partial update into the current assessment data without mutating inputs.
+
+    Args:
+        current: The full assessment data dictionary.
+        update: The partial update dictionary to merge.
+        updated_object_name: The key of the nested object that contains updated properties.
+
+    Returns:
+        A new dictionary with the merged assessment data.
+
+    Raises:
+        TypeError: If current or update is not a dictionary.
+        ValueError: If updated_object_name is empty.
+    """
+    if not isinstance(current, dict):
+        raise TypeError("current must be a dictionary.")
+    if not isinstance(update, dict):
+        raise TypeError("update must be a dictionary.")
+    if not isinstance(updated_object_name, str) or not updated_object_name:
+        raise ValueError("updated_object_name must be a non-empty string.")
+
+    merged: Dict[str, Any] = deepcopy(current)
+
+    if updated_object_name not in update:
+        return merged
+
+    if updated_object_name not in merged or not isinstance(merged.get(updated_object_name), dict):
+        merged[updated_object_name] = deepcopy(update[updated_object_name])
+        return merged
+
+    updated_container = update.get(updated_object_name)
+    if not isinstance(updated_container, dict):
+        return merged
+
+    target_container: Dict[str, Any] = merged.setdefault(updated_object_name, {})
+    for nested_key, nested_value in updated_container.items():
+        target_container[nested_key] = deepcopy(nested_value)
+
+    return merged
 
 
 class PCCAssessmentSchema:

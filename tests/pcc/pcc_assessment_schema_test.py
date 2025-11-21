@@ -12,7 +12,12 @@ import os
 from pathlib import Path
 # Add src directory to Python path
 #sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
-from pcc_schema.pcc_assessment_schema import PCCAssessmentSchema, PCC_META_SCHEMA, extract_response_options
+from pcc_schema.pcc_assessment_schema import (
+    PCCAssessmentSchema,
+    PCC_META_SCHEMA,
+    extract_response_options,
+    merge_update,
+)
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
 _openai_chat_completion = None
@@ -203,6 +208,87 @@ def _reverse_and_save(pcc: PCCAssessmentSchema, assessment_id: int, out_dir: str
     out_path = os.path.join(out_dir, f"{assessment_id}.json")
     _save_json(out_path, grouped)
     return {"model": model, "grouped": grouped, "path": out_path}
+
+
+class MergeUpdateTests(unittest.TestCase):
+    """Unit tests for the merge_update helper."""
+
+    def test_partial_update_replaces_only_matching_sections(self):
+        current = {
+            "doc_type": "pcc_assessment",
+            "sections": {
+                "Cust_1": {"value": "keep"},
+                "Cust_2": {"value": "original"},
+            },
+        }
+        update = {
+            "assessment_title": "should override",
+            "sections": {
+                "Cust_2": {"value": "updated"},
+                "Cust_3": {"value": "new"},
+            },
+        }
+
+        merged = merge_update(current, update, "sections")
+
+        self.assertNotIn("assessment_title", merged)
+        self.assertEqual(merged["sections"]["Cust_1"], {"value": "keep"})
+        self.assertEqual(merged["sections"]["Cust_2"], {"value": "updated"})
+        self.assertEqual(merged["sections"]["Cust_3"], {"value": "new"})
+        # Ensure originals unchanged
+        self.assertEqual(current["sections"]["Cust_2"], {"value": "original"})
+        self.assertNotIn("assessment_title", current)
+
+    def test_full_replace_when_current_container_missing_or_wrong_type(self):
+        current = {"doc_type": "pcc_assessment", "sections": []}
+        update = {
+            "sections": {
+                "Cust_1": {"value": "from update"},
+            }
+        }
+
+        merged = merge_update(current, update, "sections")
+
+        self.assertIsInstance(merged["sections"], dict)
+        self.assertEqual(merged["sections"]["Cust_1"], {"value": "from update"})
+        # Original should remain list
+        self.assertIsInstance(current["sections"], list)
+
+    def test_missing_updated_container_returns_copy(self):
+        current = {
+            "doc_type": "pcc_assessment",
+            "sections": {"Cust_1": {"value": "keep"}},
+        }
+        update = {"assessment_title": "updated title"}
+
+        merged = merge_update(current, update, "sections")
+
+        self.assertNotIn("assessment_title", merged)
+        self.assertEqual(merged["sections"], {"Cust_1": {"value": "keep"}})
+
+    def test_does_not_mutate_inputs(self):
+        current = {
+            "sections": {"Cust_1": {"value": ["original"]}},
+        }
+        update = {
+            "sections": {"Cust_1": {"value": ["updated"]}},
+        }
+
+        merged = merge_update(current, update, "sections")
+
+        self.assertIsNot(merged, current)
+        self.assertIsNot(merged["sections"], current["sections"])
+        self.assertIsNot(merged["sections"]["Cust_1"], current["sections"]["Cust_1"])
+        self.assertIsNot(
+            merged["sections"]["Cust_1"]["value"],
+            current["sections"]["Cust_1"]["value"],
+        )
+        self.assertIsNot(
+            merged["sections"]["Cust_1"]["value"],
+            update["sections"]["Cust_1"]["value"],
+        )
+        self.assertEqual(current["sections"]["Cust_1"]["value"], ["original"])
+        self.assertEqual(update["sections"]["Cust_1"]["value"], ["updated"])
 
 
 class TestPCCAssessmentSchema(unittest.TestCase):
