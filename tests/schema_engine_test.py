@@ -203,7 +203,7 @@ class TestSchemaEngine(unittest.TestCase):
                                     "name": "property_name",
                                     "type": "property_type",
                                     "validation": {
-                                        "allowed_types": ["count", "health", "food_order"],
+                                        "allowed_types": ["count", "health", "food_order", "diet"],
                                         "type_constraints": {
                                             "count": {
                                                 "target_type": "integer",
@@ -218,6 +218,12 @@ class TestSchemaEngine(unittest.TestCase):
                                             "food_order": {
                                                 "target_type": "string",
                                                 "requires_options": False,
+                                            },
+                                            "diet": {
+                                                "target_type": "multiple_select",
+                                                "requires_options": True,
+                                                "options_field": "diet_options",
+                                                "options_extractor": "diet_options_extractor",
                                             },
                                         },
                                     },
@@ -237,7 +243,14 @@ class TestSchemaEngine(unittest.TestCase):
                 return []
             return [opt.get("label", "") for opt in options_field_value]
 
+        def diet_options_extractor(options_field_value):
+            """Extract dietary preference labels."""
+            if not options_field_value:
+                return []
+            return [opt.get("label", "") for opt in options_field_value if isinstance(opt, dict)]
+
         engine.register_options_extractor("health_options_extractor", health_options_extractor)
+        engine.register_options_extractor("diet_options_extractor", diet_options_extractor)
 
         zoo_schema = {
             "table_name": "Zoo Animal Inventory",
@@ -271,6 +284,16 @@ class TestSchemaEngine(unittest.TestCase):
                                     "property_name": "Food Order",
                                     "property_type": "food_order",
                                 },
+                                {
+                                    "property_key": "diet_preferences",
+                                    "property_name": "Diet Preferences",
+                                    "property_type": "diet",
+                                    "diet_options": [
+                                        {"value": "C", "label": "Carnivore"},
+                                        {"value": "H", "label": "Herbivore"},
+                                        {"value": "O", "label": "Omnivore"},
+                                    ],
+                                },
                             ],
                         },
                         {
@@ -298,6 +321,15 @@ class TestSchemaEngine(unittest.TestCase):
                                     "property_name": "Food Order",
                                     "property_type": "food_order",
                                 },
+                                {
+                                    "property_key": "diet_preferences",
+                                    "property_name": "Diet Preferences",
+                                    "property_type": "diet",
+                                    "diet_options": [
+                                        {"value": "C", "label": "Carnivore"},
+                                        {"value": "O", "label": "Omnivore"},
+                                    ],
+                                },
                             ],
                         },
                     ],
@@ -311,7 +343,15 @@ class TestSchemaEngine(unittest.TestCase):
             "count": "Number of animals of this species currently in the zoo.",
             "health": "Overall health status of the animals. Select from the provided options.",
             "food_order": "Detailed food requirements and feeding schedule for this species.",
+            "diet_preferences": "Primary dietary categories for this species.",
         }
+
+        # Sanity-check that diet preferences registered as generic multi-select.
+        field_index = engine.get_field_metadata(table_id)
+        diet_meta = next((meta for meta in field_index if meta.get("key") == "diet_preferences"), None)
+        self.assertIsNotNone(diet_meta, "Expected diet_preferences metadata entry")
+        self.assertEqual(diet_meta.get("target_type"), "multiple_select")
+
         return engine, table_id, table_name, user_prompt, enrichment_dict
 
     def test_flat_table_registration(self):
@@ -4320,15 +4360,22 @@ class TestSchemaEngine(unittest.TestCase):
         count_meta = meta_by_key["count"]
         health_meta = meta_by_key["health"]
         food_meta = meta_by_key["food_order"]
+        diet_meta = meta_by_key["diet_preferences"]
 
         health_prop = resolve(original_schema, health_meta)
         health_choices = [value for value in health_prop.get("enum", []) if value is not None]
         self.assertTrue(health_choices, "Health field should expose enum values.")
 
+        diet_prop = resolve(original_schema, diet_meta)
+        diet_item_schema = diet_prop.get("items", {})
+        diet_choices = [value for value in diet_item_schema.get("enum", []) if value is not None]
+        self.assertGreaterEqual(len(diet_choices), 2, "Diet field should expose at least two enum values.")
+
         overrides = {
             count_meta["key"]: {"description": "Locked wolf count", "value": 12},
             health_meta["key"]: {"description": "Locked health status", "value": health_choices[0]},
             food_meta["key"]: {"description": "Locked feeding plan", "value": "Twice daily ration"},
+            diet_meta["key"]: {"description": "Locked dietary category", "value": [diet_choices[0]]},
         }
 
         overridden_schema = engine.get_schema_with_overrides(table_id, overrides)
@@ -4347,10 +4394,35 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(food_prop_locked.get("const"), "Twice daily ration")
         self.assertEqual(food_prop_locked.get("enum"), ["Twice daily ration"])
 
+        diet_prop_locked = resolve(overridden_schema, diet_meta)
+        self.assertEqual(diet_prop_locked.get("type"), "array")
+        self.assertEqual(diet_prop_locked.get("minItems"), 1)
+        self.assertEqual(diet_prop_locked.get("maxItems"), 1)
+        self.assertEqual(diet_prop_locked.get("items", {}).get("enum"), [diet_choices[0]])
+
+        multi_value_overrides = {
+            **overrides,
+            diet_meta["key"]: {"description": "Locked dietary categories", "value": diet_choices[:2]},
+        }
+        multi_value_schema = engine.get_schema_with_overrides(table_id, multi_value_overrides)
+        diet_prop_multi = resolve(multi_value_schema, diet_meta)
+        self.assertEqual(diet_prop_multi.get("minItems"), 2)
+        self.assertEqual(diet_prop_multi.get("maxItems"), 2)
+        self.assertEqual(set(diet_prop_multi.get("items", {}).get("enum", [])), set(diet_choices[:2]))
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_id,
+                {
+                    diet_meta["key"]: {"description": "Invalid dietary selection", "value": [diet_choices[0], "Not an option"]},
+                },
+            )
+
         # Original schema remains unchanged.
         self.assertNotIn("const", resolve(original_schema, count_meta))
         self.assertNotIn("const", resolve(original_schema, health_meta))
         self.assertNotIn("const", resolve(original_schema, food_meta))
+        self.assertNotIn("const", resolve(original_schema, diet_meta))
 
         openai_chat_completion = _get_openai_chat_completion()
         if openai_chat_completion is None:
@@ -4363,6 +4435,14 @@ class TestSchemaEngine(unittest.TestCase):
         )
         self.assertEqual(len(response_choices), 1)
         self.assertEqual(response_choices[0]["finish_reason"], "stop")
+
+        response_choices_multi = openai_chat_completion(
+            user_prompt=user_prompt,
+            json_schema=multi_value_schema,
+            num_choices=1,
+        )
+        self.assertEqual(len(response_choices_multi), 1)
+        self.assertEqual(response_choices_multi[0]["finish_reason"], "stop")
 
     def test_reverse_map_pack_containers_as_object(self):
         """Test reverse_map with containers packed as object."""
