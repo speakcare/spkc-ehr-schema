@@ -12,6 +12,7 @@ The SPKC EHR Schema Engine provides a generic, database-agnostic solution for co
 - **Meta-Schema Language**: Define how external schemas work using a meta-schema language
 - **Schema Validation**: Validate data against generated schemas with custom validators
 - **Schema Enrichment**: Add contextual descriptions to schema properties from CSV files
+- **Schema Overrides**: Create deep-copied schemas with per-call description and value overrides (const/enum locks)
 - **CSV to Dict Utilities**: Convert CSV model instructions into enrichment dictionaries
 - **Reverse Conversion**: Map AI model responses back to original external schema format
 - **Container Grouping**: Group responses by hierarchical containers
@@ -108,6 +109,35 @@ is_valid, errors = engine.validate(table_id, data)
 # Convert model response back to original format
 result = engine.reverse_map(table_name, model_response)
 ```
+
+### Per-Call Schema Overrides
+
+Use `get_schema_with_overrides()` when you need a one-off copy of a registered schema with modified descriptions or locked values without mutating the stored baseline:
+
+```python
+overrides = {
+    # Replace description only
+    "field1": {"description": "Context-specific guidance"},
+    # Lock to a scalar value (preserves existing type/format metadata)
+    "field2": {"value": 42, "description": "Calculated earlier"},
+    # Lock a single-select to a specific option (validated against enum + custom validators)
+    "field3": {"value": "Approved"},
+    # Lock a multi-select field (min/max items and enum updated automatically)
+    "field_multi": {"value": ["Choice A", "Choice C"]},
+}
+
+locked_schema = engine.get_schema_with_overrides(table_name, overrides)
+
+# Use locked_schema when calling OpenAI or other consumers that require const values.
+```
+
+Override rules:
+
+- The engine deep-copies the current schema, so originals remain unchanged.
+- Description overrides set or clear (`None`) the `description` field.
+- Value overrides are validated via jsonschema + registered validators before locking.
+- Scalars use `const` alongside the original `type/format`.
+- Arrays/objects use single-element `enum`, with `minItems`/`maxItems` and nested consts derived from the supplied value.
 
 ### Schema Enrichment from CSV
 
