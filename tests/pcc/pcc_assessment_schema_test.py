@@ -720,7 +720,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(birthdate_meta["name"], "BIRTHDATE")
         self.assertEqual(birthdate_meta["target_type"], "date")
 
-    def test_get_schema_with_description_overrides(self):
+    def test_get_schema_with_overrides(self):
         """Ensure schema copy overrides replace and remove descriptions without mutating originals."""
         assessment_id, _ = self.pcc_schema.register_assessment(None, self.mds_assessment)
 
@@ -738,12 +738,12 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         gender_meta = next(field for field in field_metadata if field["key"] == "AA2")
 
         overrides = {
-            "AA1a": "Override description for first name",
-            "AA2": None,
-            "UNKNOWN_KEY": "should be ignored",
+            "AA1a": {"description": "Override description for first name", "value": "Fixed First"},
+            "AA2": {"description": None, "value": "Male"},
+            "UNKNOWN_KEY": {"description": "should be ignored"},
         }
 
-        overridden_schema = self.pcc_schema.engine.get_schema_with_description_overrides(
+        overridden_schema = self.pcc_schema.engine.get_schema_with_overrides(
             assessment_id, overrides
         )
         original_schema = self.pcc_schema.get_json_schema(assessment_id)
@@ -759,16 +759,144 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         overridden_first_name = _get_property(overridden_schema, first_name_meta)
         overridden_gender = _get_property(overridden_schema, gender_meta)
 
-        # Original schema stays enriched with baseline descriptions.
+        # Original schema stays enriched with baseline descriptions and no consts.
         self.assertIn("Baseline description for first name", original_first_name.get("description", ""))
         self.assertIn("Baseline description for gender", original_gender.get("description", ""))
+        self.assertNotIn("const", original_first_name)
+        self.assertNotIn("const", original_gender)
 
-        # Overrides should replace description text and remove when None.
-        self.assertEqual(
-            "Override description for first name",
-            overridden_first_name.get("description"),
-        )
+        # Overrides should replace description text, lock the value, and remove description when None.
+        self.assertEqual("Override description for first name", overridden_first_name.get("description"))
+        self.assertEqual("Fixed First", overridden_first_name.get("const"))
         self.assertNotIn("description", overridden_gender)
+        self.assertEqual("Male", overridden_gender.get("const"))
+
+    def test_get_schema_with_overrides_value_errors_per_type(self):
+        """Invalid override values should raise informative errors across field types."""
+        root_dir = Path(__file__).resolve().parent.parent.parent
+        templates_dir = root_dir / "src" / "pcc_schema" / "assmnt_templates"
+        instructions_dir = Path(__file__).parent / "model_instructions"
+
+        # Register and enrich MHCS Nursing Daily Skilled Note for string/boolean/date/single/multiple select tests.
+        with open(templates_dir / "MHCS_Nursing_Daily_Skilled_Note.json", "r", encoding="utf-8") as f:
+            daily_template = json.load(f)
+        daily_id, daily_name = self.pcc_schema.register_assessment(21242741, daily_template)
+        self.pcc_schema.enrich_assessment_from_csv(
+            daily_name,
+            csv_path=str(instructions_dir / "Assessment Table - Daily Skilled Nursing Note.csv"),
+            key_col="Key",
+            value_col="Assumption Prompts, if not explicit in Transcript or Database",
+            key_prefix="Cust",
+            sanitize_values=True,
+            skip_blank_keys=True,
+            strip_whitespace=True,
+            case_insensitive=False,
+            on_duplicate="concat",
+        )
+
+        daily_schema = self.pcc_schema.get_json_schema(daily_id)
+
+        def _resolve(schema: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+            node = schema
+            for key in meta["level_keys"]:
+                node = node["properties"][key]
+            return node["properties"][meta["property_key"]]
+
+        daily_meta = {meta["key"]: meta for meta in self.pcc_schema.get_field_metadata(daily_id)}
+
+        # Prepare a multi-select baseline for expected enum values.
+        multi_meta = daily_meta["Cust_B_1"]
+        multi_items = _resolve(daily_schema, multi_meta)["items"]["enum"]
+        multi_allowed = [value for value in multi_items if value is not None]
+        self.assertGreaterEqual(len(multi_allowed), 2, "Expected at least two multi-select enum values for testing.")
+
+        # String field invalid type.
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_B_6": {"value": 123}},  # expecting string, got number
+            )
+
+        # Boolean field invalid type.
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_z_a": {"value": "true"}},  # expecting boolean, got string
+            )
+
+        # Date field invalid value (custom validator)
+        with self.assertRaisesRegex(ValueError, "failed validator"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_L_1b": {"value": "2025-13-25"}},  # impossible month
+            )
+
+        # Single select invalid option.
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_A_1": {"value": "Not a valid option"}},
+            )
+
+        # Multiple select invalid cases.
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_B_1": {"value": ["Not an option"]}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_B_1": {"value": [multi_allowed[0], "Bad choice"]}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                daily_id,
+                {"Cust_B_1": {"value": ["Wrong 1", "Wrong 2"]}},
+            )
+
+        # Register and enrich admission assessment for positive integer coverage.
+        with open(templates_dir / "MHCS_Nursing_Admission_Assessment_-_V_5.json", "r", encoding="utf-8") as f:
+            admission_template = json.load(f)
+        admission_id, admission_name = self.pcc_schema.register_assessment(21244981, admission_template)
+        self.pcc_schema.enrich_assessment_from_csv(
+            admission_name,
+            csv_path=str(instructions_dir / "Assessment Table - Admission Note.csv"),
+            key_col="Key",
+            value_col="Guidelines",
+            key_prefix="Cust",
+            sanitize_values=True,
+            skip_blank_keys=True,
+            strip_whitespace=True,
+            case_insensitive=False,
+            on_duplicate="concat",
+        )
+
+        # Positive integer invalid (negative) and invalid type.
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                admission_id,
+                {"Cust_6_T_2a": {"value": -1}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                admission_id,
+                {"Cust_6_T_2a": {"value": "ten"}},
+            )
+    def test_get_schema_with_overrides_invalid_value(self):
+        """Invalid override values should raise a validation error."""
+        assessment_id, _ = self.pcc_schema.register_assessment(None, self.mds_assessment)
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            self.pcc_schema.engine.get_schema_with_overrides(
+                assessment_id,
+                {
+                    "AA2": {"value": "Not a valid option"},
+                },
+            )
 
     def test_instruction_fields(self):
         """Test that instruction fields are properly mapped with const values."""
@@ -3326,50 +3454,127 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 enriched_schema_snapshot = json.loads(json.dumps(self.pcc_schema.get_json_schema(assessment_id)))
 
                 field_metadata = self.pcc_schema.get_field_metadata(assessment_id)
-                override_targets = []
+
+                def _resolve_property(schema: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+                    node: Dict[str, Any] = schema
+                    for key in meta.get("level_keys", []):
+                        node = node["properties"][key]
+                    return node["properties"][meta["property_key"]]
+
+                def _normalize_target_type(meta: Dict[str, Any]) -> Optional[str]:
+                    target = meta.get("target_type")
+                    if target in ("string", "text"):
+                        return "string"
+                    if target in ("boolean",) or target == "chk":
+                        return "boolean"
+                    if target == "date":
+                        return "date"
+                    if target == "single_select":
+                        return "single_select"
+                    if target == "multiple_select":
+                        return "multiple_select"
+                    if target in ("positive_integer", "integer", "number", "positive_number"):
+                        return "positive_integer"
+                    return None
+
+                selected_fields: Dict[str, Dict[str, Any]] = {}
                 for meta in field_metadata:
-                    if meta.get("property_key"):
-                        override_targets.append(meta)
-                    if len(override_targets) == 3:
-                        break
+                    normalized_type = _normalize_target_type(meta)
+                    if normalized_type and normalized_type not in selected_fields:
+                        selected_fields[normalized_type] = meta
 
-                # If there are less than 3 fields (edge case), continue with what we have.
-                overrides: Dict[str, Optional[str]] = {}
-                for idx, meta in enumerate(override_targets):
-                    if idx == 1:
-                        overrides[meta["key"]] = None  # exercise removal path
-                    else:
-                        overrides[meta["key"]] = f"Override for {meta['key']} in {assessment_name}"
+                overrides: Dict[str, Dict[str, Any]] = {}
+                selected_info: Dict[str, Dict[str, Any]] = {}
 
-                overrides_schema = self.pcc_schema.engine.get_schema_with_description_overrides(
+                for normalized_type, meta in selected_fields.items():
+                    description_text = f"Override for {meta['key']} in {assessment_name}"
+                    entry: Dict[str, Any] = {"description": description_text}
+                    value_override: Optional[Any] = None
+
+                    if normalized_type == "string":
+                        value_override = f"Override text for {meta['property_key']}"
+                    elif normalized_type == "boolean":
+                        value_override = True
+                    elif normalized_type == "date":
+                        value_override = "2024-06-15"
+                    elif normalized_type == "single_select":
+                        enum_values = _resolve_property(enriched_schema_snapshot, meta).get("enum", [])
+                        choices = [value for value in enum_values if value is not None]
+                        if not choices:
+                            continue
+                        value_override = choices[0]
+                    elif normalized_type == "multiple_select":
+                        item_enum = (
+                            _resolve_property(enriched_schema_snapshot, meta)
+                            .get("items", {})
+                            .get("enum", [])
+                        )
+                        allowed = [value for value in item_enum if value is not None]
+                        if not allowed:
+                            continue
+                        value_override = [allowed[0]]
+                    elif normalized_type == "positive_integer":
+                        value_override = 5
+
+                    if value_override is None:
+                        continue
+
+                    entry["value"] = value_override
+                    overrides[meta["key"]] = entry
+                    info = {
+                        "meta": meta,
+                        "normalized": normalized_type,
+                        "value": value_override,
+                    }
+                    if normalized_type == "multiple_select":
+                        info["allowed_values"] = allowed  # type: ignore[name-defined]
+                    selected_info[meta["key"]] = info
+
+                if not overrides:
+                    continue
+
+                overrides_schema = self.pcc_schema.engine.get_schema_with_overrides(
                     assessment_id, overrides
                 )
 
+                current_schema = self.pcc_schema.get_json_schema(assessment_id)
+
                 # Confirm overrides applied only to copied schema
-                for meta in override_targets:
-                    level_keys = meta.get("level_keys", [])
-                    property_key = meta.get("property_key")
+                for key, info in selected_info.items():
+                    meta = info["meta"]
+                    normalized_type = info["normalized"]
+                    value_override = info["value"]
+                    original_prop = _resolve_property(enriched_schema_snapshot, meta)
+                    overridden_prop = _resolve_property(overrides_schema, meta)
+                    live_prop = _resolve_property(current_schema, meta)
 
-                    def _resolve(schema: Dict[str, Any]) -> Dict[str, Any]:
-                        node: Dict[str, Any] = schema
-                        for key in level_keys:
-                            node = node["properties"][key]
-                        return node["properties"][property_key]
+                    self.assertEqual(overridden_prop.get("description"), overrides[key]["description"])
+                    self.assertNotIn("const", live_prop)
 
-                    original_prop = _resolve(enriched_schema_snapshot)
-                    overridden_prop = _resolve(overrides_schema)
-
-                    original_desc = original_prop.get("description")
-                    override_desc = overrides.get(meta["key"])
-
-                    if override_desc is None:
-                        self.assertNotIn("description", overridden_prop)
-                    else:
-                        self.assertEqual(overridden_prop.get("description"), override_desc)
-
-                    # Original schema snapshot should remain enriched
-                    if original_desc is not None:
-                        self.assertEqual(original_desc, original_prop.get("description"))
+                    if normalized_type == "string":
+                        self.assertEqual(overridden_prop.get("type"), "string")
+                        self.assertEqual(overridden_prop.get("const"), value_override)
+                        self.assertEqual(overridden_prop.get("enum"), [value_override])
+                    elif normalized_type == "boolean":
+                        self.assertEqual(overridden_prop.get("type"), "boolean")
+                        self.assertEqual(overridden_prop.get("const"), True)
+                    elif normalized_type == "date":
+                        self.assertEqual(overridden_prop.get("type"), "string")
+                        self.assertEqual(overridden_prop.get("format"), original_prop.get("format"))
+                        self.assertEqual(overridden_prop.get("const"), value_override)
+                    elif normalized_type == "single_select":
+                        self.assertEqual(overridden_prop.get("type"), "string")
+                        self.assertEqual(overridden_prop.get("const"), value_override)
+                        self.assertEqual(overridden_prop.get("enum"), [value_override])
+                    elif normalized_type == "multiple_select":
+                        self.assertEqual(overridden_prop.get("type"), "array")
+                        self.assertEqual(overridden_prop.get("minItems"), len(value_override))
+                        self.assertEqual(overridden_prop.get("maxItems"), len(value_override))
+                        items_enum = overridden_prop.get("items", {}).get("enum", [])
+                        self.assertEqual(set(items_enum), set(value_override))
+                    elif normalized_type == "positive_integer":
+                        self.assertEqual(overridden_prop.get("type"), "integer")
+                        self.assertEqual(overridden_prop.get("const"), value_override)
 
                 # Use OpenAI compatibility check with override schema
                 openai_chat_completion = _get_openai_chat_completion()
@@ -3401,6 +3606,37 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 self.assertEqual(reverse_mapped["assessment_std_id"], assessment_id)
                 self.assertIn("sections", reverse_mapped)
                 self.assertIsInstance(reverse_mapped["sections"], dict)
+
+                # Re-run with multi-select multiple values to satisfy coverage (requirement 3c).
+                multi_key = next(
+                    (key for key, info in selected_info.items() if info["normalized"] == "multiple_select"
+                     and len(info.get("allowed_values", [])) >= 2),
+                    None,
+                )
+                if multi_key:
+                    multi_allowed = selected_info[multi_key]["allowed_values"]
+                    multi_values = multi_allowed[:2]
+                    multi_overrides = {
+                        key: dict(entry) for key, entry in overrides.items()
+                    }
+                    multi_overrides[multi_key]["value"] = multi_values
+                    multi_schema = self.pcc_schema.engine.get_schema_with_overrides(
+                        assessment_id, multi_overrides
+                    )
+                    multi_prop = _resolve_property(
+                        multi_schema, selected_info[multi_key]["meta"]
+                    )
+                    self.assertEqual(multi_prop.get("minItems"), len(multi_values))
+                    self.assertEqual(multi_prop.get("maxItems"), len(multi_values))
+                    self.assertEqual(set(multi_prop.get("items", {}).get("enum", [])), set(multi_values))
+
+                    response_choices_multi = openai_chat_completion(
+                        user_prompt=user_prompt,
+                        json_schema=multi_schema,
+                        num_choices=1,
+                    )
+                    self.assertEqual(len(response_choices_multi), 1)
+                    self.assertEqual(response_choices_multi[0]["finish_reason"], "stop")
 
 
 if __name__ == "__main__":

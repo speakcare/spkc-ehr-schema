@@ -331,6 +331,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from copy import deepcopy
+import json
 import logging
 import re
 
@@ -1440,24 +1441,26 @@ class SchemaEngine:
         
         return unmatched_keys
 
-    def get_schema_with_description_overrides(
+    def get_schema_with_overrides(
         self,
         table_identifier: Union[int, str],
-        description_overrides: Dict[str, Optional[str]],
+        overrides: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
-        Return a deep-copied schema with description overrides applied.
+        Return a deep-copied schema with per-field overrides applied.
 
         Args:
             table_identifier: The registered table identifier (ID or name).
-            description_overrides: Mapping of field keys to replacement descriptions.
-                Use None to remove the description from the copied schema.
+            overrides: Mapping of field keys to override definitions. Each override may
+                include a "description" key (string or None) and/or a "value" key. When
+                "value" is supplied, the property schema will be replaced with a const
+                schema after successful validation.
 
         Returns:
             A deep copy of the registered JSON schema with overrides applied.
         """
-        if not isinstance(description_overrides, dict):
-            raise TypeError("description_overrides must be a dictionary.")
+        if not isinstance(overrides, dict):
+            raise TypeError("overrides must be a dictionary.")
 
         table_id = self.resolve_table_id(table_identifier)
         schema_data = self.__tables[table_id]
@@ -1467,7 +1470,160 @@ class SchemaEngine:
 
         schema_copy = deepcopy(original_schema)
 
-        for field_key, override_text in description_overrides.items():
+        _missing = object()
+
+        def _infer_json_type(value: Any) -> Optional[str]:
+            """Infer the JSON Schema type keyword for a given Python value."""
+            if value is None:
+                return "null"
+            if isinstance(value, bool):
+                return "boolean"
+            if isinstance(value, int) and not isinstance(value, bool):
+                return "integer"
+            if isinstance(value, float):
+                return "number"
+            if isinstance(value, str):
+                return "string"
+            if isinstance(value, list):
+                return "array"
+            if isinstance(value, dict):
+                return "object"
+            return None
+
+        def _apply_value_lock(prop_schema: Dict[str, Any], value: Any) -> None:
+            """Apply schema constraints that force a property to take on a specific value."""
+            value_type = _infer_json_type(value)
+
+            # Reset conflicting keywords before applying new constraints.
+            prop_schema.pop("const", None)
+            prop_schema.pop("enum", None)
+
+            if value_type in {"string", "integer", "number", "boolean"}:
+                prop_schema["type"] = value_type
+                prop_schema["const"] = value
+                prop_schema["enum"] = [value]
+                prop_schema.pop("minItems", None)
+                prop_schema.pop("maxItems", None)
+                prop_schema.pop("uniqueItems", None)
+                return
+
+            if value_type == "null":
+                prop_schema["type"] = "null"
+                prop_schema["const"] = None
+                prop_schema["enum"] = [None]
+                prop_schema.pop("minItems", None)
+                prop_schema.pop("maxItems", None)
+                prop_schema.pop("uniqueItems", None)
+                return
+
+            if value_type == "array":
+                _apply_array_lock(prop_schema, value)  # type: ignore[arg-type]
+                return
+
+            if value_type == "object":
+                _apply_object_lock(prop_schema, value)  # type: ignore[arg-type]
+                return
+
+            raise TypeError(f"Unsupported override value type: {type(value).__name__}")
+
+        def _apply_array_lock(prop_schema: Dict[str, Any], value_list: List[Any]) -> None:
+            """Restrict an array schema to a specific list of primitive values."""
+            prop_schema["type"] = "array"
+            list_length = len(value_list)
+            prop_schema["minItems"] = list_length
+            prop_schema["maxItems"] = list_length
+
+            if list_length == 0:
+                # Empty array override: no additional constraints needed.
+                return
+
+            if all(not isinstance(item, (list, dict)) for item in value_list):
+                allowed_values: List[Any] = []
+                seen_markers: set = set()
+                types_in_items: List[str] = []
+                for item in value_list:
+                    marker = (type(item).__name__, json.dumps(item, sort_keys=True))
+                    if marker not in seen_markers:
+                        seen_markers.add(marker)
+                        allowed_values.append(deepcopy(item))
+                        inferred = _infer_json_type(item)
+                        if inferred:
+                            if inferred not in types_in_items:
+                                types_in_items.append(inferred)
+
+                items_schema = prop_schema.get("items")
+                if not isinstance(items_schema, dict):
+                    items_schema = {}
+                    prop_schema["items"] = items_schema
+
+                items_schema["enum"] = allowed_values
+                if not types_in_items:
+                    items_schema.pop("type", None)
+                elif len(types_in_items) == 1:
+                    items_schema["type"] = types_in_items[0]
+                else:
+                    items_schema["type"] = types_in_items
+                return
+
+            if len(value_list) == 1 and isinstance(value_list[0], dict):
+                items_schema = prop_schema.get("items")
+                if not isinstance(items_schema, dict):
+                    items_schema = {}
+                    prop_schema["items"] = items_schema
+                _apply_object_lock(items_schema, value_list[0])
+                return
+
+            raise ValueError(
+                "Array overrides must contain only primitive values or a single object."
+            )
+
+        def _apply_object_lock(prop_schema: Dict[str, Any], value_obj: Dict[str, Any]) -> None:
+            """Restrict an object schema so each property is locked to supplied values."""
+            if not isinstance(value_obj, dict):
+                raise TypeError("Object overrides must provide a dictionary value.")
+
+            prop_schema["type"] = "object"
+            properties_schema = prop_schema.get("properties")
+            if not isinstance(properties_schema, dict):
+                properties_schema = {}
+                prop_schema["properties"] = properties_schema
+
+            required_keys = set(prop_schema.get("required", []))
+
+            for key, item_value in value_obj.items():
+                child_schema = properties_schema.get(key)
+                if child_schema is None:
+                    child_schema = {}
+                    properties_schema[key] = child_schema
+                _apply_value_lock(child_schema, item_value)
+                required_keys.add(key)
+
+            prop_schema["required"] = sorted(required_keys)
+            prop_schema["additionalProperties"] = False
+
+        for field_key, override_definition in overrides.items():
+            if not isinstance(override_definition, dict):
+                raise TypeError(
+                    f"Override for field '{field_key}' must be a dictionary containing "
+                    "'description' and/or 'value'."
+                )
+
+            description_override = override_definition.get("description", _missing)
+            value_override = override_definition.get("value", _missing)
+            constant_override = override_definition.get("const", _missing)
+
+            if value_override is not _missing and constant_override is not _missing:
+                raise ValueError(
+                    f"Override for field '{field_key}' cannot specify both 'value' and 'const'."
+                )
+
+            # Promote top-level "value" to preserved "const" for backward compatibility.
+            if value_override is not _missing:
+                constant_override = value_override
+
+            if description_override is _missing and constant_override is _missing:
+                continue
+
             field_meta = next((f for f in field_index if f.get("key") == field_key), None)
             if not field_meta:
                 logger.warning(
@@ -1506,10 +1662,61 @@ class SchemaEngine:
                 continue
 
             prop_schema = properties[property_key]
-            if override_text is None:
-                prop_schema.pop("description", None)
-            else:
-                prop_schema["description"] = override_text
+            original_description = prop_schema.get("description")
+            original_title = prop_schema.get("title")
+
+            if constant_override is not _missing:
+                prop_schema_for_validation = deepcopy(prop_schema)
+
+                try:
+                    DefaultValidator(prop_schema_for_validation).validate(constant_override)
+                except jsonschema.exceptions.ValidationError as exc:  # type: ignore[attr-defined]
+                    raise ValueError(
+                        f"Override value for field '{field_key}' failed schema validation: {exc.message}"
+                    ) from exc
+
+                target_type = field_meta.get("target_type")
+                if target_type:
+                    validator = self.__instance_validator_registry.get(target_type) or _get_validator(
+                        target_type
+                    )
+                    if validator:
+                        try:
+                            if target_type in self.__instance_validator_registry:
+                                is_valid, error_msg = validator(self, constant_override, field_meta)
+                            else:
+                                is_valid, error_msg = validator(self, constant_override)
+                        except Exception as exc:
+                            raise ValueError(
+                                f"Override value for field '{field_key}' raised validator exception: {exc}"
+                            ) from exc
+
+                        if not is_valid:
+                            raise ValueError(
+                                f"Override value for field '{field_key}' failed validator: {error_msg}"
+                            )
+
+                constant_copy = deepcopy(constant_override)
+                _apply_value_lock(prop_schema, constant_copy)
+
+                if description_override is not _missing:
+                    if description_override is None:
+                        prop_schema.pop("description", None)
+                    else:
+                        prop_schema["description"] = description_override
+                elif original_description is not None:
+                    prop_schema["description"] = original_description
+
+                if original_title is not None:
+                    prop_schema["title"] = original_title
+
+                continue
+
+            if description_override is not _missing:
+                if description_override is None:
+                    prop_schema.pop("description", None)
+                else:
+                    prop_schema["description"] = description_override
 
         return schema_copy
 

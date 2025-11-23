@@ -179,6 +179,141 @@ class TestSchemaEngine(unittest.TestCase):
         """Test extractor for complex options."""
         return [choice["name"] for choice in options.get("choices", [])]
 
+    def _setup_zoo_openai_engine(self):
+        """Helper to create zoo engine/table for OpenAI compatibility tests."""
+        # Create zoo-specific meta-schema (simplified to avoid OpenAI nesting limits - 10 max)
+        zoo_meta_schema = {
+            "schema_name": "table_name",
+            "container": {
+                "container_name": "animals",
+                "container_type": "array",
+                "object": {
+                    "name": "animal_class",
+                    "key": "class_name",
+                    "container": {
+                        "container_name": "species",
+                        "container_type": "array",
+                        "object": {
+                            "name": "species_name",
+                            "key": "species_key",
+                            "properties": {
+                                "properties_name": "properties",
+                                "property": {
+                                    "key": "property_key",
+                                    "name": "property_name",
+                                    "type": "property_type",
+                                    "validation": {
+                                        "allowed_types": ["count", "health", "food_order"],
+                                        "type_constraints": {
+                                            "count": {
+                                                "target_type": "integer",
+                                                "requires_options": False,
+                                            },
+                                            "health": {
+                                                "target_type": "single_select",
+                                                "requires_options": True,
+                                                "options_field": "health_options",
+                                                "options_extractor": "health_options_extractor",
+                                            },
+                                            "food_order": {
+                                                "target_type": "string",
+                                                "requires_options": False,
+                                            },
+                                        },
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        engine = SchemaEngine(zoo_meta_schema)
+
+        def health_options_extractor(options_field_value):
+            """Extract health options from field schema."""
+            if not options_field_value:
+                return []
+            return [opt.get("label", "") for opt in options_field_value]
+
+        engine.register_options_extractor("health_options_extractor", health_options_extractor)
+
+        zoo_schema = {
+            "table_name": "Zoo Animal Inventory",
+            "animals": [
+                {
+                    "class_name": "Mammalia",
+                    "animal_class": "Mammals",
+                    "species": [
+                        {
+                            "species_key": "canis_lupus",
+                            "species_name": "Gray Wolf",
+                            "properties": [
+                                {
+                                    "property_key": "count",
+                                    "property_name": "Count",
+                                    "property_type": "count",
+                                },
+                                {
+                                    "property_key": "health",
+                                    "property_name": "Health Status",
+                                    "property_type": "health",
+                                    "health_options": [
+                                        {"value": "E", "label": "Excellent"},
+                                        {"value": "G", "label": "Good"},
+                                        {"value": "F", "label": "Fair"},
+                                        {"value": "P", "label": "Poor"},
+                                    ],
+                                },
+                                {
+                                    "property_key": "food_order",
+                                    "property_name": "Food Order",
+                                    "property_type": "food_order",
+                                },
+                            ],
+                        },
+                        {
+                            "species_key": "felis_catus",
+                            "species_name": "Domestic Cat",
+                            "properties": [
+                                {
+                                    "property_key": "count",
+                                    "property_name": "Count",
+                                    "property_type": "count",
+                                },
+                                {
+                                    "property_key": "health",
+                                    "property_name": "Health Status",
+                                    "property_type": "health",
+                                    "health_options": [
+                                        {"value": "E", "label": "Excellent"},
+                                        {"value": "G", "label": "Good"},
+                                        {"value": "F", "label": "Fair"},
+                                        {"value": "P", "label": "Poor"},
+                                    ],
+                                },
+                                {
+                                    "property_key": "food_order",
+                                    "property_name": "Food Order",
+                                    "property_type": "food_order",
+                                },
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+
+        table_id, table_name = engine.register_table(1, zoo_schema)
+        user_prompt = "You need to fill in the information for the zoo as defined by the json schema."
+        enrichment_dict = {
+            "count": "Number of animals of this species currently in the zoo.",
+            "health": "Overall health status of the animals. Select from the provided options.",
+            "food_order": "Detailed food requirements and feeding schedule for this species.",
+        }
+        return engine, table_id, table_name, user_prompt, enrichment_dict
+
     def test_flat_table_registration(self):
         """Test registering a simple flat table."""
         external_schema = {
@@ -2345,7 +2480,7 @@ class TestSchemaEngine(unittest.TestCase):
 
     def test_enrich_schema(self):
         """Test schema enrichment functionality with all matching keys."""
-        engine = SchemaEngine(self.flat_meta_schema)
+        engine = SchemaEngine(copy.deepcopy(self.flat_meta_schema))
         
         table_schema = {
             "table_name": "Test Table",
@@ -2444,7 +2579,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIn("This field contains the patient's full name", field1_schema.get("description", ""))
         self.assertIn("This field contains the patient's age in years", field2_schema.get("description", ""))
 
-    def test_build_schema_with_description_overrides_returns_copy(self):
+    def test_get_schema_with_overrides_returns_copy(self):
         """The override helper returns a deep-copied schema without mutating the stored version."""
         engine = SchemaEngine(self.flat_meta_schema)
 
@@ -2470,11 +2605,11 @@ class TestSchemaEngine(unittest.TestCase):
 
         baseline_schema = engine.get_json_schema(table_id)
         overrides = {
-            "field1": "Override for full name",
-            "field2": "Override for age in years",
+            "field1": {"description": "Override for full name"},
+            "field2": {"description": "Override for age in years"},
         }
 
-        overridden_schema = engine.get_schema_with_description_overrides(table_name, overrides)
+        overridden_schema = engine.get_schema_with_overrides(table_name, overrides)
 
         # Returned schema is a new copy
         self.assertIsNot(overridden_schema, baseline_schema)
@@ -2495,7 +2630,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertNotIn("description", fresh_schema["properties"]["fields"]["properties"]["Patient Name"])
         self.assertNotIn("description", fresh_schema["properties"]["fields"]["properties"]["Patient Age"])
 
-    def test_build_schema_with_description_overrides_handles_none_and_missing_keys(self):
+    def test_get_schema_with_overrides_handles_description_only(self):
         """Overrides can remove descriptions and ignore unknown keys safely."""
         engine = SchemaEngine(self.flat_meta_schema)
 
@@ -2527,12 +2662,12 @@ class TestSchemaEngine(unittest.TestCase):
             },
         )
 
-        overridden_schema = engine.get_schema_with_description_overrides(
+        overridden_schema = engine.get_schema_with_overrides(
             table_name,
             {
-                "field1": None,
-                "field2": "Specific override",
-                "missing_field": "Should be ignored",
+                "field1": {"description": None},
+                "field2": {"description": "Specific override"},
+                "missing_field": {"description": "Should be ignored"},
             },
         )
 
@@ -2544,6 +2679,395 @@ class TestSchemaEngine(unittest.TestCase):
         original_props = engine.get_json_schema(table_id)["properties"]["fields"]["properties"]
         self.assertIn("Base description for name", original_props["Patient Name"]["description"])
         self.assertIn("Base description for age", original_props["Patient Age"]["description"])
+
+    def test_get_schema_with_overrides_value_success(self):
+        """Value overrides produce const schemas while preserving titles and optional descriptions."""
+        engine = SchemaEngine(self.flat_meta_schema)
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_title": "Patient Name",
+                    "field_type": "text",
+                },
+            ],
+        }
+
+        table_id, table_name = engine.register_table(1, table_schema)
+        baseline_schema = engine.get_json_schema(table_id)
+
+        overrides = {
+            "field1": {
+                "value": "Locked Name",
+                "description": "Locked description",
+            }
+        }
+
+        overridden_schema = engine.get_schema_with_overrides(table_name, overrides)
+        overridden_field = overridden_schema["properties"]["fields"]["properties"]["Patient Name"]
+
+        self.assertEqual(overridden_field["const"], "Locked Name")
+        self.assertEqual(overridden_field["description"], "Locked description")
+        baseline_field = baseline_schema["properties"]["fields"]["properties"]["Patient Name"]
+        self.assertNotIn("const", baseline_field)
+        self.assertNotIn("description", baseline_field)
+
+    def test_get_schema_with_overrides_invalid_type_raises(self):
+        """Invalid override values fail schema validation."""
+        engine = SchemaEngine(copy.deepcopy(self.flat_meta_schema))
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_title": "Patient Name",
+                    "field_type": "text",
+                },
+            ],
+        }
+
+        _, table_name = engine.register_table(1, table_schema)
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {
+                    "field1": {
+                        "value": 1234,
+                    }
+                },
+            )
+
+    def test_get_schema_with_overrides_enforces_enum_membership(self):
+        """Single select overrides must use one of the available options."""
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        validation = test_meta["properties"]["property"]["validation"]
+        if "rad" in validation["type_constraints"]:
+            validation["type_constraints"]["rad"]["options_extractor"] = "extract_complex_options"
+        engine = SchemaEngine(test_meta)
+        engine.register_options_extractor("extract_complex_options", self._extract_complex_options)
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Selection Field",
+                    "field_title": "Selection Field",
+                    "field_type": "rad",
+                    "field_options": {
+                        "choices": [
+                            {"name": "Option A"},
+                            {"name": "Option B"},
+                        ]
+                    },
+                },
+            ],
+        }
+
+        _, table_name = engine.register_table(1, table_schema)
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {
+                    "field1": {
+                        "value": "Invalid Option",
+                    }
+                },
+            )
+
+        overrides = {
+            "field1": {
+                "value": "Option A",
+            }
+        }
+
+        schema_with_const = engine.get_schema_with_overrides(table_name, overrides)
+        field_schema = schema_with_const["properties"]["fields"]["properties"]["Selection Field"]
+        self.assertEqual(field_schema["const"], "Option A")
+
+    def test_get_schema_with_overrides_runs_custom_validators(self):
+        """Custom validators execute for overrides and can reject invalid values."""
+        engine = SchemaEngine(copy.deepcopy(self.flat_meta_schema))
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Date Field",
+                    "field_title": "Date Field",
+                    "field_type": "date",
+                },
+            ],
+        }
+
+        _, table_name = engine.register_table(1, table_schema)
+
+        with self.assertRaisesRegex(ValueError, "failed validator"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {
+                    "field1": {
+                        "value": "not-a-date",
+                    }
+                },
+            )
+
+        valid_schema = engine.get_schema_with_overrides(
+            table_name,
+            {
+                "field1": {
+                    "value": "2024-05-01",
+                }
+            },
+        )
+        date_field = valid_schema["properties"]["fields"]["properties"]["Date Field"]
+        self.assertEqual(date_field["const"], "2024-05-01")
+
+    def test_get_schema_with_overrides_value_type_matrix(self):
+        """Override helper supports positive/negative cases across field types."""
+        test_meta = copy.deepcopy(self.flat_meta_schema)
+        validation_cfg = test_meta["properties"]["property"]["validation"]
+        # Add multi-select and object types to the meta-schema for this test.
+        if "multi_select" not in validation_cfg["allowed_types"]:
+            validation_cfg["allowed_types"].append("multi_select")
+        validation_cfg["type_constraints"]["multi_select"] = {
+            "target_type": "multiple_select",
+            "requires_options": True,
+            "options_field": "field_options",
+            "options_extractor": "multi_select_extractor",
+        }
+        if "obj" not in validation_cfg["allowed_types"]:
+            validation_cfg["allowed_types"].append("obj")
+        validation_cfg["type_constraints"]["obj"] = {
+            "target_type": "object",
+            "requires_options": False,
+        }
+
+        engine = SchemaEngine(test_meta)
+
+        def option_extractor(options: Any) -> List[str]:
+            if isinstance(options, dict):
+                return [choice.get("name") for choice in options.get("choices", []) if isinstance(choice, dict)]
+            if isinstance(options, list):
+                return [opt.get("name") for opt in options if isinstance(opt, dict)]
+            return []
+
+        engine.register_options_extractor("multi_select_extractor", option_extractor)
+        engine.register_options_extractor("extract_complex_options", option_extractor)
+
+        table_schema = {
+            "table_name": "Override Matrix",
+            "fields": [
+                {
+                    "field_id": "str_field",
+                    "field_number": "1",
+                    "field_name": "String Field",
+                    "field_title": "String Field",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "num_field",
+                    "field_number": "2",
+                    "field_name": "Number Field",
+                    "field_title": "Number Field",
+                    "field_type": "number",
+                },
+                {
+                    "field_id": "bool_field",
+                    "field_number": "3",
+                    "field_name": "Boolean Field",
+                    "field_title": "Boolean Field",
+                    "field_type": "checkbox",
+                },
+                {
+                    "field_id": "date_field",
+                    "field_number": "4",
+                    "field_name": "Date Field",
+                    "field_title": "Date Field",
+                    "field_type": "date",
+                },
+                {
+                    "field_id": "single_select_field",
+                    "field_number": "5",
+                    "field_name": "Single Select",
+                    "field_title": "Single Select",
+                    "field_type": "rad",
+                    "field_options": [
+                        {"name": "Option A"},
+                        {"name": "Option B"},
+                    ],
+                },
+                {
+                    "field_id": "multi_select_field",
+                    "field_number": "6",
+                    "field_name": "Multi Select",
+                    "field_title": "Multi Select",
+                    "field_type": "multi_select",
+                    "field_options": [
+                        {"name": "Choice A"},
+                        {"name": "Choice B"},
+                        {"name": "Choice C"},
+                    ],
+                },
+                {
+                    "field_id": "object_field",
+                    "field_number": "7",
+                    "field_name": "Object Field",
+                    "field_title": "Object Field",
+                    "field_type": "obj",
+                },
+            ],
+        }
+
+        table_id, table_name = engine.register_table(42, table_schema)
+        baseline_schema = engine.get_json_schema(table_id)
+        field_index = engine.get_field_metadata(table_id)
+        field_map = {meta["key"]: meta for meta in field_index}
+
+        def resolve(schema: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+            node = schema
+            for key in meta.get("level_keys", []):
+                node = node["properties"][key]
+            return node["properties"][meta["property_key"]]
+
+        positive_overrides = {
+            "str_field": {"value": "Locked String"},
+            "num_field": {"value": 123.5},
+            "bool_field": {"value": True},
+            "date_field": {"value": "2024-06-15"},
+            "single_select_field": {"value": "Option A"},
+            "multi_select_field": {"value": ["Choice A"]},
+            "object_field": {"value": {"nested": "value"}},
+        }
+
+        locked_schema = engine.get_schema_with_overrides(table_name, positive_overrides)
+
+        # String
+        locked_string = resolve(locked_schema, field_map["str_field"])
+        self.assertEqual(locked_string["type"], "string")
+        self.assertEqual(locked_string["const"], "Locked String")
+        self.assertEqual(locked_string["enum"], ["Locked String"])
+        self.assertNotIn("const", resolve(baseline_schema, field_map["str_field"]))
+
+        # Number
+        locked_number = resolve(locked_schema, field_map["num_field"])
+        self.assertEqual(locked_number["type"], "number")
+        self.assertEqual(locked_number["const"], 123.5)
+
+        # Boolean
+        locked_boolean = resolve(locked_schema, field_map["bool_field"])
+        self.assertEqual(locked_boolean["type"], "boolean")
+        self.assertTrue(locked_boolean["const"])
+
+        # Date (custom validator + format preservation)
+        locked_date = resolve(locked_schema, field_map["date_field"])
+        self.assertEqual(locked_date["type"], "string")
+        self.assertEqual(locked_date["format"], "date")
+        self.assertEqual(locked_date["const"], "2024-06-15")
+
+        # Single select
+        locked_single = resolve(locked_schema, field_map["single_select_field"])
+        self.assertEqual(locked_single["type"], "string")
+        self.assertEqual(locked_single["const"], "Option A")
+        self.assertEqual(locked_single["enum"], ["Option A"])
+
+        # Multi select single value (3.a)
+        locked_multi_single = resolve(locked_schema, field_map["multi_select_field"])
+        self.assertEqual(locked_multi_single["type"], "array")
+        self.assertEqual(locked_multi_single["minItems"], 1)
+        self.assertEqual(locked_multi_single["maxItems"], 1)
+        self.assertEqual(locked_multi_single["items"]["enum"], ["Choice A"])
+
+        # Multi select multiple values (3.c)
+        multi_multi_schema = engine.get_schema_with_overrides(
+            table_name,
+            {
+                **positive_overrides,
+                "multi_select_field": {"value": ["Choice A", "Choice C"]},
+            },
+        )
+        locked_multi_multi = resolve(multi_multi_schema, field_map["multi_select_field"])
+        self.assertEqual(locked_multi_multi["minItems"], 2)
+        self.assertEqual(locked_multi_multi["maxItems"], 2)
+        self.assertEqual(set(locked_multi_multi["items"]["enum"]), {"Choice A", "Choice C"})
+
+        # Object locking ensures nested properties become consts and additionalProperties is False.
+        locked_object = resolve(locked_schema, field_map["object_field"])
+        self.assertEqual(locked_object["type"], "object")
+        self.assertFalse(locked_object.get("additionalProperties"))
+        self.assertEqual(locked_object["properties"]["nested"]["const"], "value")
+        self.assertIn("nested", locked_object["required"])
+
+        # Negative cases for scalar types (requirement 1)
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"str_field": {"value": 999}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"num_field": {"value": "not-a-number"}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"bool_field": {"value": "true"}},
+            )
+
+        # Date negative (requirement 2)
+        with self.assertRaisesRegex(ValueError, "failed validator"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"date_field": {"value": "2025-13-25"}},
+            )
+
+        # Single select negative (requirement 2)
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"single_select_field": {"value": "Option Z"}},
+            )
+
+        # Multiple select negatives (requirement 3b/3d/3e)
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"multi_select_field": {"value": ["Invalid Choice"]}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"multi_select_field": {"value": ["Choice A", "Bad Choice"]}},
+            )
+
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"multi_select_field": {"value": ["Wrong 1", "Wrong 2"]}},
+            )
+
+        # Object negative (non-dict input)
+        with self.assertRaisesRegex(ValueError, "failed schema validation"):
+            engine.get_schema_with_overrides(
+                table_name,
+                {"object_field": {"value": "not-an-object"}},
+            )
 
     def test_reverse_map_flat(self):
         """Test flat reverse mapping."""
@@ -3737,140 +4261,9 @@ class TestSchemaEngine(unittest.TestCase):
         
         Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
         """
-        # Create zoo-specific meta-schema (simplified to avoid OpenAI nesting limits - 10 max)
-        # Using only 3 levels of nesting instead of 7 to stay within OpenAI's limits
-        zoo_meta_schema = {
-            "schema_name": "table_name",
-            "container": {
-                "container_name": "animals",
-                "container_type": "array",
-                "object": {
-                    "name": "animal_class",
-                    "key": "class_name",
-                    "container": {
-                        "container_name": "species",
-                        "container_type": "array",
-                        "object": {
-                            "name": "species_name",
-                            "key": "species_key",
-                            "properties": {
-                                "properties_name": "properties",
-                                "property": {
-                                    "key": "property_key",
-                                    "name": "property_name",
-                                    "type": "property_type",
-                                    "validation": {
-                                        "allowed_types": ["count", "health", "food_order"],
-                                        "type_constraints": {
-                                            "count": {
-                                                "target_type": "integer",
-                                                "requires_options": False
-                                            },
-                                            "health": {
-                                                "target_type": "single_select",
-                                                "requires_options": True,
-                                                "options_field": "health_options",
-                                                "options_extractor": "health_options_extractor"
-                                            },
-                                            "food_order": {
-                                                "target_type": "string",
-                                                "requires_options": False
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        engine, table_id, table_name, user_prompt, enrichment_dict = self._setup_zoo_openai_engine()
         
-        # Create engine with zoo meta-schema
-        engine = SchemaEngine(zoo_meta_schema)
-        
-        # Register options extractors for zoo field types
-        def health_options_extractor(options_field_value):
-            """Extract health options from field schema."""
-            if not options_field_value:
-                return []
-            return [opt.get("label", "") for opt in options_field_value]
-        
-        engine.register_options_extractor("health_options_extractor", health_options_extractor)
-        
-        # Register zoo taxonomy table (simplified version for OpenAI compatibility testing)
-        zoo_schema = {
-            "table_name": "Zoo Animal Inventory",
-            "animals": [
-                {
-                    "class_name": "Mammalia",
-                    "animal_class": "Mammals",
-                    "species": [
-                        {
-                            "species_key": "canis_lupus",
-                            "species_name": "Gray Wolf",
-                            "properties": [
-                                {
-                                    "property_key": "count",
-                                    "property_name": "Count",
-                                    "property_type": "count"
-                                },
-                                {
-                                    "property_key": "health",
-                                    "property_name": "Health Status",
-                                    "property_type": "health",
-                                    "health_options": [
-                                        {"value": "E", "label": "Excellent"},
-                                        {"value": "G", "label": "Good"},
-                                        {"value": "F", "label": "Fair"},
-                                        {"value": "P", "label": "Poor"}
-                                    ]
-                                },
-                                {
-                                    "property_key": "food_order",
-                                    "property_name": "Food Order",
-                                    "property_type": "food_order"
-                                }
-                            ]
-                        },
-                        {
-                            "species_key": "felis_catus",
-                            "species_name": "Domestic Cat",
-                            "properties": [
-                                {
-                                    "property_key": "count",
-                                    "property_name": "Count",
-                                    "property_type": "count"
-                                },
-                                {
-                                    "property_key": "health",
-                                    "property_name": "Health Status",
-                                    "property_type": "health",
-                                    "health_options": [
-                                        {"value": "E", "label": "Excellent"},
-                                        {"value": "G", "label": "Good"},
-                                        {"value": "F", "label": "Fair"},
-                                        {"value": "P", "label": "Poor"}
-                                    ]
-                                },
-                                {
-                                    "property_key": "food_order",
-                                    "property_name": "Food Order",
-                                    "property_type": "food_order"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        }
-        
-        # Register the zoo table
-        table_id, table_name = engine.register_table(1, zoo_schema)
-        
-        # Test without enrichment
         json_schema = engine.get_json_schema(table_name)
-        user_prompt = "You need to fill in the information for the zoo as defined by the json schema."
         
         openai_chat_completion = _get_openai_chat_completion()
         if openai_chat_completion is None:
@@ -3886,12 +4279,6 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIsInstance(response_content, dict)
         
         # Test with enrichment
-        enrichment_dict = {
-            "count": "Number of animals of this species currently in the zoo.",
-            "health": "Overall health status of the animals. Select from the provided options.",
-            "food_order": "Detailed food requirements and feeding schedule for this species."
-        }
-        
         unmatched_keys = engine.enrich_schema(table_name, enrichment_dict)
         self.assertEqual(len(unmatched_keys), 0, f"All enrichment keys should match: {unmatched_keys}")
         
@@ -3908,6 +4295,74 @@ class TestSchemaEngine(unittest.TestCase):
         # Parse enriched response content as JSON
         enriched_response_content = json.loads(response_choices_enriched[0]["content"])
         self.assertIsInstance(enriched_response_content, dict)
+
+    @unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
+    def test_zoo_overrides_openai_compatibility(self):
+        """Ensure zoo overrides remain OpenAI-compatible and lock values correctly."""
+        engine, table_id, table_name, user_prompt, _ = self._setup_zoo_openai_engine()
+
+        original_schema = engine.get_json_schema(table_id)
+        field_index = engine.get_field_metadata(table_id)
+
+        def resolve(schema: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+            node = schema
+            for key in meta.get("level_keys", []):
+                node = node["properties"][key]
+            return node["properties"][meta["property_key"]]
+
+        # Map property keys to metadata for quick lookup.
+        meta_by_key: Dict[str, Dict[str, Any]] = {}
+        for meta in field_index:
+            field_key = meta.get("key")
+            if field_key and field_key not in meta_by_key:
+                meta_by_key[field_key] = meta
+
+        count_meta = meta_by_key["count"]
+        health_meta = meta_by_key["health"]
+        food_meta = meta_by_key["food_order"]
+
+        health_prop = resolve(original_schema, health_meta)
+        health_choices = [value for value in health_prop.get("enum", []) if value is not None]
+        self.assertTrue(health_choices, "Health field should expose enum values.")
+
+        overrides = {
+            count_meta["key"]: {"description": "Locked wolf count", "value": 12},
+            health_meta["key"]: {"description": "Locked health status", "value": health_choices[0]},
+            food_meta["key"]: {"description": "Locked feeding plan", "value": "Twice daily ration"},
+        }
+
+        overridden_schema = engine.get_schema_with_overrides(table_id, overrides)
+
+        count_prop = resolve(overridden_schema, count_meta)
+        self.assertEqual(count_prop.get("type"), "integer")
+        self.assertEqual(count_prop.get("const"), 12)
+
+        health_prop_locked = resolve(overridden_schema, health_meta)
+        self.assertEqual(health_prop_locked.get("type"), "string")
+        self.assertEqual(health_prop_locked.get("const"), health_choices[0])
+        self.assertEqual(health_prop_locked.get("enum"), [health_choices[0]])
+
+        food_prop_locked = resolve(overridden_schema, food_meta)
+        self.assertEqual(food_prop_locked.get("type"), "string")
+        self.assertEqual(food_prop_locked.get("const"), "Twice daily ration")
+        self.assertEqual(food_prop_locked.get("enum"), ["Twice daily ration"])
+
+        # Original schema remains unchanged.
+        self.assertNotIn("const", resolve(original_schema, count_meta))
+        self.assertNotIn("const", resolve(original_schema, health_meta))
+        self.assertNotIn("const", resolve(original_schema, food_meta))
+
+        openai_chat_completion = _get_openai_chat_completion()
+        if openai_chat_completion is None:
+            self.skipTest("OpenAI chat completion not available - install 'openai' package to run this test")
+
+        response_choices = openai_chat_completion(
+            user_prompt=user_prompt,
+            json_schema=overridden_schema,
+            num_choices=1,
+        )
+        self.assertEqual(len(response_choices), 1)
+        self.assertEqual(response_choices[0]["finish_reason"], "stop")
 
     def test_reverse_map_pack_containers_as_object(self):
         """Test reverse_map with containers packed as object."""
