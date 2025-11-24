@@ -4350,6 +4350,16 @@ class TestSchemaEngine(unittest.TestCase):
                 node = node["properties"][key]
             return node["properties"][meta["property_key"]]
 
+        def extract_value(payload: Dict[str, Any], meta: Dict[str, Any]) -> Any:
+            """Traverse a model payload using field metadata to return the property value."""
+            node: Any = payload
+            for key in meta.get("level_keys", []):
+                self.assertIn(key, node, f"Expected key '{key}' in payload while resolving {meta.get('key')}")
+                node = node[key]
+            prop_key = meta["property_key"]
+            self.assertIn(prop_key, node, f"Expected property '{prop_key}' in payload for field {meta.get('key')}")
+            return node[prop_key]
+
         # Map property keys to metadata for quick lookup.
         meta_by_key: Dict[str, Dict[str, Any]] = {}
         for meta in field_index:
@@ -4371,11 +4381,13 @@ class TestSchemaEngine(unittest.TestCase):
         diet_choices = [value for value in diet_item_schema.get("enum", []) if value is not None]
         self.assertGreaterEqual(len(diet_choices), 2, "Diet field should expose at least two enum values.")
 
+        single_diet_values = [diet_choices[0]]
+
         overrides = {
             count_meta["key"]: {"description": "Locked wolf count", "value": 12},
             health_meta["key"]: {"description": "Locked health status", "value": health_choices[0]},
             food_meta["key"]: {"description": "Locked feeding plan", "value": "Twice daily ration"},
-            diet_meta["key"]: {"description": "Locked dietary category", "value": [diet_choices[0]]},
+            diet_meta["key"]: {"description": "Locked dietary category", "value": single_diet_values},
         }
 
         overridden_schema = engine.get_schema_with_overrides(table_id, overrides)
@@ -4436,6 +4448,16 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertEqual(len(response_choices), 1)
         self.assertEqual(response_choices[0]["finish_reason"], "stop")
 
+        locked_response = json.loads(response_choices[0]["content"])
+        self.assertIsInstance(locked_response, dict)
+        self.assertEqual(extract_value(locked_response, count_meta), 12)
+        self.assertEqual(extract_value(locked_response, health_meta), health_choices[0])
+        self.assertEqual(extract_value(locked_response, food_meta), "Twice daily ration")
+        diet_response_value = extract_value(locked_response, diet_meta)
+        self.assertIsInstance(diet_response_value, list)
+        self.assertEqual(diet_response_value, single_diet_values)
+
+        multi_diet_values = diet_choices[:2]
         response_choices_multi = openai_chat_completion(
             user_prompt=user_prompt,
             json_schema=multi_value_schema,
@@ -4443,6 +4465,16 @@ class TestSchemaEngine(unittest.TestCase):
         )
         self.assertEqual(len(response_choices_multi), 1)
         self.assertEqual(response_choices_multi[0]["finish_reason"], "stop")
+
+        locked_response_multi = json.loads(response_choices_multi[0]["content"])
+        self.assertIsInstance(locked_response_multi, dict)
+        self.assertEqual(extract_value(locked_response_multi, count_meta), 12)
+        self.assertEqual(extract_value(locked_response_multi, health_meta), health_choices[0])
+        self.assertEqual(extract_value(locked_response_multi, food_meta), "Twice daily ration")
+        diet_response_multi = extract_value(locked_response_multi, diet_meta)
+        self.assertIsInstance(diet_response_multi, list)
+        self.assertEqual(len(diet_response_multi), len(multi_diet_values))
+        self.assertCountEqual(diet_response_multi, multi_diet_values)
 
     def test_reverse_map_pack_containers_as_object(self):
         """Test reverse_map with containers packed as object."""

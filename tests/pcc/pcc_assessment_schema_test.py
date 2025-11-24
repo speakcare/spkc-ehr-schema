@@ -3461,6 +3461,16 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                         node = node["properties"][key]
                     return node["properties"][meta["property_key"]]
 
+                def _extract_value(payload: Dict[str, Any], meta: Dict[str, Any]) -> Any:
+                    """Traverse a model payload using metadata to fetch the field value."""
+                    node: Any = payload
+                    for key in meta.get("level_keys", []):
+                        self.assertIn(key, node, f"Expected key '{key}' in payload while resolving {meta.get('key')}")
+                        node = node[key]
+                    prop_key = meta["property_key"]
+                    self.assertIn(prop_key, node, f"Expected property '{prop_key}' in payload for field {meta.get('key')}")
+                    return node[prop_key]
+
                 def _normalize_target_type(meta: Dict[str, Any]) -> Optional[str]:
                     target = meta.get("target_type")
                     if target in ("string", "text"):
@@ -3593,6 +3603,19 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 response_content = json.loads(response_choices[0]["content"])
                 self.assertIsInstance(response_content, dict)
 
+                for key, info in selected_info.items():
+                    meta = info["meta"]
+                    normalized_type = info["normalized"]
+                    expected_value = info["value"]
+                    actual_value = _extract_value(response_content, meta)
+
+                    if normalized_type == "multiple_select":
+                        self.assertIsInstance(actual_value, list)
+                        self.assertEqual(len(actual_value), len(expected_value))
+                        self.assertCountEqual(actual_value, expected_value)
+                    else:
+                        self.assertEqual(actual_value, expected_value)
+
                 reverse_mapped = self.pcc_schema.reverse_map(
                     assessment_id,
                     response_content,
@@ -3637,6 +3660,22 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                     )
                     self.assertEqual(len(response_choices_multi), 1)
                     self.assertEqual(response_choices_multi[0]["finish_reason"], "stop")
+
+                    multi_response_content = json.loads(response_choices_multi[0]["content"])
+                    self.assertIsInstance(multi_response_content, dict)
+
+                    for key, info in selected_info.items():
+                        meta = info["meta"]
+                        normalized_type = info["normalized"]
+                        if key == multi_key:
+                            expected_multi = multi_values
+                            actual_multi = _extract_value(multi_response_content, meta)
+                            self.assertIsInstance(actual_multi, list)
+                            self.assertEqual(len(actual_multi), len(expected_multi))
+                            self.assertCountEqual(actual_multi, expected_multi)
+                        else:
+                            expected_value = info["value"]
+                            self.assertEqual(_extract_value(multi_response_content, meta), expected_value)
 
 
 if __name__ == "__main__":
