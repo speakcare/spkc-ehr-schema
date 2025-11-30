@@ -1452,9 +1452,15 @@ class SchemaEngine:
         Args:
             table_identifier: The registered table identifier (ID or name).
             overrides: Mapping of field keys to override definitions. Each override may
-                include a "description" key (string or None) and/or a "value" key. When
-                "value" is supplied, the property schema will be replaced with a const
-                schema after successful validation.
+                include:
+                - "description" key (string or None): Description text to apply
+                - "description_op" key (string, optional): Operation to apply description.
+                  Must be one of: "override" (default), "append", "prepend".
+                  - "override": Replaces existing description entirely (default behavior)
+                  - "append": Appends new description to end of existing with space separator
+                  - "prepend": Prepends new description to beginning of existing with space separator
+                - "value" key: When supplied, the property schema will be replaced with a const
+                  schema after successful validation.
 
         Returns:
             A deep copy of the registered JSON schema with overrides applied.
@@ -1471,6 +1477,38 @@ class SchemaEngine:
         schema_copy = deepcopy(original_schema)
 
         _missing = object()
+
+        def _apply_description_override(
+            prop_schema: Dict[str, Any],
+            description_override: str,
+            description_op: str,
+            original_description: Optional[str],
+        ) -> None:
+            """
+            Apply description override based on the operation type.
+
+            Args:
+                prop_schema: The property schema to update
+                description_override: The new description text
+                description_op: Operation type ("override", "append", "prepend")
+                original_description: The existing description (if any)
+            """
+            if description_op == "override":
+                prop_schema["description"] = description_override
+            elif description_op == "append":
+                if original_description:
+                    prop_schema["description"] = f"{original_description} {description_override}"
+                else:
+                    prop_schema["description"] = description_override
+            elif description_op == "prepend":
+                if original_description:
+                    prop_schema["description"] = f"{description_override} {original_description}"
+                else:
+                    prop_schema["description"] = description_override
+            else:
+                raise ValueError(
+                    f"Invalid description_op '{description_op}'. Must be one of: 'override', 'append', 'prepend'"
+                )
 
         def _infer_json_type(value: Any) -> Optional[str]:
             """Infer the JSON Schema type keyword for a given Python value."""
@@ -1605,12 +1643,20 @@ class SchemaEngine:
             if not isinstance(override_definition, dict):
                 raise TypeError(
                     f"Override for field '{field_key}' must be a dictionary containing "
-                    "'description' and/or 'value'."
+                    "'description' (optionally with 'description_op') and/or 'value'."
                 )
 
             description_override = override_definition.get("description", _missing)
             value_override = override_definition.get("value", _missing)
             constant_override = override_definition.get("const", _missing)
+            description_op = override_definition.get("description_op", "override")
+
+            # Validate description_op
+            if description_op not in ("override", "append", "prepend"):
+                raise ValueError(
+                    f"Invalid description_op '{description_op}' for field '{field_key}'. "
+                    "Must be one of: 'override', 'append', 'prepend'"
+                )
 
             if value_override is not _missing and constant_override is not _missing:
                 raise ValueError(
@@ -1703,7 +1749,9 @@ class SchemaEngine:
                     if description_override is None:
                         prop_schema.pop("description", None)
                     else:
-                        prop_schema["description"] = description_override
+                        _apply_description_override(
+                            prop_schema, description_override, description_op, original_description
+                        )
                 elif original_description is not None:
                     prop_schema["description"] = original_description
 
@@ -1716,7 +1764,9 @@ class SchemaEngine:
                 if description_override is None:
                     prop_schema.pop("description", None)
                 else:
-                    prop_schema["description"] = description_override
+                    _apply_description_override(
+                        prop_schema, description_override, description_op, original_description
+                    )
 
         return schema_copy
 

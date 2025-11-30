@@ -116,12 +116,18 @@ Use `get_schema_with_overrides()` when you need a one-off copy of a registered s
 
 ```python
 overrides = {
-    # Replace description only
+    # Replace description only (default behavior - override)
     "field1": {"description": "Context-specific guidance"},
-    # Lock to a scalar value (preserves existing type/format metadata)
-    "field2": {"value": 42, "description": "Calculated earlier"},
+    # Replace description explicitly with override operation
+    "field1_override": {"description": "New description", "description_op": "override"},
+    # Append to existing description
+    "field2": {"description": "Additional context", "description_op": "append"},
+    # Prepend to existing description
+    "field3": {"description": "Important: ", "description_op": "prepend"},
+    # Lock to a scalar value with appended description
+    "field4": {"value": 42, "description": "Calculated earlier", "description_op": "append"},
     # Lock a single-select to a specific option (validated against enum + custom validators)
-    "field3": {"value": "Approved"},
+    "field5": {"value": "Approved"},
     # Lock a multi-select field (min/max items and enum updated automatically)
     "field_multi": {"value": ["Choice A", "Choice C"]},
 }
@@ -134,7 +140,11 @@ locked_schema = engine.get_schema_with_overrides(table_name, overrides)
 Override rules:
 
 - The engine deep-copies the current schema, so originals remain unchanged.
-- Description overrides set or clear (`None`) the `description` field.
+- Description overrides can use `description_op` to control how the description is applied:
+  - **"override"** (default): Replaces the existing description entirely. This is the default behavior when `description_op` is not specified.
+  - **"append"**: Appends the new description to the end of the existing description with a space separator. If no existing description exists, just sets the new description.
+  - **"prepend"**: Prepends the new description to the beginning of the existing description with a space separator. If no existing description exists, just sets the new description.
+- Description overrides can also clear the description by setting it to `None`.
 - Value overrides are validated via jsonschema + registered validators before locking.
 - Scalars use `const` alongside the original `type/format`.
 - Arrays/objects use single-element `enum`, with `minItems`/`maxItems` and nested consts derived from the supplied value.

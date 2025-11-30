@@ -2720,6 +2720,137 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertIn("Base description for name", original_props["Patient Name"]["description"])
         self.assertIn("Base description for age", original_props["Patient Age"]["description"])
 
+    def test_get_schema_with_overrides_description_op(self):
+        """Test description_op parameter for override, append, and prepend operations."""
+        engine = SchemaEngine(self.flat_meta_schema)
+
+        table_schema = {
+            "table_name": "Test Table",
+            "fields": [
+                {
+                    "field_id": "field1",
+                    "field_number": "1",
+                    "field_name": "Patient Name",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "field2",
+                    "field_number": "2",
+                    "field_name": "Patient Age",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "field3",
+                    "field_number": "3",
+                    "field_name": "Patient Email",
+                    "field_type": "text",
+                },
+                {
+                    "field_id": "field4",
+                    "field_number": "4",
+                    "field_name": "Patient Phone",
+                    "field_type": "text",
+                },
+            ],
+        }
+
+        table_id, table_name = engine.register_table(1, table_schema)
+
+        # Enrich schema with base descriptions
+        engine.enrich_schema(
+            table_name,
+            {
+                "field1": "Base description for name",
+                "field2": "Base description for age",
+                "field3": "Base description for email",
+            },
+        )
+
+        # Test override (default behavior - no description_op specified)
+        overrides_override = {
+            "field1": {"description": "Override description"},
+        }
+        schema_override = engine.get_schema_with_overrides(table_name, overrides_override)
+        props_override = schema_override["properties"]["fields"]["properties"]
+        self.assertEqual("Override description", props_override["Patient Name"]["description"])
+
+        # Test override (explicit)
+        overrides_override_explicit = {
+            "field1": {"description": "Explicit override", "description_op": "override"},
+        }
+        schema_override_explicit = engine.get_schema_with_overrides(
+            table_name, overrides_override_explicit
+        )
+        props_override_explicit = schema_override_explicit["properties"]["fields"]["properties"]
+        self.assertEqual("Explicit override", props_override_explicit["Patient Name"]["description"])
+
+        # Test append
+        overrides_append = {
+            "field2": {"description": "Additional context", "description_op": "append"},
+        }
+        schema_append = engine.get_schema_with_overrides(table_name, overrides_append)
+        props_append = schema_append["properties"]["fields"]["properties"]
+        self.assertEqual(
+            "Base description for age Additional context", props_append["Patient Age"]["description"]
+        )
+
+        # Test prepend
+        overrides_prepend = {
+            "field3": {"description": "Important:", "description_op": "prepend"},
+        }
+        schema_prepend = engine.get_schema_with_overrides(table_name, overrides_prepend)
+        props_prepend = schema_prepend["properties"]["fields"]["properties"]
+        self.assertEqual(
+            "Important: Base description for email", props_prepend["Patient Email"]["description"]
+        )
+
+        # Test append when no existing description
+        overrides_append_no_existing = {
+            "field4": {"description": "New description", "description_op": "append"},
+        }
+        schema_append_no_existing = engine.get_schema_with_overrides(
+            table_name, overrides_append_no_existing
+        )
+        props_append_no_existing = schema_append_no_existing["properties"]["fields"]["properties"]
+        self.assertEqual("New description", props_append_no_existing["Patient Phone"]["description"])
+
+        # Test prepend when no existing description
+        overrides_prepend_no_existing = {
+            "field4": {"description": "New description", "description_op": "prepend"},
+        }
+        schema_prepend_no_existing = engine.get_schema_with_overrides(
+            table_name, overrides_prepend_no_existing
+        )
+        props_prepend_no_existing = schema_prepend_no_existing["properties"]["fields"]["properties"]
+        self.assertEqual("New description", props_prepend_no_existing["Patient Phone"]["description"])
+
+        # Test invalid description_op
+        with self.assertRaisesRegex(ValueError, "Invalid description_op"):
+            engine.get_schema_with_overrides(
+                table_name, {"field1": {"description": "Test", "description_op": "invalid"}}
+            )
+
+        # Test description_op with value override
+        overrides_value_append = {
+            "field1": {
+                "value": "Locked Value",
+                "description": "Additional context",
+                "description_op": "append",
+            },
+        }
+        schema_value_append = engine.get_schema_with_overrides(table_name, overrides_value_append)
+        props_value_append = schema_value_append["properties"]["fields"]["properties"]
+        self.assertEqual(
+            "Base description for name Additional context",
+            props_value_append["Patient Name"]["description"],
+        )
+        self.assertEqual("Locked Value", props_value_append["Patient Name"]["const"])
+
+        # Ensure original schema remains unchanged
+        original_props = engine.get_json_schema(table_id)["properties"]["fields"]["properties"]
+        self.assertEqual("Base description for name", original_props["Patient Name"]["description"])
+        self.assertEqual("Base description for age", original_props["Patient Age"]["description"])
+
     def test_get_schema_with_overrides_value_success(self):
         """Value overrides produce const schemas while preserving titles and optional descriptions."""
         engine = SchemaEngine(self.flat_meta_schema)
