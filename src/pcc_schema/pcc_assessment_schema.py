@@ -794,6 +794,7 @@ class PCCAssessmentSchema:
         strip_whitespace: bool = False,
         case_insensitive: bool = False,
         on_duplicate: str = "concat",
+        skip_first_row: bool = False,
     ) -> List[str]:
         """
         Convenience wrapper: read enrichment CSV (local path or S3) and enrich assessment schema.
@@ -834,6 +835,7 @@ class PCCAssessmentSchema:
                 strip_whitespace=strip_whitespace,
                 case_insensitive=case_insensitive,
                 on_duplicate=on_duplicate,
+                skip_first_row=skip_first_row,
             )
         else:
             enrichment_dict = read_key_value_csv_s3(
@@ -847,6 +849,7 @@ class PCCAssessmentSchema:
                 strip_whitespace=strip_whitespace,
                 case_insensitive=case_insensitive,
                 on_duplicate=on_duplicate,
+                skip_first_row=skip_first_row,
             )
 
         # Apply enrichment and return unmatched keys (engine resolves ID or name)
