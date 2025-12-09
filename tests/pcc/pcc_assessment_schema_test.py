@@ -1806,6 +1806,38 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIsInstance(field_metadata, list)
             self.assertGreater(len(field_metadata), 0)
 
+    def test_get_assessment_templates_ids(self):
+        """Test that get_assessment_templates_ids static method works without instantiation."""
+        # Test that static method can be called without instantiating the class
+        templates = PCCAssessmentSchema.get_assessment_templates_ids()
+        
+        # Verify it returns a list
+        self.assertIsInstance(templates, list)
+        
+        # Verify it returns 4 templates
+        self.assertEqual(len(templates), 4)
+        
+        # Expected template IDs and names
+        expected_templates = [
+            {"template_id": 21242733, "name": "MHCS IDT 5 Day Section GG"},
+            {"template_id": 21244981, "name": "MHCS Nursing Admission Assessment - V 5"},
+            {"template_id": 21242741, "name": "MHCS Nursing Daily Skilled Note"},
+            {"template_id": 21244831, "name": "MHCS Nursing Weekly Skin Check"}
+        ]
+        
+        # Verify each template has only template_id and name fields
+        for template in templates:
+            self.assertIsInstance(template, dict)
+            self.assertEqual(set(template.keys()), {"template_id", "name"})
+            self.assertIsInstance(template["template_id"], int)
+            self.assertIsInstance(template["name"], str)
+        
+        # Verify the values match expected templates
+        template_dict = {t["template_id"]: t["name"] for t in templates}
+        for expected in expected_templates:
+            self.assertIn(expected["template_id"], template_dict)
+            self.assertEqual(template_dict[expected["template_id"]], expected["name"])
+
     def test_assessment_field_counts(self):
         """Test field counts for each assessment to ensure they're properly loaded."""
         pcc = PCCAssessmentSchema()

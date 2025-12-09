@@ -205,6 +205,30 @@ class PCCAssessmentSchema:
     JSON schemas, and validating assessment data.
     """
     
+    # Define the 4 assessment templates with their templateId values
+    TEMPLATES = [
+        {
+            "filename": "MHCS_IDT_5_Day_Section_GG.json",
+            "template_id": 21242733,
+            "name": "MHCS IDT 5 Day Section GG"
+        },
+        {
+            "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
+            "template_id": 21244981,
+            "name": "MHCS Nursing Admission Assessment - V 5"
+        },
+        {
+            "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
+            "template_id": 21242741,
+            "name": "MHCS Nursing Daily Skilled Note"
+        },
+        {
+            "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
+            "template_id": 21244831,
+            "name": "MHCS Nursing Weekly Skin Check"
+        }
+    ]
+    
     def __init__(self):
         """Initialize the PCC Assessment Schema engine."""
         self.engine = SchemaEngine(PCC_META_SCHEMA, use_id_in_property_name=True)
@@ -596,31 +620,7 @@ class PCCAssessmentSchema:
         """Load and register the 4 assessment templates from JSON files."""
         templates_dir = os.path.join(os.path.dirname(__file__), "assmnt_templates")
         
-        # Define the 4 assessment templates with their templateId values
-        templates = [
-            {
-                "filename": "MHCS_IDT_5_Day_Section_GG.json",
-                "template_id": 21242733,
-                "name": "MHCS IDT 5 Day Section GG"
-            },
-            {
-                "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
-                "template_id": 21244981,
-                "name": "MHCS Nursing Admission Assessment - V 5"
-            },
-            {
-                "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
-                "template_id": 21242741,
-                "name": "MHCS Nursing Daily Skilled Note"
-            },
-            {
-                "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
-                "template_id": 21244831,
-                "name": "MHCS Nursing Weekly Skin Check"
-            }
-        ]
-        
-        for template in templates:
+        for template in self.TEMPLATES:
             try:
                 file_path = os.path.join(templates_dir, template["filename"])
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -633,6 +633,24 @@ class PCCAssessmentSchema:
             except Exception as e:
                 logger.error(f"Failed to load template {template['filename']}: {e}")
                 raise
+    
+    @staticmethod
+    def get_assessment_templates_ids() -> List[Dict[str, Any]]:
+        """
+        Get a list of supported assessment templates with their IDs and names.
+        
+        Returns:
+            List of dictionaries, each containing:
+            - template_id: The template ID (integer)
+            - name: The template name (string)
+        """
+        return [
+            {
+                "template_id": template["template_id"],
+                "name": template["name"]
+            }
+            for template in PCCAssessmentSchema.TEMPLATES
+        ]
     
     def register_assessment(self, assessment_id: Optional[int], assessment_schema: Dict[str, Any]) -> Tuple[int, str]:
         """
