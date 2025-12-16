@@ -197,6 +197,58 @@ def merge_update(current: Dict[str, Any], update: Dict[str, Any], updated_object
     return merged
 
 
+def get_section_state(formatted_json: Dict[str, Any], section_name: str) -> Optional[str]:
+    """
+    Get the state of a specific section from the formatted JSON output.
+    
+    Args:
+        formatted_json: The formatted JSON output from reverse_map
+        section_name: The section name/key (e.g., "Cust_1")
+        
+    Returns:
+        The state of the section, or None if section not found
+    """
+    if not isinstance(formatted_json, dict):
+        return None
+    
+    sections = formatted_json.get("sections")
+    if not isinstance(sections, dict):
+        return None
+    
+    section_data = sections.get(section_name)
+    if not isinstance(section_data, dict):
+        return None
+    
+    return section_data.get("state")
+
+
+def get_all_section_states(formatted_json: Dict[str, Any]) -> List[str]:
+    """
+    Get all section states as an array in the order sections appear.
+    
+    Args:
+        formatted_json: The formatted JSON output from reverse_map
+        
+    Returns:
+        List of section states. Returns "draft" as default if state is missing.
+    """
+    if not isinstance(formatted_json, dict):
+        return []
+    
+    sections = formatted_json.get("sections")
+    if not isinstance(sections, dict):
+        return []
+    
+    states = []
+    for section_key in sorted(sections.keys()):  # Sort for consistent ordering
+        section_data = sections[section_key]
+        if isinstance(section_data, dict):
+            state = section_data.get("state", "draft")  # Default to "draft" if missing
+            states.append(state)
+    
+    return states
+
+
 class PCCAssessmentSchema:
     """
     PointClickCare Assessment Schema wrapper around SchemaConverterEngine.
@@ -772,7 +824,7 @@ class PCCAssessmentSchema:
         table_data = self.engine._SchemaEngine__tables[table_id]
         table_name = table_data["table_name"]
             
-        return self.engine.reverse_map(
+        result = self.engine.reverse_map(
             table_name, 
             model_response, 
             formatter_name=formatter_name,
@@ -782,6 +834,14 @@ class PCCAssessmentSchema:
             pack_containers_as=pack_containers_as,
             metadata_field_overrides=metadata_field_overrides
         )
+        
+        # Post-process to add state field to each section
+        if "sections" in result and isinstance(result["sections"], dict):
+            for section_key, section_data in result["sections"].items():
+                if isinstance(section_data, dict) and "state" not in section_data:
+                    section_data["state"] = "draft"
+        
+        return result
 
     def list_assessments_info(self) -> List[Dict[str, Any]]:
         """
