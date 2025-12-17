@@ -19,6 +19,7 @@ def read_key_value_csv_stream(
     concat_sep: str = ". ",
     key_prefix: Optional[str] = None,
     sanitize_values: bool = True,
+    skip_first_row: bool = False,
 ) -> Dict[str, str]:
     """
     Build a dict from two specific columns in a CSV, reading from a TEXT stream.
@@ -41,6 +42,7 @@ def read_key_value_csv_stream(
         concat_sep: Separator used when on_duplicate="concat" (default: ". ").
         key_prefix: If provided, prefix keys with "{key_prefix}_" unless already prefixed.
         sanitize_values: If True, sanitize values by removing HTML tags and JSON-breaking characters.
+        skip_first_row: If True, skip the first row before reading headers (for CSV files with metadata row).
 
     Returns:
         dict mapping keys -> single string values
@@ -49,6 +51,10 @@ def read_key_value_csv_stream(
 
     # csv module recommendation: pass newline="" to the *file open* call;
     # here we assume the caller opened the stream correctly.
+    # If skip_first_row is True, read and discard the first row before creating DictReader
+    if skip_first_row:
+        next(stream, None)  # Skip the first row (metadata row)
+    
     reader = csv.DictReader(stream)
     if reader.fieldnames is None:
         raise ValueError("CSV appears to have no header row.")
