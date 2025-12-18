@@ -2591,6 +2591,84 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertGreater(len(states), 0)
         self.assertTrue(all(state == "draft" for state in states))
 
+    def test_reverse_map_null_multi_select_field(self):
+        """Test that null multi-select fields are included in reverse_map output with None value.
+        
+        This test verifies that multi-select fields with null values are properly
+        included in the reverse_map output with value=None, consistent with other field types.
+        """
+        import json
+        import os
+        
+        pcc = PCCAssessmentSchema()
+        
+        # Load chart.json
+        chart_path = os.path.join(
+            os.path.dirname(__file__),
+            "..", "..", "chart.json"
+        )
+        with open(chart_path, 'r') as f:
+            chart_data = json.load(f)
+        
+        # Get first entry from json_internal_filled
+        first_entry = chart_data["chart_record"]["json_internal_filled"][0]
+        internal_json = first_entry["internal_json"]
+        
+        # Verify the field exists in input with null value
+        section_k = internal_json["sections"]["Cust.MHCS Nursing Daily Skilled Note"]["assessmentQuestionGroups"]["K"]
+        question_key = "2. Does the resident present with any the following signs/symptoms? (Select all that apply)"
+        self.assertIn(question_key, section_k["questions"])
+        self.assertIsNone(section_k["questions"][question_key])
+        
+        # Verify field metadata confirms it's a multi-select field
+        field_metadata = pcc.get_field_metadata(21242741)
+        cust_k_2_meta = next((f for f in field_metadata if f.get("key") == "Cust_K_2"), None)
+        self.assertIsNotNone(cust_k_2_meta, "Cust_K_2 should exist in field metadata")
+        self.assertEqual(cust_k_2_meta.get("original_schema_type"), "mcs", 
+                         "Cust_K_2 should be a multi-select (mcs) field")
+        
+        # Run reverse_map
+        result = pcc.reverse_map(21242741, internal_json, formatter_name="pcc-ui")
+        
+        # Check that Cust_K_2 is present with None value
+        sections = result.get("sections", {})
+        cust_section = sections.get("Cust", {})
+        fields = cust_section.get("fields", [])
+        
+        # Find all fields with key Cust_K_2
+        cust_k_2_fields = [f for f in fields if f.get("key") == "Cust_K_2"]
+        
+        # Verify Cust_K_2 is present with None value
+        self.assertEqual(len(cust_k_2_fields), 1, 
+                         "Cust_K_2 field should be present in output when model_value is null")
+        self.assertIsNone(cust_k_2_fields[0].get("value"),
+                          "Cust_K_2 field should have None value when model_value is null")
+        self.assertEqual(cust_k_2_fields[0].get("type"), "mcs",
+                         "Cust_K_2 should have type 'mcs'")
+        self.assertEqual(cust_k_2_fields[0].get("html_type"), "checkbox_multi",
+                         "Cust_K_2 should have html_type 'checkbox_multi'")
+        
+        # Verify other null fields ARE present (e.g., text fields)
+        cust_b_6_fields = [f for f in fields if f.get("key") == "Cust_B_6"]
+        self.assertGreater(len(cust_b_6_fields), 0, 
+                          "Null text fields should be present in output")
+        if cust_b_6_fields:
+            self.assertIsNone(cust_b_6_fields[0].get("value"),
+                            "Null text field should have None value")
+        
+        # Verify non-null multi-select fields ARE present
+        cust_b_1_fields = [f for f in fields if f.get("key") == "Cust_B_1"]
+        self.assertGreater(len(cust_b_1_fields), 0,
+                          "Non-null multi-select fields should be present in output")
+        
+        # Verify another null multi-select field is also present (Cust_C_2)
+        cust_c_2_fields = [f for f in fields if f.get("key") == "Cust_C_2"]
+        self.assertEqual(len(cust_c_2_fields), 1,
+                        "Cust_C_2 (another null multi-select) should also be present")
+        if cust_c_2_fields:
+            self.assertIsNone(cust_c_2_fields[0].get("value"),
+                            "Cust_C_2 should have None value when model_value is null")
+
     def test_object_array_validation_strict_schema(self):
         """Test that object_array (gbdy) fields enforce strict schema validation."""
         pcc = PCCAssessmentSchema()

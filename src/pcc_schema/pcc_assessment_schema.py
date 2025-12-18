@@ -550,13 +550,30 @@ class PCCAssessmentSchema:
         
         def pcc_ui_multi_select_formatter(engine, field_meta, model_value, table_name):
             """Format multi-select - UNPACK into separate fields."""
-            if not model_value or not isinstance(model_value, list):
-                return []
-            
-            field_schema = field_meta["field_schema"]
-            response_options = field_schema.get("responseOptions", [])
-            base_key = field_meta["key"]
             original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            base_key = field_meta["key"]
+            
+            # Handle None/null values - return field with None value
+            if model_value is None:
+                return [{
+                    "key": base_key,
+                    "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
+                    "value": None
+                }]
+            
+            # Handle non-list values (shouldn't happen, but be safe)
+            if not isinstance(model_value, list):
+                return [{
+                    "key": base_key,
+                    "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
+                    "value": None
+                }]
+            
+            # Process list values (existing unpacking logic)
+            response_options = field_schema.get("responseOptions", [])
             
             results = []
             for i, selected_text in enumerate(model_value):
