@@ -140,6 +140,7 @@ def read_key_value_csv_s3(
     Wraps the StreamingBody (bytes) in a TextIOWrapper with utf-8-sig handling.
     """
     import boto3  # Available by default in AWS Lambda; add to your container if needed
+    import os  # Import os for environment variable access
 
     s3 = s3_client or boto3.client("s3")
     obj = s3.get_object(Bucket=bucket, Key=key)
