@@ -1,0 +1,985 @@
+{
+    "assessmentDescription": "MHCS Nursing Monthly Summary",
+    "facId": -1,
+    "templateId": 21244911,
+    "templateVersion": "",
+    "sections": [
+        {
+            "sectionCode": "Cust_1",
+            "sectionDescription": "Page 1",
+            "sectionSequence": 1,
+            "assessmentQuestionGroups": [
+                {
+                    "groupNumber": "01",
+                    "groupText": "",
+                    "groupTitle": "<b>Shift of Completion</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_01_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Shift of Completion:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "11-7",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "7-3",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "3-11",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "02",
+                    "groupText": "",
+                    "groupTitle": "<b>Hearing, Speech, Vision</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_02_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Hearing:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Hears adequately",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Adequate with hearing aid(s)",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Hard of hearing",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Absence of useful hearing",
+                                    "responseValue": "d"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_02_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Speech:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Clear and easily understood",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Mumbled, slurred, or garbled speech",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "No speech",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_02_C",
+                            "questionNumber": "C",
+                            "questionText": "<b>Vision:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Adequate with or without corrective devices",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Impaired",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Blind",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_02_E",
+                            "questionNumber": "E",
+                            "questionText": "<b>Visual Appliances:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Glasses",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Magnifying glass",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Contact Lenses",
+                                    "responseValue": "d"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "03",
+                    "groupText": "",
+                    "groupTitle": "<b>Mental Status</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_03_a",
+                            "questionNumber": "a",
+                            "questionText": "<b>Check resident's mental status:</b>",
+                            "questionTitle": "",
+                            "questionType": "radh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Alert",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Oriented",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Confused",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Mental function varies",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Unaware",
+                                    "responseValue": "e"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "04",
+                    "groupText": "<b><i>Check all that apply:</b></i>",
+                    "groupTitle": "<b>Mood State</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_04_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Mood Indicators:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Pleasant and cooperative",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Quiet",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Withdrawn",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Anxious",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Easily upset",
+                                    "responseValue": "e"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "05",
+                    "groupText": "<b><i>Check all that apply:</b></i>",
+                    "groupTitle": "<b>Behaviors</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_05_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Behaviors present:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Verbally Inappropriate",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Physically Aggressive",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Socially Inappropriate",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Wanders",
+                                    "responseValue": "e"
+                                },
+                                {
+                                    "responseText": "Rejects Care",
+                                    "responseValue": "f"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_05_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Psychosis Symptoms:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Hallucinations",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Delusions",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "06",
+                    "groupText": "",
+                    "groupTitle": "<b>Functional Status</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_06_G",
+                            "questionNumber": "G",
+                            "questionText": "<b>Bathing:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Bed Mobility:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_C",
+                            "questionNumber": "C",
+                            "questionText": "<b>Dressing:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_E",
+                            "questionNumber": "E",
+                            "questionText": "<b>Eating:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_I",
+                            "questionNumber": "I",
+                            "questionText": "<b>Mobility Devices:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Walker",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Wheelchair",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Cane/crutch",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Limb Prosthesis",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "e"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_D",
+                            "questionNumber": "D",
+                            "questionText": "<b>Personal Hygiene</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_F",
+                            "questionNumber": "F",
+                            "questionText": "<b>Toileting:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Transfers:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Did Not Occur",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_06_H",
+                            "questionNumber": "H",
+                            "questionText": "<b>Walking</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Independent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Needs Assist",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Non Ambulatory",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "07",
+                    "groupText": "",
+                    "groupTitle": "<b>Bowel & Bladder</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_1_07_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Bowel Continence:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Continent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Incontinent",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Has an elimination device",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_07_C",
+                            "questionNumber": "C",
+                            "questionText": "<b>Elimination Appliances:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Ostomy <i>(urostomy/ileostomy/colostomy)<i>",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Foley catheter",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Suprapubic Catheter",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Intermittent Catheter",
+                                    "responseValue": "e"
+                                },
+                                {
+                                    "responseText": "Condom Catheter",
+                                    "responseValue": "f"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_1_07_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Urinary Continence:</b>",
+                            "questionTitle": "",
+                            "questionType": "cmb",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Continent",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Incontinent",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Has an elimination device",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "sectionCode": "Cust_2",
+            "sectionDescription": "Page 2",
+            "sectionSequence": 2,
+            "assessmentQuestionGroups": [
+                {
+                    "groupNumber": "08",
+                    "groupText": "",
+                    "groupTitle": "<b>Skin Conditions</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_2_08_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Resident has skin condition(s) present.</b> Must describe below:",
+                            "questionTitle": "",
+                            "questionType": "chk",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_08_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Resident's skin is intact, no conditions noted at this time.</b>",
+                            "questionTitle": "",
+                            "questionType": "chk",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_08_C",
+                            "questionNumber": "C",
+                            "questionText": "<b>Skin Conditions:</b> Note any skin conditions using the diagram below. Under description, indicate type of condition observed: <b>bruise, abrasion, open area, surgical incision, rash, redness, skin tear, burn, other (must describe).</b>  ",
+                            "questionTitle": "",
+                            "questionType": "gbdy",
+                            "required": false,
+                            "length": 5,
+                            "range": "",
+                            "responseOptions": []
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "09",
+                    "groupText": "",
+                    "groupTitle": "<b>Oral Status</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_2_09_A",
+                            "questionNumber": "A",
+                            "questionText": "<i>Select all that apply:</i>",
+                            "questionTitle": "<b>Oral/Dental Status:</b>",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Has own teeth, intact",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Cavity/broken teeth",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Missing some teeth",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Edentulous- no natural teeth",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Dentures",
+                                    "responseValue": "e"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "10",
+                    "groupText": "",
+                    "groupTitle": "<b>Health Conditions<b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_2_10_B1",
+                            "questionNumber": "B1",
+                            "questionText": "<b>Has resident had an acute illness within the last month?</b>",
+                            "questionTitle": "<b><u>Acute Illness</b></u>",
+                            "questionType": "radh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "No",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Yes",
+                                    "responseValue": "b"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_10_B2",
+                            "questionNumber": "B2",
+                            "questionText": "<b>Indicate type of acute illness:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "UTI",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "C Diff",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Respiratory infection",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Wound infection",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Cellulitis",
+                                    "responseValue": "e"
+                                },
+                                {
+                                    "responseText": "Other (specify below):",
+                                    "responseValue": "f"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_10_A1",
+                            "questionNumber": "A1",
+                            "questionText": "<b>Indicate type of pain:</b>",
+                            "questionTitle": "<b><u>Pain</b></u>",
+                            "questionType": "mcsh",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "None",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Chronic Pain",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Acute/New Pain",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_10_B3",
+                            "questionNumber": "B3",
+                            "questionText": "<i>Specify 'Other':</i>",
+                            "questionTitle": "",
+                            "questionType": "txt",
+                            "required": false,
+                            "length": 25,
+                            "range": "text, sp(25)",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_10_C",
+                            "questionNumber": "C",
+                            "questionText": "<i>Specify new diagnoses within the last month:</i>",
+                            "questionTitle": "<b><u>New Diagnoses<b/></u>",
+                            "questionType": "txt",
+                            "required": true,
+                            "length": 50,
+                            "range": "text, sp(50)",
+                            "responseOptions": []
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "11",
+                    "groupText": "",
+                    "groupTitle": "<b>Special Treatments</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_2_11_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Cancer Treatments:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Chemotherapy",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Radiation",
+                                    "responseValue": "b"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_11_C1",
+                            "questionNumber": "C1",
+                            "questionText": "<b>Other:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "IV medication",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Transfusions",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Dialysis",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Pacemaker",
+                                    "responseValue": "d"
+                                },
+                                {
+                                    "responseText": "Hospice",
+                                    "responseValue": "e"
+                                },
+                                {
+                                    "responseText": "Isolation for active infectious disease",
+                                    "responseValue": "f"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_11_E",
+                            "questionNumber": "E",
+                            "questionText": "<b>Resident on Restorative Nursing Program. Refer to RNP notes.</b>",
+                            "questionTitle": "",
+                            "questionType": "chk",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_11_B",
+                            "questionNumber": "B",
+                            "questionText": "<b>Respiratory Treatments:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Oxygen",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Tracheostomy",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "BiPAP/CPAP",
+                                    "responseValue": "c"
+                                }
+                            ]
+                        },
+                        {
+                            "questionKey": "Cust_2_11_D",
+                            "questionNumber": "D",
+                            "questionText": "<b>Therapy:</b>",
+                            "questionTitle": "",
+                            "questionType": "mcsh",
+                            "required": false,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": [
+                                {
+                                    "responseText": "Physical therapy",
+                                    "responseValue": "a"
+                                },
+                                {
+                                    "responseText": "Occupational therapy",
+                                    "responseValue": "b"
+                                },
+                                {
+                                    "responseText": "Speech therapy",
+                                    "responseValue": "c"
+                                },
+                                {
+                                    "responseText": "Respiratory therapy",
+                                    "responseValue": "d"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "groupNumber": "12",
+                    "groupText": "",
+                    "groupTitle": "<b>Summary Completion</b>",
+                    "questions": [
+                        {
+                            "questionKey": "Cust_2_12_A",
+                            "questionNumber": "A",
+                            "questionText": "<b>Additional Comments:</b>",
+                            "questionTitle": "",
+                            "questionType": "txt",
+                            "required": false,
+                            "length": 300,
+                            "range": "text, sp(300)",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_12_B2",
+                            "questionNumber": "B2",
+                            "questionText": "<b>Completion Date:</b>",
+                            "questionTitle": "",
+                            "questionType": "dte",
+                            "required": true,
+                            "length": null,
+                            "range": "",
+                            "responseOptions": []
+                        },
+                        {
+                            "questionKey": "Cust_2_12_B1",
+                            "questionNumber": "B1",
+                            "questionText": "<B>Nurse Signature/Title:</b>",
+                            "questionTitle": "",
+                            "questionType": "txt",
+                            "required": true,
+                            "length": 40,
+                            "range": "text, sp(40)",
+                            "responseOptions": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

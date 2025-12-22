@@ -257,7 +257,7 @@ class PCCAssessmentSchema:
     JSON schemas, and validating assessment data.
     """
     
-    # Define the 4 assessment templates with their templateId values
+    # Define the 5 assessment templates with their templateId values
     TEMPLATES = [
         {
             "filename": "MHCS_IDT_5_Day_Section_GG.json",
@@ -278,6 +278,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
             "template_id": 21244831,
             "name": "MHCS Nursing Weekly Skin Check"
+        },
+        {
+            "filename": "MHCS_Nursing_Monthly_Summary.json",
+            "template_id": 21244911,
+            "name": "MHCS Nursing Monthly Summary"
         }
     ]
     
@@ -598,10 +603,12 @@ class PCCAssessmentSchema:
             return results
         
         def pcc_ui_object_array_formatter(engine, field_meta, model_value, table_name):
-            """Format object array - UNPACK into aN/bN pairs and pad up to 20 entries.
+            """Format object array - UNPACK into aN/bN pairs and pad up to max_rows entries.
 
-            For gbdy (dynamic table) fields, the UI always expects up to 20
-            rows worth of entry/description pairs. This formatter will:
+            For gbdy (dynamic table) fields, the UI always expects up to max_rows
+            rows worth of entry/description pairs, where max_rows comes from the
+            'length' field in the question definition (defaults to 20 if not specified).
+            This formatter will:
             - Use actual model values when present for a given index
             - Fill missing indices (or entirely missing/invalid model_value)
               with \"null\" string values for both entry and description.
@@ -616,7 +623,7 @@ class PCCAssessmentSchema:
             
             results = []
             items: List[Dict[str, Any]] = model_value if isinstance(model_value, list) else []
-            max_rows = 20
+            max_rows = field_schema.get("length", 20)  # Use length from schema, default to 20
             
             for idx in range(max_rows):
                 if idx < len(items):
@@ -633,7 +640,7 @@ class PCCAssessmentSchema:
                     description_text = "null"
                 
                 results.append({
-                    "key": base_key,
+                    "key": f"a{idx}_{base_key}",
                     "type": original_type,
                     "html_type": get_html_type(f"{original_type}_entry", field_schema),
                     "value": entry_value,
@@ -643,7 +650,7 @@ class PCCAssessmentSchema:
                 })
                 
                 results.append({
-                    "key": base_key,
+                    "key": f"b{idx}_{base_key}",
                     "type": original_type,
                     "html_type": get_html_type(f"{original_type}_description", field_schema),
                     "value": description_text,

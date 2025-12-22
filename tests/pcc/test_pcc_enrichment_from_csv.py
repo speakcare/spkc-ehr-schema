@@ -68,8 +68,102 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 "csv_value_col": "Guidelines",
                 "template_id": 21244981,
             },
+            {
+                "name": "MHCS Nursing Monthly Summary",
+                "template_file": "MHCS_Nursing_Monthly_Summary.json",
+                "csv_file": "Assessment Table - Monthly Summary.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21244911,
+            },
         ]
-
+    
+    def _generate_dummy_csv_for_assessment(
+        self,
+        assessment_id: int,
+        assessment_name: str,
+        csv_filename: str,
+        key_col: str = "Key",
+        value_col: str = "Guidelines"
+    ) -> Path:
+        """
+        Generate a realistic dummy CSV file for an assessment enrichment test.
+        
+        Args:
+            assessment_id: The assessment template ID
+            assessment_name: The assessment name
+            csv_filename: The CSV filename to generate
+            key_col: Column name for keys (default: "Key")
+            value_col: Column name for values (default: "Guidelines")
+            
+        Returns:
+            Path to the generated CSV file
+        """
+        import csv
+        
+        # Get field metadata
+        field_metadata = self.pcc_schema.get_field_metadata(assessment_id)
+        
+        # Extract unique field keys
+        field_keys = set()
+        field_types = {}
+        for field in field_metadata:
+            field_key = field.get("key")
+            if field_key:
+                field_keys.add(field_key)
+                # Store field type for generating appropriate enrichment text
+                original_type = field.get("original_schema_type", "")
+                target_type = field.get("target_type", "")
+                field_types[field_key] = (original_type, target_type)
+        
+        # Generate enrichment text based on field type
+        def get_enrichment_text(field_key: str) -> str:
+            original_type, target_type = field_types.get(field_key, ("", ""))
+            
+            # Check original schema type first
+            if original_type == "txt":
+                return "Extract from transcript. Document any relevant observations or details mentioned."
+            elif original_type == "dte":
+                return "Extract date from transcript. Verify against database records if available."
+            elif original_type in ("rad", "radh", "cmb"):
+                return "Select appropriate option from transcript. Check database if not explicit in transcript."
+            elif original_type in ("mcs", "mcsh"):
+                return "Select all applicable options from transcript and database. Include all relevant selections."
+            elif original_type == "chk":
+                return "Check transcript for explicit mention. Default based on context if unclear."
+            elif original_type in ("num", "numde"):
+                return "Extract numeric value from transcript. Verify against database if available."
+            elif original_type == "gbdy":
+                return "Extract table entries from transcript. Document descriptions for each entry mentioned."
+            # Fallback to target type
+            elif target_type == "date":
+                return "Extract date from transcript. Verify against database records if available."
+            elif target_type == "single_select":
+                return "Select appropriate option from transcript. Check database if not explicit in transcript."
+            elif target_type == "multiple_select":
+                return "Select all applicable options from transcript and database. Include all relevant selections."
+            elif target_type == "checkbox":
+                return "Check transcript for explicit mention. Default based on context if unclear."
+            elif target_type in ("integer", "number", "positive_integer", "positive_number"):
+                return "Extract numeric value from transcript. Verify against database if available."
+            else:
+                # Generic fallback
+                return "Extract from transcript. Document any relevant observations or details mentioned."
+        
+        # Create CSV content
+        csv_path = self.instructions_dir / csv_filename
+        
+        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            # Write header
+            writer.writerow([key_col, value_col])
+            # Write rows for each field key
+            for field_key in sorted(field_keys):
+                enrichment_text = get_enrichment_text(field_key)
+                writer.writerow([field_key, enrichment_text])
+        
+        return csv_path
+    
     def test_register_and_enrich_all_assessments(self):
         """Test registering and enriching all PCC assessments with CSV data."""
         
@@ -107,7 +201,18 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 print(f"  ✓ {assessment['name']}: Schema is valid before enrichment")
                 
                 # Load CSV model instructions using csv_to_dict
-                csv_path = str(self.instructions_dir / assessment["csv_file"])
+                csv_file_path = self.instructions_dir / assessment["csv_file"]
+                # Generate dummy CSV for Monthly Summary if missing
+                if not csv_file_path.exists() and assessment["template_id"] == 21244911:
+                    csv_file_path = self._generate_dummy_csv_for_assessment(
+                        assessment["template_id"],
+                        assessment["name"],
+                        assessment["csv_file"],
+                        key_col=assessment["csv_key_col"],
+                        value_col=assessment["csv_value_col"]
+                    )
+                
+                csv_path = str(csv_file_path)
                 # Use wrapper to enrich directly from CSV
                 unmatched_keys = self.pcc_schema.enrich_assessment_from_csv(
                     table_name,
