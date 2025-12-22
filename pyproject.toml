@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spkc-ehr-schema"
-version = "1.0.11"
+version = "1.0.12"
 description = "Engine for EHR schema manipulations"
 authors = ["SpeakCare Team"]
 readme = "README.md"
