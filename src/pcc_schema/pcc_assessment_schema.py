@@ -598,10 +598,14 @@ class PCCAssessmentSchema:
             return results
         
         def pcc_ui_object_array_formatter(engine, field_meta, model_value, table_name):
-            """Format object array - UNPACK into aN/bN pairs."""
-            if not model_value or not isinstance(model_value, list):
-                return []
-            
+            """Format object array - UNPACK into aN/bN pairs and pad up to 20 entries.
+
+            For gbdy (dynamic table) fields, the UI always expects up to 20
+            rows worth of entry/description pairs. This formatter will:
+            - Use actual model values when present for a given index
+            - Fill missing indices (or entirely missing/invalid model_value)
+              with \"null\" string values for both entry and description.
+            """
             field_schema = field_meta["field_schema"]
             response_options = field_schema.get("responseOptions", [])
             base_key = field_meta["key"]
@@ -611,10 +615,22 @@ class PCCAssessmentSchema:
             text_to_value = {engine._sanitize_for_json(opt["responseText"]): opt["responseValue"] for opt in response_options}
             
             results = []
-            for idx, item in enumerate(model_value):
-                entry_text = item.get("entry", "")
-                description_text = item.get("description", "")
-                entry_value = text_to_value.get(entry_text, "")
+            items: List[Dict[str, Any]] = model_value if isinstance(model_value, list) else []
+            max_rows = 20
+            
+            for idx in range(max_rows):
+                if idx < len(items):
+                    item = items[idx]
+                    entry_text = item.get("entry", "")
+                    description_text = item.get("description", "")
+                    entry_value = text_to_value.get(entry_text, "null")
+                    if entry_value is None or entry_value == "":
+                        entry_value = "null"
+                    if description_text is None or description_text == "":
+                        description_text = "null"
+                else:
+                    entry_value = "null"
+                    description_text = "null"
                 
                 results.append({
                     "key": base_key,

@@ -2106,7 +2106,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(multi_field_1["type"], "mcs")
         self.assertEqual(multi_field_1["value"], "3")  # responseValue for "Choice 3"
         
-        # Object array - unpacked into aN/bN pairs
+        # Object array - unpacked into aN/bN pairs (keys are expanded)
         self.assertIn("a0_A_4", field_keys)
         self.assertIn("b0_A_4", field_keys)
         self.assertIn("a1_A_4", field_keys)
@@ -2126,6 +2126,13 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(a1_field["value"], "1")  # responseValue for "Arm"
         self.assertEqual(b1_field["type"], "gbdy")
         self.assertEqual(b1_field["value"], "bruised")
+
+        # Verify that additional padded rows exist up to 20 entries
+        padded_keys = {f["key"] for f in fields if f["type"] == "gbdy" and "_A_4" in f["key"]}
+        # We should have 20 aN_ and 20 bN_ keys for A_4
+        for idx in range(20):
+            self.assertIn(f"a{idx}_A_4", padded_keys)
+            self.assertIn(f"b{idx}_A_4", padded_keys)
         
         # Verify all fields have original types
         for field in fields:
@@ -2151,6 +2158,211 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                     self.assertEqual(field["html_type"], "combobox")
                 elif field["key"].startswith("b"):
                     self.assertEqual(field["html_type"], "textarea_singleline")
+
+    def test_pcc_ui_object_array_formatter_pads_to_20_entries(self):
+        """gbdy UI formatter should pad to 20 rows with nulls for missing entries."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.",
+                                    "questionTitle": "Skin locations",
+                                    "questionType": "gbdy",
+                                    "length": 20,
+                                    "responseOptions": [
+                                        {"responseText": "Head", "responseValue": "0"},
+                                        {"responseText": "Leg", "responseValue": "1"},
+                                        {"responseText": "Hand", "responseValue": "2"},
+                                        {"responseText": "Wrist", "responseValue": "3"},
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Model response with 3 entries only
+        model_response = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "1. Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": [
+                                    {"entry": "Head", "description": "soft"},
+                                    {"entry": "Leg", "description": "smooth"},
+                                    {"entry": "Wrist", "description": "blue"},
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+        }
+        
+        result = pcc.reverse_map(
+            assessment_name,
+            model_response,
+            formatter_name="pcc-ui",
+            pack_containers_as="array",
+        )
+        
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], list)
+        section = result["sections"][0]
+        fields = section["fields"]
+        
+        # Filter only gbdy fields for A_1 (keys expanded to aN_A_1 / bN_A_1)
+        gbdy_fields = [f for f in fields if f["type"] == "gbdy" and f["key"].endswith("_A_1")]
+        self.assertEqual(len(gbdy_fields), 40)  # 20 rows * 2 (entry + description)
+        
+        fields_by_key = {f["key"]: f for f in gbdy_fields}
+        
+        # First three rows use real data
+        self.assertEqual(fields_by_key["a0_A_1"]["value"], "0")      # Head -> 0
+        self.assertEqual(fields_by_key["b0_A_1"]["value"], "soft")
+        self.assertEqual(fields_by_key["a1_A_1"]["value"], "1")      # Leg -> 1
+        self.assertEqual(fields_by_key["b1_A_1"]["value"], "smooth")
+        self.assertEqual(fields_by_key["a2_A_1"]["value"], "3")      # Wrist -> 3
+        self.assertEqual(fields_by_key["b2_A_1"]["value"], "blue")
+        
+        # Remaining rows (3..19) should be padded with \"null\" for both entry and description
+        for idx in range(3, 20):
+            a_key = f"a{idx}_A_1"
+            b_key = f"b{idx}_A_1"
+            self.assertIn(a_key, fields_by_key)
+            self.assertIn(b_key, fields_by_key)
+            self.assertEqual(fields_by_key[a_key]["value"], "null")
+            self.assertEqual(fields_by_key[b_key]["value"], "null")
+
+    def test_pcc_ui_object_array_formatter_null_when_no_entries(self):
+        """gbdy UI formatter should create 20 null rows when model_value is empty or None."""
+        pcc = PCCAssessmentSchema()
+        
+        assessment_schema = {
+            "assessmentDescription": "Test Assessment",
+            "templateId": 12345,
+            "sections": [
+                {
+                    "sectionCode": "A",
+                    "sectionDescription": "Admission",
+                    "assessmentQuestionGroups": [
+                        {
+                            "groupNumber": "1",
+                            "groupText": "Basic Info",
+                            "questions": [
+                                {
+                                    "questionKey": "A_1",
+                                    "questionNumber": "1",
+                                    "questionText": "Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.",
+                                    "questionTitle": "Skin locations",
+                                    "questionType": "gbdy",
+                                    "length": 20,
+                                    "responseOptions": [
+                                        {"responseText": "Head", "responseValue": "0"},
+                                        {"responseText": "Leg", "responseValue": "1"},
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        
+        assessment_id, assessment_name = pcc.register_assessment(1, assessment_schema)
+        
+        # Case 1: Explicit empty list
+        model_response_empty = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "1. Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": []
+                            }
+                        }
+                    }
+                }
+            },
+        }
+        
+        result_empty = pcc.reverse_map(
+            assessment_name,
+            model_response_empty,
+            formatter_name="pcc-ui",
+            pack_containers_as="array",
+        )
+        
+        section_empty = result_empty["sections"][0]
+        fields_empty = section_empty["fields"]
+        gbdy_fields_empty = [f for f in fields_empty if f["type"] == "gbdy" and f["key"].endswith("_A_1")]
+        self.assertEqual(len(gbdy_fields_empty), 40)
+        fields_by_key_empty = {f["key"]: f for f in gbdy_fields_empty}
+        
+        for idx in range(20):
+            a_key = f"a{idx}_A_1"
+            b_key = f"b{idx}_A_1"
+            self.assertIn(a_key, fields_by_key_empty)
+            self.assertIn(b_key, fields_by_key_empty)
+            self.assertEqual(fields_by_key_empty[a_key]["value"], "null")
+            self.assertEqual(fields_by_key_empty[b_key]["value"], "null")
+        
+        # Case 2: Explicit None value
+        model_response_none = {
+            "table_name": "Test Assessment",
+            "sections": {
+                "A.Admission": {
+                    "assessmentQuestionGroups": {
+                        "1.Basic Info": {
+                            "questions": {
+                                "1. Select location(s) of skin abnormality(ies). Document a description of each skin abnormality.": None
+                            }
+                        }
+                    }
+                }
+            },
+        }
+        
+        result_none = pcc.reverse_map(
+            assessment_name,
+            model_response_none,
+            formatter_name="pcc-ui",
+            pack_containers_as="array",
+        )
+        
+        section_none = result_none["sections"][0]
+        fields_none = section_none["fields"]
+        gbdy_fields_none = [f for f in fields_none if f["type"] == "gbdy" and f["key"].endswith("_A_1")]
+        self.assertEqual(len(gbdy_fields_none), 40)
+        fields_by_key_none = {f["key"]: f for f in gbdy_fields_none}
+        
+        for idx in range(20):
+            a_key = f"a{idx}_A_1"
+            b_key = f"b{idx}_A_1"
+            self.assertIn(a_key, fields_by_key_none)
+            self.assertIn(b_key, fields_by_key_none)
+            self.assertEqual(fields_by_key_none[a_key]["value"], "null")
+            self.assertEqual(fields_by_key_none[b_key]["value"], "null")
 
     def test_reverse_map_pcc_ui_defaults(self):
         """Test reverse_map method with PCC-UI defaults."""
