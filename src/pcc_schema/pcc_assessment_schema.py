@@ -197,6 +197,58 @@ def merge_update(current: Dict[str, Any], update: Dict[str, Any], updated_object
     return merged
 
 
+def get_section_state(formatted_json: Dict[str, Any], section_name: str) -> Optional[str]:
+    """
+    Get the state of a specific section from the formatted JSON output.
+    
+    Args:
+        formatted_json: The formatted JSON output from reverse_map
+        section_name: The section name/key (e.g., "Cust_1")
+        
+    Returns:
+        The state of the section, or None if section not found
+    """
+    if not isinstance(formatted_json, dict):
+        return None
+    
+    sections = formatted_json.get("sections")
+    if not isinstance(sections, dict):
+        return None
+    
+    section_data = sections.get(section_name)
+    if not isinstance(section_data, dict):
+        return None
+    
+    return section_data.get("state")
+
+
+def get_all_section_states(formatted_json: Dict[str, Any]) -> List[str]:
+    """
+    Get all section states as an array in the order sections appear.
+    
+    Args:
+        formatted_json: The formatted JSON output from reverse_map
+        
+    Returns:
+        List of section states. Returns "draft" as default if state is missing.
+    """
+    if not isinstance(formatted_json, dict):
+        return []
+    
+    sections = formatted_json.get("sections")
+    if not isinstance(sections, dict):
+        return []
+    
+    states = []
+    for section_key in sorted(sections.keys()):  # Sort for consistent ordering
+        section_data = sections[section_key]
+        if isinstance(section_data, dict):
+            state = section_data.get("state", "draft")  # Default to "draft" if missing
+            states.append(state)
+    
+    return states
+
+
 class PCCAssessmentSchema:
     """
     PointClickCare Assessment Schema wrapper around SchemaConverterEngine.
@@ -204,6 +256,30 @@ class PCCAssessmentSchema:
     Provides a convenient API for registering PCC assessments, generating
     JSON schemas, and validating assessment data.
     """
+    
+    # Define the 4 assessment templates with their templateId values
+    TEMPLATES = [
+        {
+            "filename": "MHCS_IDT_5_Day_Section_GG.json",
+            "template_id": 21242733,
+            "name": "MHCS IDT 5 Day Section GG"
+        },
+        {
+            "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
+            "template_id": 21244981,
+            "name": "MHCS Nursing Admission Assessment - V 5"
+        },
+        {
+            "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
+            "template_id": 21242741,
+            "name": "MHCS Nursing Daily Skilled Note"
+        },
+        {
+            "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
+            "template_id": 21244831,
+            "name": "MHCS Nursing Weekly Skin Check"
+        }
+    ]
     
     def __init__(self):
         """Initialize the PCC Assessment Schema engine."""
@@ -474,13 +550,30 @@ class PCCAssessmentSchema:
         
         def pcc_ui_multi_select_formatter(engine, field_meta, model_value, table_name):
             """Format multi-select - UNPACK into separate fields."""
-            if not model_value or not isinstance(model_value, list):
-                return []
-            
-            field_schema = field_meta["field_schema"]
-            response_options = field_schema.get("responseOptions", [])
-            base_key = field_meta["key"]
             original_type = field_meta["original_schema_type"]
+            field_schema = field_meta.get("field_schema", {})
+            base_key = field_meta["key"]
+            
+            # Handle None/null values - return field with None value
+            if model_value is None:
+                return [{
+                    "key": base_key,
+                    "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
+                    "value": None
+                }]
+            
+            # Handle non-list values (shouldn't happen, but be safe)
+            if not isinstance(model_value, list):
+                return [{
+                    "key": base_key,
+                    "type": original_type,
+                    "html_type": get_html_type(original_type, field_schema),
+                    "value": None
+                }]
+            
+            # Process list values (existing unpacking logic)
+            response_options = field_schema.get("responseOptions", [])
             
             results = []
             for i, selected_text in enumerate(model_value):
@@ -596,31 +689,7 @@ class PCCAssessmentSchema:
         """Load and register the 4 assessment templates from JSON files."""
         templates_dir = os.path.join(os.path.dirname(__file__), "assmnt_templates")
         
-        # Define the 4 assessment templates with their templateId values
-        templates = [
-            {
-                "filename": "MHCS_IDT_5_Day_Section_GG.json",
-                "template_id": 21242733,
-                "name": "MHCS IDT 5 Day Section GG"
-            },
-            {
-                "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
-                "template_id": 21244981,
-                "name": "MHCS Nursing Admission Assessment - V 5"
-            },
-            {
-                "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
-                "template_id": 21242741,
-                "name": "MHCS Nursing Daily Skilled Note"
-            },
-            {
-                "filename": "MHCS_Nursing_Weekly_Skin_Check.json",
-                "template_id": 21244831,
-                "name": "MHCS Nursing Weekly Skin Check"
-            }
-        ]
-        
-        for template in templates:
+        for template in self.TEMPLATES:
             try:
                 file_path = os.path.join(templates_dir, template["filename"])
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -633,6 +702,24 @@ class PCCAssessmentSchema:
             except Exception as e:
                 logger.error(f"Failed to load template {template['filename']}: {e}")
                 raise
+    
+    @staticmethod
+    def get_assessment_templates_ids() -> List[Dict[str, Any]]:
+        """
+        Get a list of supported assessment templates with their IDs and names.
+        
+        Returns:
+            List of dictionaries, each containing:
+            - template_id: The template ID (integer)
+            - name: The template name (string)
+        """
+        return [
+            {
+                "template_id": template["template_id"],
+                "name": template["name"]
+            }
+            for template in PCCAssessmentSchema.TEMPLATES
+        ]
     
     def register_assessment(self, assessment_id: Optional[int], assessment_schema: Dict[str, Any]) -> Tuple[int, str]:
         """
@@ -754,7 +841,7 @@ class PCCAssessmentSchema:
         table_data = self.engine._SchemaEngine__tables[table_id]
         table_name = table_data["table_name"]
             
-        return self.engine.reverse_map(
+        result = self.engine.reverse_map(
             table_name, 
             model_response, 
             formatter_name=formatter_name,
@@ -764,6 +851,14 @@ class PCCAssessmentSchema:
             pack_containers_as=pack_containers_as,
             metadata_field_overrides=metadata_field_overrides
         )
+        
+        # Post-process to add state field to each section
+        if "sections" in result and isinstance(result["sections"], dict):
+            for section_key, section_data in result["sections"].items():
+                if isinstance(section_data, dict) and "state" not in section_data:
+                    section_data["state"] = "draft"
+        
+        return result
 
     def list_assessments_info(self) -> List[Dict[str, Any]]:
         """
@@ -814,6 +909,7 @@ class PCCAssessmentSchema:
             strip_whitespace: Strip leading/trailing whitespace from keys/values (default: False)
             case_insensitive: Case-insensitive header matching (default: False)
             on_duplicate: Duplicate handling policy: "last" | "first" | "error" | "concat" (default: "concat")
+            skip_first_row: If True, skip the first row before reading headers (default: False)
 
         Returns:
             List of unmatched keys returned by engine.enrich_schema.

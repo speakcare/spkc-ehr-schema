@@ -17,6 +17,8 @@ from pcc_schema.pcc_assessment_schema import (
     PCC_META_SCHEMA,
     extract_response_options,
     merge_update,
+    get_section_state,
+    get_all_section_states,
 )
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
@@ -1806,6 +1808,38 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIsInstance(field_metadata, list)
             self.assertGreater(len(field_metadata), 0)
 
+    def test_get_assessment_templates_ids(self):
+        """Test that get_assessment_templates_ids static method works without instantiation."""
+        # Test that static method can be called without instantiating the class
+        templates = PCCAssessmentSchema.get_assessment_templates_ids()
+        
+        # Verify it returns a list
+        self.assertIsInstance(templates, list)
+        
+        # Verify it returns 4 templates
+        self.assertEqual(len(templates), 4)
+        
+        # Expected template IDs and names
+        expected_templates = [
+            {"template_id": 21242733, "name": "MHCS IDT 5 Day Section GG"},
+            {"template_id": 21244981, "name": "MHCS Nursing Admission Assessment - V 5"},
+            {"template_id": 21242741, "name": "MHCS Nursing Daily Skilled Note"},
+            {"template_id": 21244831, "name": "MHCS Nursing Weekly Skin Check"}
+        ]
+        
+        # Verify each template has only template_id and name fields
+        for template in templates:
+            self.assertIsInstance(template, dict)
+            self.assertEqual(set(template.keys()), {"template_id", "name"})
+            self.assertIsInstance(template["template_id"], int)
+            self.assertIsInstance(template["name"], str)
+        
+        # Verify the values match expected templates
+        template_dict = {t["template_id"]: t["name"] for t in templates}
+        for expected in expected_templates:
+            self.assertIn(expected["template_id"], template_dict)
+            self.assertEqual(template_dict[expected["template_id"]], expected["name"])
+
     def test_assessment_field_counts(self):
         """Test field counts for each assessment to ensure they're properly loaded."""
         pcc = PCCAssessmentSchema()
@@ -2353,6 +2387,287 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(result2["type"], "custom_doc")
         self.assertIn("form_name", result2)
         self.assertIn("form_id", result2)
+
+    def test_reverse_map_adds_state_field(self):
+        """Test that reverse_map adds 'state': 'draft' to each section."""
+        pcc = PCCAssessmentSchema()
+        
+        # Test data with some fields
+        model_response = {
+            "table_name": "MHCS IDT 5 Day Section GG",
+            "sections": {
+                "Cust_1.Section 1": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Cust_1_01_A": "a",
+                                "Cust_1_01_B": "b"
+                            }
+                        }
+                    }
+                },
+                "Cust_2.Section 2": {
+                    "assessmentQuestionGroups": {
+                        "2.Another Group": {
+                            "questions": {
+                                "Cust_2_01_A": "c"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.reverse_map(
+            21242733,
+            model_response,
+            formatter_name="pcc-ui"
+        )
+        
+        # Verify structure
+        self.assertIn("sections", result)
+        self.assertIsInstance(result["sections"], dict)
+        
+        # Verify each section has a state field with default "draft"
+        self.assertIn("Cust_1", result["sections"])
+        section1 = result["sections"]["Cust_1"]
+        self.assertIn("state", section1)
+        self.assertEqual(section1["state"], "draft")
+        self.assertIn("fields", section1)  # Verify existing structure still works
+        
+        self.assertIn("Cust_2", result["sections"])
+        section2 = result["sections"]["Cust_2"]
+        self.assertIn("state", section2)
+        self.assertEqual(section2["state"], "draft")
+        self.assertIn("fields", section2)  # Verify existing structure still works
+        
+        # Test with all 4 assessment templates
+        for template in pcc.TEMPLATES:
+            assessment_id = template["template_id"]
+            model = _build_valid_model_response(pcc, assessment_id)
+            is_valid, errors = pcc.validate(assessment_id, model)
+            if is_valid:
+                result = pcc.reverse_map(assessment_id, model, formatter_name="pcc-ui")
+                if "sections" in result and isinstance(result["sections"], dict):
+                    for section_key, section_data in result["sections"].items():
+                        self.assertIn("state", section_data, 
+                                   f"Section {section_key} in {template['name']} missing state field")
+                        self.assertEqual(section_data["state"], "draft",
+                                       f"Section {section_key} in {template['name']} has wrong state")
+
+    def test_get_section_state(self):
+        """Test the get_section_state helper function."""
+        # Test with valid section
+        formatted_json = {
+            "doc_type": "pcc_assessment",
+            "assessment_title": "Test Assessment",
+            "assessment_std_id": 12345,
+            "sections": {
+                "Cust_1": {
+                    "state": "draft",
+                    "fields": []
+                },
+                "Cust_2": {
+                    "state": "saved",
+                    "fields": []
+                },
+                "Cust_3": {
+                    "state": "signed",
+                    "fields": []
+                }
+            }
+        }
+        
+        self.assertEqual(get_section_state(formatted_json, "Cust_1"), "draft")
+        self.assertEqual(get_section_state(formatted_json, "Cust_2"), "saved")
+        self.assertEqual(get_section_state(formatted_json, "Cust_3"), "signed")
+        
+        # Test with missing section
+        self.assertIsNone(get_section_state(formatted_json, "Cust_999"))
+        
+        # Test with invalid inputs
+        self.assertIsNone(get_section_state(None, "Cust_1"))
+        self.assertIsNone(get_section_state({}, "Cust_1"))
+        self.assertIsNone(get_section_state({"sections": []}, "Cust_1"))
+        self.assertIsNone(get_section_state({"sections": {"Cust_1": None}}, "Cust_1"))
+        
+        # Test with section missing state field (should return None)
+        formatted_json_no_state = {
+            "sections": {
+                "Cust_1": {
+                    "fields": []
+                }
+            }
+        }
+        self.assertIsNone(get_section_state(formatted_json_no_state, "Cust_1"))
+
+    def test_get_all_section_states(self):
+        """Test the get_all_section_states helper function."""
+        # Test with all sections having states
+        formatted_json = {
+            "doc_type": "pcc_assessment",
+            "assessment_title": "Test Assessment",
+            "assessment_std_id": 12345,
+            "sections": {
+                "Cust_1": {
+                    "state": "draft",
+                    "fields": []
+                },
+                "Cust_2": {
+                    "state": "saved",
+                    "fields": []
+                },
+                "Cust_3": {
+                    "state": "signed",
+                    "fields": []
+                },
+                "Cust_4": {
+                    "state": "draft",
+                    "fields": []
+                }
+            }
+        }
+        
+        states = get_all_section_states(formatted_json)
+        self.assertEqual(states, ["draft", "saved", "signed", "draft"])
+        
+        # Test with some sections missing state field (should default to "draft")
+        formatted_json_partial = {
+            "sections": {
+                "Cust_1": {
+                    "state": "saved",
+                    "fields": []
+                },
+                "Cust_2": {
+                    "fields": []  # Missing state
+                },
+                "Cust_3": {
+                    "state": "signed",
+                    "fields": []
+                }
+            }
+        }
+        
+        states = get_all_section_states(formatted_json_partial)
+        self.assertEqual(states, ["saved", "draft", "signed"])
+        
+        # Test with empty sections
+        self.assertEqual(get_all_section_states({"sections": {}}), [])
+        
+        # Test with invalid inputs
+        self.assertEqual(get_all_section_states(None), [])
+        self.assertEqual(get_all_section_states({}), [])
+        self.assertEqual(get_all_section_states({"sections": []}), [])
+        
+        # Test with real reverse_map output
+        pcc = PCCAssessmentSchema()
+        model_response = {
+            "table_name": "MHCS IDT 5 Day Section GG",
+            "sections": {
+                "Cust_1.Section 1": {
+                    "assessmentQuestionGroups": {
+                        "1.Test Group": {
+                            "questions": {
+                                "Cust_1_01_A": "a"
+                            }
+                        }
+                    }
+                },
+                "Cust_2.Section 2": {
+                    "assessmentQuestionGroups": {
+                        "2.Another Group": {
+                            "questions": {
+                                "Cust_2_01_A": "c"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.reverse_map(21242733, model_response, formatter_name="pcc-ui")
+        states = get_all_section_states(result)
+        # Should have states for all sections, all "draft" by default
+        self.assertGreater(len(states), 0)
+        self.assertTrue(all(state == "draft" for state in states))
+
+    def test_reverse_map_null_multi_select_field(self):
+        """Test that null multi-select fields are included in reverse_map output with None value.
+        
+        This test verifies that multi-select fields with null values are properly
+        included in the reverse_map output with value=None, consistent with other field types.
+        """
+        import json
+        import os
+        
+        pcc = PCCAssessmentSchema()
+        
+        # Load chart.json
+        chart_path = os.path.join(
+            os.path.dirname(__file__),
+            "..", "..", "chart.json"
+        )
+        with open(chart_path, 'r') as f:
+            chart_data = json.load(f)
+        
+        # Get first entry from json_internal_filled
+        first_entry = chart_data["chart_record"]["json_internal_filled"][0]
+        internal_json = first_entry["internal_json"]
+        
+        # Verify the field exists in input with null value
+        section_k = internal_json["sections"]["Cust.MHCS Nursing Daily Skilled Note"]["assessmentQuestionGroups"]["K"]
+        question_key = "2. Does the resident present with any the following signs/symptoms? (Select all that apply)"
+        self.assertIn(question_key, section_k["questions"])
+        self.assertIsNone(section_k["questions"][question_key])
+        
+        # Verify field metadata confirms it's a multi-select field
+        field_metadata = pcc.get_field_metadata(21242741)
+        cust_k_2_meta = next((f for f in field_metadata if f.get("key") == "Cust_K_2"), None)
+        self.assertIsNotNone(cust_k_2_meta, "Cust_K_2 should exist in field metadata")
+        self.assertEqual(cust_k_2_meta.get("original_schema_type"), "mcs", 
+                         "Cust_K_2 should be a multi-select (mcs) field")
+        
+        # Run reverse_map
+        result = pcc.reverse_map(21242741, internal_json, formatter_name="pcc-ui")
+        
+        # Check that Cust_K_2 is present with None value
+        sections = result.get("sections", {})
+        cust_section = sections.get("Cust", {})
+        fields = cust_section.get("fields", [])
+        
+        # Find all fields with key Cust_K_2
+        cust_k_2_fields = [f for f in fields if f.get("key") == "Cust_K_2"]
+        
+        # Verify Cust_K_2 is present with None value
+        self.assertEqual(len(cust_k_2_fields), 1, 
+                         "Cust_K_2 field should be present in output when model_value is null")
+        self.assertIsNone(cust_k_2_fields[0].get("value"),
+                          "Cust_K_2 field should have None value when model_value is null")
+        self.assertEqual(cust_k_2_fields[0].get("type"), "mcs",
+                         "Cust_K_2 should have type 'mcs'")
+        self.assertEqual(cust_k_2_fields[0].get("html_type"), "checkbox_multi",
+                         "Cust_K_2 should have html_type 'checkbox_multi'")
+        
+        # Verify other null fields ARE present (e.g., text fields)
+        cust_b_6_fields = [f for f in fields if f.get("key") == "Cust_B_6"]
+        self.assertGreater(len(cust_b_6_fields), 0, 
+                          "Null text fields should be present in output")
+        if cust_b_6_fields:
+            self.assertIsNone(cust_b_6_fields[0].get("value"),
+                            "Null text field should have None value")
+        
+        # Verify non-null multi-select fields ARE present
+        cust_b_1_fields = [f for f in fields if f.get("key") == "Cust_B_1"]
+        self.assertGreater(len(cust_b_1_fields), 0,
+                          "Non-null multi-select fields should be present in output")
+        
+        # Verify another null multi-select field is also present (Cust_C_2)
+        cust_c_2_fields = [f for f in fields if f.get("key") == "Cust_C_2"]
+        self.assertEqual(len(cust_c_2_fields), 1,
+                        "Cust_C_2 (another null multi-select) should also be present")
+        if cust_c_2_fields:
+            self.assertIsNone(cust_c_2_fields[0].get("value"),
+                            "Cust_C_2 should have None value when model_value is null")
 
     def test_object_array_validation_strict_schema(self):
         """Test that object_array (gbdy) fields enforce strict schema validation."""

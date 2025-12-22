@@ -9,7 +9,11 @@ This package provides a PCC-specific wrapper around the core `SchemaEngine` to w
 ## Quick start
 
 ```python
-from pcc.pcc_assessment_schema import PCCAssessmentSchema
+from pcc.pcc_assessment_schema import (
+    PCCAssessmentSchema,
+    get_section_state,
+    get_all_section_states
+)
 
 pcc = PCCAssessmentSchema()
 
@@ -21,6 +25,11 @@ json_schema = pcc.get_json_schema(21244981)
 
 # Validate a model response
 valid, errors = pcc.validate(21244981, {"table_name": "MHCS Nursing Admission Assessment - V 5"})
+
+# Reverse map and access section states
+result = pcc.reverse_map(21244981, model_response)
+state = get_section_state(result, "Cust_1")  # Get state of a specific section
+all_states = get_all_section_states(result)  # Get all section states
 ```
 
 ## Listing assessments
@@ -80,13 +89,44 @@ model_response = {
 
 result = pcc.reverse_map(21244831, model_response)
 # {
-#   "assessmentDescription": <str>,
-#   "templateId": <int>,
-#   "data": [
-#     { "sectionCode": "A", "fields": [ {"key","type","value"}, ... ] }
-#   ]
+#   "doc_type": "pcc_assessment",
+#   "assessment_title": <str>,
+#   "assessment_std_id": <int>,
+#   "sections": {
+#     "Cust_1": {
+#       "state": "draft",
+#       "fields": [
+#         {"key": "Cust_1_01_A", "type": "rad", "html_type": "radio_buttons", "value": "1"},
+#         ...
+#       ]
+#     },
+#     "Cust_2": {
+#       "state": "draft",
+#       "fields": [...]
+#     }
+#   }
 # }
 ```
+
+### Section State Management
+
+Each section in the `reverse_map` output automatically includes a `"state"` field with a default value of `"draft"`. This field can be used to track the completion status of each section (e.g., "draft", "saved", "signed").
+
+```python
+from pcc.pcc_assessment_schema import get_section_state, get_all_section_states
+
+result = pcc.reverse_map(21244831, model_response)
+
+# Get the state of a specific section
+state = get_section_state(result, "Cust_1")  # Returns "draft" (or None if section not found)
+
+# Get all section states as an array
+all_states = get_all_section_states(result)  # Returns ["draft", "draft", "saved", ...]
+```
+
+**Helper Functions:**
+- `get_section_state(formatted_json, section_name)`: Returns the state of a specific section, or `None` if the section is not found.
+- `get_all_section_states(formatted_json)`: Returns a list of all section states in sorted order. Sections without a state field default to `"draft"`.
 
 ### Formatter behavior (pcc-ui)
 

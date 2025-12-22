@@ -496,7 +496,7 @@ class SchemaEngine:
             self.__named_formatter_sets[formatter_name] = {}
         
         self.__named_formatter_sets[formatter_name][original_schema_type] = formatter_func
-        logger.info(f"Registered reverse formatter for '{original_schema_type}' in formatter set '{formatter_name}'")
+        logger.debug(f"Registered reverse formatter for '{original_schema_type}' in formatter set '{formatter_name}'")
 
     def register_table(self, table_id: Optional[int], external_schema: Dict[str, Any]) -> Tuple[int, str]:
         """Register (or re-register) a table schema.

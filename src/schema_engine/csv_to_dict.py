@@ -1,4 +1,5 @@
 import csv
+import os
 from typing import Dict, Literal, TextIO, Optional
 from contextlib import closing
 import io
@@ -42,7 +43,6 @@ def read_key_value_csv_stream(
         concat_sep: Separator used when on_duplicate="concat" (default: ". ").
         key_prefix: If provided, prefix keys with "{key_prefix}_" unless already prefixed.
         sanitize_values: If True, sanitize values by removing HTML tags and JSON-breaking characters.
-        skip_first_row: If True, skip the first row before reading headers (for CSVs with metadata row).
 
     Returns:
         dict mapping keys -> single string values
@@ -51,13 +51,6 @@ def read_key_value_csv_stream(
 
     # csv module recommendation: pass newline="" to the *file open* call;
     # here we assume the caller opened the stream correctly.
-    
-    # If skip_first_row is True, read and discard the first line before creating DictReader
-    if skip_first_row:
-        first_line = stream.readline()
-        if not first_line:
-            raise ValueError("CSV appears to be empty after skipping first row.")
-    
     reader = csv.DictReader(stream)
     if reader.fieldnames is None:
         raise ValueError("CSV appears to have no header row.")
@@ -147,19 +140,8 @@ def read_key_value_csv_s3(
     Wraps the StreamingBody (bytes) in a TextIOWrapper with utf-8-sig handling.
     """
     import boto3  # Available by default in AWS Lambda; add to your container if needed
-    import os
 
-    if s3_client is None:
-        # Use AWS profile from environment (defaults to speakcare.dev for consistency)
-        aws_profile = os.getenv("AWS_PROFILE", "speakcare.dev")
-        aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        
-        if aws_profile and aws_profile != "default":
-            s3 = boto3.Session(profile_name=aws_profile).client("s3", region_name=aws_region)
-        else:
-            s3 = boto3.client("s3", region_name=aws_region)
-    else:
-        s3 = s3_client
+    s3 = s3_client or boto3.client("s3")
     obj = s3.get_object(Bucket=bucket, Key=key)
     # Decode bytes → text; handle BOM; set newline="" for csv correctness
     text_stream = io.TextIOWrapper(obj["Body"], encoding="utf-8-sig", newline="")
