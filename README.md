@@ -1,8 +1,5 @@
 # SPKC EHR Schema Engine
 
-[![CI](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/ci.yml/badge.svg)](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/ci.yml)
-[![Release](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/release.yml/badge.svg)](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/release.yml)
-
 A comprehensive schema operations engine for conversion, validation, enrichment, and reverse mapping of external schema languages to OpenAI-compatible JSON Schema.
 
 ## Overview
