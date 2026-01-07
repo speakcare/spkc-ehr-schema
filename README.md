@@ -1,5 +1,8 @@
 # SPKC EHR Schema Engine
 
+[![CI](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/ci.yml/badge.svg)](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/ci.yml)
+[![Release](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/release.yml/badge.svg)](https://github.com/speakcare/spkc-ehr-schema/actions/workflows/release.yml)
+
 A comprehensive schema operations engine for conversion, validation, enrichment, and reverse mapping of external schema languages to OpenAI-compatible JSON Schema.
 
 ## Overview
@@ -240,13 +243,16 @@ pcc_result = pcc_schema.reverse_map(assessment_name, ai_response, group_by_conta
 
 ```bash
 # Run all tests
-python -m pytest tests/
+poetry run pytest
+
+# Run with coverage
+poetry run pytest --cov=src/schema_engine --cov=src/pcc_schema --cov-report=term-missing
 
 # Run core engine tests
-python tests/schema_engine_test.py
+poetry run pytest tests/schema_engine_test.py
 
 # Run PCC-specific tests
-python tests/pcc/pcc_assessment_schema_test.py
+poetry run pytest tests/pcc/
 ```
 
 ## Meta-Schema Language
@@ -261,12 +267,65 @@ The meta-schema language allows you to describe how external schema languages wo
 
 See the PointClickCare implementation in `src/pcc/pcc_assessment_schema.py` for a complete example.
 
+## Publishing
+
+### Automated Release (Recommended)
+
+The package is automatically published to AWS CodeArtifact via GitHub Actions when a version tag is pushed:
+
+1. **Update version**:
+   ```bash
+   poetry version patch  # or minor, major
+   ```
+
+2. **Commit and tag**:
+   ```bash
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "Bump version to $(poetry version -s)"
+   VERSION=$(poetry version -s)
+   git tag "v${VERSION}"
+   git push origin main
+   git push origin "v${VERSION}"
+   ```
+
+3. **Automated workflow will**:
+   - Run all tests
+   - Build the package
+   - Publish to AWS CodeArtifact
+
+### Manual Release
+
+If you need to publish manually:
+
+```bash
+./release.sh --profile speakcare.dev
+```
+
+## CI/CD Pipeline
+
+### Continuous Integration
+
+Every push and pull request triggers automated checks:
+- ✅ Unit tests with coverage reporting
+- ✅ Code formatting (Black)
+- ✅ Linting (flake8)
+- ✅ Type checking (mypy)
+- ✅ Package build verification
+
+### Continuous Deployment
+
+Version tags (`v*.*.*`) trigger automated deployment:
+- 🚀 Publish to AWS CodeArtifact
+
+
 ## Contributing
 
 1. Follow PEP 8 style guidelines
 2. Add tests for new functionality
 3. Update documentation for API changes
 4. Ensure all tests pass before submitting
+5. Use Black for code formatting
+6. Type check with mypy
 
 ## License
 

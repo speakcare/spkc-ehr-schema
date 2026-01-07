@@ -1,28 +1,63 @@
-# Ignore the virtual environment directory
-venv/
-bin/
-env/
-lib/
-tests/pcc/_pcc_ui_formatted_outputs/
-tests/pcc/_pcc_formatted_outputs/
-tests/pcc/_complete_model_responses/
-tests/pcc/_formatted_outputs/
+# Build artifacts
 dist/
+build/
+*.egg-info/
+.eggs/
 
-# Ignore the .env file
-.env
-# Other common Python ignores
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+bin/
+lib/
+
+# Poetry
 poetry.lock
 
-# Ignore IDE specific files
-.idea/
-.vscode/
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
 
-# Ignore desktop specific files
+# Test outputs (spkc-ehr-schema specific)
+tests/pcc/_pcc_ui_formatted_outputs/
+tests/pcc/_pcc_formatted_outputs/
+tests/pcc/_complete_model_responses/
+tests/pcc/_formatted_outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
 
-# Ignore database files
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# Database files

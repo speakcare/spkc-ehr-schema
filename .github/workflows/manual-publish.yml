@@ -1,0 +1,138 @@
+name: Manual Publish to CodeArtifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.2.3) - leave empty to use current version'
+        required: false
+        type: string
+      bump_type:
+        description: 'Version bump type (if version not specified)'
+        required: false
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+        default: 'none'
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 182399723275
+  CODEARTIFACT_DOMAIN: speakcare
+  CODEARTIFACT_REPOSITORY: python-packages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "Setting version to ${{ github.event.inputs.version }}"
+            poetry version ${{ github.event.inputs.version }}
+          elif [ "${{ github.event.inputs.bump_type }}" != "none" ]; then
+            echo "Bumping version: ${{ github.event.inputs.bump_type }}"
+            poetry version ${{ github.event.inputs.bump_type }}
+          fi
+          echo "Current version: $(poetry version -s)"
+
+      - name: Setup CodeArtifact authentication for dependencies
+        run: |
+          export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+            --domain ${{ env.CODEARTIFACT_DOMAIN }} \
+            --domain-owner ${{ env.AWS_ACCOUNT_ID }} \
+            --query authorizationToken \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          poetry config repositories.codeartifact https://speakcare-${{ env.AWS_ACCOUNT_ID }}.d.codeartifact.${{ env.AWS_REGION }}.amazonaws.com/pypi/python-packages/simple/
+          poetry config http-basic.codeartifact aws $CODEARTIFACT_AUTH_TOKEN
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run tests
+        run: |
+          poetry run pytest --cov=src/schema_engine --cov=src/pcc_schema --cov-report=term-missing
+
+      - name: Build package
+        run: |
+          poetry build
+          echo "Package built successfully"
+          ls -lh dist/
+
+      - name: Get CodeArtifact credentials and publish
+        run: |
+          # Get CodeArtifact auth token
+          export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+            --domain ${{ env.CODEARTIFACT_DOMAIN }} \
+            --domain-owner ${{ env.AWS_ACCOUNT_ID }} \
+            --query authorizationToken \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          # Get repository endpoint (without /simple/ for publishing)
+          export CODEARTIFACT_REPO_URL=$(aws codeartifact get-repository-endpoint \
+            --domain ${{ env.CODEARTIFACT_DOMAIN }} \
+            --repository ${{ env.CODEARTIFACT_REPOSITORY }} \
+            --format pypi \
+            --query repositoryEndpoint \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          # Configure Poetry for publishing
+          poetry config repositories.codeartifact "${CODEARTIFACT_REPO_URL}"
+          poetry config http-basic.codeartifact aws "${CODEARTIFACT_AUTH_TOKEN}"
+          
+          # Publish to CodeArtifact
+          poetry publish -r codeartifact
+          
+          VERSION=$(poetry version -s)
+          echo "✅ Successfully published spkc-ehr-schema ${VERSION} to CodeArtifact"
+
+      - name: Summary
+        run: |
+          VERSION=$(poetry version -s)
+          echo "## 🚀 Manual Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** spkc-ehr-schema" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Published to:** AWS CodeArtifact" >> $GITHUB_STEP_SUMMARY
+          echo "**Domain:** ${{ env.CODEARTIFACT_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ env.CODEARTIFACT_REPOSITORY }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Add to pyproject.toml dependencies:" >> $GITHUB_STEP_SUMMARY
+          echo "spkc-ehr-schema = \"^${VERSION}\"" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Note:** Remember to commit version changes if you bumped the version!" >> $GITHUB_STEP_SUMMARY
+
