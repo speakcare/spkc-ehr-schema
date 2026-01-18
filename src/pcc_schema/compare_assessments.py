@@ -219,9 +219,21 @@ def extract_all_fields(pcc_db_obj: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             for response in assessment_responses:
                 question_key = response.get("question_key", "")
                 question_text = response.get("question_text", "")
+                question_number = response.get("question_number", "")
                 
                 if not question_key:
                     continue
+                
+                # Skip instruction fields (type "inst")
+                # Instruction fields have question_key ending with underscore and empty question_number
+                # Pattern: "Cust_X_" where X is a letter (e.g., "Cust_D_")
+                if question_key.endswith("_") and not question_number:
+                    # Verify it's the instruction pattern: ends with letter + underscore
+                    # e.g., "Cust_D_" but not "Cust_D_1"
+                    if len(question_key) > 4:
+                        # Check if the character before the final underscore is a letter
+                        if question_key[-2].isalpha():
+                            continue
                 
                 # Create field key
                 field_key = f"{question_key}:{question_text}"
