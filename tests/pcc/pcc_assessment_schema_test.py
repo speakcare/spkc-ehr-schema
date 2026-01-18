@@ -3978,6 +3978,326 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIsInstance(sections["Cust.MHCS Nursing Daily Skilled Note"], dict)
 
 
+class TestPCCDatabaseFormat(unittest.TestCase):
+    """Test cases for format_to_pcc_db function."""
+    
+    def test_format_to_pcc_db_basic_structure(self):
+        """Test format_to_pcc_db produces correct basic structure."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a simple model response
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        },
+                        "B": {
+                            "questions": {
+                                "1. Delirium signs/symptoms (Select all that apply):": ["No delirium signs and symptoms present"],
+                                "2. Level of Consciousness:": "Alert/awake and responsive to verbal stimulation",
+                                "5. Decision-Making Ability:": "Impaired"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            template_name="MHCS_Nursing_Daily_Skilled_Note"
+        )
+        
+        # Verify top-level structure
+        self.assertIn("assessments", result)
+        self.assertIn("items", result["assessments"])
+        self.assertIn("13450054", result["assessments"]["items"])
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        
+        # Verify required metadata fields
+        self.assertEqual(assessment["template_id"], 21242741)
+        self.assertEqual(assessment["template_name"], "MHCS_Nursing_Daily_Skilled_Note")
+        self.assertEqual(assessment["patient_id"], 37043607)
+        self.assertEqual(assessment["assessment_id"], 13450054)
+        
+        # Verify sections structure
+        self.assertIn("sections", assessment)
+        self.assertIsInstance(assessment["sections"], list)
+        self.assertGreater(len(assessment["sections"]), 0)
+        
+        # Verify section structure
+        section = assessment["sections"][0]
+        self.assertIn("section_code", section)
+        self.assertEqual(section["section_code"], "Cust")
+        self.assertIn("assessment_question_groups", section)
+        self.assertIsInstance(section["assessment_question_groups"], list)
+        
+        # Verify group structure
+        if section["assessment_question_groups"]:
+            group = section["assessment_question_groups"][0]
+            self.assertIn("group_number", group)
+            self.assertIn("group_title", group)
+            self.assertIn("assessment_responses", group)
+            self.assertIsInstance(group["assessment_responses"], list)
+            
+            # Verify response structure
+            if group["assessment_responses"]:
+                response = group["assessment_responses"][0]
+                self.assertIn("question_key", response)
+                self.assertIn("question_number", response)
+                self.assertIn("question_text", response)
+                self.assertIn("responses", response)
+                self.assertIsInstance(response["responses"], list)
+                
+                # Verify response item structure
+                if response["responses"]:
+                    response_item = response["responses"][0]
+                    # Should have response_value, and optionally response_text
+                    self.assertIn("response_value", response_item)
+
+    def test_format_to_pcc_db_multi_select(self):
+        """Test format_to_pcc_db handles multi-select fields correctly."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "B": {
+                            "questions": {
+                                "4. Memory (Select all that apply):": ["Short-Term Memory Problem", "Long-Term Memory Problem"]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607
+        )
+        
+        # Find the multi-select response
+        assessment = result["assessments"]["items"]["13450054"]
+        section = assessment["sections"][0]
+        
+        # Find the Memory question response
+        memory_response = None
+        for group in section["assessment_question_groups"]:
+            for resp in group["assessment_responses"]:
+                if "Memory" in resp.get("question_text", ""):
+                    memory_response = resp
+                    break
+            if memory_response:
+                break
+        
+        self.assertIsNotNone(memory_response, "Should find Memory question response")
+        self.assertEqual(len(memory_response["responses"]), 1)
+        
+        # Multi-select should have comma-separated response_value, no response_text
+        response_item = memory_response["responses"][0]
+        self.assertIn("response_value", response_item)
+        self.assertIn(",", response_item["response_value"])  # Should be comma-separated
+        # Multi-select typically doesn't have response_text in PCC DB format
+        # (based on the example JSON)
+
+    def test_format_to_pcc_db_additional_metadata(self):
+        """Test format_to_pcc_db includes additional metadata when provided."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        additional_metadata = {
+            "assessment_status": "Complete",
+            "created_by": "TestUser",
+            "fac_id": 6,
+            "locked_date": "2026-01-01T12:58:14Z",
+            "completed_by": "TestUser",
+            "completed_date": "2026-01-01T12:00:00Z",
+            "section_status": "Complete"
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            additional_metadata=additional_metadata
+        )
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        
+        # Verify assessment-level metadata
+        self.assertEqual(assessment["assessment_status"], "Complete")
+        self.assertEqual(assessment["created_by"], "TestUser")
+        self.assertEqual(assessment["fac_id"], 6)
+        self.assertEqual(assessment["locked_date"], "2026-01-01T12:58:14Z")
+        
+        # Verify section-level metadata
+        section = assessment["sections"][0]
+        self.assertEqual(section["completed_by"], "TestUser")
+        self.assertEqual(section["completed_date"], "2026-01-01T12:00:00Z")
+        self.assertEqual(section["section_status"], "Complete")
+
+    def test_format_to_pcc_db_empty_responses(self):
+        """Test format_to_pcc_db handles empty/null responses correctly."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "B": {
+                            "questions": {
+                                "6. If any of the answers to questions 1-5 represent a change in the residents prior cognitive status, describe here and notify provider as appropriate:": None
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607
+        )
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        section = assessment["sections"][0]
+        
+        # Find the text question response
+        text_response = None
+        for group in section["assessment_question_groups"]:
+            for resp in group["assessment_responses"]:
+                if "change in the resident's prior cognitive status" in resp.get("question_text", ""):
+                    text_response = resp
+                    break
+            if text_response:
+                break
+        
+        self.assertIsNotNone(text_response, "Should find text question response")
+        # Empty response should have empty responses array with one empty object
+        self.assertEqual(len(text_response["responses"]), 1)
+        self.assertEqual(text_response["responses"][0], {})
+
+    def test_format_to_pcc_db_outputs_to_file(self):
+        """Test format_to_pcc_db and save output to JSON file for inspection."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a comprehensive model response
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A.Vital Signs": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        },
+                        "B.Cognition": {
+                            "questions": {
+                                "1. Delirium signs/symptoms (Select all that apply):": ["No delirium signs and symptoms present"],
+                                "2. Level of Consciousness:": "Alert/awake and responsive to verbal stimulation",
+                                "3. Recall ability (select all that apply):": ["None recalled."],
+                                "4. Memory (Select all that apply):": ["Short-Term Memory Problem", "Long-Term Memory Problem"],
+                                "5. Decision-Making Ability:": "Impaired"
+                            }
+                        },
+                        "O.Narrative Note": {
+                            "questions": {
+                                "1. Document any additional pertinent information obtained during your evaluation of the resident:": "Patient alert and awake. Patient cont to be noted with aphasia, needs anticipated by staff."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        additional_metadata = {
+            "assessment_status": "Complete",
+            "created_by": "TestUser",
+            "fac_id": 6,
+            "locked_date": "2026-01-01T12:58:14Z",
+            "completed_by": "TestUser",
+            "completed_date": "2026-01-01T12:00:00Z",
+            "section_status": "Complete"
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            template_name="MHCS_Nursing_Daily_Skilled_Note",
+            additional_metadata=additional_metadata
+        )
+        
+        # Verify the result structure
+        self.assertIn("assessments", result)
+        self.assertIn("items", result["assessments"])
+        self.assertIn("13450054", result["assessments"]["items"])
+        
+        # Save to file
+        output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "test_outputs")
+        _ensure_dir(output_dir)
+        
+        filename = "21242741_MHCS_Nursing_Daily_Skilled_Note_pcc_db.json"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        print(f"\nSaved PCC-DB formatted output to {filepath}")
+        
+        # Also save the model response for reference
+        model_filename = "21242741_MHCS_Nursing_Daily_Skilled_Note_model.json"
+        model_filepath = os.path.join(output_dir, model_filename)
+        
+        with open(model_filepath, 'w', encoding='utf-8') as f:
+            json.dump(model_response, f, indent=2, ensure_ascii=False)
+        
+        print(f"Saved model response to {model_filepath}")
+        
+        # Verify file was created and contains valid JSON
+        self.assertTrue(os.path.exists(filepath), f"Output file should exist: {filepath}")
+        
+        # Read it back to verify it's valid JSON
+        with open(filepath, 'r', encoding='utf-8') as f:
+            loaded_result = json.load(f)
+        
+        self.assertEqual(loaded_result, result, "Loaded JSON should match original result")
+
+
 @unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
 class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
     """
@@ -4539,6 +4859,326 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                         else:
                             expected_value = info["value"]
                             self.assertEqual(_extract_value(multi_response_content, meta), expected_value)
+
+
+class TestPCCDatabaseFormat(unittest.TestCase):
+    """Test cases for format_to_pcc_db function."""
+    
+    def test_format_to_pcc_db_basic_structure(self):
+        """Test format_to_pcc_db produces correct basic structure."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a simple model response
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        },
+                        "B": {
+                            "questions": {
+                                "1. Delirium signs/symptoms (Select all that apply):": ["No delirium signs and symptoms present"],
+                                "2. Level of Consciousness:": "Alert/awake and responsive to verbal stimulation",
+                                "5. Decision-Making Ability:": "Impaired"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            template_name="MHCS_Nursing_Daily_Skilled_Note"
+        )
+        
+        # Verify top-level structure
+        self.assertIn("assessments", result)
+        self.assertIn("items", result["assessments"])
+        self.assertIn("13450054", result["assessments"]["items"])
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        
+        # Verify required metadata fields
+        self.assertEqual(assessment["template_id"], 21242741)
+        self.assertEqual(assessment["template_name"], "MHCS_Nursing_Daily_Skilled_Note")
+        self.assertEqual(assessment["patient_id"], 37043607)
+        self.assertEqual(assessment["assessment_id"], 13450054)
+        
+        # Verify sections structure
+        self.assertIn("sections", assessment)
+        self.assertIsInstance(assessment["sections"], list)
+        self.assertGreater(len(assessment["sections"]), 0)
+        
+        # Verify section structure
+        section = assessment["sections"][0]
+        self.assertIn("section_code", section)
+        self.assertEqual(section["section_code"], "Cust")
+        self.assertIn("assessment_question_groups", section)
+        self.assertIsInstance(section["assessment_question_groups"], list)
+        
+        # Verify group structure
+        if section["assessment_question_groups"]:
+            group = section["assessment_question_groups"][0]
+            self.assertIn("group_number", group)
+            self.assertIn("group_title", group)
+            self.assertIn("assessment_responses", group)
+            self.assertIsInstance(group["assessment_responses"], list)
+            
+            # Verify response structure
+            if group["assessment_responses"]:
+                response = group["assessment_responses"][0]
+                self.assertIn("question_key", response)
+                self.assertIn("question_number", response)
+                self.assertIn("question_text", response)
+                self.assertIn("responses", response)
+                self.assertIsInstance(response["responses"], list)
+                
+                # Verify response item structure
+                if response["responses"]:
+                    response_item = response["responses"][0]
+                    # Should have response_value, and optionally response_text
+                    self.assertIn("response_value", response_item)
+
+    def test_format_to_pcc_db_multi_select(self):
+        """Test format_to_pcc_db handles multi-select fields correctly."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "B": {
+                            "questions": {
+                                "4. Memory (Select all that apply):": ["Short-Term Memory Problem", "Long-Term Memory Problem"]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607
+        )
+        
+        # Find the multi-select response
+        assessment = result["assessments"]["items"]["13450054"]
+        section = assessment["sections"][0]
+        
+        # Find the Memory question response
+        memory_response = None
+        for group in section["assessment_question_groups"]:
+            for resp in group["assessment_responses"]:
+                if "Memory" in resp.get("question_text", ""):
+                    memory_response = resp
+                    break
+            if memory_response:
+                break
+        
+        self.assertIsNotNone(memory_response, "Should find Memory question response")
+        self.assertEqual(len(memory_response["responses"]), 1)
+        
+        # Multi-select should have comma-separated response_value, no response_text
+        response_item = memory_response["responses"][0]
+        self.assertIn("response_value", response_item)
+        self.assertIn(",", response_item["response_value"])  # Should be comma-separated
+        # Multi-select typically doesn't have response_text in PCC DB format
+        # (based on the example JSON)
+
+    def test_format_to_pcc_db_additional_metadata(self):
+        """Test format_to_pcc_db includes additional metadata when provided."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        additional_metadata = {
+            "assessment_status": "Complete",
+            "created_by": "TestUser",
+            "fac_id": 6,
+            "locked_date": "2026-01-01T12:58:14Z",
+            "completed_by": "TestUser",
+            "completed_date": "2026-01-01T12:00:00Z",
+            "section_status": "Complete"
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            additional_metadata=additional_metadata
+        )
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        
+        # Verify assessment-level metadata
+        self.assertEqual(assessment["assessment_status"], "Complete")
+        self.assertEqual(assessment["created_by"], "TestUser")
+        self.assertEqual(assessment["fac_id"], 6)
+        self.assertEqual(assessment["locked_date"], "2026-01-01T12:58:14Z")
+        
+        # Verify section-level metadata
+        section = assessment["sections"][0]
+        self.assertEqual(section["completed_by"], "TestUser")
+        self.assertEqual(section["completed_date"], "2026-01-01T12:00:00Z")
+        self.assertEqual(section["section_status"], "Complete")
+
+    def test_format_to_pcc_db_empty_responses(self):
+        """Test format_to_pcc_db handles empty/null responses correctly."""
+        pcc = PCCAssessmentSchema()
+        
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "B": {
+                            "questions": {
+                                "6. If any of the answers to questions 1-5 represent a change in the residents prior cognitive status, describe here and notify provider as appropriate:": None
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607
+        )
+        
+        assessment = result["assessments"]["items"]["13450054"]
+        section = assessment["sections"][0]
+        
+        # Find the text question response
+        text_response = None
+        for group in section["assessment_question_groups"]:
+            for resp in group["assessment_responses"]:
+                if "change in the resident's prior cognitive status" in resp.get("question_text", ""):
+                    text_response = resp
+                    break
+            if text_response:
+                break
+        
+        self.assertIsNotNone(text_response, "Should find text question response")
+        # Empty response should have empty responses array with one empty object
+        self.assertEqual(len(text_response["responses"]), 1)
+        self.assertEqual(text_response["responses"][0], {})
+
+    def test_format_to_pcc_db_outputs_to_file(self):
+        """Test format_to_pcc_db and save output to JSON file for inspection."""
+        pcc = PCCAssessmentSchema()
+        
+        # Create a comprehensive model response
+        model_response = {
+            "table_name": "MHCS Nursing Daily Skilled Note",
+            "sections": {
+                "Cust.MHCS Nursing Daily Skilled Note": {
+                    "assessmentQuestionGroups": {
+                        "A.Vital Signs": {
+                            "questions": {
+                                "1. Vital signs": "Vital signs obtained and reviewed."
+                            }
+                        },
+                        "B.Cognition": {
+                            "questions": {
+                                "1. Delirium signs/symptoms (Select all that apply):": ["No delirium signs and symptoms present"],
+                                "2. Level of Consciousness:": "Alert/awake and responsive to verbal stimulation",
+                                "3. Recall ability (select all that apply):": ["None recalled."],
+                                "4. Memory (Select all that apply):": ["Short-Term Memory Problem", "Long-Term Memory Problem"],
+                                "5. Decision-Making Ability:": "Impaired"
+                            }
+                        },
+                        "O.Narrative Note": {
+                            "questions": {
+                                "1. Document any additional pertinent information obtained during your evaluation of the resident:": "Patient alert and awake. Patient cont to be noted with aphasia, needs anticipated by staff."
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        additional_metadata = {
+            "assessment_status": "Complete",
+            "created_by": "TestUser",
+            "fac_id": 6,
+            "locked_date": "2026-01-01T12:58:14Z",
+            "completed_by": "TestUser",
+            "completed_date": "2026-01-01T12:00:00Z",
+            "section_status": "Complete"
+        }
+        
+        result = pcc.format_to_pcc_db(
+            assessment_identifier=21242741,
+            model_response=model_response,
+            assessment_id=13450054,
+            patient_id=37043607,
+            template_name="MHCS_Nursing_Daily_Skilled_Note",
+            additional_metadata=additional_metadata
+        )
+        
+        # Verify the result structure
+        self.assertIn("assessments", result)
+        self.assertIn("items", result["assessments"])
+        self.assertIn("13450054", result["assessments"]["items"])
+        
+        # Save to file
+        output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "test_outputs")
+        _ensure_dir(output_dir)
+        
+        filename = "21242741_MHCS_Nursing_Daily_Skilled_Note_pcc_db.json"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        print(f"\nSaved PCC-DB formatted output to {filepath}")
+        
+        # Also save the model response for reference
+        model_filename = "21242741_MHCS_Nursing_Daily_Skilled_Note_model.json"
+        model_filepath = os.path.join(output_dir, model_filename)
+        
+        with open(model_filepath, 'w', encoding='utf-8') as f:
+            json.dump(model_response, f, indent=2, ensure_ascii=False)
+        
+        print(f"Saved model response to {model_filepath}")
+        
+        # Verify file was created and contains valid JSON
+        self.assertTrue(os.path.exists(filepath), f"Output file should exist: {filepath}")
+        
+        # Read it back to verify it's valid JSON
+        with open(filepath, 'r', encoding='utf-8') as f:
+            loaded_result = json.load(f)
+        
+        self.assertEqual(loaded_result, result, "Loaded JSON should match original result")
 
 
 if __name__ == "__main__":

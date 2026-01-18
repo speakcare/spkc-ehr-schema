@@ -986,3 +986,450 @@ class PCCAssessmentSchema:
         """
         return self.engine.resolve_table_id(assessment_identifier) is not None
     
+    def _extract_model_value(self, model_response: Dict[str, Any], field_meta: Dict[str, Any]) -> Any:
+        """
+        Extract value from model response using field metadata.
+        
+        Args:
+            model_response: The model response dictionary
+            field_meta: Field metadata dictionary with level_keys and property_key
+            
+        Returns:
+            The extracted value or None
+        """
+        level_keys = field_meta.get("level_keys", [])
+        property_key = field_meta.get("property_key")
+        
+        # Traverse nested structure
+        current = model_response
+        for key in level_keys:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(key)
+            if current is None:
+                return None
+        
+        # Get final property value
+        if isinstance(current, dict) and property_key:
+            return current.get(property_key)
+        return None
+    
+    def _map_response_value_to_text(self, response_value: str, response_options: List[Dict[str, Any]]) -> Optional[str]:
+        """
+        Map a response_value to its corresponding response_text using responseOptions.
+        
+        Args:
+            response_value: The response value to map
+            response_options: List of response option dictionaries
+            
+        Returns:
+            The corresponding response_text, or None if not found
+        """
+        if not response_options or not response_value:
+            return None
+        
+        for option in response_options:
+            if option.get("responseValue") == response_value:
+                return option.get("responseText")
+        
+        return None
+    
+    def _map_response_text_to_value(self, response_text: str, response_options: List[Dict[str, Any]]) -> Optional[str]:
+        """
+        Map a response_text to its corresponding response_value using responseOptions.
+        
+        Args:
+            response_text: The response text to map
+            response_options: List of response option dictionaries
+            
+        Returns:
+            The corresponding response_value, or None if not found
+        """
+        if not response_options or not response_text:
+            return None
+        
+        for option in response_options:
+            if option.get("responseText") == response_text:
+                return option.get("responseValue")
+        
+        return None
+    
+    def _parse_multi_select_value(self, value: Any) -> List[str]:
+        """
+        Parse multi-select value which can be:
+        - A list of response_values
+        - A comma-separated string of response_values
+        - None/empty
+        
+        Args:
+            value: The multi-select value to parse
+            
+        Returns:
+            List of response_values
+        """
+        if value is None:
+            return []
+        
+        if isinstance(value, list):
+            return [str(v) for v in value if v is not None]
+        
+        if isinstance(value, str):
+            # Handle comma-separated string
+            if "," in value:
+                return [v.strip() for v in value.split(",") if v.strip()]
+            elif value.strip():
+                return [value.strip()]
+        
+        return []
+    
+    def _build_assessment_response(
+        self,
+        field_meta: Dict[str, Any],
+        model_value: Any,
+        response_options: List[Dict[str, Any]],
+        original_type: str
+    ) -> Dict[str, Any]:
+        """
+        Build an assessment response object for a single question.
+        
+        Args:
+            field_meta: Field metadata dictionary
+            model_value: The model value for this field
+            response_options: List of response option dictionaries
+            original_type: The original schema type (rad, mcs, txt, etc.)
+            
+        Returns:
+            Dictionary with question_key, question_number, question_text, and responses array
+        """
+        field_schema = field_meta.get("field_schema", {})
+        question_key = field_meta.get("key", "")
+        question_number = field_schema.get("questionNumber", "")
+        question_text = field_schema.get("questionText", "")
+        
+        # Build responses array based on field type
+        responses = []
+        
+        if model_value is None or (isinstance(model_value, str) and not model_value.strip()):
+            # Empty response
+            responses.append({})
+        elif original_type in ["rad", "radh", "cmb", "hck"]:
+            # Single select - model_value is response_text, need to map to response_value
+            if model_value is None or (isinstance(model_value, str) and not model_value.strip()):
+                responses.append({})
+            else:
+                response_text = str(model_value)
+                # Try to map response_text to response_value
+                response_value = self._map_response_text_to_value(response_text, response_options)
+                
+                if response_value is None:
+                    # If mapping fails, assume model_value is already a response_value
+                    response_value = response_text
+                    response_text = None
+                
+                response_obj = {"response_value": response_value}
+                if response_text:
+                    response_obj["response_text"] = response_text
+                responses.append(response_obj)
+        elif original_type in ["mcs", "mcsh"]:
+            # Multi-select - model_value is list of response_texts, need to map to response_values
+            # Note: Multi-select in PCC DB format only includes response_value, not response_text
+            if model_value is None:
+                responses.append({})
+            elif isinstance(model_value, list):
+                # Map each response_text to response_value
+                response_values = []
+                for item in model_value:
+                    if item:
+                        response_text = str(item)
+                        response_value = self._map_response_text_to_value(response_text, response_options)
+                        if response_value:
+                            response_values.append(response_value)
+                        else:
+                            # If mapping fails, assume it's already a response_value
+                            response_values.append(response_text)
+                
+                if not response_values:
+                    responses.append({})
+                else:
+                    # Join response_values with comma
+                    response_value_str = ",".join(response_values)
+                    responses.append({"response_value": response_value_str})
+            else:
+                # Handle comma-separated string or single value
+                response_values = self._parse_multi_select_value(model_value)
+                # Map response_texts to response_values
+                mapped_values = []
+                for rv in response_values:
+                    # Try to map as response_text first
+                    mapped = self._map_response_text_to_value(rv, response_options)
+                    if mapped:
+                        mapped_values.append(mapped)
+                    else:
+                        # Assume it's already a response_value
+                        mapped_values.append(rv)
+                
+                if not mapped_values:
+                    responses.append({})
+                else:
+                    response_value_str = ",".join(mapped_values)
+                    responses.append({"response_value": response_value_str})
+        elif original_type == "chk":
+            # Checkbox - "1" or empty
+            if model_value is True or model_value == "1" or (isinstance(model_value, str) and model_value.strip() == "1"):
+                responses.append({"response_value": "1"})
+            else:
+                responses.append({})
+        elif original_type == "gbdy":
+            # Table fields - handled separately, return empty for now
+            # This will be handled in the main function
+            responses.append({})
+        else:
+            # Text, number, date, datetime, diagnosis - direct value
+            response_value = str(model_value) if model_value is not None else ""
+            if response_value:
+                responses.append({"response_value": response_value})
+            else:
+                responses.append({})
+        
+        return {
+            "question_key": question_key,
+            "question_number": question_number,
+            "question_text": question_text,
+            "responses": responses
+        }
+    
+    def _get_template_name(self, assessment_identifier: Union[int, str]) -> str:
+        """
+        Get the template name for an assessment.
+        
+        Args:
+            assessment_identifier: Either an integer assessment ID or string assessment name
+            
+        Returns:
+            The template name (filename without extension)
+        """
+        # Find template by ID
+        table_id = self.engine.resolve_table_id(assessment_identifier)
+        for template in self.TEMPLATES:
+            if template["template_id"] == table_id:
+                return template["filename"].replace(".json", "")
+        
+        # Fallback to assessment name from schema
+        schema = self.engine.get_json_schema(assessment_identifier)
+        return schema.get("title", str(assessment_identifier))
+    
+    def format_to_pcc_db(
+        self,
+        assessment_identifier: Union[int, str],
+        model_response: Dict[str, Any],
+        assessment_id: int,
+        patient_id: int,
+        template_name: Optional[str] = None,
+        additional_metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Convert model output directly to PCC database format.
+        
+        Args:
+            assessment_identifier: Either an integer assessment ID or string assessment name
+            model_response: The model response data to convert
+            assessment_id: The assessment ID for the output
+            patient_id: The patient ID
+            template_name: Optional template name (e.g., "MHCS_Nursing_Daily_Skilled_Note").
+                          If not provided, will be derived from assessment_identifier.
+            additional_metadata: Optional dictionary with additional metadata fields:
+                                 - assessment_status
+                                 - created_by
+                                 - fac_id
+                                 - locked_date
+                                 - completed_by
+                                 - completed_date
+                                 - section_status
+                                 
+        Returns:
+            Dictionary in PCC database format:
+            {
+                "assessments": {
+                    "items": {
+                        "<assessment_id>": {
+                            "template_id": <int>,
+                            "template_name": "<string>",
+                            "patient_id": <int>,
+                            "assessment_id": <int>,
+                            "sections": [...]
+                        }
+                    }
+                }
+            }
+        """
+        # Get template ID
+        table_id = self.engine.resolve_table_id(assessment_identifier)
+        
+        # Get template name if not provided
+        if template_name is None:
+            template_name = self._get_template_name(assessment_identifier)
+        
+        # Get field metadata
+        field_metadata = self.get_field_metadata(assessment_identifier)
+        
+        # Get external schema for group titles
+        table_data = self.engine._SchemaEngine__tables[table_id]
+        external_schema = table_data["external_schema"]
+        
+        # Organize fields by section and group
+        sections_dict: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        # Structure: {section_code: {group_number: [field_meta, ...]}}
+        
+        for field_meta in field_metadata:
+            if field_meta.get("is_virtual_container_child"):
+                continue
+            
+            level_keys = field_meta.get("level_keys", [])
+            if len(level_keys) < 2:
+                continue
+            
+            # Extract section_code from level_keys
+            # level_keys format: ["sections", "Cust.MHCS Nursing Daily Skilled Note", "assessmentQuestionGroups", "A", "questions"]
+            section_code = None
+            group_number = None
+            
+            # Find section code (first container after "sections")
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_key = level_keys[1]
+                # Extract section code (before the dot)
+                if "." in section_key:
+                    section_code = section_key.split(".")[0]
+                else:
+                    section_code = section_key
+            
+            # Find group number (after "assessmentQuestionGroups")
+            # level_keys format should have "assessmentQuestionGroups" at index 2, group number at index 3
+            if len(level_keys) > 3 and level_keys[2] == "assessmentQuestionGroups":
+                group_number = level_keys[3]
+            
+            if not section_code or not group_number:
+                continue
+            
+            # Initialize section if needed
+            if section_code not in sections_dict:
+                sections_dict[section_code] = {}
+            
+            # Initialize group if needed
+            if group_number not in sections_dict[section_code]:
+                sections_dict[section_code][group_number] = []
+            
+            # Add field to group
+            sections_dict[section_code][group_number].append(field_meta)
+        
+        # Build sections array
+        sections_array = []
+        
+        for section_code, groups_dict in sections_dict.items():
+            # Get group titles from external schema
+            assessment_question_groups = []
+            
+            for group_number in sorted(groups_dict.keys()):
+                field_metas = groups_dict[group_number]
+                
+                # Get group title from first field's field_schema or external schema
+                group_title = ""
+                if field_metas:
+                    first_field_schema = field_metas[0].get("field_schema", {})
+                    # Try to get from external schema
+                    for section in external_schema.get("sections", []):
+                        if section.get("sectionCode") == section_code:
+                            for group in section.get("assessmentQuestionGroups", []):
+                                if group.get("groupNumber") == group_number:
+                                    group_title = group.get("groupTitle", "")
+                                    break
+                            if group_title:
+                                break
+                
+                # Build assessment responses for this group
+                assessment_responses = []
+                
+                for field_meta in field_metas:
+                    # Extract model value
+                    model_value = self._extract_model_value(model_response, field_meta)
+                    
+                    # Get field schema info
+                    field_schema = field_meta.get("field_schema", {})
+                    original_type = field_meta.get("original_schema_type", "")
+                    response_options = field_schema.get("responseOptions", [])
+                    
+                    # Handle table fields (gbdy) separately
+                    if original_type == "gbdy":
+                        # Table fields (gbdy) are represented as arrays of {entry, description}
+                        # In model output, they come as an array
+                        # In PCC DB format, we need to create separate response entries for each row
+                        # For now, we'll create a single response with the table data
+                        # Note: Table fields may need special handling depending on PCC requirements
+                        if model_value and isinstance(model_value, list) and len(model_value) > 0:
+                            # Create a response for the table field
+                            # The table data is typically stored differently in PCC DB
+                            # For now, we'll skip table fields as they may require special formatting
+                            continue
+                        else:
+                            # Empty table field
+                            continue
+                    
+                    # Build assessment response
+                    assessment_response = self._build_assessment_response(
+                        field_meta, model_value, response_options, original_type
+                    )
+                    
+                    assessment_responses.append(assessment_response)
+                
+                # Only add group if it has responses
+                if assessment_responses:
+                    assessment_question_groups.append({
+                        "group_number": group_number,
+                        "group_title": group_title,
+                        "assessment_responses": assessment_responses
+                    })
+            
+            # Build section object
+            section_obj: Dict[str, Any] = {
+                "section_code": section_code,
+                "assessment_question_groups": assessment_question_groups
+            }
+            
+            # Add optional metadata if provided
+            if additional_metadata:
+                if "completed_by" in additional_metadata:
+                    section_obj["completed_by"] = additional_metadata["completed_by"]
+                if "completed_date" in additional_metadata:
+                    section_obj["completed_date"] = additional_metadata["completed_date"]
+                if "section_status" in additional_metadata:
+                    section_obj["section_status"] = additional_metadata["section_status"]
+            
+            sections_array.append(section_obj)
+        
+        # Build final structure
+        assessment_obj: Dict[str, Any] = {
+            "template_id": table_id,
+            "template_name": template_name,
+            "patient_id": patient_id,
+            "assessment_id": assessment_id,
+            "sections": sections_array
+        }
+        
+        # Add additional metadata if provided
+        if additional_metadata:
+            if "assessment_status" in additional_metadata:
+                assessment_obj["assessment_status"] = additional_metadata["assessment_status"]
+            if "created_by" in additional_metadata:
+                assessment_obj["created_by"] = additional_metadata["created_by"]
+            if "fac_id" in additional_metadata:
+                assessment_obj["fac_id"] = additional_metadata["fac_id"]
+            if "locked_date" in additional_metadata:
+                assessment_obj["locked_date"] = additional_metadata["locked_date"]
+        
+        return {
+            "assessments": {
+                "items": {
+                    str(assessment_id): assessment_obj
+                }
+            }
+        }
+    

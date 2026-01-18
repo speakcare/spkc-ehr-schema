@@ -6,6 +6,22 @@ This package provides a PCC-specific wrapper around the core `SchemaEngine` to w
 - OpenAI-compatible JSON Schema (for model prompts/validation)
 - Model responses back to PCC-like formatted outputs (reverse mapping)
 
+## Prerequisites
+
+Before using this package, ensure you have:
+
+1. **Poetry** installed on your system
+2. Run the following commands to set up dependencies:
+
+```bash
+poetry lock
+poetry install
+```
+
+These commands will:
+- Lock dependencies to ensure reproducible builds
+- Install all required packages including development dependencies
+
 ## Quick start
 
 ```python
@@ -314,4 +330,89 @@ On initialization, the wrapper registers four templates from `src/pcc/assmnt_tem
 - MHCS_Nursing_Weekly_Skin_Check.json (21244831)
 
 **Note**: CSV files in `tests/pcc/model_instructions/` are provided for testing and demonstration purposes only. Production deployments should use actual CSV files provided by the user with the required Key and Guidelines columns.
+
+## Assessment Comparison Tool
+
+The package includes a command-line tool to compare SpeakCare chart data with PCC assessment data, generating a CSV report of field-by-field differences.
+
+### Usage
+
+#### Single File Mode
+
+Compare a single JSON file containing both `speakcare_chart` and `pcc_assessment` data:
+
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --file <path_to_json_file> \
+  --output <path_to_output_csv>
+```
+
+**Example:**
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --file /path/to/unified_6_36909675_21242741_1767198195.json \
+  --output comparison_single.csv
+```
+
+#### Directory Mode
+
+Process multiple JSON files in a directory and generate an aggregated CSV:
+
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory <path_to_directory> \
+  --output <path_to_output_csv>
+```
+
+**Example:**
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory tests/pcc/data_comparison/input \
+  --output tests/pcc/data_comparison/output.csv
+```
+
+#### Verbose Logging
+
+Add `--verbose` or `-v` for detailed output:
+
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory <path_to_directory> \
+  --output <path_to_output_csv> \
+  --verbose
+```
+
+### CSV Output Format
+
+The generated CSV has the following structure:
+
+- **Header**: `fields, patient_id:assessment_id, patient_id:assessment_id, ...`
+  - First column is always `fields`
+  - Subsequent columns are assessment identifiers in format `patient_id:assessment_id`
+  
+- **Data Rows**: Each row represents a field that had a difference in at least one assessment
+  - Column 0: Field key in format `question_key:question_text` (e.g., `Cust_E_1:Does the resident have a cardiac diagnosis or symptoms?`)
+  - Column 1+: Difference string in format `"pcc_value" != "speakcare_value"` or empty if no difference for that assessment
+
+**Example CSV:**
+```csv
+fields,36909675:13448374,36909676:13448375
+Cust_E_1:Does the resident have a cardiac diagnosis or symptoms?,""b"" != ""a"",
+Cust_D_1:Resident is currently receiving (select all that apply):,""b,c"" != ""b,c,d"",
+```
+
+### Important Notes
+
+- Only fields where SpeakCare has a **non-empty value** that differs from PCC are included in the output
+- Empty SpeakCare values are ignored (not shown as differences, even if PCC has a value)
+- When processing multiple files, the CSV includes rows for every field that had a difference in **any** of the comparisons
+- Empty cells indicate that assessment had no difference for that field
+
+### Help
+
+View all available options:
+
+```bash
+poetry run python src/pcc_schema/compare_assessments.py --help
+```
 
