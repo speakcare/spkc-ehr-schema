@@ -105,6 +105,7 @@ def extract_data_from_json(file_path: str) -> Dict[str, Any]:
             pass
     
     table_name = speakcare_chart.get("table_name", "")
+    state = speakcare_chart.get("state", "")
     
     # Extract pcc_assessment data
     pcc_assessment = data.get("pcc_assessment", {})
@@ -131,6 +132,22 @@ def extract_data_from_json(file_path: str) -> Dict[str, Any]:
         except (ValueError, TypeError):
             pass
     
+    facility_id = pcc_assessment.get("facility_id")
+    if facility_id:
+        try:
+            facility_id = int(facility_id)
+        except (ValueError, TypeError):
+            pass
+    else:
+        # Fallback: try to get from assessment object
+        assessment_obj = items[assessment_id_str]
+        facility_id = assessment_obj.get("fac_id")
+        if facility_id:
+            try:
+                facility_id = int(facility_id)
+            except (ValueError, TypeError):
+                pass
+    
     pcc_assessment_obj = items[assessment_id_str]
     
     return {
@@ -139,6 +156,8 @@ def extract_data_from_json(file_path: str) -> Dict[str, Any]:
         "table_name": table_name,
         "assessment_id": assessment_id,
         "patient_id": patient_id,
+        "facility_id": facility_id,
+        "state": state,
         "pcc_assessment": pcc_assessment_obj
     }
 
@@ -316,18 +335,60 @@ def compare_fields(
     return differences
 
 
-def process_single_file(file_path: str) -> Tuple[Dict[str, str], Dict[str, Any]]:
+def should_process_file(file_path: str, state_filter: Optional[List[str]] = None) -> bool:
+    """
+    Check if a file should be processed based on state filter.
+    
+    Args:
+        file_path: Path to JSON file
+        state_filter: List of allowed states. If None, defaults to ["draft"].
+                     If empty list, processes all files.
+        
+    Returns:
+        True if file should be processed, False otherwise
+    """
+    if state_filter is None:
+        state_filter = ["draft"]
+    
+    # Empty list means process all
+    if len(state_filter) == 0:
+        return True
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        speakcare_chart = data.get("speakcare_chart", {})
+        file_state = speakcare_chart.get("state", "")
+        
+        return file_state in state_filter
+    except Exception as e:
+        logger.warning(f"Error checking state for {file_path}: {e}")
+        return False
+
+
+def process_single_file(file_path: str, state_filter: Optional[List[str]] = None) -> Tuple[Dict[str, str], Dict[str, Any]]:
     """
     Process a single JSON file and return comparison results.
     
     Args:
         file_path: Path to JSON file
+        state_filter: List of allowed states. If None, defaults to ["draft"].
+                     If empty list, processes all files.
         
     Returns:
         Tuple of (differences_dict, metadata_dict)
         differences_dict: {field_key: difference_string, ...}
         metadata_dict: {assessment_id, patient_id, assessment_key}
+        
+    Raises:
+        ValueError: If file state doesn't match filter
     """
+    # Check state filter
+    if not should_process_file(file_path, state_filter):
+        file_state = extract_data_from_json(file_path).get("state", "unknown")
+        raise ValueError(f"File state '{file_state}' does not match filter {state_filter or ['draft']}")
+    
     # Extract data
     extracted = extract_data_from_json(file_path)
     
@@ -352,10 +413,12 @@ def process_single_file(file_path: str) -> Tuple[Dict[str, str], Dict[str, Any]]
     differences = compare_fields(speakcare_fields, pcc_fields)
     
     # Create metadata
+    facility_id = extracted.get("facility_id", "")
     metadata = {
         "assessment_id": extracted["assessment_id"],
         "patient_id": extracted["patient_id"],
-        "assessment_key": f"{extracted['patient_id']}:{extracted['assessment_id']}"
+        "facility_id": facility_id,
+        "assessment_key": f"{facility_id}:{extracted['patient_id']}:{extracted['assessment_id']}"
     }
     
     return differences, metadata
@@ -372,7 +435,7 @@ def generate_comparison_csv_single(
     Args:
         differences: Dictionary of field_key -> difference_string
         output_path: Path to output CSV file
-        assessment_key: Assessment key in format "patient_id:assessment_id"
+        assessment_key: Assessment key in format "facility_id:patient_id:assessment_id"
     """
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
@@ -389,13 +452,15 @@ def generate_comparison_csv_single(
             writer.writerow([field_key, diff_str])
 
 
-def process_directory(directory_path: str, output_csv: str):
+def process_directory(directory_path: str, output_csv: str, state_filter: Optional[List[str]] = None):
     """
     Process all JSON files in a directory and generate aggregated CSV.
     
     Args:
         directory_path: Path to directory containing JSON files
         output_csv: Path to output CSV file
+        state_filter: List of allowed states. If None, defaults to ["draft"].
+                     If empty list, processes all files.
     """
     directory = Path(directory_path)
     json_files = list(directory.glob("*.json"))
@@ -405,12 +470,20 @@ def process_directory(directory_path: str, output_csv: str):
         return
     
     # Process all files and collect differences
-    all_differences = {}  # {assessment_key: {field_key: diff_str, ...}}
+    all_differences: Dict[str, Dict[str, str]] = {}  # {assessment_key: {field_key: diff_str, ...}}
     all_fields = set()  # All unique field keys across all files
+    skipped_count = 0
+    files_processed = 0
+    total_differences = 0
     
     for json_file in json_files:
+        # Check state filter first
+        if not should_process_file(str(json_file), state_filter):
+            skipped_count += 1
+            continue
+        
         try:
-            differences, metadata = process_single_file(str(json_file))
+            differences, metadata = process_single_file(str(json_file), state_filter)
             assessment_key = metadata["assessment_key"]
             
             # Store differences for this assessment
@@ -419,17 +492,24 @@ def process_directory(directory_path: str, output_csv: str):
             # Collect all field keys
             all_fields.update(differences.keys())
             
-            logger.info(f"Processed {json_file.name}: {len(differences)} differences")
+            files_processed += 1
+            num_diffs = len(differences)
+            total_differences += num_diffs
+            logger.info(f"Processed {json_file.name}: {num_diffs} differences")
         except Exception as e:
             logger.error(f"Error processing {json_file.name}: {e}")
             continue
+    
+    if skipped_count > 0:
+        logger.info(f"Skipped {skipped_count} file(s) due to state filter")
     
     # Generate CSV with all assessments
     with open(output_csv, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         
         # Header: fields, then one column per assessment_key
-        header = ["fields"] + list(sorted(all_differences.keys()))
+        header_assessments = list(sorted(all_differences.keys()))
+        header = ["fields"] + header_assessments
         writer.writerow(header)
         
         # Sort fields for consistent output
@@ -440,13 +520,17 @@ def process_directory(directory_path: str, output_csv: str):
             row = [field_key]
             
             # Add difference for each assessment (empty if no difference for this field)
-            for assessment_key in sorted(all_differences.keys()):
+            for assessment_key in header_assessments:
                 diff_str = all_differences[assessment_key].get(field_key, "")
                 row.append(diff_str)
             
             writer.writerow(row)
     
+    num_assessments = len(header_assessments)
     logger.info(f"Generated comparison CSV: {output_csv}")
+    logger.info(f"Summary: processed {files_processed} file(s), "
+                f"wrote {num_assessments} assessment(s), "
+                f"found {total_differences} difference(s) in total")
 
 
 def main():
@@ -481,7 +565,25 @@ def main():
         help="Enable verbose logging"
     )
     
+    parser.add_argument(
+        "--state",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Filter files by state(s). Can specify multiple states (e.g., --state draft signed). "
+             "Default: 'draft' only. Use '--state' with no values to process all states."
+    )
+    
     args = parser.parse_args()
+    
+    # Parse state filter
+    state_filter = args.state
+    if state_filter is not None and len(state_filter) == 0:
+        # Empty list means process all
+        state_filter = []
+    elif state_filter is None:
+        # None means use default (draft only)
+        state_filter = ["draft"]
     
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -492,18 +594,26 @@ def main():
     
     if args.file:
         # Single file mode
-        differences, metadata = process_single_file(args.file)
-        generate_comparison_csv_single(
-            differences,
-            args.output,
-            metadata["assessment_key"]
-        )
-        logger.info(f"Generated comparison CSV: {args.output}")
-        logger.info(f"Found {len(differences)} differences")
+        try:
+            differences, metadata = process_single_file(args.file, state_filter)
+            generate_comparison_csv_single(
+                differences,
+                args.output,
+                metadata["assessment_key"]
+            )
+            num_differences = len(differences)
+            logger.info(f"Generated comparison CSV: {args.output}")
+            logger.info(
+                f"Summary: processed 1 file, wrote 1 assessment, "
+                f"found {num_differences} difference(s) in total"
+            )
+        except ValueError as e:
+            logger.error(f"Skipping file: {e}")
+            return
         
     elif args.directory:
         # Directory mode
-        process_directory(args.directory, args.output)
+        process_directory(args.directory, args.output, state_filter)
         
     else:
         parser.error("Either --file or --directory must be specified")
