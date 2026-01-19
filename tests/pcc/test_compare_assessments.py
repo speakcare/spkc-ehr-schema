@@ -19,6 +19,7 @@ from pcc_schema.compare_assessments import (
     process_single_file,
     generate_comparison_csv_single,
     process_directory,
+    should_process_file,
 )
 
 
@@ -55,6 +56,7 @@ class TestCompareAssessments(unittest.TestCase):
             "speakcare_chart": {
                 "schema_id": "21242741",
                 "table_name": "MHCS Nursing Daily Skilled Note",
+                "state": "draft",
                 "json_internal_filled": [
                     {
                         "internal_json": {
@@ -66,6 +68,7 @@ class TestCompareAssessments(unittest.TestCase):
             },
             "pcc_assessment": {
                 "ehr_patient_id": "36909675",
+                "facility_id": "6",
                 "assessments": {
                     "items": {
                         "13448374": {
@@ -207,7 +210,7 @@ class TestCompareAssessments(unittest.TestCase):
             "Cust_A_1:Test question": '"b" != "a"',
             "Cust_B_2:Another question": '"c" != "d"'
         }
-        assessment_key = "36909675:13448374"
+        assessment_key = "6:36909675:13448374"
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
             temp_path = f.name
@@ -236,7 +239,7 @@ class TestCompareAssessments(unittest.TestCase):
     def test_generate_comparison_csv_single_empty_differences(self):
         """Test CSV generation with no differences."""
         differences = {}
-        assessment_key = "36909675:13448374"
+        assessment_key = "6:36909675:13448374"
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
             temp_path = f.name
@@ -268,6 +271,7 @@ class TestCompareAssessments(unittest.TestCase):
                 "speakcare_chart": {
                     "schema_id": "21242741",
                     "table_name": "MHCS Nursing Daily Skilled Note",
+                    "state": "draft",
                     "json_internal_filled": [
                         {
                             "internal_json": {
@@ -289,6 +293,7 @@ class TestCompareAssessments(unittest.TestCase):
                 },
                 "pcc_assessment": {
                     "ehr_patient_id": "36909675",
+                    "facility_id": "6",
                     "assessments": {
                         "items": {
                             "13448374": {
@@ -328,6 +333,7 @@ class TestCompareAssessments(unittest.TestCase):
                 "speakcare_chart": {
                     "schema_id": "21242741",
                     "table_name": "MHCS Nursing Daily Skilled Note",
+                    "state": "draft",
                     "json_internal_filled": [
                         {
                             "internal_json": {
@@ -349,6 +355,7 @@ class TestCompareAssessments(unittest.TestCase):
                 },
                 "pcc_assessment": {
                     "ehr_patient_id": "36909676",
+                    "facility_id": "6",
                     "assessments": {
                         "items": {
                             "13448375": {
@@ -400,8 +407,8 @@ class TestCompareAssessments(unittest.TestCase):
             header = rows[0]
             self.assertEqual(header[0], "fields")
             # Should have both assessment keys (order may vary)
-            self.assertIn("36909675:13448374", header)
-            self.assertIn("36909676:13448375", header)
+            self.assertIn("6:36909675:13448374", header)
+            self.assertIn("6:36909676:13448375", header)
             
             # Check that CSV has proper structure (at least header, may have data rows if differences found)
             # Note: If no differences are found after conversion, there may only be a header
@@ -420,7 +427,7 @@ class TestCompareAssessments(unittest.TestCase):
             'Cust_B_2:Test "with quotes"': '"value" != "other"',
             "Cust_C_3:Test\nwith newline": '"value" != "other"'
         }
-        assessment_key = "36909675:13448374"
+        assessment_key = "6:36909675:13448374"
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
             temp_path = f.name
@@ -449,6 +456,14 @@ class TestCompareAssessments(unittest.TestCase):
         
         # Update ehr_patient_id
         pcc_data["ehr_patient_id"] = str(patient_id)
+        
+        # Preserve facility_id (should already be in baseline, but ensure it exists)
+        if "facility_id" not in pcc_data:
+            # Try to get from assessment object
+            old_assessment_id = list(pcc_data["assessments"]["items"].keys())[0]
+            old_assessment = pcc_data["assessments"]["items"][old_assessment_id]
+            facility_id = old_assessment.get("fac_id", 6)  # Default to 6 if not found
+            pcc_data["facility_id"] = str(facility_id)
         
         # Get the old assessment_id from items
         old_assessment_id = list(pcc_data["assessments"]["items"].keys())[0]
@@ -593,6 +608,7 @@ class TestCompareAssessments(unittest.TestCase):
                     "schema_id": "21242741",
                     "table_name": "MHCS Nursing Daily Skilled Note",
                     "patient_id": patient_id_str,
+                    "state": "draft",
                     "json_internal_filled": [
                         {
                             "internal_json": model_output
@@ -633,13 +649,14 @@ class TestCompareAssessments(unittest.TestCase):
             self.assertEqual(header[0], "fields", "First column should be 'fields'")
             self.assertEqual(len(header), 6, "Header should have 6 columns: fields + 5 assessments")
             
-            # Check that all 5 assessment keys are present (format: patient_id:assessment_id)
+            # Check that all 5 assessment keys are present (format: facility_id:patient_id:assessment_id)
+            # Note: All test files use facility_id=6
             expected_keys = [
-                f"{36909675}:{13448374}",
-                f"{36909676}:{13448375}",
-                f"{36909677}:{13448376}",
-                f"{36909678}:{13448377}",
-                f"{36909679}:{13448378}"
+                f"6:{36909675}:{13448374}",
+                f"6:{36909676}:{13448375}",
+                f"6:{36909677}:{13448376}",
+                f"6:{36909678}:{13448377}",
+                f"6:{36909679}:{13448378}"
             ]
             for expected_key in expected_keys:
                 self.assertIn(expected_key, header, f"Assessment key {expected_key} should be in header")
@@ -669,6 +686,60 @@ class TestCompareAssessments(unittest.TestCase):
             # Cleanup temp directory
             shutil.rmtree(temp_dir, ignore_errors=True)
             # Keep CSV file for inspection (don't delete)
+
+    def test_should_process_file_state_filter(self):
+        """Test state filtering functionality."""
+        # Create test files with different states
+        temp_dir = tempfile.mkdtemp()
+        
+        try:
+            # File with draft state
+            draft_file = os.path.join(temp_dir, "draft.json")
+            draft_data = {
+                "speakcare_chart": {
+                    "state": "draft",
+                    "json_internal_filled": [{"internal_json": {}}]
+                },
+                "pcc_assessment": {"assessments": {"items": {"1": {}}}}
+            }
+            with open(draft_file, 'w') as f:
+                json.dump(draft_data, f)
+            
+            # File with signed state
+            signed_file = os.path.join(temp_dir, "signed.json")
+            signed_data = {
+                "speakcare_chart": {
+                    "state": "signed",
+                    "json_internal_filled": [{"internal_json": {}}]
+                },
+                "pcc_assessment": {"assessments": {"items": {"1": {}}}}
+            }
+            with open(signed_file, 'w') as f:
+                json.dump(signed_data, f)
+            
+            # Test default filter (draft only)
+            self.assertTrue(should_process_file(draft_file, None))
+            self.assertFalse(should_process_file(signed_file, None))
+            
+            # Test explicit draft filter
+            self.assertTrue(should_process_file(draft_file, ["draft"]))
+            self.assertFalse(should_process_file(signed_file, ["draft"]))
+            
+            # Test signed filter
+            self.assertFalse(should_process_file(draft_file, ["signed"]))
+            self.assertTrue(should_process_file(signed_file, ["signed"]))
+            
+            # Test multiple states
+            self.assertTrue(should_process_file(draft_file, ["draft", "signed"]))
+            self.assertTrue(should_process_file(signed_file, ["draft", "signed"]))
+            
+            # Test empty list (process all)
+            self.assertTrue(should_process_file(draft_file, []))
+            self.assertTrue(should_process_file(signed_file, []))
+            
+        finally:
+            import shutil
+            shutil.rmtree(temp_dir)
 
 
 if __name__ == "__main__":
