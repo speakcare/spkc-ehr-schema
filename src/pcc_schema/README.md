@@ -371,6 +371,35 @@ poetry run python src/pcc_schema/compare_assessments.py \
   --output tests/pcc/data_comparison/output.csv
 ```
 
+#### State Filtering
+
+By default, the script only processes files where `speakcare_chart.state == "draft"`. You can customize this behavior:
+
+**Default (draft only):**
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory <path_to_directory> \
+  --output <path_to_output_csv>
+```
+
+**Filter by specific state(s):**
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory <path_to_directory> \
+  --output <path_to_output_csv> \
+  --state draft signed
+```
+
+**Process all states (no filtering):**
+```bash
+poetry run python src/pcc_schema/compare_assessments.py \
+  --directory <path_to_directory> \
+  --output <path_to_output_csv> \
+  --state
+```
+
+**Note:** The `--state` flag accepts multiple values. If no values are provided (just `--state`), all files are processed regardless of state.
+
 #### Verbose Logging
 
 Add `--verbose` or `-v` for detailed output:
@@ -386,9 +415,9 @@ poetry run python src/pcc_schema/compare_assessments.py \
 
 The generated CSV has the following structure:
 
-- **Header**: `fields, patient_id:assessment_id, patient_id:assessment_id, ...`
+- **Header**: `fields, facility_id:patient_id:assessment_id, facility_id:patient_id:assessment_id, ...`
   - First column is always `fields`
-  - Subsequent columns are assessment identifiers in format `patient_id:assessment_id`
+  - Subsequent columns are assessment identifiers in format `facility_id:patient_id:assessment_id`
   
 - **Data Rows**: Each row represents a field that had a difference in at least one assessment
   - Column 0: Field key in format `question_key:question_text` (e.g., `Cust_E_1:Does the resident have a cardiac diagnosis or symptoms?`)
@@ -396,7 +425,7 @@ The generated CSV has the following structure:
 
 **Example CSV:**
 ```csv
-fields,36909675:13448374,36909676:13448375
+fields,6:36909675:13448374,6:36909676:13448375
 Cust_E_1:Does the resident have a cardiac diagnosis or symptoms?,""b"" != ""a"",
 Cust_D_1:Resident is currently receiving (select all that apply):,""b,c"" != ""b,c,d"",
 ```
