@@ -1,0 +1,2100 @@
+{
+  "assessmentDescription": "MHCS Nursing Section GG",
+  "facId": -1,
+  "templateId": 21242851,
+  "templateVersion": "",
+  "sections": [
+    {
+      "sectionCode": "Cust_1",
+      "sectionDescription": "Page 1",
+      "sectionSequence": 1,
+      "assessmentQuestionGroups": [
+        {
+          "groupNumber": "1",
+          "groupText": "",
+          "groupTitle": "<b>Instructions for Completion</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_1_1_A",
+              "questionNumber": "A",
+              "questionText": "<b>For each ADL listed below, code the resident's USUAL performance during your shift using the <u>Coding Legend</u> provided below.</b> <i>Activities may be completed with or without assistive devices.</i> May obtain data by resident observation or resident interview.",
+              "questionTitle": "<b><u>Instructions:</b>",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1_B",
+              "questionNumber": "B",
+              "questionText": "<b>If the activity did not occur on your shift, code the appropriate reason.</b>",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            }
+          ]
+        },
+        {
+          "groupNumber": "1B",
+          "groupText": "",
+          "groupTitle": "<b>Coding Legend</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_1_1B_0",
+              "questionNumber": "0",
+              "questionText": "= Activity Did Not Occur",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_6",
+              "questionNumber": "6",
+              "questionText": "= Independent",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_1b",
+              "questionNumber": "1b",
+              "questionText": "= Needs Staff Assist of 2",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_88",
+              "questionNumber": "88",
+              "questionText": "= Not attempted due to medical condition/safety concerns",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_5",
+              "questionNumber": "5",
+              "questionText": "= Set Up or Clean Up Help ONLY",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_3",
+              "questionNumber": "3",
+              "questionText": "=Extensive Assist with LESS than 1/2 of ADL completion",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_2",
+              "questionNumber": "2",
+              "questionText": "=Extensive Assist with MORE than 1/2 of ADL completion",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_4",
+              "questionNumber": "4",
+              "questionText": "=Limited Assist <b>OR</b> Supervision",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_9",
+              "questionNumber": "9",
+              "questionText": "=Not Applicable. Did not perform this ADL prior to hospital stay",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_10",
+              "questionNumber": "10",
+              "questionText": "=Not attempted due to environmental limitations (weather, lack of equipment)",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_7",
+              "questionNumber": "7",
+              "questionText": "=Resident Refused",
+              "questionTitle": "<b>Codes if 'Activity Did Not Occur'</b>",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_1_1B_1a",
+              "questionNumber": "1a",
+              "questionText": "=Totally Dependent",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            }
+          ]
+        },
+        {
+          "groupNumber": "2",
+          "groupText": "",
+          "groupTitle": "<b>Self Care Functional Abilities</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_1_2_A",
+              "questionNumber": "A",
+              "questionText": "",
+              "questionTitle": "<b><u>Eating:</u></b> The ability to use suitable utensils to bring food and/or liquid to mouth and swallow food/liquid once the meal is placed before the resident",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Extensive assist with more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive assist with less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_A1",
+              "questionNumber": "A1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_B",
+              "questionNumber": "B",
+              "questionText": "",
+              "questionTitle": "<b><u>Oral Hygiene:</u> </b>The ability to use suitable items to clean teeth. Dentures (if applicable): The ability to insert and remove dentures to/from the mouth and manage equipment for soaking and rinsing them",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs staff assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive assist with more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Exetensive assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_B1",
+              "questionNumber": "B1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_C",
+              "questionNumber": "C",
+              "questionText": "",
+              "questionTitle": "<b><u>Toileting Hygiene:</u></b> The ability to maintain perineal hygiene, adjust clothes before and after voiding or having a bowel movement. If managing an ostomy, include wiping the opening but not managing the equipment",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive assist with more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive assist with less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_C1",
+              "questionNumber": "C1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_D",
+              "questionNumber": "D",
+              "questionText": "",
+              "questionTitle": "<b><u>Shower/Bathe Self:</u></b> The ability to bathe self, including washing, rinsing, and drying self (excludes washing of the back or hair). Does NOT include transfers in/out of tub/shower chair",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive assist with more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive assist with less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_D1",
+              "questionNumber": "D1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_E",
+              "questionNumber": "E",
+              "questionText": "",
+              "questionTitle": "<b><u>Upper Body Dressing:</u></b> The ability to dress and undress ABOVE the waist; including fasteners, if applicable",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist for less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_E1",
+              "questionNumber": "E1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_F",
+              "questionNumber": "F",
+              "questionText": "",
+              "questionTitle": "<b><u>Lower Body Dressing:</u></b> The ability to dress and undress BELOW the waist; including fasteners, if applicable",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist for less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_F1",
+              "questionNumber": "F1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_G",
+              "questionNumber": "G",
+              "questionText": "",
+              "questionTitle": "<b><u>Putting On/Taking Off Footwear:</u></b> The ability to put on and take off socks and shoes or other footwear that is appropriate for safe mobility; including fasteners, if applicable",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist for less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_1_2_G1",
+              "questionNumber": "G1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "groupNumber": "AA",
+          "groupText": "Resident completes the activity with no assistance from a helper.",
+          "groupTitle": "Independant",
+          "questions": []
+        },
+        {
+          "groupNumber": "D",
+          "groupText": "sit to lying",
+          "groupTitle": "Mobility",
+          "questions": []
+        }
+      ]
+    },
+    {
+      "sectionCode": "Cust_2",
+      "sectionDescription": "Page 2",
+      "sectionSequence": 2,
+      "assessmentQuestionGroups": [
+        {
+          "groupNumber": "1",
+          "groupText": "",
+          "groupTitle": "<b>Instructions for Completion</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_2_1_A",
+              "questionNumber": "A",
+              "questionText": "<b>For each ADL listed below, code the resident's USUAL performance during your shift using the <u>Coding Legend</u> provided below.</b> <i>Activities may be completed with or without assistive devices.</i> May obtain data through resident observation or resident interview.",
+              "questionTitle": "<b><u>Instructions:</b></u>",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1_B",
+              "questionNumber": "B",
+              "questionText": "<b>If the activity did not occur on your shift, code the appropriate reason.",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            }
+          ]
+        },
+        {
+          "groupNumber": "1B",
+          "groupText": "",
+          "groupTitle": "<b>Coding Legend</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_2_1B_0",
+              "questionNumber": "0",
+              "questionText": "= Activity Did Not Occur",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_3",
+              "questionNumber": "3",
+              "questionText": "= Extensive Assist with LESS than 1/2 of ADL Completion",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_2",
+              "questionNumber": "2",
+              "questionText": "= Extensive Assist with MORE than 1/2 of ADL completion",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_6",
+              "questionNumber": "6",
+              "questionText": "= Independent",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_4",
+              "questionNumber": "4",
+              "questionText": "= Limited Assist <b>OR</b> Supervision",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_1b",
+              "questionNumber": "1b",
+              "questionText": "= Needs Staff Assist of 2",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_9",
+              "questionNumber": "9",
+              "questionText": "= Not Appliacble. Did not perform this ADL prior to hospital stay",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_10",
+              "questionNumber": "10",
+              "questionText": "= Not attempted due to environmental limitations (weather, lack of equipment) ",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_88",
+              "questionNumber": "88",
+              "questionText": "= Not attempted due to medical condition/ safety concerns",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_7",
+              "questionNumber": "7",
+              "questionText": "= Resident Refused",
+              "questionTitle": "<b>Codes if 'Activity Did Not Occur'",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_5",
+              "questionNumber": "5",
+              "questionText": "= Set Up or Clean Up Help ONLY",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_2_1B_1a",
+              "questionNumber": "1a",
+              "questionText": "= Totally Dependent",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            }
+          ]
+        },
+        {
+          "groupNumber": "2",
+          "groupText": "",
+          "groupTitle": "<b>Mobility</b>",
+          "questions": [
+            {
+              "questionKey": "Cust_2_2_A",
+              "questionNumber": "A",
+              "questionText": "",
+              "questionTitle": "<b><u>Roll Left and Right:</u></b> The ability to roll from lying on back to left and right side, and return to lying on their back on the bed",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_A1",
+              "questionNumber": "A1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_B",
+              "questionNumber": "B",
+              "questionText": "",
+              "questionTitle": "<b><u>Sit to Lying:</b></u> The ability to move from sitting on the side of the bed to lying flat on the bed",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_B1",
+              "questionNumber": "B1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_C",
+              "questionNumber": "C",
+              "questionText": "",
+              "questionTitle": "<b><u>Lying to Sitting on the Side of the Bed:</b></u> The ability to move from lying on the back to sitting on the side of the bed with feet flat on the floor, and with no back support",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_C1",
+              "questionNumber": "C1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_D",
+              "questionNumber": "D",
+              "questionText": "",
+              "questionTitle": "<b><u>Sit to Stand:</b></u> The ability to come to a standing position from sitting in a chair, wheelchair, or on the side of the bed",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_D1",
+              "questionNumber": "D1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_E",
+              "questionNumber": "E",
+              "questionText": "",
+              "questionTitle": "<b><u>Chair/Bed-to-Chair Transfer:</b></u> The ability to transfer to and from a bed to a chair (or wheelchair",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_E1",
+              "questionNumber": "E1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_F",
+              "questionNumber": "F",
+              "questionText": "",
+              "questionTitle": "<b><u>Toilet Transfer:</u></b> The ability to get on and off a toilet or commode",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_F1",
+              "questionNumber": "F1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_G",
+              "questionNumber": "G",
+              "questionText": "",
+              "questionTitle": "<b><u>Car Transfer:</u></b> The ability to transfer in and out of a car or van on the passenger side. Does not include the ability to open/close the door or fasten seat belt",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_G1",
+              "questionNumber": "G1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_H",
+              "questionNumber": "H",
+              "questionText": "",
+              "questionTitle": "<b><u>Walk 10 Feet:</b></u> Once standing, the ability to walk at least 10 feet in a room, corridor, or similar space. ",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_H1",
+              "questionNumber": "H1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_I",
+              "questionNumber": "I",
+              "questionText": "",
+              "questionTitle": "<b><u>Walk 50 Feet with Two Turns:</b></u> Once standing, the ability to walk at least 50 feet and make two turns",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_I1",
+              "questionNumber": "I1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_J",
+              "questionNumber": "J",
+              "questionText": "",
+              "questionTitle": "<b><u>Walk 150 Feet:</b></u> Once standing, the ability to walk at least 150 feet in a corridor or similar space",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_J1",
+              "questionNumber": "J1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_K",
+              "questionNumber": "K",
+              "questionText": "",
+              "questionTitle": "<b><u>Walking 10 Feet on an Uneven Surface:</b></u> The ability to walk 10 feet on an uneven or sloping surface (indoor or outdoor) such as turf or gravel",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_K1",
+              "questionNumber": "K1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_L",
+              "questionNumber": "L",
+              "questionText": "",
+              "questionTitle": "<b><u>1 Step (Curb):</b></u> The ability to go up and down a curb and/or up and down 1 step",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_L1",
+              "questionNumber": "L1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_M",
+              "questionNumber": "M",
+              "questionText": "",
+              "questionTitle": "<b><u> 4 Steps:</b></u> The ability to go up and down 4 steps with or without a rail",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_M1",
+              "questionNumber": "M1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_N",
+              "questionNumber": "N",
+              "questionText": "",
+              "questionTitle": "<b><u>12 Steps:</b></u> The ability to go up and down 12 steps with or without a rail",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_N1",
+              "questionNumber": "N1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_O",
+              "questionNumber": "O",
+              "questionText": "",
+              "questionTitle": "<b><u>Picking Up an Object:</b></u> The ability to bend/stoop from a standing position to pick up a small object, such as a spoon, from the floor",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Needs Staff Assist of 2",
+                  "responseValue": "1b"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist with less than 1/2 ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_O1",
+              "questionNumber": "O1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_P",
+              "questionNumber": "P",
+              "questionText": "",
+              "questionTitle": "<b><u>Wheeling 50 Feet with Two Turns:</b></u> Once seated in wheelchair/scooter, the ability to wheel at least 50 feet and make two turns",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist for less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_P1",
+              "questionNumber": "P1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_Q",
+              "questionNumber": "Q",
+              "questionText": "",
+              "questionTitle": "<b><u>Wheeling 150 Feet:</b></u> Once seated in wheelchair/scooter, the ability to wheel at least 150 feet in a corridor or similar space",
+              "questionType": "hck",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Activity Did Not Occur",
+                  "responseValue": "0"
+                },
+                {
+                  "responseText": "Totally Dependent",
+                  "responseValue": "1a"
+                },
+                {
+                  "responseText": "Extensive Assist for more than 1/2 of ADL",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Extensive Assist for less than 1/2 of ADL",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Limited Assist OR Supervision",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Set-up or Clean up ONLY",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Independent",
+                  "responseValue": "6"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_2_2_Q1",
+              "questionNumber": "Q1",
+              "questionText": "",
+              "questionTitle": "<i>Activity Did Not Occur due to:</i>",
+              "questionType": "hck",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Environmental Limitations",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Resident Refused",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Medical Conditions/Safety",
+                  "responseValue": "88"
+                },
+                {
+                  "responseText": "Not Applicable",
+                  "responseValue": "9"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1633,6 +1633,46 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(len(result["data"]), 1)
         self.assertIsInstance(result["data"][0]["properties"], dict)
 
+    def test_mhcs_nursing_section_gg(self):
+        """Test MHCS Nursing Section GG assessment (templateId: 21242851)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21242851, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21242851)
+        self.assertEqual(json_schema["title"], "MHCS Nursing Section GG")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21242851)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust_1 and Cust_2 sections
+        self.assertIn("Cust_1.Page 1", section_keys)
+        self.assertIn("Cust_2.Page 2", section_keys)
+        
+        # Test reverse mapping with a generated valid response
+        model_response = _build_valid_model_response(pcc, 21242851)
+        is_valid, errors = pcc.validate(21242851, model_response)
+        self.assertTrue(is_valid, f"Generated model_response invalid for 21242851: {errors}")
+        
+        result = pcc.engine.reverse_map("MHCS Nursing Section GG", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
+
     def test_mhcs_nursing_admission_assessment(self):
         """Test MHCS Nursing Admission Assessment - V 5 (templateId: 21244981)."""
         pcc = PCCAssessmentSchema()
@@ -1889,14 +1929,14 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("value", fields_by_key[b_key])
 
     def test_all_assessments_registered(self):
-        """Test that all 5 assessment templates are properly registered."""
+        """Test that all 6 assessment templates are properly registered."""
         pcc = PCCAssessmentSchema()
         
-        # Verify all 5 assessments are registered
+        # Verify all 6 assessments are registered
         registered_ids = pcc.list_assessments()
-        expected_ids = [21242733, 21244981, 21242741, 21244831, 21244911]
+        expected_ids = [21242733, 21242851, 21244981, 21242741, 21244831, 21244911]
         
-        self.assertEqual(len(registered_ids), 5)
+        self.assertEqual(len(registered_ids), 6)
         for expected_id in expected_ids:
             self.assertIn(expected_id, registered_ids)
         
@@ -1921,12 +1961,13 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify it returns a list
         self.assertIsInstance(templates, list)
         
-        # Verify it returns 5 templates
-        self.assertEqual(len(templates), 5)
+        # Verify it returns 6 templates
+        self.assertEqual(len(templates), 6)
         
         # Expected template IDs and names
         expected_templates = [
             {"template_id": 21242733, "name": "MHCS IDT 5 Day Section GG"},
+            {"template_id": 21242851, "name": "MHCS Nursing Section GG"},
             {"template_id": 21244981, "name": "MHCS Nursing Admission Assessment - V 5"},
             {"template_id": 21242741, "name": "MHCS Nursing Daily Skilled Note"},
             {"template_id": 21244831, "name": "MHCS Nursing Weekly Skin Check"},
@@ -1953,6 +1994,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Expected field counts (approximate, based on template complexity)
         expected_counts = {
             21242733: 30,   # MHCS IDT 5 Day Section GG - complex assessment (reduced due to gbdy -> object_array)
+            21242851: 50,   # MHCS Nursing Section GG - complex assessment (reduced due to gbdy -> object_array)
             21244981: 60,   # MHCS Nursing Admission Assessment - V 5 - very complex (reduced due to gbdy -> object_array)
             21242741: 20,   # MHCS Nursing Daily Skilled Note - moderate (reduced due to gbdy -> object_array)
             21244831: 5,    # MHCS Nursing Weekly Skin Check - simple (reduced due to gbdy -> object_array)
@@ -1972,6 +2014,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Test each assessment has proper section structure
         assessments = [
             (21242733, "MHCS IDT 5 Day Section GG"),
+            (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
@@ -3238,9 +3281,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         pcc = PCCAssessmentSchema()
         info = pcc.list_assessments_info()
         
-        # Should be a list of 5 entries
+        # Should be a list of 6 entries
         self.assertIsInstance(info, list)
-        self.assertEqual(len(info), 5)
+        self.assertEqual(len(info), 6)
         
         # Validate structure of each entry
         for entry in info:
@@ -3253,6 +3296,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Validate specific expected IDs and names
         expected = {
             21242733: "MHCS IDT 5 Day Section GG",
+            21242851: "MHCS Nursing Section GG",
             21244981: "MHCS Nursing Admission Assessment - V 5",
             21242741: "MHCS Nursing Daily Skilled Note",
             21244831: "MHCS Nursing Weekly Skin Check",
@@ -3339,9 +3383,11 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Assessment IDs and their expected names
         assessments = [
             (21242733, "MHCS IDT 5 Day Section GG"),
+            (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
-            (21244831, "MHCS Nursing Weekly Skin Check")
+            (21244831, "MHCS Nursing Weekly Skin Check"),
+            (21244911, "MHCS Nursing Monthly Summary")
         ]
         
         for assessment_id, assessment_name in assessments:
@@ -3832,6 +3878,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         
         assessments = [
             (21242733, "MHCS IDT 5 Day Section GG"),
+            (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
@@ -4302,7 +4349,7 @@ class TestPCCDatabaseFormat(unittest.TestCase):
 class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
     """
     Test that PCC assessment schemas are compatible with OpenAI JSON schema format.
-    Tests all 5 assessments both without and with enrichment, and verifies reverse_map works.
+    Tests all 6 assessments both without and with enrichment, and verifies reverse_map works.
     
     Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
     Note: Monthly Summary enrichment tests require "Assessment Table - Monthly Summary.csv" file.
@@ -4340,6 +4387,14 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 "csv_key_col": "Key",
                 "csv_value_col": "Guidelines",
                 "template_id": 21242733,
+            },
+            {
+                "name": "MHCS Nursing Section GG",
+                "template_file": "MHCS_Nursing_Section_GG.json",
+                "csv_file": "Assessment Table - Nursing Section GG.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21242851,
             },
             {
                 "name": "MHCS Nursing Admission Assessment - V 5",
@@ -4446,7 +4501,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
         return csv_path
     
     def test_assessments_openai_compatibility_without_enrichment(self):
-        """Test all 5 assessments with OpenAI API without enrichment and verify reverse_map."""
+        """Test all 6 assessments with OpenAI API without enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
         for assessment in self.assessments:
@@ -4499,7 +4554,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 self.assertIsInstance(reverse_mapped["sections"], dict)
     
     def test_assessments_openai_compatibility_with_enrichment(self):
-        """Test all 5 assessments with OpenAI API with enrichment and verify reverse_map."""
+        """Test all 6 assessments with OpenAI API with enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
         for assessment in self.assessments:
@@ -4520,8 +4575,8 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 # Load and apply enrichment from CSV (same config as test_register_and_enrich_all_assessments)
                 csv_path = self.instructions_dir / assessment["csv_file"]
                 if not csv_path.exists():
-                    # Generate dummy CSV for Monthly Summary if missing
-                    if assessment_id == 21244911:  # MHCS Nursing Monthly Summary
+                    # Generate dummy CSV for Monthly Summary or Section GG if missing
+                    if assessment_id in (21244911, 21242851):
                         csv_path = self._generate_dummy_csv_for_assessment(
                             assessment_id,
                             assessment_name,
@@ -4608,8 +4663,8 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
 
                 csv_path = self.instructions_dir / assessment["csv_file"]
                 if not csv_path.exists():
-                    # Generate dummy CSV for Monthly Summary if missing
-                    if assessment_id == 21244911:  # MHCS Nursing Monthly Summary
+                    # Generate dummy CSV for Monthly Summary or Section GG if missing
+                    if assessment_id in (21244911, 21242851):
                         csv_path = self._generate_dummy_csv_for_assessment(
                             assessment_id,
                             assessment_name,

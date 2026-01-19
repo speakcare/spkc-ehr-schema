@@ -61,6 +61,14 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 "template_id": 21242733,
             },
             {
+                "name": "MHCS Nursing Section GG",
+                "template_file": "MHCS_Nursing_Section_GG.json",
+                "csv_file": "Assessment Table - Nursing Section GG.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21242851,
+            },
+            {
                 "name": "MHCS Nursing Admission Assessment - V 5",
                 "template_file": "MHCS_Nursing_Admission_Assessment_-_V_5.json",
                 "csv_file": "Assessment Table - Admission Note.csv",
@@ -202,8 +210,8 @@ class TestPCCEnrichmentFromCSV(unittest.TestCase):
                 
                 # Load CSV model instructions using csv_to_dict
                 csv_file_path = self.instructions_dir / assessment["csv_file"]
-                # Generate dummy CSV for Monthly Summary if missing
-                if not csv_file_path.exists() and assessment["template_id"] == 21244911:
+                # Generate dummy CSV for Monthly Summary or Section GG if missing
+                if not csv_file_path.exists() and assessment["template_id"] in (21244911, 21242851):
                     csv_file_path = self._generate_dummy_csv_for_assessment(
                         assessment["template_id"],
                         assessment["name"],

@@ -257,12 +257,17 @@ class PCCAssessmentSchema:
     JSON schemas, and validating assessment data.
     """
     
-    # Define the 5 assessment templates with their templateId values
+    # Define the 6 assessment templates with their templateId values
     TEMPLATES = [
         {
             "filename": "MHCS_IDT_5_Day_Section_GG.json",
             "template_id": 21242733,
             "name": "MHCS IDT 5 Day Section GG"
+        },
+        {
+            "filename": "MHCS_Nursing_Section_GG.json",
+            "template_id": 21242851,
+            "name": "MHCS Nursing Section GG"
         },
         {
             "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
