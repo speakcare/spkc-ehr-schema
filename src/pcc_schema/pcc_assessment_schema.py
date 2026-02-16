@@ -478,8 +478,10 @@ class PCCAssessmentSchema:
         def get_html_type(original_type, field_schema=None):
             """Determine HTML input type based on PCC field type and characteristics."""
             match original_type:
-                case "rad" | "radh" | "hck":
+                case "rad" | "radh":
                     return "radio_buttons"
+                case "hck":
+                    return "horizontal_single_check"
                 case "cmb":
                     return "combobox"
                 case "chk":
@@ -698,7 +700,7 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("pcc-ui", "dttm", pcc_ui_basic_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "chk", pcc_ui_checkbox_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "diag", pcc_ui_basic_formatter)
-        self.engine.register_reverse_formatter("pcc-ui", "hck", pcc_ui_basic_formatter)
+        self.engine.register_reverse_formatter("pcc-ui", "hck", pcc_ui_single_select_formatter)
 
         self.engine.register_reverse_formatter("pcc-ui", "rad", pcc_ui_single_select_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "radh", pcc_ui_single_select_formatter)

@@ -27,19 +27,44 @@ import os
 from schema_engine.schema_engine import SchemaEngine
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
-_openai_chat_completion = None
+_llm_chat_completion = None
 
-def _get_openai_chat_completion():
-    """Lazy import of openai_chat_completion to avoid import errors during pytest collection."""
-    global _openai_chat_completion
-    if _openai_chat_completion is None:
+def _get_llm_chat_completion():
+    """Lazy import of openai_chat_completion to avoid import errors during pytest collection.
+    
+    Selects the provider based on MODEL_PROVIDER environment variable:
+    - "gemini": uses tests.gemini_client (native Gemini client)
+    - "gemini-openai-wrapper": uses tests.gemini_openai_client (OpenAI-compatible wrapper)
+    - "openai" or default: uses tests.openai_client (OpenAI client)
+    """
+    global _llm_chat_completion
+    if _llm_chat_completion is None:
         try:
-            from tests import openai_client
-            _openai_chat_completion = openai_client.openai_chat_completion
+            model_provider = os.getenv("MODEL_PROVIDER", "").lower()
+            if model_provider == "gemini":
+                from tests import gemini_client
+                # Native Gemini client uses different function name, create wrapper
+                def gemini_wrapper(system_prompt=None, user_prompt=None, json_schema=None, num_choices=1):
+                    # Native client doesn't support num_choices, but we can ignore it for now
+                    return gemini_client.gemini_native_chat_completion(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        json_schema=json_schema
+                    )
+                _llm_chat_completion = gemini_wrapper
+                logging.info("Using Gemini native client for LLM tests")
+            elif model_provider == "gemini-openai-wrapper":
+                from tests import gemini_openai_client
+                _llm_chat_completion = gemini_openai_client.openai_chat_completion
+                logging.info("Using Gemini OpenAI-compatible wrapper for LLM tests")
+            else:
+                from tests import openai_client
+                _llm_chat_completion = openai_client.openai_chat_completion
+                logging.info("Using OpenAI client for LLM tests")
         except (ImportError, ModuleNotFoundError) as e:
             # Return None to allow test to skip - don't fail during import
             return None
-    return _openai_chat_completion
+    return _llm_chat_completion
 
 
 class TestSchemaEngine(unittest.TestCase):
@@ -4424,19 +4449,19 @@ class TestSchemaEngine(unittest.TestCase):
         print(f"\n5. Total fields processed: {len(field_metadata)}")
         print(f"6. Max nesting level used: {max(len(f.get('level_keys', [])) for f in field_metadata)}")
 
-    @unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
-    def test_zoo_openai_schema_compatibility(self):
+    @unittest.skipUnless(os.getenv("RUN_LLM_TESTS") == "true", "LLM tests disabled - set RUN_LLM_TESTS=true")
+    def test_zoo_llm_schema_compatibility(self):
         """
         Test that zoo schema is compatible with OpenAI JSON schema format.
         Tests both before and after enrichment.
         
-        Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
+        Requires RUN_LLM_TESTS=true environment variable and OPENAI_API_KEY.
         """
         engine, table_id, table_name, user_prompt, enrichment_dict = self._setup_zoo_openai_engine()
         
         json_schema = engine.get_json_schema(table_name)
         
-        openai_chat_completion = _get_openai_chat_completion()
+        openai_chat_completion = _get_llm_chat_completion()
         if openai_chat_completion is None:
             self.skipTest("OpenAI chat completion not available - install 'openai' package to run this test")
         response_choices = openai_chat_completion(user_prompt=user_prompt, json_schema=json_schema, num_choices=1)
@@ -4467,8 +4492,8 @@ class TestSchemaEngine(unittest.TestCase):
         enriched_response_content = json.loads(response_choices_enriched[0]["content"])
         self.assertIsInstance(enriched_response_content, dict)
 
-    @unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
-    def test_zoo_overrides_openai_compatibility(self):
+    @unittest.skipUnless(os.getenv("RUN_LLM_TESTS") == "true", "LLM tests disabled - set RUN_LLM_TESTS=true")
+    def test_zoo_overrides_llm_compatibility(self):
         """Ensure zoo overrides remain OpenAI-compatible and lock values correctly."""
         engine, table_id, table_name, user_prompt, _ = self._setup_zoo_openai_engine()
 
@@ -4567,7 +4592,7 @@ class TestSchemaEngine(unittest.TestCase):
         self.assertNotIn("const", resolve(original_schema, food_meta))
         self.assertNotIn("const", resolve(original_schema, diet_meta))
 
-        openai_chat_completion = _get_openai_chat_completion()
+        openai_chat_completion = _get_llm_chat_completion()
         if openai_chat_completion is None:
             self.skipTest("OpenAI chat completion not available - install 'openai' package to run this test")
 

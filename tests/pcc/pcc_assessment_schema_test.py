@@ -21,21 +21,48 @@ from pcc_schema.pcc_assessment_schema import (
     get_all_section_states,
 )
 
+logger = logging.getLogger(__name__)
+
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
-_openai_chat_completion = None
+_llm_chat_completion = None
 
 def _get_openai_chat_completion():
-    """Lazy import of openai_chat_completion to avoid import errors during pytest collection."""
-    global _openai_chat_completion
-    if _openai_chat_completion is None:
+    """Lazy import of openai_chat_completion to avoid import errors during pytest collection.
+    
+    Selects the provider based on MODEL_PROVIDER environment variable:
+    - "gemini": uses tests.gemini_client (native Gemini client)
+    - "gemini-openai-wrapper": uses tests.gemini_openai_client (OpenAI-compatible wrapper)
+    - "openai" or default: uses tests.openai_client (OpenAI client)
+    """
+    global _llm_chat_completion
+    if _llm_chat_completion is None:
         try:
-            #sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'tests'))
-            from tests.openai_client import openai_chat_completion
-            _openai_chat_completion = openai_chat_completion
+            model_provider = os.getenv("MODEL_PROVIDER", "").lower()
+            if model_provider == "gemini":
+                from tests import gemini_client
+                # Native Gemini client uses different function name, create wrapper
+                def gemini_wrapper(system_prompt=None, user_prompt=None, json_schema=None, num_choices=1):
+                    # Native client doesn't support num_choices, but we can ignore it for now
+                    return gemini_client.gemini_native_chat_completion(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        json_schema=json_schema
+                    )
+                _llm_chat_completion = gemini_wrapper
+                logger.info("Using Gemini native client for LLM tests")
+            elif model_provider == "gemini-openai-wrapper":
+                from tests.gemini_openai_client import openai_chat_completion
+                _llm_chat_completion = openai_chat_completion
+                logger.info("Using Gemini OpenAI-compatible wrapper for LLM tests")
+            else:
+                from tests.openai_client import openai_chat_completion
+                _llm_chat_completion = openai_chat_completion
+                logger.info("Using OpenAI client for LLM tests")
         except (ImportError, ModuleNotFoundError) as e:
             # Return None to allow test to skip - don't fail during import
+            print(f"DEBUG: Import error in _get_openai_chat_completion: {e}")
             return None
-    return _openai_chat_completion
+    return _llm_chat_completion
 
 
 def _ensure_dir(path: str) -> None:
@@ -3911,6 +3938,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                 self.assertIsInstance(formatted_output["sections"], dict)  # Now an object, not a list
                 self.assertGreater(len(formatted_output["sections"]), 0)
                 
+                # Track if we've seen hck fields for assessments that should have them
+                hck_fields_found = 0
+                
                 # Verify pcc-ui formatter behavior (fields array format, sections as object)
                 for section_code, section in formatted_output["sections"].items():
                     self.assertIn("fields", section)
@@ -3921,12 +3951,27 @@ class TestPCCAssessmentSchema(unittest.TestCase):
                         self.assertIn("key", field)
                         self.assertIn("type", field)
                         self.assertIn("value", field)
+                        
+                        # Verify hck specific formatting if it's an hck field
+                        if field["type"] == "hck":
+                            hck_fields_found += 1
+                            self.assertEqual(field["html_type"], "horizontal_single_check", 
+                                           f"hck field {field['key']} has wrong html_type")
+                            # Value should be resolved to its code (not None if model generated one)
+                            if field["value"] is not None:
+                                # In our mock generation, hck values (codes) are usually strings
+                                self.assertIsInstance(field["value"], str)
+
                         # Verify type is original schema type (not target type)
                         self.assertIn(field["type"], ["txt", "num", "numde", "dte", "dttm", "chk", "diag", "hck", 
                                                    "rad", "radh", "cmb", "mcs", "mcsh", "gbdy"])
                         
                         # Validate that values conform to field types
                         self._validate_field_value_type(field["type"], field["value"], field["key"])
+
+                # For assessments that should have hck fields, ensure we actually found and verified them
+                if "Nursing Section GG" in assessment_name:
+                    self.assertGreater(hck_fields_found, 0, f"Expected hck fields in {assessment_name} but none were found")
                 
                 # Save formatted output to file
                 filename = f"{assessment_id}_{assessment_name.replace(' ', '_')}_pcc_ui_formatted.json"
@@ -4023,6 +4068,88 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertIsInstance(sections, dict)
         if "Cust.MHCS Nursing Daily Skilled Note" in sections:
             self.assertIsInstance(sections["Cust.MHCS Nursing Daily Skilled Note"], dict)
+
+    def test_hck_formatting(self):
+        """Test that multiple hck fields and other types are correctly formatted for UI."""
+        # Nursing Section GG template ID
+        template_id = 21242851
+        
+        # Mock model response with multiple fields
+        model_response = {
+            "sections": {
+                "Cust_1.Page 1": {
+                    "assessmentQuestionGroups": {
+                        "1": {
+                            "questions": {
+                                "A.Instructions": "Instructions context" # Should be omitted
+                            }
+                        },
+                        "2": {
+                            "questions": {
+                                "A. ": "Independent",
+                                "A1. ": "Resident Refused",
+                                "B. ": "Totally Dependent",
+                                "B1. ": None
+                            }
+                        }
+                    }
+                },
+                "Cust_2.Page 2": {
+                    "assessmentQuestionGroups": {
+                        "2": {
+                            "questions": {
+                                "Q. ": "Set-up or Clean up ONLY"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Reverse map with pcc-ui formatter
+        result = self.pcc_schema.reverse_map(
+            template_id, 
+            model_response, 
+            formatter_name="pcc-ui"
+        )
+        
+        # 1. Verify Section 1 fields
+        section_1 = result["sections"]["Cust_1"]
+        fields_1 = section_1["fields"]
+        
+        # Verify instructions are omitted
+        inst_field = next((f for f in fields_1 if f["key"] == "Cust_1_1_A"), None)
+        self.assertIsNone(inst_field, "Instruction field Cust_1_1_A should be omitted")
+        
+        # Verify hck fields in Section 1
+        hck_a = next((f for f in fields_1 if f["key"] == "Cust_1_2_A"), None)
+        self.assertIsNotNone(hck_a)
+        self.assertEqual(hck_a["html_type"], "horizontal_single_check")
+        self.assertEqual(hck_a["value"], "6") # 'Independent' -> '6'
+        
+        hck_a1 = next((f for f in fields_1 if f["key"] == "Cust_1_2_A1"), None)
+        self.assertIsNotNone(hck_a1)
+        self.assertEqual(hck_a1["html_type"], "horizontal_single_check")
+        self.assertEqual(hck_a1["value"], "7") # 'Resident Refused' -> '7'
+        
+        hck_b = next((f for f in fields_1 if f["key"] == "Cust_1_2_B"), None)
+        self.assertIsNotNone(hck_b)
+        self.assertEqual(hck_b["html_type"], "horizontal_single_check")
+        self.assertEqual(hck_b["value"], "1a") # 'Totally Dependent' -> '1a'
+        
+        hck_b1 = next((f for f in fields_1 if f["key"] == "Cust_1_2_B1"), None)
+        self.assertIsNotNone(hck_b1)
+        self.assertEqual(hck_b1["html_type"], "horizontal_single_check")
+        self.assertIsNone(hck_b1["value"]) # None -> None
+        
+        # 2. Verify Section 2 fields
+        section_2 = result["sections"]["Cust_2"]
+        fields_2 = section_2["fields"]
+        
+        hck_q = next((f for f in fields_2 if f["key"] == "Cust_2_2_Q"), None)
+        self.assertIsNotNone(hck_q)
+        self.assertEqual(hck_q["html_type"], "horizontal_single_check")
+        self.assertEqual(hck_q["value"], "5") # 'Set-up or Clean up ONLY' -> '5'
 
 
 class TestPCCDatabaseFormat(unittest.TestCase):
@@ -4345,13 +4472,13 @@ class TestPCCDatabaseFormat(unittest.TestCase):
         self.assertEqual(loaded_result, result, "Loaded JSON should match original result")
 
 
-@unittest.skipUnless(os.getenv("RUN_OPENAI_TESTS") == "true", "OpenAI tests disabled - set RUN_OPENAI_TESTS=true")
-class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
+@unittest.skipUnless(os.getenv("RUN_LLM_TESTS") == "true", "LLM tests disabled - set RUN_LLM_TESTS=true")
+class TestPCCLLMSchemaCompatibility(unittest.TestCase):
     """
     Test that PCC assessment schemas are compatible with OpenAI JSON schema format.
     Tests all 6 assessments both without and with enrichment, and verifies reverse_map works.
     
-    Requires RUN_OPENAI_TESTS=true environment variable and OPENAI_API_KEY.
+    Requires RUN_LLM_TESTS=true environment variable and OPENAI_API_KEY.
     Note: Monthly Summary enrichment tests require "Assessment Table - Monthly Summary.csv" file.
     """
     
@@ -4500,7 +4627,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
         
         return csv_path
     
-    def test_assessments_openai_compatibility_without_enrichment(self):
+    def test_assessments_llm_compatibility_without_enrichment(self):
         """Test all 6 assessments with OpenAI API without enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
@@ -4553,7 +4680,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 self.assertIn("sections", reverse_mapped)
                 self.assertIsInstance(reverse_mapped["sections"], dict)
     
-    def test_assessments_openai_compatibility_with_enrichment(self):
+    def test_assessments_llm_compatibility_with_enrichment(self):
         """Test all 6 assessments with OpenAI API with enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
@@ -4643,7 +4770,7 @@ class TestPCCOpenAISchemaCompatibility(unittest.TestCase):
                 self.assertIn("sections", reverse_mapped)
                 self.assertIsInstance(reverse_mapped["sections"], dict)
 
-    def test_assessments_openai_compatibility_with_enrichment_and_overrides(self):
+    def test_assessments_llm_compatibility_with_enrichment_and_overrides(self):
         """Test assessments with enrichment plus per-call description overrides to ensure compatibility."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
 
