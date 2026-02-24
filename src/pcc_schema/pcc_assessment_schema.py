@@ -257,7 +257,7 @@ class PCCAssessmentSchema:
     JSON schemas, and validating assessment data.
     """
     
-    # Define the 6 assessment templates with their templateId values
+    # Define the 7 assessment templates with their templateId values
     TEMPLATES = [
         {
             "filename": "MHCS_IDT_5_Day_Section_GG.json",
@@ -273,6 +273,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Admission_Assessment_-_V_5.json", 
             "template_id": 21244981,
             "name": "MHCS Nursing Admission Assessment - V 5"
+        },
+        {
+            "filename": "MHCS_Nursing_Admission_Assessment_-_V 6.json",
+            "template_id": 21245484,
+            "name": "MHCS Nursing Admission Assessment - V 6"
         },
         {
             "filename": "MHCS_Nursing_Daily_Skilled_Note.json",
@@ -712,11 +717,11 @@ class PCCAssessmentSchema:
         self.engine.register_reverse_formatter("pcc-ui", "gbdy", pcc_ui_object_array_formatter)
         self.engine.register_reverse_formatter("pcc-ui", "inst", pcc_ui_instructions_formatter)
         
-        # Load and register the 4 assessment templates
+        # Load and register the 7 assessment templates
         self._load_and_register_templates()
     
     def _load_and_register_templates(self):
-        """Load and register the 4 assessment templates from JSON files."""
+        """Load and register the 7 assessment templates from JSON files."""
         templates_dir = os.path.join(os.path.dirname(__file__), "assmnt_templates")
         
         for template in self.TEMPLATES:

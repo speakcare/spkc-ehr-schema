@@ -11,7 +11,7 @@ import sys
 import os
 from pathlib import Path
 # Add src directory to Python path
-#sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src'))
 from pcc_schema.pcc_assessment_schema import (
     PCCAssessmentSchema,
     PCC_META_SCHEMA,
@@ -1750,6 +1750,56 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         self.assertEqual(len(result["data"]), 1)
         self.assertIsInstance(result["data"][0]["properties"], dict)
 
+    def test_mhcs_nursing_admission_assessment_v6(self):
+        """Test MHCS Nursing Admission Assessment - V 6 (templateId: 21245484)."""
+        pcc = PCCAssessmentSchema()
+        
+        # Verify the assessment is registered
+        self.assertIn(21245484, pcc.list_assessments())
+        
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(21245484)
+        self.assertEqual(json_schema["title"], "MHCS Nursing Admission Assessment - V 6")
+        self.assertIn("sections", json_schema["properties"])
+        
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(21245484)
+        self.assertGreater(len(field_metadata), 0)
+        
+        # Verify we have fields from the expected sections
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        
+        # Should have Cust_1 section (Admission Details, Orientation to Facility and Preferences)
+        self.assertIn("Cust_1.Admission Details, Orientation to Facility and Preferences", section_keys)
+        
+        # Test reverse mapping with sample data
+        model_response = {
+            "table_name": "MHCS Nursing Admission Assessment - V 6",
+            "sections": {
+                "Cust_1.Admission Details, Orientation to Facility and Preferences": {
+                    "assessmentQuestionGroups": {
+                        "A.Admission Details": {
+                            "questions": {
+                                "Resident arrived via:": "Wheelchair"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = pcc.engine.reverse_map("MHCS Nursing Admission Assessment - V 6", model_response)
+        self.assertIn("assessmentDescription", result)  # schema metadata
+        self.assertIn("templateId", result)  # schema metadata
+        self.assertIn("data", result)
+        self.assertIsInstance(result["data"], list)
+        self.assertEqual(len(result["data"]), 1)
+        self.assertIsInstance(result["data"][0]["properties"], dict)
+
     def test_mhcs_nursing_daily_skilled_note(self):
         """Test MHCS Nursing Daily Skilled Note (templateId: 21242741)."""
         pcc = PCCAssessmentSchema()
@@ -1956,14 +2006,14 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("value", fields_by_key[b_key])
 
     def test_all_assessments_registered(self):
-        """Test that all 6 assessment templates are properly registered."""
+        """Test that all 7 assessment templates are properly registered."""
         pcc = PCCAssessmentSchema()
         
-        # Verify all 6 assessments are registered
+        # Verify all 7 assessments are registered
         registered_ids = pcc.list_assessments()
-        expected_ids = [21242733, 21242851, 21244981, 21242741, 21244831, 21244911]
+        expected_ids = [21242733, 21242851, 21244981, 21245484, 21242741, 21244831, 21244911]
         
-        self.assertEqual(len(registered_ids), 6)
+        self.assertEqual(len(registered_ids), 7)
         for expected_id in expected_ids:
             self.assertIn(expected_id, registered_ids)
         
@@ -1988,14 +2038,15 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify it returns a list
         self.assertIsInstance(templates, list)
         
-        # Verify it returns 6 templates
-        self.assertEqual(len(templates), 6)
+        # Verify it returns 7 templates
+        self.assertEqual(len(templates), 7)
         
         # Expected template IDs and names
         expected_templates = [
             {"template_id": 21242733, "name": "MHCS IDT 5 Day Section GG"},
             {"template_id": 21242851, "name": "MHCS Nursing Section GG"},
             {"template_id": 21244981, "name": "MHCS Nursing Admission Assessment - V 5"},
+            {"template_id": 21245484, "name": "MHCS Nursing Admission Assessment - V 6"},
             {"template_id": 21242741, "name": "MHCS Nursing Daily Skilled Note"},
             {"template_id": 21244831, "name": "MHCS Nursing Weekly Skin Check"},
             {"template_id": 21244911, "name": "MHCS Nursing Monthly Summary"}
@@ -2023,6 +2074,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             21242733: 30,   # MHCS IDT 5 Day Section GG - complex assessment (reduced due to gbdy -> object_array)
             21242851: 50,   # MHCS Nursing Section GG - complex assessment (reduced due to gbdy -> object_array)
             21244981: 60,   # MHCS Nursing Admission Assessment - V 5 - very complex (reduced due to gbdy -> object_array)
+            21245484: 60,   # MHCS Nursing Admission Assessment - V 6 - very complex (reduced due to gbdy -> object_array)
             21242741: 20,   # MHCS Nursing Daily Skilled Note - moderate (reduced due to gbdy -> object_array)
             21244831: 5,    # MHCS Nursing Weekly Skin Check - simple (reduced due to gbdy -> object_array)
             21244911: 30    # MHCS Nursing Monthly Summary - moderate complexity (reduced due to gbdy -> object_array)
@@ -2043,6 +2095,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             (21242733, "MHCS IDT 5 Day Section GG"),
             (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21245484, "MHCS Nursing Admission Assessment - V 6"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
             (21244911, "MHCS Nursing Monthly Summary")
@@ -3308,9 +3361,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         pcc = PCCAssessmentSchema()
         info = pcc.list_assessments_info()
         
-        # Should be a list of 6 entries
+        # Should be a list of 7 entries
         self.assertIsInstance(info, list)
-        self.assertEqual(len(info), 6)
+        self.assertEqual(len(info), 7)
         
         # Validate structure of each entry
         for entry in info:
@@ -3325,6 +3378,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             21242733: "MHCS IDT 5 Day Section GG",
             21242851: "MHCS Nursing Section GG",
             21244981: "MHCS Nursing Admission Assessment - V 5",
+            21245484: "MHCS Nursing Admission Assessment - V 6",
             21242741: "MHCS Nursing Daily Skilled Note",
             21244831: "MHCS Nursing Weekly Skin Check",
             21244911: "MHCS Nursing Monthly Summary",
@@ -3412,6 +3466,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             (21242733, "MHCS IDT 5 Day Section GG"),
             (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21245484, "MHCS Nursing Admission Assessment - V 6"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
             (21244911, "MHCS Nursing Monthly Summary")
@@ -3907,6 +3962,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             (21242733, "MHCS IDT 5 Day Section GG"),
             (21242851, "MHCS Nursing Section GG"),
             (21244981, "MHCS Nursing Admission Assessment - V 5"),
+            (21245484, "MHCS Nursing Admission Assessment - V 6"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
             (21244911, "MHCS Nursing Monthly Summary")
@@ -4476,7 +4532,7 @@ class TestPCCDatabaseFormat(unittest.TestCase):
 class TestPCCLLMSchemaCompatibility(unittest.TestCase):
     """
     Test that PCC assessment schemas are compatible with OpenAI JSON schema format.
-    Tests all 6 assessments both without and with enrichment, and verifies reverse_map works.
+    Tests all 7 assessments both without and with enrichment, and verifies reverse_map works.
     
     Requires RUN_LLM_TESTS=true environment variable and OPENAI_API_KEY.
     Note: Monthly Summary enrichment tests require "Assessment Table - Monthly Summary.csv" file.
@@ -4530,6 +4586,14 @@ class TestPCCLLMSchemaCompatibility(unittest.TestCase):
                 "csv_key_col": "Key",
                 "csv_value_col": "Guidelines",
                 "template_id": 21244981,
+            },
+            {
+                "name": "MHCS Nursing Admission Assessment - V 6",
+                "template_file": "MHCS_Nursing_Admission_Assessment_-_V 6.json",
+                "csv_file": "Assessment Table - Admission Note.csv",
+                "csv_key_col": "Key",
+                "csv_value_col": "Guidelines",
+                "template_id": 21245484,
             },
             {
                 "name": "MHCS Nursing Monthly Summary",
@@ -4628,7 +4692,7 @@ class TestPCCLLMSchemaCompatibility(unittest.TestCase):
         return csv_path
     
     def test_assessments_llm_compatibility_without_enrichment(self):
-        """Test all 6 assessments with OpenAI API without enrichment and verify reverse_map."""
+        """Test all 7 assessments with OpenAI API without enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
         for assessment in self.assessments:
@@ -4681,7 +4745,7 @@ class TestPCCLLMSchemaCompatibility(unittest.TestCase):
                 self.assertIsInstance(reverse_mapped["sections"], dict)
     
     def test_assessments_llm_compatibility_with_enrichment(self):
-        """Test all 6 assessments with OpenAI API with enrichment and verify reverse_map."""
+        """Test all 7 assessments with OpenAI API with enrichment and verify reverse_map."""
         user_prompt = "You need to fill in the information for the assessment as defined by the json schema."
         
         for assessment in self.assessments:

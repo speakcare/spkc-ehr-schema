@@ -23,7 +23,7 @@ import json
 import sys
 import os
 # Add src directory to Python path
-#sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from schema_engine.schema_engine import SchemaEngine
 
 # Import openai_chat_completion for OpenAI compatibility tests (lazy import to avoid pytest collection errors)
