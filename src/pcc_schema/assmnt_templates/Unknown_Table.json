@@ -1,0 +1,2746 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "title": "Template 21217107",
+  "properties": {
+    "table_name": {
+      "type": "string",
+      "const": "Template 21217107"
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Cust_1.synthesized": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assessmentQuestionGroups": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "A": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a. List the other change:": {
+                          "description": "List the other change:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Bilateral edema",
+                            "Brockington left eye is red",
+                            "Discharge",
+                            "Low Blood pressure 76/54",
+                            "Need the Gastric Tube removed.",
+                            "Patient became non responsive in the dining room at lunch time. Returned to bed and No vital sign was present. As soon as the chest compression started the patient awaken and was slightly more confused at first.",
+                            "Redness in left eye.",
+                            "Resident talking out her head seeing people that's not there.",
+                            "Rt c/o gum pain to his left, rear, lower gums. He said that \" a piece of my gum came off the other day\".",
+                            "a furuncle on buttock",
+                            "abnormal labs",
+                            "broken tooth",
+                            "congestion",
+                            "fight with another resident",
+                            "impaired g-tube",
+                            "possible syncopal episode/dizzy",
+                            "trouble swallowing food",
+                            null
+                          ]
+                        },
+                        "3. What time of day did this start?": {
+                          "description": "What time of day did this start?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            null
+                          ]
+                        },
+                        "2. This started on:": {
+                          "description": "This started on:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1. The change in condition, symptoms or signs I am calling about is/are:": {
+                          "description": "The change in condition, symptoms or signs I am calling about is/are:  ",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1,8",
+                            "11",
+                            "12",
+                            "12,31",
+                            "17",
+                            "22",
+                            "23",
+                            "23,31",
+                            "24",
+                            "25",
+                            "25,36",
+                            "27",
+                            "28",
+                            "3",
+                            "3,4,11",
+                            "31",
+                            "34",
+                            "35",
+                            "36",
+                            "4,27",
+                            "4,32",
+                            "4,34",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1. Are these the most recent vital signs taken after the change in condition occurred?": {
+                          "description": "Are these the most recent vital signs taken after the change in condition occurred?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "3b. Apical Heart Rate (bpm):": {
+                          "description": "Apical Heart Rate (bpm):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "104",
+                            "58",
+                            "60",
+                            "63",
+                            "64",
+                            "68",
+                            "69",
+                            "72",
+                            "73",
+                            "74",
+                            "80",
+                            "82",
+                            "86",
+                            "87",
+                            "90",
+                            "91",
+                            "92",
+                            "98",
+                            null
+                          ]
+                        },
+                        "6. Most Recent Weight": {
+                          "description": "Most Recent Weight",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2. Most Recent Blood Pressure": {
+                          "description": "Most Recent Blood Pressure",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4. Most Recent Respiration": {
+                          "description": "Most Recent Respiration",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a. Is the respiratory rate greater than 28 per minute or less than 10 per minute ?": {
+                          "description": "Is the respiratory rate greater than 28 per minute or less than 10 per minute ?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "5a. Is the oral temperature greater than 100.5 F/38 C ?": {
+                          "description": "Is the oral temperature greater than 100.5 F/38 C ?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "7a. Is the oxygen saturation less than 90% ?": {
+                          "description": "Is the oxygen saturation less than 90% ?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "9. Is the resident/patient having ALL of the following: Systolic Blood Pressure below 100, Heart Rate above 100, Temperature above 100 and signs/symptoms suggest possible sepsis?": {
+                          "description": "Is the resident/patient having ALL of the following: Systolic Blood Pressure below 100, Heart Rate above 100, Temperature above 100 and signs/symptoms suggest possible sepsis?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "8. Most Recent Blood Glucose": {
+                          "description": "Most Recent Blood Glucose",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a. Is the blood pressure:": {
+                          "description": "Is the blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "3",
+                            null
+                          ]
+                        },
+                        "3a. Is the resting pulse rate:": {
+                          "description": "Is the resting pulse rate:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "3",
+                            null
+                          ]
+                        },
+                        "3. Most Recent Pulse": {
+                          "description": "Most Recent Pulse",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "7. Most Recent O2 sats": {
+                          "description": "Most Recent O2 sats",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5. Most Recent Temperature": {
+                          "description": "Most Recent Temperature",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "C": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a3a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a7a. Specify other pertinent diagnosis(es):": {
+                          "description": "Specify other pertinent diagnosis(es):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "seizures",
+                            null
+                          ]
+                        },
+                        "2b. Additional information as required:": {
+                          "description": "Additional information as required:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "NA",
+                            "Right lobe infiltrate",
+                            "n/a",
+                            "na",
+                            "wounds",
+                            null
+                          ]
+                        },
+                        "3. List any medication changes made in the past week:": {
+                          "description": "List any medication changes made in the past week:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "doxycycline 100mg bid   azithromycin 500mg.daily",
+                            "n/a",
+                            "na",
+                            "none",
+                            "see mar",
+                            null
+                          ]
+                        },
+                        "4a1a. Result of last INR:": {
+                          "description": "Result of last INR:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a1b. Date of last INR:": {
+                          "description": "Date of last INR:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5. Resident/patient is on:": {
+                          "description": "Resident/patient is on:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "7a. Specify other directives:": {
+                          "description": "Specify other directives:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "n/a",
+                            "na",
+                            null
+                          ]
+                        },
+                        "8. Other resident or resident representative preferences for care:": {
+                          "description": "Other resident or resident representative preferences for care:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "n/a",
+                            "na",
+                            "no",
+                            null
+                          ]
+                        },
+                        "4a2a. Resident/patient is on other anticoagulant (direct thrombin inhibitor or platelet inhibitor):": {
+                          "description": "Resident/patient is on other anticoagulant (direct thrombin inhibitor or platelet inhibitor):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a. Additional pertinent diagnosis(es)": {
+                          "description": "Additional pertinent diagnosis(es)",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,3",
+                            "1,5",
+                            "1,5,",
+                            "2",
+                            "2,5",
+                            "3",
+                            "3,",
+                            "3,4",
+                            "3,4,5",
+                            "3,5",
+                            "4",
+                            "4,5",
+                            "4,7",
+                            "5",
+                            "5,",
+                            null
+                          ]
+                        },
+                        "1. Is the resident/patient in the facility for:": {
+                          "description": "Is the resident/patient in the facility for:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "4. Is the resident/patient on warfarin/coumadin?": {
+                          "description": "Is the resident/patient on warfarin/coumadin?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "7. Code Status": {
+                          "description": "Code Status",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Advance Directive: DNR",
+                            "Advance Directive: Resident is a full code. Full Code",
+                            "Advance Directive:Full Code",
+                            "Advance Directive:Full Code,Advance Directive:Full Code",
+                            "DNR",
+                            null
+                          ]
+                        },
+                        "2. Primary Diagnosis:": {
+                          "description": "Primary Diagnosis:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6. Allergies": {
+                          "description": "Allergies",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Cust_2.synthesized": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assessmentQuestionGroups": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "A": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "Ensure an evaluation of the resident/patient's mental and functional status is completed to reflect current status.": {
+                          "description": "Ensure an evaluation of the resident/patient's mental and functional status is completed to reflect current status.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "A1": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a2a. Specify the decreased level of consciousness:": {
+                          "description": "Specify the decreased level of consciousness:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "1a3a. Is this increased confusion:": {
+                          "description": "Is this increased confusion:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "1a4a. Describe the memory loss": {
+                          "description": "Describe the memory loss",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a5a. Describe the new or worsened delusions/hallucinations:": {
+                          "description": "Describe the new or worsened delusions/hallucinations:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "1a6a. Describe other mental status changes:": {
+                          "description": "Describe other mental status changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a8a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Resident was notably restless",
+                            "combativeness, resisting care during shower",
+                            "shaking, possible seizure lasting less  than one minute",
+                            null
+                          ]
+                        },
+                        "1. Describe mental status changes (compared to baseline;  check all that you observe):": {
+                          "description": "Describe mental status changes (compared to baseline;  check all that you observe):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            "3,7",
+                            "5",
+                            "7",
+                            "8",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "A2": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "2a1a. Has there been a decline in the resident/patient's ability to perform the following ADLs?": {
+                          "description": "Has there been a decline in the resident/patient's ability to perform the following ADLs?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,2,3,4,6",
+                            "1,4",
+                            "1,4,5,6",
+                            "4,6",
+                            "5",
+                            null
+                          ]
+                        },
+                        "2a2a. Describe the change in general weakness:": {
+                          "description": "Describe the change in general weakness:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a3a. Describe the decreased mobility:": {
+                          "description": "Describe the decreased mobility:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "2a4a. Is the fall:": {
+                          "description": "Is the fall:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a4b1. Supine blood pressure:": {
+                          "description": "Supine blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "105/58",
+                            "118/51",
+                            "119/73",
+                            "124/74",
+                            "128/78",
+                            "129/83",
+                            "136/60",
+                            "136/74",
+                            "137/68",
+                            "138/82",
+                            null
+                          ]
+                        },
+                        "2a4b2. Date and time of supine BP:": {
+                          "description": "Date and time of supine BP:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2025-11-12 04:18:00.000",
+                            "2026-04-08 05:05:00.000",
+                            "2026-04-11 11:00:00.000",
+                            "2026-04-18 05:00:00.000",
+                            "2026-04-20 21:20:00.000",
+                            "2026-04-22 13:00:00.000",
+                            "2026-04-29 01:40:00.000",
+                            "2026-04-29 09:40:00.000",
+                            "2026-05-09 03:50:00.000",
+                            "2026-05-09 18:30:00.000",
+                            null
+                          ]
+                        },
+                        "2a4b3. Sitting blood pressure:": {
+                          "description": "Sitting blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "104//56",
+                            "124/78",
+                            "128/76",
+                            "136/64",
+                            "138/78",
+                            null
+                          ]
+                        },
+                        "2a4b4. Date and time of sitting blood pressure:": {
+                          "description": "Date and time of sitting blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2026-04-11 11:00:00.000",
+                            "2026-04-18 05:10:00.000",
+                            "2026-04-22 13:05:00.000",
+                            "2026-04-29 09:40:00.000",
+                            "2026-05-12 16:02:00.000",
+                            null
+                          ]
+                        },
+                        "2a4b5. Standing blood pressure:": {
+                          "description": "Standing blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "115/75",
+                            "124/56",
+                            "130/68",
+                            "132/74",
+                            null
+                          ]
+                        },
+                        "2a4b6. Date and time of standing blood pressure:": {
+                          "description": "Date and time of standing blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2026-04-11 11:00:00.000",
+                            "2026-04-18 05:05:00.000",
+                            "2026-04-22 13:10:00.000",
+                            "2026-04-29 09:40:00.000",
+                            null
+                          ]
+                        },
+                        "2a4c. Does the resident/patient have orthostatic hypotension (drop of greater than 20 mmHg systolic from sitting to standing)?": {
+                          "description": "Does the resident/patient have orthostatic hypotension (drop of greater than 20 mmHg systolic from sitting to standing)?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a5a. Describe the swallowing difficulty:": {
+                          "description": "Describe the swallowing difficulty:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "2a7a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "resident with possible syncopal episode",
+                            null
+                          ]
+                        },
+                        "2b. Describe the functional status signs or symptoms:": {
+                          "description": "Describe the functional status signs or symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Altered level of consciousness",
+                            "N/A",
+                            "alert",
+                            "n/a",
+                            "resident unable to perform this ask",
+                            "same",
+                            "unresponsive, unable to follow commands",
+                            null
+                          ]
+                        },
+                        "2. Describe functional status changes:": {
+                          "description": "Describe functional status changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,2",
+                            "1,2,3",
+                            "2",
+                            "4",
+                            "5",
+                            "6",
+                            "7",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "Based on signs and symptoms identified, assess the following body system domains. If the body system domain is not relevant to the change in condition, select \"Not clinically applicable to the change in condition being reported\".": {
+                          "description": "Based on signs and symptoms identified, assess the following body system domains. If the body system domain is not relevant to the change in condition, select \"Not clinically applicable to the change in condition being reported\".",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B1": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a. Describe behavioral changes:": {
+                          "description": "Describe behavioral changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,2",
+                            "1,8",
+                            "3",
+                            "3,4",
+                            "3,8",
+                            "5,8",
+                            "8",
+                            "9",
+                            null
+                          ]
+                        },
+                        "1a1a. Describe physical aggression:": {
+                          "description": "Describe physical aggression:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "1a2a. Describe verbal aggression:": {
+                          "description": "Describe verbal aggression:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "1a3a. Describe personality change:": {
+                          "description": "Describe personality change:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "1a5a. Describe depressive symptoms:": {
+                          "description": "Describe depressive symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a6a. Describe dangerous behavior:": {
+                          "description": "Describe dangerous behavior:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a7a. Describe suicidal behavior:": {
+                          "description": "Describe suicidal behavior:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1b. Describe behavioral changes:": {
+                          "description": "Describe behavioral changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Not talking as much and confusion noted",
+                            "Patient slapped another patient in the face",
+                            "Resident has refused her bed bath this week; aid has seen her crying for no reason and more agitated",
+                            "Rt was hitting her CNA in the shower earlier in the shift",
+                            "hallucinating about dead people",
+                            "irritable, grabbing item from table then dropping them on floor",
+                            "laughing and giggling but not answering any questions asked",
+                            null
+                          ]
+                        },
+                        "1c. Is the resident/patient displaying any of the following signs/symptoms?": {
+                          "description": "Is the resident/patient displaying any of the following signs/symptoms?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "3,4,7",
+                            "8",
+                            null
+                          ]
+                        },
+                        "1. Is a behavioral assessment relevant to the change in condition been reported?": {
+                          "description": "Is a behavioral assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B2": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "2a. Describe respiratory changes:": {
+                          "description": "Describe respiratory changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1,3,4,5",
+                            "1,4",
+                            "6",
+                            "8",
+                            null
+                          ]
+                        },
+                        "2a1a. Describe shortness of breath:": {
+                          "description": "Describe shortness of breath:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a2a. Describe labored breathing:": {
+                          "description": "Describe labored breathing:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a4a. Describe cough:": {
+                          "description": "Describe cough:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a5a. Describe abnormal lung sounds:": {
+                          "description": "Describe abnormal lung sounds: ",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "2a6a. Describe cold-like symptoms:": {
+                          "description": "Describe cold-like symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "2a7a. Describe asthma-like symptoms:": {
+                          "description": "Describe asthma-like symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a8a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "SATS was 50% on room air then placed on O2 then increased to 94%.",
+                            "right lobe infiltrate",
+                            null
+                          ]
+                        },
+                        "2b. Describe respiratory signs and symptoms:": {
+                          "description": "Describe respiratory signs and symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Noted audible wheezing upon examination. productive cough also noted.",
+                            "congestion",
+                            null
+                          ]
+                        },
+                        "2. Is a respiratory assessment relevant to the change in condition been reported?": {
+                          "description": "Is a respiratory assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B3": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "3a. Describe cardiovascular changes:": {
+                          "description": "Describe cardiovascular changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "3",
+                            "6",
+                            null
+                          ]
+                        },
+                        "3a1a. Describe chest pain/tightness:": {
+                          "description": "Describe chest pain/tightness:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a4a. Describe edema:": {
+                          "description": "Describe edema:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5a. Supine blood pressure:": {
+                          "description": "Supine blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5b. Date and time of supine BP:": {
+                          "description": "Date and time of supine BP:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5c. Sitting blood pressure:": {
+                          "description": "Sitting blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5d. Date and time of sitting blood pressure:": {
+                          "description": "Date and time of sitting blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5e. Standing blood pressure:": {
+                          "description": "Standing blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5f. Date and time of standing blood pressure:": {
+                          "description": "Date and time of standing blood pressure:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a5g. Does the resident/patient have orthostatic hypotension (drop of greater than 20 mmHg systolic from sitting to standing)?": {
+                          "description": "Does the resident/patient have orthostatic hypotension (drop of greater than 20 mmHg systolic from sitting to standing)?",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a7a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3b. Describe cardiovascular signs/symptoms:": {
+                          "description": "Describe cardiovascular signs/symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3. Is a cardiovascular assessment relevant to the change in condition been reported?": {
+                          "description": "Is a cardiovascular assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B4": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "4a. Describe abdominal/GI changes:": {
+                          "description": "Describe abdominal/GI changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1,2",
+                            "12",
+                            "4,9",
+                            null
+                          ]
+                        },
+                        "4a10a. Describe jaundice:": {
+                          "description": "Describe jaundice: ",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a11a. Describe bleeding:": {
+                          "description": "Describe bleeding:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a13a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a1a. Describe nausea:": {
+                          "description": "Describe nausea:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "4a1b. Describe vomiting:": {
+                          "description": "Describe vomiting:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "4a2a. Describe diarrhea:": {
+                          "description": "Describe diarrhea:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a3a. Has there been a recent initiation or adjustment of enteral tube feeding?": {
+                          "description": "Has there been a recent initiation or adjustment of enteral tube feeding?",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a3b. Is this recurrent diarrhea after treatment for C.difficile?": {
+                          "description": "Is this recurrent diarrhea after treatment for C.difficile?",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a3c. Describe decreased appetite:": {
+                          "description": "Describe decreased appetite:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a4a. Describe abdominal pain:": {
+                          "description": "Describe abdominal pain:  ",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "4a5a. Describe distention:": {
+                          "description": "Describe distention:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a6a. Describe tenderness:": {
+                          "description": "Describe tenderness:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a7a. Describe bowel sounds:": {
+                          "description": "Describe bowel sounds: ",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a9a. Describe constipation:": {
+                          "description": "Describe constipation:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "4a9b. Date of last BM": {
+                          "description": "Date of last BM",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "20260421",
+                            null
+                          ]
+                        },
+                        "4b. Describe GI signs and symptoms:": {
+                          "description": "Describe GI signs and symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Distension , c/o pain and discomfort",
+                            "incontinent for stool",
+                            null
+                          ]
+                        },
+                        "4. Is an abdominal/GI assessment relevant to the change in condition been reported?": {
+                          "description": "Is an abdominal/GI assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B5": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "5a. Describe genitourinary changes:": {
+                          "description": "Describe genitourinary changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "4",
+                            "8",
+                            null
+                          ]
+                        },
+                        "5a1a. Describe decreased output:": {
+                          "description": "Describe decreased output:  ",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a2a. Describe frequency/urgency:": {
+                          "description": "Describe frequency/urgency:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a3a. Describe dysuria:": {
+                          "description": "Describe dysuria:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a4a. Describe incontinence:": {
+                          "description": "Describe incontinence:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "5a5a. Describe hematuria:": {
+                          "description": "Describe hematuria:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a6a1. Is there new pain or tenderness on testes suggesting epididymitis?": {
+                          "description": "Is there new pain or tenderness on testes suggesting epididymitis?",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a6a2. Is there new purulent discharge from around the urinary catheter associated with acute pain, swelling, or tenderness?": {
+                          "description": "Is there new purulent discharge from around the urinary catheter associated with acute pain, swelling, or tenderness?",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a8a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Greenish mucus-like discharge from Vagins",
+                            null
+                          ]
+                        },
+                        "5b. Describe GU signs and symptoms:": {
+                          "description": "Describe GU signs and symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5. Is a GU/Urine assessment relevant to the change in condition been reported?": {
+                          "description": "Is a GU/Urine assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B6": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "6a. Describe skin changes:": {
+                          "description": "Describe skin changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,15",
+                            "10",
+                            "11",
+                            "13",
+                            "13,15",
+                            "14",
+                            "15",
+                            "2",
+                            "5",
+                            "5,13",
+                            "6,10",
+                            "8",
+                            null
+                          ]
+                        },
+                        "6a10a. Describe the rash:": {
+                          "description": "Describe the rash:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "6a11a. Describe the skin tear:": {
+                          "description": "Describe the skin tear:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "6a12a. Describe the splinter/sliver:": {
+                          "description": "Describe the splinter/sliver:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a13a. Describe the wound:": {
+                          "description": "Describe the wound:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "6a15a. If other, specify:": {
+                          "description": "If other, specify:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "boil on right buttock",
+                            "minor cuts",
+                            "purple discoloration and skin tear RFA",
+                            "swelling at head of penis and split at meatus",
+                            null
+                          ]
+                        },
+                        "6a1a. Describe the abrasion:": {
+                          "description": "Describe the abrasion:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "6a2a. Describe the blister:": {
+                          "description": "Describe the blister:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a3a. Describe the burn:": {
+                          "description": "Describe the burn:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a4a. Describe the contusion:": {
+                          "description": "Describe the contusion:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a5a. Describe the discoloration:": {
+                          "description": "Describe the discoloration:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "6a6a. Describe the itching:": {
+                          "description": "Describe the itching:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "6a7a. Describe the laceration:": {
+                          "description": "Describe the laceration:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a8a. Describe the pressure ulcer/injury:": {
+                          "description": "Describe the pressure ulcer/injury:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "6a9a. Describe the puncture wound:": {
+                          "description": "Describe the puncture wound:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6b. Document location and details:": {
+                          "description": "Document location and details:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6. Is a skin assessment relevant to the change in condition been reported?": {
+                          "description": "Is a skin assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B7": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "7a1a. Rate pain on a scale of 0 to 10 (0=no pain, 4-5=moderate pain, 10=excruciating pain)": {
+                          "description": "Rate pain on a scale of 0 to 10 (0=no pain, 4-5=moderate pain, 10=excruciating pain)",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "3",
+                            "5",
+                            "6",
+                            "7",
+                            "8",
+                            null
+                          ]
+                        },
+                        "7d2a. Describe pain in abdomen:": {
+                          "description": "Describe pain in abdomen:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "7d3a. Describe back pain:": {
+                          "description": "Describe back pain:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "2",
+                            null
+                          ]
+                        },
+                        "7d4a. Describe earache:": {
+                          "description": "Describe earache:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "7d5a. Describe headache:": {
+                          "description": "Describe headache:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "7d7a. Describe sore throat:": {
+                          "description": "Describe sore throat:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "7d8a. Describe toothache:": {
+                          "description": "Describe toothache:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7e. Specify exact location of pain:": {
+                          "description": "Specify exact location of pain:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "13|abdominal pain from constipation||||||||||||||||||||||||||||||||||||||",
+                            "13|pt body tenses and facial grimacing observed with touch ||||||||||||||||||||||||||||||||||||||",
+                            "13|pt body tenses and facial grimacing observed with touch||||||||||||||||||||||||||||||||||||||",
+                            "22|but pain||||||||||||||||||||||||||||||||||||||",
+                            "23|swollen area of head of penis with split near the meatus ||||||||||||||||||||||||||||||||||||||",
+                            "30|pain only when sitting||||||||||||||||||||||||||||||||||||||",
+                            "30||31|||||||||||||||||||||||||||||||||||||",
+                            "31|purple discoloration||||||||||||||||||||||||||||||||||||||",
+                            "4|||||||||||||||||||||||||||||||||||||||",
+                            "50|great right toe, right second toe||||||||||||||||||||||||||||||||||||||",
+                            "Other (specify)|LUE||||||||||||||||||||||||||||||||||||||",
+                            "Other (specify)|left side upper tooth pain||||||||||||||||||||||||||||||||||||||",
+                            "Other (specify)|left, rear, lower gum||||||||||||||||||||||||||||||||||||||",
+                            "|Open area to buttocks/ chronic pain||||||||||||||||||||||||||||||||||||||",
+                            "|||||||||||||||||||||||||||||||||||||||",
+                            null
+                          ]
+                        },
+                        "7. Is a pain assessment relevant to the change in condition been reported?": {
+                          "description": "Is a pain assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7a. Does the resident/patient have pain?": {
+                          "description": "Does the resident/patient have pain?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7a2a. Breathing:": {
+                          "description": "Breathing:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "0",
+                            "1",
+                            null
+                          ]
+                        },
+                        "7a2b. Negative vocalization:": {
+                          "description": "Negative vocalization:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "0",
+                            "1",
+                            null
+                          ]
+                        },
+                        "7a2c. Facial expression:": {
+                          "description": "Facial expression:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7a2d. Body language:": {
+                          "description": "Body language:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "0",
+                            "1",
+                            null
+                          ]
+                        },
+                        "7a2e. Consolability:": {
+                          "description": "Consolability:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "0",
+                            "1",
+                            null
+                          ]
+                        },
+                        "7c. Is the pain:": {
+                          "description": "Is the pain:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7d6a. Describe musculoskeletal pain:": {
+                          "description": "Describe musculoskeletal pain:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "7b. Is the resident/patient cognitively able to rate their pain scale?": {
+                          "description": "Is the resident/patient cognitively able to rate their pain scale?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        },
+                        "7d. Pain location:": {
+                          "description": "Pain location:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            "5",
+                            "6",
+                            "8",
+                            "9",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B8": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "8a. Specify neurological changes:": {
+                          "description": "Specify neurological changes:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,2,4",
+                            "3",
+                            "5",
+                            "6",
+                            "7",
+                            null
+                          ]
+                        },
+                        "8a1a. The change in level of consciousness is:": {
+                          "description": "The change in level of consciousness is:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "8a2a. Describe the weakness/hemiparesis:": {
+                          "description": "Describe the weakness/hemiparesis:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "8a3a. The seizure was:": {
+                          "description": "The seizure was:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "8a4a. Describe slurred speech:": {
+                          "description": "Describe slurred speech:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "8a5a. Is the dizziness/unsteadiness:": {
+                          "description": "Is the dizziness/unsteadiness:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "8a6a. Describe the neurological signs or symptoms:": {
+                          "description": "Describe the neurological signs or symptoms:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Confused",
+                            "Unresponsive,",
+                            "dizziness or unsteadiness",
+                            "irratable",
+                            "lethargic and personality change",
+                            "na",
+                            "no diagnosis or history of seizures. On depakote for mood disorder",
+                            "non responsiveness for brief time",
+                            "resident not acting normally baseline behavior",
+                            null
+                          ]
+                        },
+                        "8. Is a neurological assessment relevant to the change in condition been reported?": {
+                          "description": "Is a neurological assessment relevant to the change in condition been reported?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "C": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a. Complete Blood Count Values:": {
+                          "description": "Complete Blood Count Values:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "4",
+                            null
+                          ]
+                        },
+                        "1a1. Hematocrit result:": {
+                          "description": "Hematocrit result:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a1a. Date of hematocrit:": {
+                          "description": "Date of hematocrit:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a2. Hemoglobin result:": {
+                          "description": "Hemoglobin result:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a2a. Date of hemoglobin:": {
+                          "description": "Date of hemoglobin:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a3. Platelet count:": {
+                          "description": "Platelet count:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a3a. Date of platelet count:": {
+                          "description": "Date of platelet count:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1a4. White blood cell count:": {
+                          "description": "White blood cell count:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "23.17",
+                            null
+                          ]
+                        },
+                        "1a4a. Date of white blood cell count:": {
+                          "description": "Date of white blood cell count:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "20260411",
+                            null
+                          ]
+                        },
+                        "2. Chemistry values:": {
+                          "description": "Chemistry values:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a. Blood glucose:": {
+                          "description": "Blood glucose:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2a1. Date of blood glucose:": {
+                          "description": "Date of blood glucose:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2b. Hb A1c:": {
+                          "description": "Hb A1c:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2b1. Date of Hb A1c:": {
+                          "description": "Date of Hb A1c:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2c. Calcium:": {
+                          "description": "Calcium:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2c1. Calcium date:": {
+                          "description": "Calcium date:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2d. Potassium:": {
+                          "description": "Potassium:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2d1. Date of potassium:": {
+                          "description": "Date of potassium:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2e. Sodium:": {
+                          "description": "Sodium:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2e1. Date of sodium:": {
+                          "description": "Date of sodium:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2f. Albumin:": {
+                          "description": "Albumin:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2f1. Date of Albumin:": {
+                          "description": "Date of Albumin:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2g. Bilirubin:": {
+                          "description": "Bilirubin:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2g1. Date of bilirubin:": {
+                          "description": "Date of bilirubin:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2h. Cholesterol:": {
+                          "description": "Cholesterol:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2h1. Date of cholesterol:": {
+                          "description": "Date of cholesterol:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2i. Triglycerides:": {
+                          "description": "Triglycerides:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2i1. Date of triglycerides:": {
+                          "description": "Date of triglycerides:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2j. Other chemistry values:": {
+                          "description": "Other chemistry values:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "2j1. Date of other chemistries:": {
+                          "description": "Date of other chemistries:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3. Drug levels:": {
+                          "description": "Drug levels:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3a. Drug level results:": {
+                          "description": "Drug level results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3b. Date of drug level:": {
+                          "description": "Date of drug level:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4. INR:": {
+                          "description": "INR:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4a. INR results:": {
+                          "description": "INR results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4b. Date of INR:": {
+                          "description": "Date of INR:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5. Urinalysis:": {
+                          "description": "Urinalysis:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5a. Urinalysis results:": {
+                          "description": "Urinalysis results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Infection",
+                            null
+                          ]
+                        },
+                        "5b. Date of urinalysis:": {
+                          "description": "Date of urinalysis:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "20251227",
+                            "20260509",
+                            null
+                          ]
+                        },
+                        "6. Urine culture:": {
+                          "description": "Urine culture:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "6a. Urine culture results:": {
+                          "description": "Urine culture results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "awaiting result",
+                            null
+                          ]
+                        },
+                        "6b. Date of urine culture:": {
+                          "description": "Date of urine culture:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "20260509",
+                            null
+                          ]
+                        },
+                        "7. X-ray:": {
+                          "description": "X-ray:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "7a. X-ray results:": {
+                          "description": "X-ray results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Awaiting results",
+                            "Right lobe infitrate",
+                            "Unknown",
+                            null
+                          ]
+                        },
+                        "7b. Date of x-ray:": {
+                          "description": "Date of x-ray:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "20260428",
+                            "20260509",
+                            null
+                          ]
+                        },
+                        "8. Other test results:": {
+                          "description": "Other test results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1. Abnormal Results:": {
+                          "description": "Abnormal Results:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "5,6,7",
+                            "7",
+                            "9",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Cust_3.synthesized": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assessmentQuestionGroups": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "A": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a. Things that make the condition or symptom worse are:": {
+                          "description": "Things that make the condition or symptom worse are:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "she has a fever now and the chills",
+                            null
+                          ]
+                        },
+                        "1b. Things that make the condition or symptoms better are:": {
+                          "description": "Things that make the condition or symptoms better are:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "IM steroids",
+                            "rt redirected to bed with walker and call light within reach. prn pain med",
+                            null
+                          ]
+                        },
+                        "1c. Things that make the condition or symptoms unchanged (or unable to determine):": {
+                          "description": "Things that make the condition or symptoms unchanged (or unable to determine):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            ".",
+                            "Eating well and Gastric tube no longer needed.",
+                            "Low blood pressure",
+                            "N/A",
+                            "No change in the resident condition.",
+                            "No change sat this time resident sitting in dinning room",
+                            "Pt does not feel itching or discomfort",
+                            "dc to hospital",
+                            "left unattend",
+                            "monitoring",
+                            "n/a",
+                            "no changes noted",
+                            "none",
+                            "not being turned frequently",
+                            "patient resting",
+                            "patient turned, patient moves self in supine position, does not like to be turned, c/o not being comfortable",
+                            "redirection",
+                            "repositioning",
+                            "resident has congestion",
+                            "still not responding appropiate, not able to follow commands",
+                            "unable to determine",
+                            null
+                          ]
+                        },
+                        "2a. Treatment for the last episode (if applicable):": {
+                          "description": "Treatment for the last episode (if applicable):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Falls",
+                            "Hospitalization",
+                            "Previous small open area",
+                            "antibiotic, neb treatments, mucinex",
+                            "barrier cream",
+                            "monitor",
+                            "neuro checks",
+                            "observation",
+                            "wound care",
+                            "wound tx ordered",
+                            null
+                          ]
+                        },
+                        "3. Other relevant information:": {
+                          "description": "Other relevant information:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Area reported 4/9/26",
+                            "CNA providing incontinent care, discharge has fishy odor.",
+                            "N/A",
+                            "NA",
+                            "None",
+                            "PT currently Plavix",
+                            "Rt refused wound care tx on first attempt. Accepted tx next attempt by this nurse.",
+                            "dc to hospital",
+                            "foul smelling, cloudy urine observed in Foley bag",
+                            "n/a",
+                            "na",
+                            null
+                          ]
+                        },
+                        "4. Summarize your observations, evaluation and recommendations:": {
+                          "description": "Summarize your observations, evaluation and recommendations:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "5. Have you reviewed and acknowledged the notifications?": {
+                          "description": "Have you reviewed and acknowledged the notifications?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "2. This condition, symptom or sign has occurred before:": {
+                          "description": "This condition, symptom or sign has occurred before:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            null
+                          ]
+                        },
+                        "1. Since the change in condition occurred have the symptoms or signs gotten:": {
+                          "description": "Since the change in condition occurred have the symptoms or signs gotten:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            null
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "B": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "1a. If no, please explain": {
+                          "description": "If no, please explain",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "4. Testing (check all that apply):": {
+                          "description": "Testing (check all that apply):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1,3",
+                            "1,3,5",
+                            "3",
+                            "3,4",
+                            "3,5",
+                            "5",
+                            "6",
+                            null
+                          ]
+                        },
+                        "4a. Specify other:": {
+                          "description": "Specify other:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "N/A",
+                            "NA",
+                            "None",
+                            null
+                          ]
+                        },
+                        "5. Interventions (check all that apply):": {
+                          "description": "Interventions (check all that apply):",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "1,5",
+                            "2,3",
+                            "3",
+                            "4",
+                            "5",
+                            null
+                          ]
+                        },
+                        "5a. Specify other:": {
+                          "description": "Specify other:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Dressing to toes",
+                            "IM solumedrol",
+                            "N/A",
+                            "Na",
+                            "None",
+                            "Re educate family and resident on safety",
+                            "dc to hospital",
+                            "transfer resident to hospital",
+                            null
+                          ]
+                        },
+                        "1. Were the change in condition and notifications reported to primary care clinician?": {
+                          "description": "Were the change in condition and notifications reported to primary care clinician?",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            null
+                          ]
+                        },
+                        "2. Date and time of clinician notification:": {
+                          "description": "Date and time of clinician notification:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "3. Recommendation of Primary Clinician(s):": {
+                          "description": "Recommendation of Primary Clinician(s):",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "C": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "2. Date and time of family/ resident representative notification:": {
+                          "description": "Date and time of family/ resident representative notification:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "1. Name of family/resident representative notified:": {
+                          "description": "Name of family/resident representative notified:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "sections"
+  ]
+}

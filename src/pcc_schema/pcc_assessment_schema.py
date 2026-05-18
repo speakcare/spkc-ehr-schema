@@ -293,6 +293,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Monthly_Summary.json",
             "template_id": 21244911,
             "name": "MHCS Nursing Monthly Summary"
+        },
+        {
+            "filename": "Unknown_Table.json",
+            "template_id": 21217107,
+            "name": "Unknown Table"
         }
     ]
     
