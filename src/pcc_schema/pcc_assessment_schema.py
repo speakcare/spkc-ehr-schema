@@ -293,6 +293,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Monthly_Summary.json",
             "template_id": 21244911,
             "name": "MHCS Nursing Monthly Summary"
+        },
+        {
+            "filename": "MHCS_Therapy_-_SLP_Screen.json",
+            "template_id": 21243581,
+            "name": "MHCS Therapy - SLP Screen"
         }
     ]
     
