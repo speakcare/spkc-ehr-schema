@@ -1,0 +1,442 @@
+{
+  "assessmentDescription": "MHCS Therapy - SLP Screen",
+  "facId": -1,
+  "templateId": 21243581,
+  "templateVersion": "",
+  "sections": [
+    {
+      "sectionCode": "Cust",
+      "sectionDescription": "MHCS Therapy - SLP Screen",
+      "sectionSequence": 1,
+      "assessmentQuestionGroups": [
+        {
+          "groupNumber": "01",
+          "groupText": "",
+          "groupTitle": "General Information",
+          "questions": [
+            {
+              "questionKey": "Cust_01_A2",
+              "questionNumber": "A2",
+              "questionText": "Other - please specify",
+              "questionTitle": "",
+              "questionType": "txt",
+              "required": false,
+              "length": 100,
+              "range": "text, sp(100)",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_01_A",
+              "questionNumber": "A",
+              "questionText": "Payer:",
+              "questionTitle": "",
+              "questionType": "mcsh",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Med A",
+                  "responseValue": "a"
+                },
+                {
+                  "responseText": "Med B",
+                  "responseValue": "b"
+                },
+                {
+                  "responseText": "HMO",
+                  "responseValue": "c"
+                },
+                {
+                  "responseText": "Medicaid",
+                  "responseValue": "d"
+                },
+                {
+                  "responseText": "Other (specify below)",
+                  "responseValue": "e"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_01_B",
+              "questionNumber": "B",
+              "questionText": "Reason for screen (select all that apply)",
+              "questionTitle": "",
+              "questionType": "mcsh",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Admit/Readmit",
+                  "responseValue": "a"
+                },
+                {
+                  "responseText": "Quarterly/Annual",
+                  "responseValue": "c"
+                },
+                {
+                  "responseText": "Significant change",
+                  "responseValue": "d"
+                },
+                {
+                  "responseText": "Referral to therapy",
+                  "responseValue": "e"
+                },
+                {
+                  "responseText": "Triggered on QI/QM report",
+                  "responseValue": "f"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "groupNumber": "02",
+          "groupText": "",
+          "groupTitle": "Resident Condition",
+          "questions": [
+            {
+              "questionKey": "Cust_02_4a",
+              "questionNumber": "4a",
+              "questionText": "<i>Examples include but not limited to:  Complaints of food getting stuck or swallowing pain; Complaints of excessive time to eat/poor activity tolerance; Complaints of swallow difficulty due to dental/denture issue; Complaints of discomfort or esophageal symptoms ",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_3a",
+              "questionNumber": "3a",
+              "questionText": "<i>Examples include but not limited to:  Coughing, gagging, or choking during/after swallow; Turning red or changing color during/after swallow; Labored breathing/difficulty speaking during/after swallow.",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_2a",
+              "questionNumber": "2a",
+              "questionText": "<i>Examples include but not limited to:  Food/liquid residue on/around tongue, cheek, gums; Stops chewing and holds food/fluids in mouth for prolonged time; Requires oral care to remove food/liquid from mouth after eating</i>",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_1a",
+              "questionNumber": "1a",
+              "questionText": "<i>Examples include but not limited to:  Food/liquid spilling from lips; Food/liquid residue on lips/cheeks/chin from spillage; Drooling food/liquids when eating</i>",
+              "questionTitle": "",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_A",
+              "questionNumber": "A",
+              "questionText": "Chart review indicates the following conditions are present:",
+              "questionTitle": "CHART REVIEW",
+              "questionType": "mcs",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Aphasia (Expressive, Receptive, Mixed)",
+                  "responseValue": "1"
+                },
+                {
+                  "responseText": "Laryngeal Cancer",
+                  "responseValue": "10"
+                },
+                {
+                  "responseText": "Oral Cancer",
+                  "responseValue": "11"
+                },
+                {
+                  "responseText": "Parkinsons",
+                  "responseValue": "12"
+                },
+                {
+                  "responseText": "None of the Above",
+                  "responseValue": "13"
+                },
+                {
+                  "responseText": "CVA, TIA, Stroke",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Hemiplegia/Hemiparesis",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Traumatic Brain Injury/TBI",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Tracheostomy Care",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "ALS",
+                  "responseValue": "6"
+                },
+                {
+                  "responseText": "Apraxia",
+                  "responseValue": "7"
+                },
+                {
+                  "responseText": "Dysphagia",
+                  "responseValue": "8"
+                },
+                {
+                  "responseText": "Speech/Language Deficit",
+                  "responseValue": "9"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_02_4",
+              "questionNumber": "4",
+              "questionText": "Complaints of difficulty or pain when swallowing",
+              "questionTitle": "",
+              "questionType": "chk",
+              "required": false,
+              "length": 1,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_3",
+              "questionNumber": "3",
+              "questionText": "Coughing or choking during meals or when swallowing medications",
+              "questionTitle": "",
+              "questionType": "chk",
+              "required": false,
+              "length": 1,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_E1",
+              "questionNumber": "E1",
+              "questionText": "Diet Texture",
+              "questionTitle": "Current Diet Orders",
+              "questionType": "radh",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Regular",
+                  "responseValue": "a"
+                },
+                {
+                  "responseText": "Mechanical Soft",
+                  "responseValue": "b"
+                },
+                {
+                  "responseText": "Pureed",
+                  "responseValue": "c"
+                },
+                {
+                  "responseText": "NPO/Enteral intake only",
+                  "responseValue": "d"
+                },
+                {
+                  "responseText": "Other",
+                  "responseValue": "e"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_02_2",
+              "questionNumber": "2",
+              "questionText": "Holding food in mouth/cheeks or residual food in mouth after meals",
+              "questionTitle": "",
+              "questionType": "chk",
+              "required": false,
+              "length": 1,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_E1a",
+              "questionNumber": "E1a",
+              "questionText": "If Other, please describe",
+              "questionTitle": "",
+              "questionType": "txt",
+              "required": false,
+              "length": 50,
+              "range": "text, sp(50)",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_E2",
+              "questionNumber": "E2",
+              "questionText": "Liquids",
+              "questionTitle": "",
+              "questionType": "radh",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Thin",
+                  "responseValue": "a"
+                },
+                {
+                  "responseText": "Nectar Thick",
+                  "responseValue": "b"
+                },
+                {
+                  "responseText": "Honey Thick",
+                  "responseValue": "c"
+                },
+                {
+                  "responseText": "Pudding Thick",
+                  "responseValue": "d"
+                },
+                {
+                  "responseText": "NPO/Enteral intake only",
+                  "responseValue": "e"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_02_1",
+              "questionNumber": "1",
+              "questionText": "Loss of liquids/solids from mouth when eating or drinking",
+              "questionTitle": "",
+              "questionType": "chk",
+              "required": false,
+              "length": 1,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_5",
+              "questionNumber": "5",
+              "questionText": "None of the above",
+              "questionTitle": "",
+              "questionType": "chk",
+              "required": false,
+              "length": 1,
+              "range": "",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_B",
+              "questionNumber": "B",
+              "questionText": "Observed/reported Changes in Condition:",
+              "questionTitle": "OBSERVED/REPORTED",
+              "questionType": "mcs",
+              "required": false,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "Change in cognitive funtion",
+                  "responseValue": "1"
+                },
+                {
+                  "responseText": "Change in safety awareness/judgement",
+                  "responseValue": "2"
+                },
+                {
+                  "responseText": "Change in communication ability",
+                  "responseValue": "3"
+                },
+                {
+                  "responseText": "Need for mechanically altered diet",
+                  "responseValue": "4"
+                },
+                {
+                  "responseText": "Change in oral intake",
+                  "responseValue": "5"
+                },
+                {
+                  "responseText": "Recent weight loss",
+                  "responseValue": "6"
+                },
+                {
+                  "responseText": "Other (specify below)",
+                  "responseValue": "7"
+                }
+              ]
+            },
+            {
+              "questionKey": "Cust_02_B2",
+              "questionNumber": "B2",
+              "questionText": "Specify \"Other\"",
+              "questionTitle": "",
+              "questionType": "txt",
+              "required": false,
+              "length": 100,
+              "range": "text, sp(100)",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_02_D",
+              "questionNumber": "D",
+              "questionText": "The following swallowing difficulties were reported/observed during last 7 days.              Select ALL that apply:",
+              "questionTitle": "SWALLOWING DISORDERS ",
+              "questionType": "inst",
+              "required": false,
+              "length": 50,
+              "range": "",
+              "responseOptions": []
+            }
+          ]
+        },
+        {
+          "groupNumber": "03",
+          "groupText": "",
+          "groupTitle": "Therapy Recommendations",
+          "questions": [
+            {
+              "questionKey": "Cust_03_B",
+              "questionNumber": "B",
+              "questionText": "Additional Comments:",
+              "questionTitle": "",
+              "questionType": "txt",
+              "required": false,
+              "length": 1000,
+              "range": "text, sp(1000)",
+              "responseOptions": []
+            },
+            {
+              "questionKey": "Cust_03_A",
+              "questionNumber": "A",
+              "questionText": "Indicate any therapy follow-up below",
+              "questionTitle": "",
+              "questionType": "mcsh",
+              "required": true,
+              "length": null,
+              "range": "",
+              "responseOptions": [
+                {
+                  "responseText": "SLP Evaluation",
+                  "responseValue": "a"
+                },
+                {
+                  "responseText": "No follow-up needed",
+                  "responseValue": "b"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
