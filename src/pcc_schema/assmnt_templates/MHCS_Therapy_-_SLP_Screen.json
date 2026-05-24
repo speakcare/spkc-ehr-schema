@@ -1,0 +1,324 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "title": "MHCS Therapy - SLP Screen",
+  "properties": {
+    "table_name": {
+      "type": "string",
+      "const": "MHCS Therapy - SLP Screen"
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Cust.MHCS Therapy - SLP Screen": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assessmentQuestionGroups": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "01": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "A2. Other - please specify": {
+                          "description": "Other - please specify",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "A. Payer:": {
+                          "description": "Payer:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "a",
+                            "b",
+                            "c",
+                            "d",
+                            "e",
+                            null
+                          ],
+                          "_response_text": {
+                            "a": "Med A",
+                            "b": "Med B",
+                            "c": "HMO",
+                            "d": "Medicaid",
+                            "e": "Other (specify below)"
+                          }
+                        },
+                        "B. Reason for screen (select all that apply)": {
+                          "description": "Reason for screen (select all that apply)",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "a",
+                            "c",
+                            "d",
+                            "e",
+                            "f",
+                            null
+                          ],
+                          "_response_text": {
+                            "a": "Admit/Readmit",
+                            "c": "Quarterly/Annual",
+                            "d": "Significant change",
+                            "e": "Referral to therapy",
+                            "f": "Triggered on QI/QM report"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "02": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "A. Chart review indicates the following conditions are present:": {
+                          "description": "Chart review indicates the following conditions are present:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "10",
+                            "11",
+                            "12",
+                            "13",
+                            "2",
+                            "3",
+                            "4",
+                            "5",
+                            "6",
+                            "7",
+                            "8",
+                            "9",
+                            null
+                          ],
+                          "_response_text": {
+                            "1": "Aphasia (Expressive, Receptive, Mixed)",
+                            "10": "Laryngeal Cancer",
+                            "11": "Oral Cancer",
+                            "12": "Parkinsons",
+                            "13": "None of the Above",
+                            "2": "CVA, TIA, Stroke",
+                            "3": "Hemiplegia/Hemiparesis",
+                            "4": "Traumatic Brain Injury/TBI",
+                            "5": "Tracheostomy Care",
+                            "6": "ALS",
+                            "7": "Apraxia",
+                            "8": "Dysphagia",
+                            "9": "Speech/Language Deficit"
+                          }
+                        },
+                        "4. Complaints of difficulty or pain when swallowing": {
+                          "description": "Complaints of difficulty or pain when swallowing",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "No",
+                            null
+                          ]
+                        },
+                        "3. Coughing or choking during meals or when swallowing medications": {
+                          "description": "Coughing or choking during meals or when swallowing medications",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "No",
+                            null
+                          ]
+                        },
+                        "E1. Diet Texture": {
+                          "description": "Diet Texture",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "a",
+                            "b",
+                            "c",
+                            "d",
+                            "e",
+                            null
+                          ],
+                          "_response_text": {
+                            "a": "Regular",
+                            "b": "Mechanical Soft",
+                            "c": "Pureed",
+                            "d": "NPO/Enteral intake only",
+                            "e": "Other"
+                          }
+                        },
+                        "2. Holding food in mouth/cheeks or residual food in mouth after meals": {
+                          "description": "Holding food in mouth/cheeks or residual food in mouth after meals",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "No",
+                            null
+                          ]
+                        },
+                        "E1a. If Other, please describe": {
+                          "description": "If Other, please describe",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "E2. Liquids": {
+                          "description": "Liquids",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "a",
+                            "b",
+                            "c",
+                            "d",
+                            "e",
+                            null
+                          ],
+                          "_response_text": {
+                            "a": "Thin",
+                            "b": "Nectar Thick",
+                            "c": "Honey Thick",
+                            "d": "Pudding Thick",
+                            "e": "NPO/Enteral intake only"
+                          }
+                        },
+                        "1. Loss of liquids/solids from mouth when eating or drinking": {
+                          "description": "Loss of liquids/solids from mouth when eating or drinking",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "No",
+                            null
+                          ]
+                        },
+                        "5. None of the above": {
+                          "description": "None of the above",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "Yes",
+                            "No",
+                            null
+                          ]
+                        },
+                        "B. Observed/reported Changes in Condition:": {
+                          "description": "Observed/reported Changes in Condition:",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "1",
+                            "2",
+                            "3",
+                            "4",
+                            "5",
+                            "6",
+                            "7",
+                            null
+                          ],
+                          "_response_text": {
+                            "1": "Change in cognitive funtion",
+                            "2": "Change in safety awareness/judgement",
+                            "3": "Change in communication ability",
+                            "4": "Need for mechanically altered diet",
+                            "5": "Change in oral intake",
+                            "6": "Recent weight loss",
+                            "7": "Other (specify below)"
+                          }
+                        },
+                        "B2. Specify \"Other\"": {
+                          "description": "Specify \"Other\"",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "03": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "questions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "B. Additional Comments:": {
+                          "description": "Additional Comments:",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "A. Indicate any therapy follow-up below": {
+                          "description": "Indicate any therapy follow-up below",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "a",
+                            "b",
+                            null
+                          ],
+                          "_response_text": {
+                            "a": "SLP Evaluation",
+                            "b": "No follow-up needed"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "sections"
+  ]
+}
