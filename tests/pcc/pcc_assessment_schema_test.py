@@ -2005,15 +2005,41 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             self.assertIn("value", fields_by_key[a_key])
             self.assertIn("value", fields_by_key[b_key])
 
+
+    def test_n_adv_clinical_admission(self):
+        """Test N Adv - Clinical Admission (templateId: 703168)."""
+        pcc = PCCAssessmentSchema()
+
+        # Verify the assessment is registered
+        self.assertIn(703168, pcc.list_assessments())
+
+        # Test JSON schema generation
+        json_schema = pcc.get_json_schema(703168)
+        self.assertEqual(json_schema["title"], "N Adv - Clinical Admission")
+        self.assertIn("sections", json_schema["properties"])
+
+        # Test field metadata collection
+        field_metadata = pcc.get_field_metadata(703168)
+        self.assertGreater(len(field_metadata), 0)
+
+        # Verify the first section is reachable via field metadata
+        section_keys = set()
+        for field in field_metadata:
+            level_keys = field.get("level_keys", [])
+            if len(level_keys) > 1 and level_keys[0] == "sections":
+                section_keys.add(level_keys[1])
+        self.assertIn('AS_1.Admission Details', section_keys)
+
     def test_all_assessments_registered(self):
-        """Test that all 7 assessment templates are properly registered."""
+        """Test that all 8 assessment templates are properly registered."""
         pcc = PCCAssessmentSchema()
         
-        # Verify all 7 assessments are registered
+        # Verify all 8 assessments are registered
         registered_ids = pcc.list_assessments()
-        expected_ids = [21242733, 21242851, 21244981, 21245484, 21242741, 21244831, 21244911]
+        expected_ids = [21242733, 21242851, 21244981, 21245484, 21242741, 21244831, 21244911,
+703168]
         
-        self.assertEqual(len(registered_ids), 7)
+        self.assertEqual(len(registered_ids), 8)
         for expected_id in expected_ids:
             self.assertIn(expected_id, registered_ids)
         
@@ -2038,8 +2064,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         # Verify it returns a list
         self.assertIsInstance(templates, list)
         
-        # Verify it returns 7 templates
-        self.assertEqual(len(templates), 7)
+        # Verify it returns 8 templates
+        self.assertEqual(len(templates), 8)
         
         # Expected template IDs and names
         expected_templates = [
@@ -2049,7 +2075,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             {"template_id": 21245484, "name": "MHCS Nursing Admission Assessment - V 6"},
             {"template_id": 21242741, "name": "MHCS Nursing Daily Skilled Note"},
             {"template_id": 21244831, "name": "MHCS Nursing Weekly Skin Check"},
-            {"template_id": 21244911, "name": "MHCS Nursing Monthly Summary"}
+            {"template_id": 21244911, "name": "MHCS Nursing Monthly Summary"},
+            {"template_id": 703168, "name": "N Adv - Clinical Admission"}
         ]
         
         # Verify each template has only template_id and name fields
@@ -2077,7 +2104,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             21245484: 60,   # MHCS Nursing Admission Assessment - V 6 - very complex (reduced due to gbdy -> object_array)
             21242741: 20,   # MHCS Nursing Daily Skilled Note - moderate (reduced due to gbdy -> object_array)
             21244831: 5,    # MHCS Nursing Weekly Skin Check - simple (reduced due to gbdy -> object_array)
-            21244911: 30    # MHCS Nursing Monthly Summary - moderate complexity (reduced due to gbdy -> object_array)
+            21244911: 30,    # MHCS Nursing Monthly Summary - moderate complexity (reduced due to gbdy -> object_array)
+            703168: 2655,   # N Adv - Clinical Admission
         }
         
         for assessment_id, expected_min_count in expected_counts.items():
@@ -2098,7 +2126,8 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             (21245484, "MHCS Nursing Admission Assessment - V 6"),
             (21242741, "MHCS Nursing Daily Skilled Note"),
             (21244831, "MHCS Nursing Weekly Skin Check"),
-            (21244911, "MHCS Nursing Monthly Summary")
+            (21244911, "MHCS Nursing Monthly Summary"),
+            (703168, "N Adv - Clinical Admission")
         ]
         
         for assessment_id, expected_name in assessments:
@@ -3361,9 +3390,9 @@ class TestPCCAssessmentSchema(unittest.TestCase):
         pcc = PCCAssessmentSchema()
         info = pcc.list_assessments_info()
         
-        # Should be a list of 7 entries
+        # Should be a list of 8 entries
         self.assertIsInstance(info, list)
-        self.assertEqual(len(info), 7)
+        self.assertEqual(len(info), 8)
         
         # Validate structure of each entry
         for entry in info:
@@ -3382,6 +3411,7 @@ class TestPCCAssessmentSchema(unittest.TestCase):
             21242741: "MHCS Nursing Daily Skilled Note",
             21244831: "MHCS Nursing Weekly Skin Check",
             21244911: "MHCS Nursing Monthly Summary",
+            703168: "N Adv - Clinical Admission",
         }
         ids = {e["id"] for e in info}
         self.assertEqual(set(expected.keys()), ids)
