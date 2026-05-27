@@ -293,6 +293,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Monthly_Summary.json",
             "template_id": 21244911,
             "name": "MHCS Nursing Monthly Summary"
+        },
+        {
+            "filename": "N_Adv_-_Skilled_Evaluation.json",
+            "template_id": 703058,
+            "name": "N Adv - Skilled Evaluation"
         }
     ]
     
