@@ -293,6 +293,11 @@ class PCCAssessmentSchema:
             "filename": "MHCS_Nursing_Monthly_Summary.json",
             "template_id": 21244911,
             "name": "MHCS Nursing Monthly Summary"
+        },
+        {
+            "filename": "N_Adv_-_Clinical_Admission.json",
+            "template_id": 703168,
+            "name": "N Adv - Clinical Admission"
         }
     ]
     
