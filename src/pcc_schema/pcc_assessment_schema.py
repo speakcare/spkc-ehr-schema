@@ -788,6 +788,18 @@ class PCCAssessmentSchema:
         Operates in place on the parsed JSON. Logs counts per template so
         the noise is visible in CI if the upstream PCC export ever starts
         emitting different placeholder shapes.
+
+        TODO: TEMPORARY. We don't yet know what these null-type rows
+        actually represent in the PCC UI — for the first template that
+        exposed them (703168, N Adv - Clinical Admission) all 40 sit
+        inside the wound-tracking grid in Skingroup with empty
+        questionText, which *looks* like grid scaffolding rather than
+        real questions, but we haven't visually confirmed against the
+        PCC form. Drop them for now so the template can register; once
+        we map the field semantics (probably needs a PCC product /
+        clinical-team walkthrough of one wound entry), replace this
+        strip with either an explicit ignored shape or proper type
+        constraints so we stop silently discarding them.
         """
         dropped = 0
         for section in assessment_schema.get("sections") or []:
