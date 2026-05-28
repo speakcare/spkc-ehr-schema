@@ -325,6 +325,11 @@ class PCCAssessmentSchema:
             "filename": "N_Adv_-_Clinical_Admission.json",
             "template_id": 703168,
             "name": "N Adv - Clinical Admission"
+        },
+        {
+            "filename": "N_Adv_-_Skilled_Evaluation.json",
+            "template_id": 703058,
+            "name": "N Adv - Skilled Evaluation"
         }
     ]
     
