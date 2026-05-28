@@ -50,7 +50,7 @@ PCC_META_SCHEMA = {
                             "type": "questionType",
                             "options": "responseOptions",
                             "validation": {
-                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag", "gbdy"],
+                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag", "gbdy", "mtxt", "ams", "bs"],
                                 "ignored_types": ["bp", "he", "o2", "pnl", "pulse", "resp", "temp", "we", "cp"],
                                 "type_constraints": {
                                     "txt": {
@@ -126,6 +126,33 @@ PCC_META_SCHEMA = {
                                         "requires_options": True,
                                         "options_field": "responseOptions",
                                         "options_extractor": "extract_response_options"
+                                    },
+                                    # PCC "multi-text" — a multi-line freetext box (e.g.
+                                    # "Mood & Behavior Note"). The stored value is still a
+                                    # plain string; "multi" refers to UI height only.
+                                    "mtxt": {
+                                        "target_type": "string",
+                                        "requires_options": False
+                                    },
+                                    # PCC "alert/medical-status checkbox" — each `ams`
+                                    # question is one standalone checkbox; the single
+                                    # responseOption holds the human-readable label
+                                    # (e.g. "Cane/Crutch" inside a "Mobility Devices"
+                                    # group). Same target as `chk`.
+                                    "ams": {
+                                        "target_type": "chk",
+                                        "requires_options": False
+                                    },
+                                    # PCC "blood sugar" widget — a single integer
+                                    # glucose reading in mg/dL. PCC allows 1-600 (the
+                                    # widget's full clinical range), so keep this as
+                                    # positive_integer rather than narrowing the bound
+                                    # here — the schema engine doesn't enforce upper
+                                    # bounds, and a tighter range would reject real
+                                    # critical-high readings clinicians need to log.
+                                    "bs": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
                                     }
                                 }
                             }
@@ -728,13 +755,15 @@ class PCCAssessmentSchema:
     def _load_and_register_templates(self):
         """Load and register the 7 assessment templates from JSON files."""
         templates_dir = os.path.join(os.path.dirname(__file__), "assmnt_templates")
-        
+
         for template in self.TEMPLATES:
             try:
                 file_path = os.path.join(templates_dir, template["filename"])
                 with open(file_path, 'r', encoding='utf-8') as f:
                     assessment_schema = json.load(f)
-                
+
+                self._strip_null_type_questions(assessment_schema, template["filename"])
+
                 # Register the assessment using its templateId
                 assessment_id, assessment_name = self.register_assessment(template["template_id"], assessment_schema)
                 logger.info(f"Successfully registered template: {template['name']} (ID: {assessment_id})")
@@ -742,7 +771,39 @@ class PCCAssessmentSchema:
             except Exception as e:
                 logger.error(f"Failed to load template {template['filename']}: {e}")
                 raise
-    
+
+    @staticmethod
+    def _strip_null_type_questions(assessment_schema: Dict[str, Any], filename: str) -> None:
+        """Drop questions whose ``questionType`` is null or empty (in-place).
+
+        PCC occasionally emits placeholder rows inside repeating groups
+        (e.g. wound-tracking grids in ``Skingroup``) where ``questionType``
+        is ``null`` and ``questionText`` is ``""``. These are not real
+        askable questions — the schema engine has no "ignore-if-type-is-None"
+        rule (``ignored_types`` only matches type *strings*), so without
+        this strip step ``_build_property_schema`` raises
+        ``"Property missing required type field 'questionType'"`` and the
+        whole template fails to register.
+
+        Operates in place on the parsed JSON. Logs counts per template so
+        the noise is visible in CI if the upstream PCC export ever starts
+        emitting different placeholder shapes.
+        """
+        dropped = 0
+        for section in assessment_schema.get("sections") or []:
+            for grp in section.get("assessmentQuestionGroups") or []:
+                questions = grp.get("questions") or []
+                kept = [q for q in questions if q.get("questionType")]
+                if len(kept) != len(questions):
+                    dropped += len(questions) - len(kept)
+                    grp["questions"] = kept
+        if dropped:
+            logger.info(
+                "Stripped %d null-type placeholder question(s) from %s "
+                "before registration",
+                dropped, filename,
+            )
+
     @staticmethod
     def get_assessment_templates_ids() -> List[Dict[str, Any]]:
         """
