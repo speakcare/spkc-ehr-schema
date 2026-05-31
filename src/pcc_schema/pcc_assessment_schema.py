@@ -50,8 +50,8 @@ PCC_META_SCHEMA = {
                             "type": "questionType",
                             "options": "responseOptions",
                             "validation": {
-                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag", "gbdy", "mtxt", "ams", "bs"],
-                                "ignored_types": ["bp", "he", "o2", "pnl", "pulse", "resp", "temp", "we", "cp"],
+                                "allowed_types": ["txt", "dte", "dttm", "rad", "radh", "chk", "mcs", "mcsh", "num", "numde", "hck", "cmb", "inst", "diag", "gbdy", "mtxt", "ams", "bs", "bp", "he", "o2", "pulse", "resp", "temp", "we"],
+                                "ignored_types": ["pnl", "cp"],
                                 "type_constraints": {
                                     "txt": {
                                         "target_type": "string",
@@ -151,6 +151,57 @@ PCC_META_SCHEMA = {
                                     # bounds, and a tighter range would reject real
                                     # critical-high readings clinicians need to log.
                                     "bs": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    # Vital-sign widgets — previously in ignored_types
+                                    # because PCC renders each as a specialised
+                                    # multi-field widget (e.g. BP = systolic +
+                                    # diastolic + position dropdown). The stored
+                                    # PCC value is still a single integer per
+                                    # question; the multi-field UI is presentation-
+                                    # layer only. Promoted to allowed so chart-
+                                    # mapping can generate rules for them and KB
+                                    # can answer "what's the patient's current
+                                    # heart rate / BP / weight / ..." from
+                                    # structured data.
+                                    #
+                                    # Clinical ranges (for downstream rule
+                                    # execution / validation — not enforced here
+                                    # because the engine doesn't accept bounds in
+                                    # type_constraints):
+                                    #   temp   : 94-108  (°F)
+                                    #   bp     : 50-300  (mmHg, systolic or diastolic)
+                                    #   pulse  : 20-300  (bpm)
+                                    #   resp   : 0-40    (breaths/min)
+                                    #   o2     : 60-100  (SpO2 %)
+                                    #   he     : 1-999   (height, inches)
+                                    #   we     : 10-1400 (weight, lbs)
+                                    "temp": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "bp": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "pulse": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "resp": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "o2": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "he": {
+                                        "target_type": "positive_integer",
+                                        "requires_options": False
+                                    },
+                                    "we": {
                                         "target_type": "positive_integer",
                                         "requires_options": False
                                     }
