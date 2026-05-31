@@ -281,6 +281,36 @@ _PACKAGE_DIR = Path(__file__).parent
 _RAW_DIR = _PACKAGE_DIR / "n_adv_templates"
 _CANONICAL_DIR = _PACKAGE_DIR / "assmnt_templates"
 
+# Map PCC's integer template_id (the one consumers like chart-mapping use) to
+# the canonical filename under ``assmnt_templates/``. The raw source's
+# ``templateId`` is a uuid, not this integer -- the integer comes from PCC's
+# materialized export. Hardcoding the mapping keeps the lookup trivial and
+# explicit: extend this dict when a new N Adv template is converted.
+_CANONICAL_BY_TEMPLATE_ID: dict[int, str] = {
+    703058: "N_Adv_-_Skilled_Evaluation_canonical.json",
+    703168: "N_Adv_-_Clinical_Admission_canonical.json",
+}
+
+
+def available_canonical_template_ids() -> list[int]:
+    """Return every PCC template_id that has a canonical JSON shipped in this package."""
+    return sorted(_CANONICAL_BY_TEMPLATE_ID.keys())
+
+
+def load_canonical_template(template_id: int) -> CanonicalTemplate:
+    """Load the canonical-form JSON for a PCC template_id.
+
+    Raises ``KeyError`` if no canonical file is shipped for the given id.
+    Callers can check ``available_canonical_template_ids()`` first.
+    """
+    if template_id not in _CANONICAL_BY_TEMPLATE_ID:
+        raise KeyError(
+            f"No canonical template available for template_id {template_id}; "
+            f"available ids: {available_canonical_template_ids()}"
+        )
+    path = _CANONICAL_DIR / _CANONICAL_BY_TEMPLATE_ID[template_id]
+    return _load_json(path)  # type: ignore[return-value]
+
 
 def _load_json(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as f:

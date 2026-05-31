@@ -16,7 +16,9 @@ import pytest
 from pcc_schema.n_adv_questions import (
     LEAF_WIDGET_TYPES,
     _build_autopopulate_index,
+    available_canonical_template_ids,
     convert_pcc_source,
+    load_canonical_template,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -313,6 +315,27 @@ class TestQuestionCount:
         # Source has 588 leaf widgets; some sections may be dropped here too.
         # Loose bound -- exact number is observed in the generated output.
         assert 400 <= len(_all_questions(admission_canonical)) <= 595
+
+
+class TestCanonicalLoader:
+    """The consumer-facing helpers used by chart-mapping."""
+
+    def test_available_ids(self) -> None:
+        assert available_canonical_template_ids() == [703058, 703168]
+
+    def test_load_skilled(self) -> None:
+        canon = load_canonical_template(703058)
+        assert canon["templateName"] == "N Adv - Skilled Evaluation"
+        assert "Skin" in [s["sectionDescription"] for s in canon["sections"]]
+        assert "MDS" not in [s["sectionDescription"] for s in canon["sections"]]
+
+    def test_load_admission(self) -> None:
+        canon = load_canonical_template(703168)
+        assert canon["templateName"] == "N Adv - Clinical Admission"
+
+    def test_load_unknown_raises(self) -> None:
+        with pytest.raises(KeyError, match="No canonical template"):
+            load_canonical_template(99999999)
 
 
 class TestQuestionShape:
