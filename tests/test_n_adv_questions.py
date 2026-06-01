@@ -30,6 +30,11 @@ BLOOD_PRESSURE_DE_ID = "c3b77774-a2c4-42a8-8312-c727e8c81223"
 HEARING_AID_DE_ID = "b40a8855-1acd-47a5-a59b-7ea76f6ff74e"
 HEART_RATE_CHARACTER_DE_ID = "c1b18a95-1659-4899-b99f-f28d12999942"
 HEART_RATE_CHARACTER_WIDGET_ID = "1fc078f7-fda0-4ab5-a36b-93895a13b742"
+# "Respiratory: shortness of breath" select widget; "z" = "None of the above".
+# The AP - SOB none of the above - MDS rule fans that option out to the MDS
+# "Shortness of breath (none of the above)" checkbox at f4c62b20-...
+SOB_SELECT_WIDGET_ID = "ccd0178f-1f48-4818-8615-5fb3696bb873"
+SOB_NONE_MDS_TARGET = "f4c62b20-6652-4e12-9b26-0f8bab4f3180"
 MOBILITY_DE_IDS = {
     "00e03579-b6ed-453c-a541-ab55a413fe40",  # Cane/Crutch
     "51fd73ee-c7ed-41d9-a2d8-b70bf8b13c48",  # Walker
@@ -261,6 +266,58 @@ class TestMDSSectionDropped:
     def test_mds_absent(self, skilled_canonical: dict[str, Any]) -> None:
         names = [s["sectionDescription"] for s in skilled_canonical["sections"]]
         assert "MDS" not in names
+
+
+class TestResponseOptionTargetQuestionKeys:
+    """Each canonical responseOption carries the MDS-target widget UUIDs
+    that the autoPopulate rules fill in when that option is picked.
+    Without this mapping, scoring against actuals keyed by the
+    materialized exploded-checkbox UUID has nothing to match against
+    the canonical select+option rule the operator authored."""
+
+    def test_sob_none_of_the_above_maps_to_mds_checkbox(
+        self, skilled_canonical: dict[str, Any]
+    ) -> None:
+        # Walk all canonical questions, find the Respiratory SOB select.
+        sob = None
+        for s in skilled_canonical["sections"]:
+            for g in s["assessmentQuestionGroups"]:
+                for q in g["questions"]:
+                    if q["questionKey"] == SOB_SELECT_WIDGET_ID:
+                        sob = q
+                        break
+        assert sob is not None, "expected canonical SOB select"
+        # Locate the "z" (None of the above) option.
+        z_opt = next(
+            (o for o in sob["responseOptions"] if o["responseValue"] == "z"),
+            None,
+        )
+        assert z_opt is not None
+        assert SOB_NONE_MDS_TARGET in z_opt["targetQuestionKeys"], (
+            f"expected MDS target {SOB_NONE_MDS_TARGET} on the 'z' option"
+        )
+
+    def test_options_without_autopopulate_have_empty_targets(
+        self, skilled_canonical: dict[str, Any]
+    ) -> None:
+        # The "Position" select on Blood Pressure doesn't drive MDS — its
+        # responseOptions should all carry targetQuestionKeys=[].
+        for s in skilled_canonical["sections"]:
+            if s["sectionDescription"] != "Vitals":
+                continue
+            for q in (
+                q for g in s["assessmentQuestionGroups"] for q in g["questions"]
+            ):
+                if (
+                    q["dataElementId"] == BLOOD_PRESSURE_DE_ID
+                    and "Position" in q["questionText"]
+                ):
+                    for opt in q["responseOptions"]:
+                        assert opt["targetQuestionKeys"] == []
+                    return
+        # If we never found Blood Pressure's Position select, fail loudly
+        # so the test doesn't silently regress to "no asserts ran".
+        raise AssertionError("did not encounter Blood Pressure Position")
 
 
 class TestAutoPopulateFlag:

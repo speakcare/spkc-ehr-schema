@@ -36,6 +36,15 @@ CONTAINER_TYPES: frozenset[str] = frozenset(
 class ResponseOption(TypedDict):
     responseText: str
     responseValue: str
+    # Widget UUIDs that get auto-populated when this option is selected.
+    # Built from the template's autoPopulate rules: every rule where the
+    # condition is (this widget, this responseValue) contributes its
+    # action targets here. Empty list when no autoPopulate rule fires
+    # for this option. Used by downstream scoring code to translate a
+    # MDS-style "checkbox-per-option" actual back to (canonical select,
+    # canonical value) so accuracy matches against the rules the
+    # operator actually authored. See plan.md.
+    targetQuestionKeys: list[str]
 
 
 class Question(TypedDict):
@@ -94,9 +103,11 @@ def convert_pcc_source(source: dict[str, Any]) -> CanonicalTemplate:
         for de in source.get("usedDataElements", {}).get("dataElements", [])
         if de.get("dataElementId")
     }
-    ap_index = _build_autopopulate_index(source.get("rules", []) or [])
+    rules = source.get("rules", []) or []
+    ap_index = _build_autopopulate_index(rules)
+    option_targets_index = _build_option_to_targets_index(rules)
     raw_sections = [
-        _walk_section(section, de_index, ap_index)
+        _walk_section(section, de_index, ap_index, option_targets_index)
         for section in source.get("sections", [])
     ]
     # Drop sections where every question is autopopulated (PCC's UI hides them
@@ -155,6 +166,58 @@ def _collect_condition_paths(node: Any) -> set[str]:
     return paths
 
 
+def _collect_condition_pairs(node: Any) -> set[tuple[str, str]]:
+    """Recursively gather every ``(condition.path, condition.value)``.
+
+    Only pairs with a non-empty ``value`` are returned (a condition that
+    only checks "any answer" isn't a per-option signal).
+    """
+    pairs: set[tuple[str, str]] = set()
+    if isinstance(node, dict):
+        if node.get("type") == "condition" and node.get("path"):
+            v = node.get("value")
+            if v is not None and v != "":
+                pairs.add((node["path"], str(v)))
+        for value in node.values():
+            pairs.update(_collect_condition_pairs(value))
+    elif isinstance(node, list):
+        for item in node:
+            pairs.update(_collect_condition_pairs(item))
+    return pairs
+
+
+def _build_option_to_targets_index(
+    rules: list[dict[str, Any]],
+) -> dict[tuple[str, str], list[str]]:
+    """Map ``(source_widget_id, source_value)`` -> sorted target widget ids.
+
+    For every autoPopulate rule, attribute each condition's
+    ``(path, value)`` pair to the rule's action targets. Multiple rules
+    that share a condition + target are deduped. The result lets the
+    canonical emit a ``targetQuestionKeys`` list on each
+    ``responseOption`` so a downstream consumer can translate an
+    auto-populated MDS-target actual back to the canonical
+    (widget, value) that drove it.
+    """
+    out: dict[tuple[str, str], set[str]] = {}
+    for rule in rules:
+        targets = [
+            action.get("path")
+            for action in (rule.get("action") or [])
+            if isinstance(action, dict)
+            and action.get("name") == "autoPopulate"
+            and action.get("path")
+        ]
+        if not targets:
+            continue
+        pairs = _collect_condition_pairs(rule.get("conditions"))
+        for (src_path, src_value) in pairs:
+            bucket = out.setdefault((src_path, src_value), set())
+            for tgt in targets:
+                bucket.add(tgt)
+    return {key: sorted(targets) for key, targets in out.items()}
+
+
 def _is_fully_autopopulated(section: CanonicalSection) -> bool:
     """True if the section has at least one question and every one is autopopulated."""
     questions: list[Question] = [
@@ -173,12 +236,18 @@ def _walk_section(
     section: dict[str, Any],
     de_index: dict[str, dict[str, Any]],
     ap_index: dict[str, list[str]],
+    option_targets_index: dict[tuple[str, str], list[str]],
 ) -> CanonicalSection:
     section_name = section.get("name") or ""
     assessment_groups: list[AssessmentQuestionGroup] = []
     repeated_groups: list[RepeatedQuestionGroup] = []
     for group_idx, group in enumerate(section.get("groups", []), start=1):
-        result = _walk_contents(group.get("contents", []), de_index, ap_index)
+        result = _walk_contents(
+            group.get("contents", []),
+            de_index,
+            ap_index,
+            option_targets_index,
+        )
         if result.questions:
             assessment_groups.append(
                 {
@@ -249,6 +318,7 @@ def _walk_contents(
     contents: list[dict[str, Any]],
     de_index: dict[str, dict[str, Any]],
     ap_index: dict[str, list[str]],
+    option_targets_index: dict[tuple[str, str], list[str]],
 ) -> _WalkResult:
     result = _WalkResult()
     for content in contents:
@@ -264,12 +334,20 @@ def _walk_contents(
             if de is None:
                 continue
             result.extend(
-                _walk_composition(de.get("composition", []), de, ap_index)
+                _walk_composition(
+                    de.get("composition", []),
+                    de,
+                    ap_index,
+                    option_targets_index,
+                )
             )
         elif t == "dataElementLayout":
             result.extend(
                 _walk_contents(
-                    content.get("dataElements", []), de_index, ap_index
+                    content.get("dataElements", []),
+                    de_index,
+                    ap_index,
+                    option_targets_index,
                 )
             )
     return result
@@ -279,6 +357,7 @@ def _walk_composition(
     composition: list[dict[str, Any]],
     parent_de: dict[str, Any],
     ap_index: dict[str, list[str]],
+    option_targets_index: dict[tuple[str, str], list[str]],
 ) -> _WalkResult:
     result = _WalkResult()
     de_id = parent_de.get("dataElementId", "")
@@ -289,6 +368,7 @@ def _walk_composition(
                 entry.get("imageMapControls", {}).get("composition", []),
                 parent_de,
                 ap_index,
+                option_targets_index,
             )
             result.repeats.append(
                 {
@@ -302,6 +382,18 @@ def _walk_composition(
         elif t in LEAF_WIDGET_TYPES:
             widget_id = entry.get("id") or ""
             sources = ap_index.get(widget_id, [])
+            response_options: list[ResponseOption] = []
+            for opt in (entry.get("options") or []):
+                opt_value = str(opt.get("value", ""))
+                response_options.append(
+                    {
+                        "responseText": str(opt.get("text", "")),
+                        "responseValue": opt_value,
+                        "targetQuestionKeys": option_targets_index.get(
+                            (widget_id, opt_value), []
+                        ),
+                    }
+                )
             result.questions.append(
                 {
                     "questionKey": widget_id,
@@ -309,20 +401,19 @@ def _walk_composition(
                     "questionText": entry.get("label") or entry.get("name") or "",
                     "widgetType": str(t),
                     "required": bool(entry.get("required", False)),
-                    "responseOptions": [
-                        {
-                            "responseText": str(opt.get("text", "")),
-                            "responseValue": str(opt.get("value", "")),
-                        }
-                        for opt in (entry.get("options") or [])
-                    ],
+                    "responseOptions": response_options,
                     "isAutoPopulated": bool(sources),
                     "sourceQuestionKeys": list(sources),
                 }
             )
         elif t in CONTAINER_TYPES:
             result.extend(
-                _walk_composition(entry.get("composition", []), parent_de, ap_index)
+                _walk_composition(
+                    entry.get("composition", []),
+                    parent_de,
+                    ap_index,
+                    option_targets_index,
+                )
             )
     return result
 
