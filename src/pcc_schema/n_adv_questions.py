@@ -174,6 +174,7 @@ def _walk_section(
     de_index: dict[str, dict[str, Any]],
     ap_index: dict[str, list[str]],
 ) -> CanonicalSection:
+    section_name = section.get("name") or ""
     assessment_groups: list[AssessmentQuestionGroup] = []
     repeated_groups: list[RepeatedQuestionGroup] = []
     for group_idx, group in enumerate(section.get("groups", []), start=1):
@@ -187,12 +188,61 @@ def _walk_section(
                 }
             )
         repeated_groups.extend(result.repeats)
+
+    # Enrich every emitted question's questionText with section + parent
+    # dataElement context so downstream consumers (chart-mapping prefill,
+    # KB rule prompts, etc.) get usable prose without re-deriving it.
+    # Pattern: "<section>: <dataElement.name> (<widget.label>)", collapsing
+    # the parenthetical when the widget label equals the dataElement name.
+    for group_obj in assessment_groups:
+        for q in group_obj["questions"]:
+            parent_name = de_index.get(q["dataElementId"], {}).get("name", "")
+            q["questionText"] = _compose_question_text(
+                section_name=section_name,
+                parent_name=parent_name,
+                widget_label=q["questionText"],
+            )
+    for repeat in repeated_groups:
+        # For repeated groups the parent dataElement IS the slotKind, so
+        # reuse it as the contextual prefix.
+        parent_name = repeat.get("slotKind", "")
+        for q in repeat["questions"]:
+            q["questionText"] = _compose_question_text(
+                section_name=section_name,
+                parent_name=parent_name,
+                widget_label=q["questionText"],
+            )
+
     return {
-        "sectionDescription": section.get("name") or "",
+        "sectionDescription": section_name,
         "sectionSequence": 0,  # reassigned after section-drop filter
         "assessmentQuestionGroups": assessment_groups,
         "repeatedQuestionGroups": repeated_groups,
     }
+
+
+def _compose_question_text(
+    *, section_name: str, parent_name: str, widget_label: str
+) -> str:
+    """Build the enriched ``questionText`` from section + dataElement context.
+
+    Examples:
+        "Vitals", "Blood Pressure", "Systolic"
+            -> "Vitals: Blood Pressure (Systolic)"
+        "Vitals", "Heart Rate Character", "Heart Rate Character"
+            -> "Vitals: Heart Rate Character"      (widget label deduped)
+        "Skin",   "Skin Issues",          "Location"
+            -> "Skin: Skin Issues (Location)"
+    """
+    parent = parent_name.strip()
+    label = widget_label.strip()
+    if parent and label and parent != label:
+        body = f"{parent} ({label})"
+    else:
+        body = parent or label
+    if section_name and body:
+        return f"{section_name}: {body}"
+    return body or section_name
 
 
 def _walk_contents(

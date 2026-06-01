@@ -26,6 +26,7 @@ RAW_DIR = REPO_ROOT / "src" / "pcc_schema" / "n_adv_templates"
 
 # Stable IDs from the raw source files (verified via jq).
 BODY_TEMPERATURE_DE_ID = "23f47d86-207b-43f2-b406-0b6c8da247c2"
+BLOOD_PRESSURE_DE_ID = "c3b77774-a2c4-42a8-8312-c727e8c81223"
 HEARING_AID_DE_ID = "b40a8855-1acd-47a5-a59b-7ea76f6ff74e"
 HEART_RATE_CHARACTER_DE_ID = "c1b18a95-1659-4899-b99f-f28d12999942"
 HEART_RATE_CHARACTER_WIDGET_ID = "1fc078f7-fda0-4ab5-a36b-93895a13b742"
@@ -143,6 +144,53 @@ class TestBodyTemperature:
         ]
 
 
+class TestQuestionTextEnrichment:
+    """questionText is composed as '<section>: <dataElement> (<widget label>)'.
+
+    Without this prefix, widget labels like "Systolic" / "Diastolic" /
+    "Location" carry no clinical context to a downstream LLM. The enrichment
+    makes each row self-describing.
+    """
+
+    def test_blood_pressure(self, skilled_canonical: dict[str, Any]) -> None:
+        vitals = _section(skilled_canonical, "Vitals")
+        bp = [
+            q
+            for q in _questions_in_section(vitals)
+            if q["dataElementId"] == BLOOD_PRESSURE_DE_ID
+        ]
+        labels = {q["questionText"] for q in bp}
+        assert "Vitals: Blood Pressure (Systolic)" in labels
+        assert "Vitals: Blood Pressure (Diastolic)" in labels
+
+    def test_heart_rate_character_dedupes_when_label_equals_parent(
+        self, skilled_canonical: dict[str, Any]
+    ) -> None:
+        # Heart Rate Character dataElement contains a single select whose
+        # label IS "Heart Rate Character" -- the parenthetical should collapse.
+        vitals = _section(skilled_canonical, "Vitals")
+        hrc = [
+            q
+            for q in _questions_in_section(vitals)
+            if q["dataElementId"] == HEART_RATE_CHARACTER_DE_ID
+        ]
+        assert len(hrc) == 1
+        assert hrc[0]["questionText"] == "Vitals: Heart Rate Character"
+
+    def test_skin_repeated_carries_slot_kind(
+        self, skilled_canonical: dict[str, Any]
+    ) -> None:
+        skin = _section(skilled_canonical, "Skin")
+        repeat = skin["repeatedQuestionGroups"][0]
+        # Pick a recognisable per-slot question (Location is the imageMap's
+        # anatomical select).
+        locations = [
+            q for q in repeat["questions"] if q["questionText"].endswith("(Location)")
+        ]
+        assert locations, "expected a Location question inside Skin Issues slot"
+        assert locations[0]["questionText"] == "Skin: Skin Issues (Location)"
+
+
 class TestHearingAid:
     """Acceptance criterion 4: Hearing Aid(s) -> 3 inner checkboxes flattened to 3 questions."""
 
@@ -155,8 +203,20 @@ class TestHearingAid:
         ]
         assert len(hearing_aid) == 3
         assert all(q["widgetType"] == "checkbox" for q in hearing_aid)
+        # Enriched questionText: "<section>: <parent> (<widget label>)";
+        # the inner-checkbox label dedupe folds the "Hearing Aid(s)" widget
+        # against the "Hearing Aid(s) - Care Profile" parent (they differ, so
+        # both appear) — we just assert the section + parent prefix is there.
+        for q in hearing_aid:
+            assert q["questionText"].startswith(
+                "EENT: Hearing Aid(s) - Care Profile"
+            )
         labels = {q["questionText"] for q in hearing_aid}
-        assert labels == {"Hearing Aid(s)", "Left", "Right"}
+        assert labels == {
+            "EENT: Hearing Aid(s) - Care Profile (Hearing Aid(s))",
+            "EENT: Hearing Aid(s) - Care Profile (Left)",
+            "EENT: Hearing Aid(s) - Care Profile (Right)",
+        }
 
 
 class TestMobilityStaysSeparate:
