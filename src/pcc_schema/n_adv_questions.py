@@ -32,6 +32,19 @@ CONTAINER_TYPES: frozenset[str] = frozenset(
     {"container", "imageMapControlsSection"}
 )
 
+# Map source PCC widget type -> the questionType short codes the existing
+# materialized schema already uses (txt/rad/chk/dte). Emitting these in the
+# canonical means downstream `PCCAssessmentSchema` can register the canonical
+# template via the same `register_assessment` path the materialized templates
+# use, without an intermediate type-mapping layer.
+_WIDGET_TO_QUESTION_TYPE: dict[str, str] = {
+    "textbox": "txt",
+    "radio": "rad",
+    "select": "rad",  # PCC's materialized form uses "rad" for single-pick selects too
+    "checkbox": "chk",
+    "date": "dte",
+}
+
 
 class ResponseOption(TypedDict):
     responseText: str
@@ -51,7 +64,7 @@ class Question(TypedDict):
     questionKey: str
     dataElementId: str
     questionText: str
-    widgetType: str
+    questionType: str   # PCC short code: txt / rad / chk / dte
     required: bool
     responseOptions: list[ResponseOption]
     isAutoPopulated: bool
@@ -399,7 +412,7 @@ def _walk_composition(
                     "questionKey": widget_id,
                     "dataElementId": de_id,
                     "questionText": entry.get("label") or entry.get("name") or "",
-                    "widgetType": str(t),
+                    "questionType": _WIDGET_TO_QUESTION_TYPE.get(str(t), str(t)),
                     "required": bool(entry.get("required", False)),
                     "responseOptions": response_options,
                     "isAutoPopulated": bool(sources),

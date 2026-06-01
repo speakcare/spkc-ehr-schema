@@ -143,10 +143,9 @@ class TestBodyTemperature:
             if q["dataElementId"] == BODY_TEMPERATURE_DE_ID
         ]
         assert len(bt_questions) == 2
-        assert sorted(q["widgetType"] for q in bt_questions) == [
-            "select",
-            "textbox",
-        ]
+        # Body Temperature is a textbox + a select; both materialize as PCC
+        # short codes "txt" and "rad" (select == rad in PCC's vocabulary).
+        assert sorted(q["questionType"] for q in bt_questions) == ["rad", "txt"]
 
 
 class TestQuestionTextEnrichment:
@@ -207,7 +206,7 @@ class TestHearingAid:
             if q["dataElementId"] == HEARING_AID_DE_ID
         ]
         assert len(hearing_aid) == 3
-        assert all(q["widgetType"] == "checkbox" for q in hearing_aid)
+        assert all(q["questionType"] == "chk" for q in hearing_aid)
         # Enriched questionText: "<section>: <parent> (<widget label>)";
         # the inner-checkbox label dedupe folds the "Hearing Aid(s)" widget
         # against the "Hearing Aid(s) - Care Profile" parent (they differ, so
@@ -456,14 +455,16 @@ class TestCanonicalLoader:
 
 
 class TestQuestionShape:
-    """Every emitted question has the required keys and a valid widget type."""
+    """Every emitted question has the required keys and a PCC questionType code."""
+
+    _ALLOWED_QTYPES = {"txt", "rad", "chk", "dte"}
 
     def test_required_keys(self, skilled_canonical: dict[str, Any]) -> None:
         required = {
             "questionKey",
             "dataElementId",
             "questionText",
-            "widgetType",
+            "questionType",
             "required",
             "responseOptions",
             "isAutoPopulated",
@@ -471,7 +472,7 @@ class TestQuestionShape:
         }
         for q in _all_questions(skilled_canonical):
             assert required <= q.keys()
-            assert q["widgetType"] in LEAF_WIDGET_TYPES
+            assert q["questionType"] in self._ALLOWED_QTYPES
             assert q["questionKey"]  # non-empty
             assert q["dataElementId"]  # non-empty
             assert isinstance(q["responseOptions"], list)
